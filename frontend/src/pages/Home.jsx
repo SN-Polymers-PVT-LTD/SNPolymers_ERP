@@ -11,9 +11,7 @@ const Home = () => {
       <header className="border-b border-admin-border/80 bg-admin-bg/95 backdrop-blur sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="h-10 w-10 rounded-md bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center font-bold text-slate-100 text-base shadow-md border border-amber-500/20">
-              SNP
-            </div>
+            <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-10 w-auto object-contain" />
             <div className="flex flex-col">
               <span className="font-bold text-sm tracking-wider text-slate-100 uppercase">
                 S.N. Polymers

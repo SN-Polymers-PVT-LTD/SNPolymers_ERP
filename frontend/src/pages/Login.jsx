@@ -44,9 +44,7 @@ const Login = () => {
         
         {/* Seal and Title */}
         <div className="text-center mb-8">
-          <div className="h-12 w-12 rounded bg-gradient-to-br from-amber-600 to-amber-700 mx-auto flex items-center justify-center font-bold text-slate-100 text-lg border border-amber-500/20 mb-4">
-            SNP
-          </div>
+          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-16 w-auto mx-auto mb-4 object-contain" />
           <h2 className="text-xl font-bold uppercase tracking-wider text-slate-100">Portal Authentication</h2>
           <span className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold block mt-1">
             Office Console Verification

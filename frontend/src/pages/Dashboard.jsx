@@ -12,9 +12,7 @@ const Dashboard = () => {
       <header className="border-b border-admin-border/80 bg-admin-bg/95 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded bg-gradient-to-br from-amber-600 to-amber-700 flex items-center justify-center font-bold text-slate-100 text-sm shadow">
-              SNP
-            </div>
+            <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-8 w-auto object-contain" />
             <div className="flex flex-col">
               <span className="font-bold text-xs tracking-wider text-slate-100 uppercase">
                 S.N. Polymers Console
