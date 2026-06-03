@@ -111,7 +111,7 @@ The client UI will run on `http://localhost:5173`.
 
 | Service | URL |
 |----------|-----|
-| Frontend (Vercel) | https://sn-polymers-hq6rjgu36-zenoguys-projects.vercel.app |
+| Frontend (Vercel) | https://sn-polymers.vercel.app/ |
 | Backend API (Render) | https://snpolymers.onrender.com |
 | API Health Check | https://snpolymers.onrender.com/health |
 
