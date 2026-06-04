@@ -131,17 +131,21 @@ const OtpVerify = () => {
   };
 
   return (
-    <div className="min-h-screen bg-admin-bg text-slate-100 flex items-center justify-center px-4 font-sans">
-      <div className="max-w-md w-full bg-admin-card border border-admin-border p-8 rounded shadow-2xl">
+    <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center px-4 font-sans relative overflow-hidden">
+      {/* Background Ambient Glows */}
+      <div className="absolute top-[15%] left-[20%] w-[30rem] h-[30rem] rounded-full bg-indigo-500/10 blur-[130px] pointer-events-none animate-pulse" style={{ animationDuration: '8s' }}></div>
+      <div className="absolute bottom-[15%] right-[20%] w-[25rem] h-[25rem] rounded-full bg-amber-500/5 blur-[120px] pointer-events-none animate-pulse" style={{ animationDuration: '12s' }}></div>
+
+      <div className="max-w-md w-full glass-panel p-8 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border border-white/10 relative z-10">
         
         {/* Seal and Title */}
         <div className="text-center mb-8">
-          <h2 className="text-xl font-bold uppercase tracking-wider text-slate-100">Passcode Verification</h2>
-          <p className="text-xs text-slate-300 mt-2 font-semibold">
+          <h2 className="text-xl font-extrabold uppercase tracking-widest text-slate-100 font-sans">Passcode Verification</h2>
+          <p className="text-xs text-slate-400 mt-3 font-normal leading-relaxed">
             Verification code dispatched to authorized destination:
-            <span className="block font-mono text-amber-500 mt-1">{mobileNumber}</span>
+            <span className="block font-mono text-amber-500 font-bold mt-1 text-sm">{mobileNumber}</span>
           </p>
-          <div className="h-[1px] w-24 bg-admin-border mx-auto mt-4"></div>
+          <div className="h-[1px] w-16 bg-gradient-to-r from-transparent via-white/20 to-transparent mx-auto mt-4"></div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -155,16 +159,16 @@ const OtpVerify = () => {
                 ref={(el) => (inputRefs.current[index] = el)}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className="w-12 h-14 bg-slate-950 border border-admin-border focus:border-amber-600 outline-none rounded text-center text-xl font-bold text-slate-100 transition duration-150"
+                className="w-12 h-14 glass-input focus:ring-0 outline-none rounded-xl text-center text-xl font-bold text-slate-100 transition duration-200"
                 disabled={loading || countdown <= 0}
               />
             ))}
           </div>
 
-          <div className="flex justify-between items-center text-[11px] text-slate-300 font-bold uppercase tracking-wider">
+          <div className="flex justify-between items-center text-[11px] text-slate-400 font-bold uppercase tracking-wider">
             <div>
               {countdown > 0 ? (
-                <span>Expires: <span className="font-mono text-amber-500">{formatTime(countdown)}</span></span>
+                <span>Expires: <span className="font-mono text-amber-500 font-semibold">{formatTime(countdown)}</span></span>
               ) : (
                 <span className="text-red-500 font-bold">Passcode Expired</span>
               )}
@@ -176,7 +180,7 @@ const OtpVerify = () => {
                 <button
                   type="button"
                   onClick={handleResend}
-                  className="text-amber-500 hover:text-amber-400 transition"
+                  className="text-amber-500 hover:text-amber-400 font-bold transition-colors duration-200"
                 >
                   Request Re-dispatch
                 </button>
@@ -185,15 +189,15 @@ const OtpVerify = () => {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-950/20 border border-red-900/40 rounded text-xs text-red-300 font-bold flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+            <div className="p-3.5 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 font-bold flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
               {error}
             </div>
           )}
 
           {success && (
-            <div className="p-3 bg-emerald-950/20 border border-emerald-900/40 rounded text-xs text-emerald-300 font-bold flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+            <div className="p-3.5 bg-emerald-950/20 border border-emerald-900/30 rounded-xl text-xs text-emerald-300 font-bold flex items-center gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
               {success}
             </div>
           )}
@@ -201,11 +205,11 @@ const OtpVerify = () => {
           <button
             type="submit"
             disabled={loading || countdown <= 0}
-            className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-slate-100 text-xs font-bold uppercase tracking-wider py-3 px-4 rounded border border-amber-500/30 transition duration-150 flex justify-center items-center gap-2"
+            className="w-full bg-white hover:bg-slate-100 disabled:opacity-50 text-slate-950 text-xs font-bold uppercase tracking-wider py-4 px-4 rounded-xl shadow-[0_4px_20px_rgba(255,255,255,0.1)] hover:shadow-[0_6px_25px_rgba(255,255,255,0.2)] transition-all duration-300 transform hover:-translate-y-0.5 flex justify-center items-center gap-2"
           >
             {loading ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-slate-100"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-slate-950"></div>
                 Authorizing Identity...
               </>
             ) : (
@@ -217,7 +221,7 @@ const OtpVerify = () => {
         <div className="mt-8 text-center">
           <button
             onClick={() => navigate('/login')}
-            className="text-[11px] uppercase tracking-wider font-bold text-slate-400 hover:text-slate-200 transition"
+            className="text-[11px] uppercase tracking-widest font-extrabold text-slate-400 hover:text-slate-200 transition-colors duration-200"
           >
             Change Input Number
           </button>

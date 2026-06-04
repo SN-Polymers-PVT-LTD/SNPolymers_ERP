@@ -4,7 +4,92 @@
 
 @layer base {
   body {
-    background-color: #0b111e;
+    background-color: #000000; /* Pure Black theme base */
     color: #f8fafc;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0px, transparent 50%);
+    background-attachment: fixed;
+    min-height: 100vh;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Custom scrollbar for premium look */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+@layer utilities {
+  /* Glassmorphism Panel core class */
+  .glass-panel {
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 
+      0 4px 30px rgba(0, 0, 0, 0.4),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Hoverable Glass Card with interactive transformations */
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-card-hover:hover {
+    transform: translateY(-2px);
+    background: rgba(15, 23, 42, 0.65);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 
+      0 20px 40px rgba(0, 0, 0, 0.6),
+      0 0 25px rgba(99, 102, 241, 0.05),
+      inset 0 1px 2px rgba(255, 255, 255, 0.1);
+  }
+
+  /* Glassmorphic inputs for forms */
+  .glass-input {
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #fff;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-input:focus {
+    background: rgba(0, 0, 0, 0.85);
+    border-color: rgba(245, 158, 11, 0.5); /* Glowing amber border on focus */
+    box-shadow: 
+      0 0 15px rgba(245, 158, 11, 0.15),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  }
+
+  /* Floating navigation specific glass */
+  .glass-nav {
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  /* Dynamic Glow effects for active cards */
+  .glow-border-active {
+    border-color: rgba(245, 158, 11, 0.3);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      0 0 20px rgba(245, 158, 11, 0.1),
+      inset 0 1px 1px rgba(255, 255, 255, 0.08);
   }
 }
