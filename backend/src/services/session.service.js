@@ -4,26 +4,36 @@ const { supabase } = require('../db/supabase');
 require('dotenv').config();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
+const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
+const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
 
 /**
- * Generate a JWT token containing standard session claims and a unique JTI.
+ * Generate Access and Refresh tokens.
  */
-function generateToken(user) {
-  const jti = uuidv4();
-  const payload = {
+function generateTokens(user, sessionId, refreshJti) {
+  const accessTokenPayload = {
     user_id: user.id,
     mobile_number: user.mobile_number,
     role: user.role || 'staff',
-    permissions: user.permissions || {}
+    permissions: user.permissions || {},
+    session_id: sessionId
   };
 
-  const token = jwt.sign(payload, JWT_SECRET, {
-    expiresIn: JWT_EXPIRY,
-    jwtid: jti
+  const accessToken = jwt.sign(accessTokenPayload, JWT_SECRET, {
+    expiresIn: JWT_ACCESS_EXPIRY
   });
 
-  return { token, jti };
+  const refreshTokenPayload = {
+    user_id: user.id,
+    session_id: sessionId
+  };
+
+  const refreshToken = jwt.sign(refreshTokenPayload, JWT_SECRET, {
+    expiresIn: JWT_REFRESH_EXPIRY,
+    jwtid: refreshJti
+  });
+
+  return { accessToken, refreshToken };
 }
 
 /**
@@ -54,14 +64,14 @@ async function createSession({ userId, jti, ipAddress, userAgent }) {
 /**
  * Closes an active session in the database and computes duration.
  */
-async function closeSession(jti) {
+async function closeSession(sessionId) {
   const currentTime = new Date();
 
   // 1. Fetch current session to calculate duration
   const { data: sessions, error: fetchError } = await supabase
     .from('sessions')
     .select('*')
-    .eq('jwt_jti', jti)
+    .eq('id', sessionId)
     .limit(1);
 
   if (fetchError || !sessions || sessions.length === 0) {
@@ -84,7 +94,7 @@ async function closeSession(jti) {
       is_active: false,
       duration_seconds: durationSeconds
     })
-    .eq('jwt_jti', jti)
+    .eq('id', sessionId)
     .select();
 
   if (updateError) {
@@ -106,7 +116,7 @@ function formatDuration(seconds) {
 }
 
 module.exports = {
-  generateToken,
+  generateTokens,
   createSession,
   closeSession,
   formatDuration

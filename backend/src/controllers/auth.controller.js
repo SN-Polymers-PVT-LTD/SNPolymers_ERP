@@ -1,7 +1,9 @@
+const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
 const { supabase } = require('../db/supabase');
 const { generateOtp, hashOtp, storeOtp, verifyOtp } = require('../services/otp.service');
 const { sendOtp } = require('../services/whatsapp.service');
-const { generateToken, createSession, closeSession, formatDuration } = require('../services/session.service');
+const { generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
 
 const isProd = process.env.NODE_ENV === 'production';
@@ -99,23 +101,29 @@ async function verifyOtpCode(req, res) {
       return res.status(403).json({ success: false, message: 'User verification failed.' });
     }
 
-    // 3. Issue Token & Create DB Session
-    const { token, jti } = generateToken(user);
+    // 3. Issue Tokens & Create DB Session
+    const refreshJti = uuidv4();
     const ipAddress = req.ip || req.headers['x-forwarded-for'];
     const userAgent = req.headers['user-agent'];
 
-    await createSession({
+    const session = await createSession({
       userId: user.id,
-      jti,
+      jti: refreshJti,
       ipAddress,
       userAgent
     });
 
-    // 4. Store Token in httpOnly Cookie
-    // Cookie parameters matches specifications
-    res.cookie('token', token, {
+    const { accessToken, refreshToken } = generateTokens(user, session.id, refreshJti);
+
+    // 4. Store Tokens in httpOnly Cookies
+    res.cookie('accessToken', accessToken, {
       ...cookieOptions,
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 15 * 60 * 1000 // 15 minutes
+    });
+
+    res.cookie('refreshToken', refreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
     // 5. Send parallel async Admin Notification Email
@@ -151,14 +159,16 @@ async function verifyOtpCode(req, res) {
  */
 async function logout(req, res) {
   try {
-    const jti = req.jti;
+    const sessionId = req.sessionId;
     const user = req.user;
 
     // 1. Close Session in DB
-    const closedSession = await closeSession(jti);
+    const closedSession = await closeSession(sessionId);
     const durationFormatted = formatDuration(closedSession.duration_seconds);
 
-    // 2. Clear Token Cookie
+    // 2. Clear Token Cookies
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
     res.clearCookie('token', cookieOptions);
 
     // 3. Trigger Admin Notification (async)
@@ -180,6 +190,111 @@ async function logout(req, res) {
 }
 
 /**
+ * POST /api/v1/auth/refresh
+ * Refreshes access token and rotates refresh token (RTR)
+ */
+async function refreshTokens(req, res) {
+  const refreshToken = req.cookies.refreshToken;
+
+  if (!refreshToken) {
+    return res.status(401).json({ success: false, message: 'Authentication required. No refresh token provided.' });
+  }
+
+  try {
+    const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
+    const decoded = jwt.verify(refreshToken, JWT_SECRET);
+
+    // 1. Fetch active session
+    const { data: session, error: sessionError } = await supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', decoded.session_id)
+      .limit(1)
+      .single();
+
+    if (sessionError || !session || !session.is_active) {
+      res.clearCookie('accessToken', cookieOptions);
+      res.clearCookie('refreshToken', cookieOptions);
+      res.clearCookie('token', cookieOptions);
+      return res.status(401).json({ success: false, message: 'Session is inactive or has been logged out.' });
+    }
+
+    // 2. Replay Attack Detection (RTR)
+    if (session.jwt_jti !== decoded.jti) {
+      // Invalidate the session immediately
+      await supabase
+        .from('sessions')
+        .update({ is_active: false, logout_at: new Date().toISOString() })
+        .eq('id', session.id);
+
+      res.clearCookie('accessToken', cookieOptions);
+      res.clearCookie('refreshToken', cookieOptions);
+      res.clearCookie('token', cookieOptions);
+      return res.status(401).json({ success: false, message: 'Replay attack detected. Session revoked.' });
+    }
+
+    // 3. User Whitelist status check
+    const { data: user, error: userError } = await supabase
+      .from('authorised_users')
+      .select('*')
+      .eq('id', decoded.user_id)
+      .limit(1)
+      .single();
+
+    if (userError || !user || !user.is_active) {
+      res.clearCookie('accessToken', cookieOptions);
+      res.clearCookie('refreshToken', cookieOptions);
+      res.clearCookie('token', cookieOptions);
+      return res.status(403).json({ success: false, message: 'Access denied. Account is deactivated or removed.' });
+    }
+
+    // 4. Rotate tokens
+    const newRefreshJti = uuidv4();
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('sessions')
+      .update({ jwt_jti: newRefreshJti })
+      .eq('id', session.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw new Error(`Failed to update session: ${updateError.message}`);
+    }
+
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = generateTokens(user, session.id, newRefreshJti);
+
+    // 5. Send updated cookies
+    res.cookie('accessToken', newAccessToken, {
+      ...cookieOptions,
+      maxAge: 15 * 60 * 1000 // 15 mins
+    });
+
+    res.cookie('refreshToken', newRefreshToken, {
+      ...cookieOptions,
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Tokens refreshed successfully.',
+      user: {
+        id: user.id,
+        mobile_number: user.mobile_number,
+        display_name: user.display_name,
+        role: user.role,
+        permissions: user.permissions
+      }
+    });
+  } catch (error) {
+    console.error(`Token Refresh failed: ${error.message}`);
+    res.clearCookie('accessToken', cookieOptions);
+    res.clearCookie('refreshToken', cookieOptions);
+    res.clearCookie('token', cookieOptions);
+    return res.status(401).json({ success: false, message: 'Failed to refresh authentication token.' });
+  }
+}
+
+/**
  * GET /api/v1/auth/me
  * Returns current authenticated user
  */
@@ -194,5 +309,6 @@ module.exports = {
   requestOtp,
   verifyOtpCode,
   logout,
+  refreshTokens,
   getMe
 };

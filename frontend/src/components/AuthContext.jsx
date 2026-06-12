@@ -24,6 +24,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkAuth();
+
+    const handleAuthFailure = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('auth-failure', handleAuthFailure);
+    return () => {
+      window.removeEventListener('auth-failure', handleAuthFailure);
+    };
   }, []);
 
   const login = (userData) => {

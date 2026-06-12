@@ -10,6 +10,8 @@ import OtpVerify from './pages/OtpVerify';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/admin/AdminPanel';
 import AuditLog from './pages/admin/AuditLog';
+import MasterData from './pages/admin/MasterData';
+import FundReports from './pages/FundReports';
 
 function App() {
   return (
@@ -24,12 +26,14 @@ function App() {
           {/* Protected Routes (Staff & Admin) */}
           <Route element={<ProtectedRoute allowedRoles={['staff', 'admin']} />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/fund-reports" element={<FundReports />} />
           </Route>
 
           {/* Admin Protected Routes */}
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/admin/sessions" element={<AuditLog />} />
+            <Route path="/admin/master-data" element={<MasterData />} />
           </Route>
 
           {/* Fallback Catch All */}

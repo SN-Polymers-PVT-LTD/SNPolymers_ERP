@@ -37,6 +37,16 @@ const Dashboard = () => {
             Command Center
           </Link>
 
+          <Link
+            to="/fund-reports"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+            </svg>
+            Fund Reports
+          </Link>
+
           {user?.role === 'admin' && (
             <>
               <Link
@@ -47,6 +57,15 @@ const Dashboard = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                 </svg>
                 Access Whitelist
+              </Link>
+              <Link
+                to="/admin/master-data"
+                className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Master Data
               </Link>
               <Link
                 to="/admin/sessions"
@@ -151,21 +170,26 @@ const Dashboard = () => {
                 </div>
               </div>
 
-              {/* Module 2: Projects (Future Module Placeholder) */}
-              <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px]">
-                <div className="absolute top-0 right-0 p-5 opacity-[0.03]">
+              {/* Module 2: Projects – Now Live */}
+              <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                <div className="absolute top-0 right-0 p-5 opacity-[0.05]">
                   <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Government Division</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Government Division</span>
                   <h3 className="text-lg font-extrabold mt-1 text-slate-200">Project Management</h3>
-                  <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">Oversees municipal contractor work schedules, infrastructure tender documents, civil log reports, and logistics dispatch status.</p>
+                  <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">Oversees municipal contractor work schedules, infrastructure tender documents, civil log reports, and fund disbursement records.</p>
                 </div>
                 <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-amber-600 bg-amber-950/20 border border-amber-900/30 px-2 py-0.5 rounded-lg">Phase 2+ Rollout</span>
-                  <span className="text-slate-500 text-xs font-bold select-none">Access Restricted</span>
+                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 px-2 py-0.5 rounded-lg">Active System</span>
+                  <Link
+                    to="/fund-reports"
+                    className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                  >
+                    Open Fund Reports &rarr;
+                  </Link>
                 </div>
               </div>
 
@@ -258,6 +282,24 @@ const Dashboard = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                     </svg>
                     <span className="text-[10px] font-extrabold uppercase text-slate-300">Add User</span>
+                  </Link>
+                  <Link
+                    to="/admin/master-data"
+                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
+                  >
+                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <span className="text-[10px] font-extrabold uppercase text-slate-300">Master Data</span>
+                  </Link>
+                  <Link
+                    to="/fund-reports"
+                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
+                  >
+                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+                    </svg>
+                    <span className="text-[10px] font-extrabold uppercase text-slate-300">Fund Reports</span>
                   </Link>
                   <Link
                     to="/admin/sessions"

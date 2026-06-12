@@ -17,11 +17,13 @@ if (accountSid && authToken && accountSid !== 'your_twilio_account_sid' && authT
 async function sendOtp(mobileNumber, otp) {
   const messageBody = `Your Integrated Digital Business Platform (IDBP) security OTP code is: ${otp}. It is valid for 5 minutes. Do not share this code.`;
 
+  // Always log OTP to terminal for backend server visibility/debugging
+  console.log('\n======================================');
+  console.log(`[OTP DEBUG] To: ${mobileNumber}`);
+  console.log(`[OTP CODE]: ${otp}`);
+  console.log('======================================\n');
+
   if (!client) {
-    console.log('\n======================================');
-    console.log(`[DEV WhatsApp Send] To: ${mobileNumber}`);
-    console.log(`[OTP CODE]: ${otp}`);
-    console.log('======================================\n');
     return { success: true, mode: 'console' };
   }
 

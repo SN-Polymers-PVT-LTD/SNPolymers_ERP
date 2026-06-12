@@ -14,25 +14,27 @@ const cookieOptions = {
  * Middleware: Verify JWT stored in httpOnly cookie
  */
 async function verifyJwt(req, res, next) {
-  const token = req.cookies.token;
+  const accessToken = req.cookies.accessToken;
 
-  if (!token) {
+  if (!accessToken) {
     return res.status(401).json({ success: false, message: 'Authentication required. No token provided.' });
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(accessToken, JWT_SECRET);
 
-    // Verify token's JTI is active and not blacklisted/logged out in sessions table
+    // Verify token's session ID is active and not blacklisted/logged out in sessions table
     const { data: session, error } = await supabase
       .from('sessions')
       .select('is_active')
-      .eq('jwt_jti', decoded.jti)
+      .eq('id', decoded.session_id)
       .limit(1)
       .single();
 
     if (error || !session || !session.is_active) {
-      // Clear cookie immediately if token session has been invalidated
+      // Clear cookies immediately if token session has been invalidated
+      res.clearCookie('accessToken', cookieOptions);
+      res.clearCookie('refreshToken', cookieOptions);
       res.clearCookie('token', cookieOptions);
       return res.status(401).json({ success: false, message: 'Session is inactive or has been logged out.' });
     }
@@ -49,7 +51,7 @@ async function verifyJwt(req, res, next) {
       return res.status(403).json({ success: false, message: 'Access denied. Account is deactivated or removed.' });
     }
 
-    // Attach decoded user information and jti session ID to the request object
+    // Attach decoded user information and session ID to the request object
     req.user = {
       id: decoded.user_id,
       mobile_number: decoded.mobile_number,
@@ -57,11 +59,18 @@ async function verifyJwt(req, res, next) {
       permissions: decoded.permissions,
       displayName: user.display_name
     };
-    req.jti = decoded.jti;
+    req.sessionId = decoded.session_id;
 
     next();
   } catch (error) {
     console.error(`JWT Validation Error: ${error.message}`);
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        code: 'ACCESS_TOKEN_EXPIRED',
+        message: 'Authentication failed. Access token expired.'
+      });
+    }
     return res.status(401).json({ success: false, message: 'Authentication failed. Invalid or expired token.' });
   }
 }
