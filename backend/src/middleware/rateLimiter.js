@@ -1,33 +1,34 @@
 const rateLimit = require('express-rate-limit');
 
+const isDev = process.env.NODE_ENV !== 'production';
+
 /**
  * OTP Request rate limiter:
- * Limits requesting OTP to maximum 3 times per 15-minute window for a specific IP/route.
+ * Production: max 3 requests per 15-minute window per mobile/IP.
+ * Development: relaxed to 100 requests so testing is never blocked.
  */
 const otpRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 3, // limit each IP to 3 OTP requests per windowMs
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  max: isDev ? 100 : 3,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: {
     success: false,
     message: 'Too many OTP requests from this connection. Please try again after 15 minutes.'
   },
-  // In a real proxy environment (e.g., Vercel, Heroku, Nginx), trust proxy headers:
-  // app.set('trust proxy', 1) needs to be configured in app.js
   keyGenerator: (req) => {
-    // Rate limit by mobile number if available in body, otherwise fallback to IP
     return req.body.mobileNumber || req.ip;
   }
 });
 
 /**
  * OTP Verification rate limiter:
- * Limits verify-otp attempts to maximum 5 requests per 5-minute window per IP/mobile to prevent brute-force resources exhaustion.
+ * Production: max 5 attempts per 5-minute window per mobile/IP.
+ * Development: relaxed to 500 so testing is never blocked.
  */
 const otpVerifyLimiter = rateLimit({
   windowMs: 5 * 60 * 1000, // 5 minutes
-  max: 5, // limit each IP to 5 verification attempts per windowMs
+  max: isDev ? 500 : 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

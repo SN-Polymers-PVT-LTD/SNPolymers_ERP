@@ -42,7 +42,7 @@ async function getUsers(req, res) {
  * Adds a new authorised mobile number
  */
 async function addUser(req, res) {
-  const { mobileNumber, displayName, role, permissions } = req.body;
+  const { mobileNumber, displayName, role, permissions, telegramChatId } = req.body;
 
   if (!mobileNumber) {
     return res.status(400).json({ success: false, message: 'Mobile number is required.' });
@@ -63,7 +63,8 @@ async function addUser(req, res) {
           display_name: displayName || null,
           role: role || 'staff',
           permissions: permissions || {},
-          is_active: true
+          is_active: true,
+          telegram_chat_id: telegramChatId || null
         }
       ])
       .select()
@@ -89,13 +90,15 @@ async function addUser(req, res) {
  */
 async function updateUser(req, res) {
   const { id } = req.params;
-  const { displayName, role, permissions, isActive } = req.body;
+  const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
   const updateFields = {};
   if (displayName !== undefined) updateFields.display_name = displayName;
   if (role !== undefined) updateFields.role = role;
   if (permissions !== undefined) updateFields.permissions = permissions;
   if (isActive !== undefined) updateFields.is_active = isActive;
+  // Allow explicit null to clear the Telegram link (user switched accounts)
+  if (telegramChatId !== undefined) updateFields.telegram_chat_id = telegramChatId;
 
   try {
     const { data, error } = await supabase

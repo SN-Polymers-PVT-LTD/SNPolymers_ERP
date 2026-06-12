@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { supabase } = require('../db/supabase');
 const { generateOtp, hashOtp, storeOtp, verifyOtp } = require('../services/otp.service');
-const { sendOtp } = require('../services/whatsapp.service');
+const { sendOtp } = require('../services/telegram.service');
 const { generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
 
@@ -15,7 +15,9 @@ const cookieOptions = {
 
 /**
  * POST /api/v1/auth/request-otp
- * Validates mobile number against whitelist and triggers WhatsApp OTP
+ * Validates mobile number against whitelist.
+ * If user has a telegram_chat_id, sends OTP via Telegram.
+ * If not, returns needsTelegramSetup: true so the frontend can gate the user.
  */
 async function requestOtp(req, res) {
   const { mobileNumber } = req.body;
@@ -41,28 +43,91 @@ async function requestOtp(req, res) {
       .single();
 
     if (error || !user) {
-      // For security, do not leak whether user exists or not, but the spec says:
-      // If not found → 'Access denied' error returned.
       return res.status(403).json({ success: false, message: 'Access denied. This number is not whitelisted or is inactive.' });
     }
 
-    // 2. Generate OTP & Hash
+    // 2. If no telegram_chat_id set, prompt user to complete Telegram setup first
+    if (!user.telegram_chat_id) {
+      return res.status(200).json({
+        success: true,
+        needsTelegramSetup: true,
+        message: 'Telegram setup required before OTP can be delivered.'
+      });
+    }
+
+    // 3. Generate OTP & Hash
     const rawOtp = generateOtp();
     const hashed = await hashOtp(rawOtp);
 
-    // 3. Store OTP in DB
+    // 4. Store OTP in DB
     await storeOtp(mobileNumber, hashed);
 
-    // 4. Send OTP via WhatsApp
-    await sendOtp(mobileNumber, rawOtp);
+    // 5. Send OTP via Telegram
+    await sendOtp(user.telegram_chat_id, rawOtp);
 
     return res.status(200).json({
       success: true,
-      message: 'OTP has been generated and sent to your registered WhatsApp number.'
+      needsTelegramSetup: false,
+      message: 'OTP has been generated and sent to your Telegram account.'
     });
   } catch (error) {
     console.error(`Request OTP failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to process OTP request.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/link-telegram
+ * Public endpoint. Saves a user-supplied Telegram chat_id to their
+ * authorised_users record. The chat_id is obtained by the user messaging
+ * the bot directly and reading the auto-reply.
+ */
+async function linkTelegram(req, res) {
+  const { mobileNumber, chatId } = req.body;
+
+  if (!mobileNumber || !chatId) {
+    return res.status(400).json({ success: false, message: 'Mobile number and Chat ID are required.' });
+  }
+
+  // Basic validation — Telegram chat IDs are integers (can be negative for groups)
+  const chatIdStr = String(chatId).trim();
+  if (!/^-?\d+$/.test(chatIdStr)) {
+    return res.status(400).json({ success: false, message: 'Invalid Chat ID format. Please enter the number exactly as the bot sent it.' });
+  }
+
+  try {
+    // 1. Verify the mobile number is whitelisted & active
+    const { data: user, error } = await supabase
+      .from('authorised_users')
+      .select('id, mobile_number, is_active')
+      .eq('mobile_number', mobileNumber)
+      .eq('is_active', true)
+      .limit(1)
+      .single();
+
+    if (error || !user) {
+      return res.status(403).json({ success: false, message: 'Access denied. This number is not whitelisted or is inactive.' });
+    }
+
+    // 2. Save the chat_id
+    const { error: updateError } = await supabase
+      .from('authorised_users')
+      .update({ telegram_chat_id: chatIdStr })
+      .eq('id', user.id);
+
+    if (updateError) {
+      throw new Error(`Failed to save Chat ID: ${updateError.message}`);
+    }
+
+    console.log(`[TELEGRAM] Chat ID ${chatIdStr} linked to ${mobileNumber}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Telegram account linked successfully.'
+    });
+  } catch (error) {
+    console.error(`Link Telegram failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to link Telegram account.' });
   }
 }
 
@@ -307,8 +372,10 @@ async function getMe(req, res) {
 
 module.exports = {
   requestOtp,
+  linkTelegram,
   verifyOtpCode,
   logout,
   refreshTokens,
   getMe
 };
+

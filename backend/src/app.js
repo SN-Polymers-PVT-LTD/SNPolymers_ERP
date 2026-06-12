@@ -19,6 +19,8 @@ const adminRoutes = require('./routes/admin.routes');
 const projectRoutes = require('./routes/projects.routes');
 const reportRoutes = require('./routes/reports.routes');
 
+const { startPolling } = require('./services/telegram.service');
+
 const app = express();
 app.use(helmet());
 const PORT = process.env.PORT || 5000;
@@ -62,6 +64,8 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode.`);
+  // Start Telegram bot long-polling loop for auto-reply Chat ID flow
+  startPolling();
 });
 
 module.exports = app;
