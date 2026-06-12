@@ -28,7 +28,11 @@ const Login = () => {
     try {
       const response = await authApi.post('/request-otp', { mobileNumber: formattedNumber });
       if (response.data?.success) {
-        navigate('/verify-otp', { state: { mobileNumber: formattedNumber } });
+        if (response.data?.needsTelegramSetup) {
+          navigate('/telegram-setup', { state: { mobileNumber: formattedNumber } });
+        } else {
+          navigate('/verify-otp', { state: { mobileNumber: formattedNumber } });
+        }
       } else {
         setError(response.data?.message || 'Authorization check failed.');
       }
@@ -58,7 +62,7 @@ const Login = () => {
 
         {/* Informative Security Notice */}
         <div className="mb-8 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 text-xs text-slate-300 leading-relaxed font-normal shadow-inner">
-          <strong className="text-amber-500 font-semibold">Security Notice:</strong> Access is restricted to pre-registered, whitelisted mobile numbers. The system will deliver a one-time verification passcode (OTP) to your authorized WhatsApp number.
+          <strong className="text-amber-500 font-semibold">Security Notice:</strong> Access is restricted to pre-registered, whitelisted mobile numbers. The system will deliver a one-time verification passcode (OTP) to your authorized Telegram account.
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

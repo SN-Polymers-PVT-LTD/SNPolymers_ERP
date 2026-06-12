@@ -259,8 +259,8 @@ const Dashboard = () => {
               </div>
               <div className="space-y-4 text-xs">
                 <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                  <div className="font-bold text-slate-200">WhatsApp OTP Dispatched</div>
-                  <div className="text-[10px] text-slate-400 mt-1">Multi-factor verification is now fully mediated via WhatsApp Secure Gateway.</div>
+                  <div className="font-bold text-slate-200">Telegram OTP Active</div>
+                  <div className="text-[10px] text-slate-400 mt-1">Multi-factor verification is now fully mediated via Telegram Secure Bot Gateway.</div>
                 </div>
                 <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
                   <div className="font-bold text-slate-200">Database Shield Active</div>
