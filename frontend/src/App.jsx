@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import OtpVerify from './pages/OtpVerify';
+import TelegramSetup from './pages/TelegramSetup';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/admin/AdminPanel';
 import AuditLog from './pages/admin/AuditLog';
@@ -22,6 +23,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/verify-otp" element={<OtpVerify />} />
+          <Route path="/telegram-setup" element={<TelegramSetup />} />
 
           {/* Protected Routes (Staff & Admin) */}
           <Route element={<ProtectedRoute allowedRoles={['staff', 'admin']} />}>

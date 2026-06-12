@@ -4,6 +4,24 @@ import authApi from '../api/authApi';
 import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 
+// Small inline Telegram icon
+const TelegramInlineIcon = () => (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 240 240"
+    xmlns="http://www.w3.org/2000/svg"
+    className="inline-block flex-shrink-0"
+    aria-hidden="true"
+  >
+    <circle cx="120" cy="120" r="120" fill="#2AABEE" />
+    <path
+      d="M81.7 133.2l-4.1 43.9c5.9 0 8.4-2.5 11.4-5.5l27.3-26.1 56.6 41.4c10.4 5.7 17.7 2.7 20.5-9.6l37.2-174.4c3.3-15.4-5.6-21.5-15.7-17.8L11.2 98.5c-15 5.9-14.8 14.3-2.7 18.1l49.4 15.4 114.5-72c5.4-3.3 10.3-1.5 6.3 2.1L81.7 133.2z"
+      fill="white"
+    />
+  </svg>
+);
+
 const OtpVerify = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -142,10 +160,14 @@ const OtpVerify = () => {
         <div className="text-center mb-8">
           <h2 className="text-xl font-extrabold uppercase tracking-widest text-slate-100 font-sans">Passcode Verification</h2>
           <p className="text-xs text-slate-400 mt-3 font-normal leading-relaxed">
-            Verification code dispatched to authorized destination:
+            Authorized number:
             <span className="block font-mono text-amber-500 font-bold mt-1 text-sm">{mobileNumber}</span>
           </p>
-          <div className="h-[1px] w-16 bg-gradient-to-r from-transparent via-white/20 to-transparent mx-auto mt-4"></div>
+          <div className="flex items-center justify-center gap-1.5 mt-2 text-[10px] text-slate-400 font-medium">
+            <TelegramInlineIcon />
+            <span>Enter the 6-digit code sent to your Telegram account by <span className="font-bold" style={{ color: '#2AABEE' }}>@snpolymers_bot</span></span>
+          </div>
+          <div className="h-[1px] w-16 bg-gradient-to-r from-transparent via-white/20 to-transparent mx-auto mt-4" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
