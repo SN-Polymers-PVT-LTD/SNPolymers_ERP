@@ -5,7 +5,8 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "dev": "nodemon src/app.js",
+    "test": "node src/test_phase2.js"
   },
   "dependencies": {
     "@mapbox/node-pre-gyp": "^2.0.3",
