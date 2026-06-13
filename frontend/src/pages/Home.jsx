@@ -49,10 +49,6 @@ const Home = () => {
       {/* Hero Section */}
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-20 flex flex-col justify-center relative z-10">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-panel text-[11px] font-semibold text-slate-300 mb-8 uppercase tracking-widest">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-ping"></span>
-            Official Corporate Gateway
-          </div>
           
           <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-slate-100 leading-none">
             Integrated Digital <br className="hidden sm:inline" />

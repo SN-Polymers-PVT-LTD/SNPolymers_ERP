@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import BackgroundShapes from '../../components/BackgroundShapes';
+import Sidebar, { MobileHeader } from '../../components/Sidebar';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,43 +55,7 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// ─── Sidebar Nav ──────────────────────────────────────────────────────────────
-const SideNav = () => (
-  <aside className="hidden md:flex flex-col w-64 glass-nav border-r border-white/5 p-6 relative z-20 shrink-0">
-    <div className="flex items-center gap-3.5 mb-10">
-      <Link to="/dashboard">
-        <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-10 w-auto object-contain" />
-      </Link>
-      <div className="flex flex-col">
-        <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">S.N. Polymers</span>
-        <span className="text-[9px] text-amber-500 font-extrabold tracking-widest uppercase">ERP Console</span>
-      </div>
-    </div>
-    <nav className="flex-grow space-y-2">
-      {[
-        { to: '/dashboard', label: 'Command Center', icon: 'M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z', active: false },
-        { to: '/admin', label: 'Access Whitelist', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z', active: false },
-        { to: '/admin/master-data', label: 'Master Data', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', active: true },
-        { to: '/admin/sessions', label: 'Audit Trail Logs', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', active: false },
-      ].map(({ to, label, icon, active }) => (
-        <Link
-          key={to}
-          to={to}
-          className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-            active
-              ? 'bg-white/5 border border-white/10 text-slate-100'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5'
-          }`}
-        >
-          <svg className={`w-4 h-4 ${active ? 'text-amber-500' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={icon} />
-          </svg>
-          {label}
-        </Link>
-      ))}
-    </nav>
-  </aside>
-);
+
 
 // ─── Project Form Modal ───────────────────────────────────────────────────────
 const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
@@ -417,23 +382,10 @@ const MasterData = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
+    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
       <BackgroundShapes />
-      <SideNav />
-
-      {/* Mobile header */}
-      <header className="md:hidden glass-nav sticky top-0 z-50 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-8 w-auto object-contain" />
-          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">Master Data</span>
-        </div>
-        <Link
-          to="/dashboard"
-          className="text-[10px] bg-slate-900 border border-white/10 text-slate-200 font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg"
-        >
-          Dashboard
-        </Link>
-      </header>
+      <Sidebar />
+      <MobileHeader />
 
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-full mx-auto w-full relative z-10">
 

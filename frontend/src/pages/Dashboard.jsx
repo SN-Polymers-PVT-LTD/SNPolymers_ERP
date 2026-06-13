@@ -3,6 +3,7 @@ import { useAuth } from '../components/AuthContext';
 import { Link } from 'react-router-dom';
 import BackgroundShapes from '../components/BackgroundShapes';
 import authApi from '../api/authApi';
+import Sidebar, { MobileHeader } from '../components/Sidebar';
 
 const formatTimeAgo = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -58,139 +59,21 @@ const Dashboard = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
+    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
       {/* Background Silhouettes & Ambient Glows */}
       <BackgroundShapes />
 
-      {/* Left Sidebar Navigation - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 glass-nav border-r border-white/5 p-6 relative z-20 shrink-0">
-        <div className="flex items-center gap-3.5 mb-10">
-          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-10 w-auto object-contain" />
-          <div className="flex flex-col">
-            <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">
-              S.N. Polymers
-            </span>
-            <span className="text-[9px] text-amber-500 font-extrabold tracking-widest uppercase">
-              ERP Console
-            </span>
-          </div>
-        </div>
-
-        {/* Sidebar Nav Links */}
-        <nav className="flex-grow space-y-2">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-slate-100 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-          >
-            <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-            </svg>
-            Command Center
-          </Link>
-
-          <Link
-            to="/fund-reports"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
-            </svg>
-            Fund Reports
-          </Link>
-
-          {user?.role === 'admin' && (
-            <>
-              <Link
-                to="/admin"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-                Access Whitelist
-              </Link>
-              <Link
-                to="/admin/master-data"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                Master Data
-              </Link>
-              <Link
-                to="/admin/sessions"
-                className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Audit Trail Logs
-              </Link>
-            </>
-          )}
-        </nav>
-
-        {/* Operator Profile and Logout */}
-        <div className="border-t border-white/5 pt-6 mt-auto">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md">
-              {(user?.display_name || 'U')[0].toUpperCase()}
-            </div>
-            <div className="flex flex-col truncate">
-              <span className="text-xs font-extrabold text-slate-200 truncate">{user?.display_name || 'Operator'}</span>
-              <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">{user?.role}</span>
-            </div>
-          </div>
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-300"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
-            Sign Out
-          </button>
-        </div>
-      </aside>
-
-      {/* Header bar for Mobile view */}
-      <header className="md:hidden glass-nav sticky top-0 z-50 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-8 w-auto object-contain" />
-          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">S.N. Polymers</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {user?.role === 'admin' && (
-            <Link
-              to="/admin"
-              className="text-[10px] bg-slate-900 border border-white/10 text-slate-200 font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg"
-            >
-              Admin
-            </Link>
-          )}
-          <button
-            onClick={logout}
-            className="text-[10px] bg-red-950/20 border border-red-900/30 text-red-400 font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg"
-          >
-            Out
-          </button>
-        </div>
-      </header>
+      <Sidebar />
+      <MobileHeader />
 
       {/* Main Administrative Control Grid */}
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         
-        {/* Top welcome banner / header panel */}
         <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Authorized Operator Session</span>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Welcome back, {user?.display_name || user?.mobile_number}!</h1>
             <p className="text-xs text-slate-400 font-medium mt-1.5">Select an active ERP module to initiate session control.</p>
-          </div>
-          <div className="glass-panel px-4 py-2 rounded-2xl flex items-center gap-2.5 shadow-md">
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-slate-300">Connection Secured</span>
           </div>
         </div>
 
@@ -286,17 +169,10 @@ const Dashboard = () => {
                   <span className="text-slate-400 font-semibold">Operator ID</span>
                   <span className="font-mono font-bold text-slate-200">{user?.mobile_number}</span>
                 </div>
-                <div className="flex justify-between items-center text-xs pb-3 border-b border-white/5">
+                <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-semibold">Access Privilege</span>
                   <span className="px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider bg-indigo-950/40 text-indigo-400 border border-indigo-900/30">
                     {user?.role}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-semibold">Firewall Gate</span>
-                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    VERIFIED
                   </span>
                 </div>
               </div>
