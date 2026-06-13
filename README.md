@@ -23,7 +23,7 @@ SNPolymers/
 │   │   ├── db/          # Supabase client and query layer
 │   │   ├── middleware/  # Rate limiting, validation, & JWT Auth guards
 │   │   ├── routes/      # Express route definitions
-│   │   └── services/    # Twilio SMS, Email (Nodemailer), & audit services
+│   │   └── services/    # Telegram Bot, Email (Nodemailer), & audit services
 │   └── package.json
 │
 ├── frontend/           # React + Vite client-side dashboard UI
@@ -50,7 +50,7 @@ SNPolymers/
 - **Database / Auth Storage:** Supabase (PostgreSQL with Service Role permissions)
 - **Security:** JSON Web Tokens (JWT), `bcrypt` password hashing, cookie parser
 - **Integrations:**
-  - **Twilio SMS / WhatsApp API:** Secure Multi-Factor / OTP Verification
+  - **Telegram Bot API:** Secure Multi-Factor / OTP Verification via @snpolymers_bot
   - **Nodemailer (SMTP):** Secure corporate notifications
 - **Resilience:** Rate limiter middleware (`express-rate-limit`) to prevent abuse
 
@@ -74,7 +74,7 @@ Make sure you have [Node.js](https://nodejs.org/) (v18.0.0 or higher) and `npm` 
 3. Populate the required environment variables:
    - **Supabase credentials** (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`)
    - **JWT Secrets** (`JWT_SECRET`)
-   - **Twilio WhatsApp/SMS SID & Tokens** (for OTP authentication)
+   - **Telegram Bot Token** (`TELEGRAM_BOT_TOKEN`) (for OTP authentication)
    - **Gmail SMTP Credentials** (for admin alerts & notifications)
 
 #### Setup Frontend Environment
@@ -134,7 +134,7 @@ Supabase PostgreSQL
 
        ↓
 
-Twilio WhatsApp OTP
+Telegram Bot OTP
 ```
 
 > **Note:** The frontend communicates with the backend through the `VITE_API_URL` environment variable. For production deployments this is configured as:
