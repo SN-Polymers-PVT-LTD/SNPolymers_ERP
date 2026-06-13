@@ -52,6 +52,10 @@ async function getProjectByWorkOrder(req, res) {
  * Creates a new project record (Admin only)
  */
 async function createProject(req, res) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+  }
+
   const {
     work_order_no,
     estimate_no,
@@ -127,6 +131,10 @@ async function createProject(req, res) {
  * Updates a project record (Admin only)
  */
 async function updateProject(req, res) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+  }
+
   const { work_order_no } = req.params;
   const { estimate_no, site_details, state, district, zone, department } = req.body;
 
@@ -185,6 +193,10 @@ async function updateProject(req, res) {
  * Updates only status (Admin only)
  */
 async function updateProjectStatus(req, res) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+  }
+
   const { work_order_no } = req.params;
   const { status } = req.body;
 

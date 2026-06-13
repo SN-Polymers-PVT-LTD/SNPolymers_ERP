@@ -277,8 +277,24 @@ async function testPhase2() {
         fails++;
       }
 
-      // 12. Verify Audit Log Creation
-      console.log('\n12. Testing Audit Log record creation...');
+      // 12. Verify Restore State in DB (Explicit verification of DB columns post-restore)
+      console.log('\n12. Verifying persisted database record columns after restore...');
+      const { data: dbReport, error: dbErr } = await supabase
+        .from('fund_reports')
+        .select('*')
+        .eq('fund_report_id', testReportId)
+        .single();
+
+      if (!dbErr && dbReport && dbReport.is_deleted === false && dbReport.deleted_by === null && dbReport.deleted_at === null) {
+        console.log('  [PASS] DB record state verified: is_deleted is false, metadata fields cleared to null.');
+        passes++;
+      } else {
+        console.log(`  [FAIL] DB record state invalid after restore:`, dbReport, dbErr);
+        fails++;
+      }
+
+      // 13. Verify Audit Log Creation
+      console.log('\n13. Testing Audit Log record creation...');
       const { data: auditLogs, error: auditErr } = await supabase
         .from('audit_log')
         .select('*')
@@ -302,8 +318,8 @@ async function testPhase2() {
       }
     }
 
-    // 13. Verify Admin Permission Boundary
-    console.log('\n13. Testing Admin Permission Boundary (Staff/Project Manager access limitations)...');
+    // 14. Verify Admin Permission Boundary (requireAdmin Middleware check)
+    console.log('\n14. Testing Admin Permission Boundary (requireAdmin middleware Staff block)...');
     const reqStaff = { user: { role: 'staff' } };
     const resStaff = mockRes();
     let nextCalled = false;
@@ -319,34 +335,131 @@ async function testPhase2() {
       fails++;
     }
 
-    // 14. Testing report creation with invalid work_order_no
-    console.log('\n14. Testing report creation with invalid work_order_no...');
-    const req14 = {
-      user: { mobile_number: '+918276071523' },
-      body: { work_order_no: 'NONEXISTENT_WO_XYZ', amount: 10000, remarks: 'Invalid' }
+    // 15. Verify Controller-Level Access boundary (createProject Staff block)
+    console.log('\n15. Testing controller-level createProject block for Staff/Project Manager role...');
+    const reqCtrlCreate = {
+      user: { role: 'staff', mobile_number: '+918276071523' },
+      body: {
+        work_order_no: 'TEST_WO_STAFF_FAIL',
+        estimate_no: 'EST_FAIL',
+        site_details: 'Site Fail',
+        state: 'West Bengal',
+        district: 'Alipurduar',
+        zone: 'North Bengal',
+        department: 'PWD'
+      }
     };
-    const res14 = mockRes();
-    await createReport(req14, res14);
+    const resCtrlCreate = mockRes();
+    await createProject(reqCtrlCreate, resCtrlCreate);
 
-    if (res14.statusCode === 404 && !res14.jsonData?.success) {
-      console.log('  [PASS] Correctly rejected report creation on nonexistent project with 404.');
+    if (resCtrlCreate.statusCode === 403 && !resCtrlCreate.jsonData?.success) {
+      console.log('  [PASS] createProject controller successfully rejected staff role with 403 Forbidden.');
       passes++;
     } else {
-      console.log(`  [FAIL] Expected 404 for nonexistent project, got: ${res14.statusCode}`);
+      console.log(`  [FAIL] Expected createProject controller to reject staff with 403. Status: ${resCtrlCreate.statusCode}`);
       fails++;
     }
 
-    // 15. Testing retrieving nonexistent report ID
-    console.log('\n15. Testing retrieving nonexistent report ID...');
-    const req15 = { params: { fund_report_id: '00000000-0000-0000-0000-000000000000' } };
-    const res15 = mockRes();
-    await getReportById(req15, res15);
+    // 16. Verify Controller-Level Access boundary (updateProjectStatus Staff block)
+    console.log('\n16. Testing controller-level updateProjectStatus block for Staff/Project Manager role...');
+    const reqCtrlStatus = {
+      user: { role: 'staff', mobile_number: '+918276071523' },
+      params: { work_order_no: testWOUnderTest },
+      body: { status: 'Closed' }
+    };
+    const resCtrlStatus = mockRes();
+    await updateProjectStatus(reqCtrlStatus, resCtrlStatus);
 
-    if (res15.statusCode === 404 && !res15.jsonData?.success) {
+    if (resCtrlStatus.statusCode === 403 && !resCtrlStatus.jsonData?.success) {
+      console.log('  [PASS] updateProjectStatus controller successfully rejected staff role with 403 Forbidden.');
+      passes++;
+    } else {
+      console.log(`  [FAIL] Expected updateProjectStatus controller to reject staff with 403. Status: ${resCtrlStatus.statusCode}`);
+      fails++;
+    }
+
+    // 17. Verify Complete Under Maintenance status gate (Creation & Edits Allowed)
+    console.log(`\n17. Testing 'Complete Under Maintenance' status permission matrix...`);
+    // A. Temporarily update status
+    await supabase
+      .from('projects_master')
+      .update({ status: 'Complete Under Maintenance', edited_by: '+918276071523' })
+      .eq('work_order_no', testWOUnderTest);
+
+    // B. Attempt to create report under Complete Under Maintenance (Should succeed)
+    const reqMaintCreate = {
+      user: { mobile_number: '+918276071523' },
+      body: { work_order_no: testWOUnderTest, amount: 20000, remarks: 'Maintenance report' }
+    };
+    const resMaintCreate = mockRes();
+    await createReport(reqMaintCreate, resMaintCreate);
+
+    let maintReportId = null;
+    let maintCreatePassed = false;
+    if (resMaintCreate.statusCode === 201 && resMaintCreate.jsonData?.success) {
+      maintReportId = resMaintCreate.jsonData.report.fund_report_id;
+      console.log('  [PASS] Successfully created fund report under Complete Under Maintenance status.');
+      maintCreatePassed = true;
+    } else {
+      console.log(`  [FAIL] Failed to create report under Complete Under Maintenance. Status: ${resMaintCreate.statusCode}`);
+    }
+
+    // C. Attempt to edit report under Complete Under Maintenance (Should succeed)
+    let maintEditPassed = false;
+    if (maintReportId) {
+      const reqMaintEdit = {
+        params: { fund_report_id: maintReportId },
+        user: { mobile_number: '+918276071523' },
+        body: { amount: 25000, remarks: 'Maintenance report updated' }
+      };
+      const resMaintEdit = mockRes();
+      await updateReport(reqMaintEdit, resMaintEdit);
+
+      if (resMaintEdit.statusCode === 200 && resMaintEdit.jsonData?.success) {
+        console.log('  [PASS] Successfully updated fund report under Complete Under Maintenance status.');
+        maintEditPassed = true;
+      } else {
+        console.log(`  [FAIL] Failed to update report under Complete Under Maintenance. Status: ${resMaintEdit.statusCode}`);
+      }
+
+      // Cleanup maintenance report
+      await supabase.from('fund_reports').delete().eq('fund_report_id', maintReportId);
+    }
+
+    if (maintCreatePassed && maintEditPassed) {
+      passes++;
+    } else {
+      fails++;
+    }
+
+    // 18. Testing report creation with invalid work_order_no
+    console.log('\n18. Testing report creation with invalid work_order_no...');
+    const req18 = {
+      user: { mobile_number: '+918276071523' },
+      body: { work_order_no: 'NONEXISTENT_WO_XYZ', amount: 10000, remarks: 'Invalid' }
+    };
+    const res18 = mockRes();
+    await createReport(req18, res18);
+
+    if (res18.statusCode === 404 && !res18.jsonData?.success) {
+      console.log('  [PASS] Correctly rejected report creation on nonexistent project with 404.');
+      passes++;
+    } else {
+      console.log(`  [FAIL] Expected 404 for nonexistent project, got: ${res18.statusCode}`);
+      fails++;
+    }
+
+    // 19. Testing retrieving nonexistent report ID
+    console.log('\n19. Testing retrieving nonexistent report ID...');
+    const req19 = { params: { fund_report_id: '00000000-0000-0000-0000-000000000000' } };
+    const res19 = mockRes();
+    await getReportById(req19, res19);
+
+    if (res19.statusCode === 404 && !res19.jsonData?.success) {
       console.log('  [PASS] Correctly returned 404 for nonexistent report ID.');
       passes++;
     } else {
-      console.log(`  [FAIL] Expected 404 for nonexistent report, got: ${res15.statusCode}`);
+      console.log(`  [FAIL] Expected 404 for nonexistent report, got: ${res19.statusCode}`);
       fails++;
     }
 
@@ -354,8 +467,8 @@ async function testPhase2() {
     console.log('Unexpected validation error:', err.message);
     fails++;
   } finally {
-    // 16. Programmatic Cleanup (Ensures zero seed data pollution even if scripts crash mid-run)
-    console.log('\n16. Cleaning up temporary test reports and projects...');
+    // Programmatic Cleanup (Ensures zero seed data pollution even if scripts crash mid-run)
+    console.log('\nCleaning up temporary test reports and projects...');
     try {
       await supabase.from('fund_reports').delete().in('work_order_no', [testWOUnderTest, testWOClosed]);
       await supabase.from('projects_master').delete().in('work_order_no', [testWOUnderTest, testWOClosed]);
