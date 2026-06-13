@@ -1,18 +1,33 @@
-const { getProjects, getProjectByWorkOrder, createProject, updateProject, updateProjectStatus } = require('/home/zenoguy/Desktop/SNPolymers/backend/src/controllers/projects.controller');
-const { getReports, getReportById, createReport, updateReport, deleteReport, restoreReport } = require('/home/zenoguy/Desktop/SNPolymers/backend/src/controllers/reports.controller');
-const { supabase } = require('/home/zenoguy/Desktop/SNPolymers/backend/src/db/supabase');
-const requireAdmin = require('/home/zenoguy/Desktop/SNPolymers/backend/src/middleware/requireAdmin');
+const {
+  getProjects,
+  getProjectByWorkOrder,
+  createProject,
+  updateProject,
+  updateProjectStatus
+} = require('./controllers/projects.controller');
 
+const {
+  getReports,
+  getReportById,
+  createReport,
+  updateReport,
+  deleteReport,
+  restoreReport
+} = require('./controllers/reports.controller');
+
+const { supabase } = require('./db/supabase');
+
+const requireAdmin = require('./middleware/requireAdmin');
 // Helper to create mock res object
 function mockRes() {
   const res = {
     statusCode: 200,
     jsonData: null,
-    status: function(code) {
+    status: function (code) {
       this.statusCode = code;
       return this;
     },
-    json: function(data) {
+    json: function (data) {
       this.jsonData = data;
       return this;
     }
@@ -176,10 +191,10 @@ async function testPhase2() {
 
       if (res5.statusCode === 200 && res5.jsonData.success) {
         const report = res5.jsonData.report;
-        if (report.projects_master && 
-            report.projects_master.estimate_no === 'TEST_EST_A' && 
-            parseFloat(report.projects_master.work_order_value) === 1500000.00 && 
-            report.projects_master.state === 'West Bengal') {
+        if (report.projects_master &&
+          report.projects_master.estimate_no === 'TEST_EST_A' &&
+          parseFloat(report.projects_master.work_order_value) === 1500000.00 &&
+          report.projects_master.state === 'West Bengal') {
           console.log('  [PASS] Report fetched successfully with live project master columns and work_order_value:');
           console.log(`         Estimate: ${report.projects_master.estimate_no}`);
           console.log(`         Work Order Value: ₹${report.projects_master.work_order_value}`);
@@ -533,8 +548,8 @@ async function testPhase2() {
         .limit(1);
 
       if (!valAuditErr && valAudit && valAudit[0] &&
-          parseFloat(valAudit[0].old_value?.work_order_value) === 1500000 &&
-          parseFloat(valAudit[0].new_value?.work_order_value) === 3000000) {
+        parseFloat(valAudit[0].old_value?.work_order_value) === 1500000 &&
+        parseFloat(valAudit[0].new_value?.work_order_value) === 3000000) {
         console.log('  [PASS] Successfully verified projects_master audit log tracks work_order_value changes.');
         passes++;
       } else {
