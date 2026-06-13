@@ -57,6 +57,7 @@ async function verifyJwt(req, res, next) {
       mobile_number: decoded.mobile_number,
       role: decoded.role,
       permissions: decoded.permissions,
+      display_name: user.display_name,
       displayName: user.display_name
     };
     req.sessionId = decoded.session_id;
