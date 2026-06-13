@@ -343,7 +343,7 @@ const Dashboard = () => {
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Recent Activity</span>
               <div className="space-y-4">
                 {activities.length > 0 ? (
-                  activities.map((act, idx) => (
+                  activities.slice(0, 4).map((act, idx) => (
                     <div key={act.id || idx} className="flex gap-3 text-xs leading-relaxed items-start">
                       <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0 animate-pulse"></span>
                       <div className="flex flex-col">
