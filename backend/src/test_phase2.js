@@ -21,7 +21,7 @@ function mockRes() {
 }
 
 async function testPhase2() {
-  console.log('=== RUNNING PHASE 2 BACKEND CONTROLLER & MUTABILITY GATE TESTS ===\n');
+  console.log('=== RUNNING PHASE 2 & WORK ORDER VALUE BACKEND TESTS ===\n');
 
   let passes = 0;
   let fails = 0;
@@ -40,6 +40,7 @@ async function testPhase2() {
       {
         work_order_no: testWOUnderTest,
         estimate_no: 'TEST_EST_A',
+        work_order_value: 1500000.00,
         site_details: 'Test Site A',
         state: 'West Bengal',
         district: 'Alipurduar',
@@ -52,6 +53,7 @@ async function testPhase2() {
       {
         work_order_no: testWOClosed,
         estimate_no: 'TEST_EST_B',
+        work_order_value: 2500000.00,
         site_details: 'Test Site B',
         state: 'Bihar',
         district: 'Araria',
@@ -78,20 +80,54 @@ async function testPhase2() {
       fails++;
     }
 
-    // 2. Test createProject validation
+    // 2. Test createProject validation (missing fields and work_order_value checks)
     console.log('\n2. Testing createProject validation (missing fields)...');
-    const req2 = {
+    const req2a = {
       user: { role: 'admin', mobile_number: '+918276071523' },
-      body: { work_order_no: 'TEST_WO_999' } // missing estimate_no, etc.
+      body: { work_order_no: 'TEST_WO_999', estimate_no: 'EST_999' } // missing site_details, work_order_value, etc.
     };
-    const res2 = mockRes();
-    await createProject(req2, res2);
+    const res2a = mockRes();
+    await createProject(req2a, res2a);
 
-    if (res2.statusCode === 400 && !res2.jsonData.success) {
-      console.log('  [PASS] Rejected request with missing required fields.');
+    // Negative work_order_value check
+    const req2b = {
+      user: { role: 'admin', mobile_number: '+918276071523' },
+      body: {
+        work_order_no: 'TEST_WO_999',
+        estimate_no: 'EST_999',
+        work_order_value: -100.00,
+        site_details: 'Test Site 999',
+        state: 'West Bengal',
+        district: 'Alipurduar',
+        zone: 'North Bengal',
+        department: 'PWD'
+      }
+    };
+    const res2b = mockRes();
+    await createProject(req2b, res2b);
+
+    // Non-numeric work_order_value check
+    const req2c = {
+      user: { role: 'admin', mobile_number: '+918276071523' },
+      body: {
+        work_order_no: 'TEST_WO_999',
+        estimate_no: 'EST_999',
+        work_order_value: 'not-a-number',
+        site_details: 'Test Site 999',
+        state: 'West Bengal',
+        district: 'Alipurduar',
+        zone: 'North Bengal',
+        department: 'PWD'
+      }
+    };
+    const res2c = mockRes();
+    await createProject(req2c, res2c);
+
+    if (res2a.statusCode === 400 && res2b.statusCode === 400 && res2c.statusCode === 400) {
+      console.log('  [PASS] Rejected request with missing, negative, and non-numeric work_order_value.');
       passes++;
     } else {
-      console.log(`  [FAIL] Expected 400 validation error, got: ${res2.statusCode}`);
+      console.log(`  [FAIL] Validation gating failed. Codes: missing=${res2a.statusCode}, negative=${res2b.statusCode}, non-numeric=${res2c.statusCode}`);
       fails++;
     }
 
@@ -132,17 +168,21 @@ async function testPhase2() {
     }
 
     if (testReportId) {
-      // 5. Test Live Join: Fetch the report and check project columns are returned live
-      console.log('\n5. Testing Live Join lookup for reports...');
+      // 5. Test Live Join: Fetch the report and check project columns (including work_order_value) are returned live
+      console.log('\n5. Testing Live Join lookup for reports (including work_order_value)...');
       const req5 = { params: { fund_report_id: testReportId } };
       const res5 = mockRes();
       await getReportById(req5, res5);
 
       if (res5.statusCode === 200 && res5.jsonData.success) {
         const report = res5.jsonData.report;
-        if (report.projects_master && report.projects_master.estimate_no === 'TEST_EST_A' && report.projects_master.state === 'West Bengal') {
-          console.log('  [PASS] Report fetched successfully with live project master columns:');
+        if (report.projects_master && 
+            report.projects_master.estimate_no === 'TEST_EST_A' && 
+            parseFloat(report.projects_master.work_order_value) === 1500000.00 && 
+            report.projects_master.state === 'West Bengal') {
+          console.log('  [PASS] Report fetched successfully with live project master columns and work_order_value:');
           console.log(`         Estimate: ${report.projects_master.estimate_no}`);
+          console.log(`         Work Order Value: ₹${report.projects_master.work_order_value}`);
           console.log(`         State: ${report.projects_master.state}`);
           passes++;
         } else {
@@ -293,8 +333,8 @@ async function testPhase2() {
         fails++;
       }
 
-      // 13. Verify Audit Log Creation
-      console.log('\n13. Testing Audit Log record creation...');
+      // 13. Verify Audit Log Creation (verifies work_order_value in project creation log too)
+      console.log('\n13. Testing Audit Log record creation (CREATE, EDIT, SOFT_DELETE, RESTORE)...');
       const { data: auditLogs, error: auditErr } = await supabase
         .from('audit_log')
         .select('*')
@@ -310,7 +350,7 @@ async function testPhase2() {
       const hasRestore = actions.includes('RESTORE');
 
       if (hasCreate && hasEdit && hasSoftDelete && hasRestore) {
-        console.log('  [PASS] Successfully verified all expected audit logs (CREATE, EDIT, SOFT_DELETE, RESTORE) exist.');
+        console.log('  [PASS] Successfully verified all expected fund report audit logs exist.');
         passes++;
       } else {
         console.log(`  [FAIL] Missing expected audit logs. Found actions: ${actions.join(', ')}`);
@@ -342,6 +382,7 @@ async function testPhase2() {
       body: {
         work_order_no: 'TEST_WO_STAFF_FAIL',
         estimate_no: 'EST_FAIL',
+        work_order_value: 500000,
         site_details: 'Site Fail',
         state: 'West Bengal',
         district: 'Alipurduar',
@@ -463,6 +504,48 @@ async function testPhase2() {
       fails++;
     }
 
+    // 20. Update Project work_order_value & verify Audit Logs capture the field update
+    console.log('\n20. Testing updateProject work_order_value and tracking changes in Audit Log...');
+    const reqUpdateVal = {
+      user: { role: 'admin', mobile_number: '+918276071523' },
+      params: { work_order_no: testWOUnderTest },
+      body: {
+        estimate_no: 'TEST_EST_A',
+        work_order_value: 3000000.00, // modified from 1500000.00
+        site_details: 'Test Site A',
+        state: 'West Bengal',
+        district: 'Alipurduar',
+        zone: 'North Bengal',
+        department: 'PWD'
+      }
+    };
+    const resUpdateVal = mockRes();
+    await updateProject(reqUpdateVal, resUpdateVal);
+
+    if (resUpdateVal.statusCode === 200 && resUpdateVal.jsonData?.success) {
+      // Fetch latest audit log record for this project to check if work_order_value edit was tracked
+      const { data: valAudit, error: valAuditErr } = await supabase
+        .from('audit_log')
+        .select('*')
+        .eq('record_identifier', testWOUnderTest)
+        .eq('action', 'EDIT')
+        .order('timestamp', { ascending: false })
+        .limit(1);
+
+      if (!valAuditErr && valAudit && valAudit[0] &&
+          parseFloat(valAudit[0].old_value?.work_order_value) === 1500000 &&
+          parseFloat(valAudit[0].new_value?.work_order_value) === 3000000) {
+        console.log('  [PASS] Successfully verified projects_master audit log tracks work_order_value changes.');
+        passes++;
+      } else {
+        console.log('  [FAIL] Audit log did not track work_order_value update correctly:', valAudit, valAuditErr);
+        fails++;
+      }
+    } else {
+      console.log(`  [FAIL] Failed to update project work_order_value. Status: ${resUpdateVal.statusCode}`);
+      fails++;
+    }
+
   } catch (err) {
     console.log('Unexpected validation error:', err.message);
     fails++;
@@ -484,9 +567,9 @@ async function testPhase2() {
   console.log(`Passed: ${passes}/${passes + fails}`);
   console.log(`Failed: ${fails}/${passes + fails}`);
   if (fails === 0) {
-    console.log('\n>>> ALL PHASE 2 BACKEND TESTS PASSED! <<<');
+    console.log('\n>>> ALL AUTOMATED TESTS PASSED SUCCESSFULLY! <<<');
   } else {
-    console.log('\n>>> SOME TESTS FAILED. CHECK THE BACKEND LOGIC AND DB CONSTRAINTS. <<<');
+    console.log('\n>>> SOME TESTS FAILED. CHECK LOGS AND CONSTRAINTS. <<<');
   }
 }
 

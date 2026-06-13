@@ -6,9 +6,16 @@ import { getProjects, createProject, updateProject, updateProjectStatus } from '
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['Running', 'Closed', 'Complete Under Maintenance'];
 
+const formatCurrency = (val) => {
+  const num = parseFloat(val);
+  if (isNaN(num)) return '₹0.00';
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(num);
+};
+
 const EMPTY_FORM = {
   work_order_no: '',
   estimate_no: '',
+  work_order_value: '',
   site_details: '',
   state: '',
   district: '',
@@ -114,6 +121,7 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
   const fields = [
     { name: 'work_order_no', label: 'Work Order No.', placeholder: 'e.g. WB_APD_101', disabled: isEdit },
     { name: 'estimate_no', label: 'Estimate No.', placeholder: 'e.g. APD_1' },
+    { name: 'work_order_value', label: 'Work Order Value', placeholder: 'e.g. 2500000', type: 'number', min: '0', step: '0.01' },
     { name: 'site_details', label: 'Site Details', placeholder: 'Site location / description' },
     { name: 'state', label: 'State', placeholder: 'e.g. West Bengal' },
     { name: 'district', label: 'District', placeholder: 'e.g. Bankura' },
@@ -155,23 +163,24 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
 
         <form onSubmit={handleSubmit} className="relative z-10">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {fields.map(({ name, label, placeholder, disabled }) => (
+            {fields.map(({ name, label, placeholder, disabled, type, ...rest }) => (
               <div key={name} className={name === 'site_details' ? 'sm:col-span-2' : ''}>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
                   {label}
-                  {name === 'work_order_no' && <span className="text-red-400 ml-1">*</span>}
+                  {(name === 'work_order_no' || name === 'work_order_value') && <span className="text-red-400 ml-1">*</span>}
                 </label>
                 <input
-                  type="text"
+                  type={type || 'text'}
                   name={name}
                   value={form[name]}
                   onChange={handleChange}
                   placeholder={placeholder}
                   disabled={disabled || submitting}
-                  required={name === 'work_order_no'}
+                  required={name === 'work_order_no' || name === 'work_order_value'}
                   className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
                     disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
                   }`}
+                  {...rest}
                 />
                 {disabled && (
                   <p className="text-[9px] text-slate-500 mt-1 font-mono">
@@ -527,7 +536,7 @@ const MasterData = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-500">
-                    {['Work Order No.', 'Estimate No.', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Actions'].map((h) => (
+                    {['Work Order No.', 'Estimate No.', 'Work Order Value', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Actions'].map((h) => (
                       <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -543,6 +552,9 @@ const MasterData = () => {
                       </td>
                       <td className="py-4 px-5 font-medium text-slate-300 whitespace-nowrap">
                         {project.estimate_no || <span className="text-slate-600 italic font-normal">—</span>}
+                      </td>
+                      <td className="py-4 px-5 font-semibold text-amber-500 whitespace-nowrap">
+                        {formatCurrency(project.work_order_value)}
                       </td>
                       <td className="py-4 px-5 max-w-[180px] text-slate-400">
                         <span className="block truncate" title={project.site_details}>

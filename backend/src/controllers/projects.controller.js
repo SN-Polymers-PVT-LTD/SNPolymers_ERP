@@ -59,6 +59,7 @@ async function createProject(req, res) {
   const {
     work_order_no,
     estimate_no,
+    work_order_value,
     site_details,
     state,
     district,
@@ -68,10 +69,18 @@ async function createProject(req, res) {
   } = req.body;
 
   // Validation
-  if (!work_order_no || !estimate_no || !site_details || !state || !district || !zone || !department) {
+  if (!work_order_no || !estimate_no || work_order_value === undefined || work_order_value === null || !site_details || !state || !district || !zone || !department) {
     return res.status(400).json({
       success: false,
-      message: 'All fields except status are required (work_order_no, estimate_no, site_details, state, district, zone, department).'
+      message: 'All fields including work_order_value are required (work_order_no, estimate_no, work_order_value, site_details, state, district, zone, department).'
+    });
+  }
+
+  const valNum = Number(work_order_value);
+  if (isNaN(valNum) || typeof work_order_value === 'string' && work_order_value.trim() === '' || valNum < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'work_order_value must be a valid non-negative number.'
     });
   }
 
@@ -92,6 +101,7 @@ async function createProject(req, res) {
         {
           work_order_no,
           estimate_no,
+          work_order_value: valNum,
           site_details,
           state,
           district,
@@ -136,13 +146,21 @@ async function updateProject(req, res) {
   }
 
   const { work_order_no } = req.params;
-  const { estimate_no, site_details, state, district, zone, department } = req.body;
+  const { estimate_no, work_order_value, site_details, state, district, zone, department } = req.body;
 
   // Validation
-  if (!estimate_no || !site_details || !state || !district || !zone || !department) {
+  if (!estimate_no || work_order_value === undefined || work_order_value === null || !site_details || !state || !district || !zone || !department) {
     return res.status(400).json({
       success: false,
-      message: 'All standard fields are required (estimate_no, site_details, state, district, zone, department).'
+      message: 'All standard fields including work_order_value are required (estimate_no, work_order_value, site_details, state, district, zone, department).'
+    });
+  }
+
+  const valNum = Number(work_order_value);
+  if (isNaN(valNum) || typeof work_order_value === 'string' && work_order_value.trim() === '' || valNum < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'work_order_value must be a valid non-negative number.'
     });
   }
 
@@ -164,6 +182,7 @@ async function updateProject(req, res) {
       .from('projects_master')
       .update({
         estimate_no,
+        work_order_value: valNum,
         site_details,
         state,
         district,

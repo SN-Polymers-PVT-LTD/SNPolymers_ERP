@@ -29,6 +29,7 @@ async function getReports(req, res) {
         *,
         projects_master (
           estimate_no,
+          work_order_value,
           site_details,
           state,
           district,
@@ -61,6 +62,7 @@ async function getSoftDeletedReports(req, res) {
         *,
         projects_master (
           estimate_no,
+          work_order_value,
           site_details,
           state,
           district,
@@ -95,6 +97,7 @@ async function getReportById(req, res) {
         *,
         projects_master (
           estimate_no,
+          work_order_value,
           site_details,
           state,
           district,

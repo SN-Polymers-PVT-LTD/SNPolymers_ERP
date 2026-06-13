@@ -221,6 +221,69 @@ CREATE TABLE sessions (
 
 ---
 
+### Table: `projects_master`
+Stores master project records. Physical deletion is prohibited by system policy.
+
+```sql
+CREATE TABLE projects_master (
+  work_order_no    varchar(100) PRIMARY KEY,
+  estimate_no      varchar(100) NOT NULL,
+  work_order_value numeric(18,2) NOT NULL, -- New field added in Phase 2
+  site_details     text NOT NULL,
+  state            varchar(100) NOT NULL,
+  district         varchar(100) NOT NULL,
+  zone             varchar(100) NOT NULL,
+  department       varchar(100) NOT NULL,
+  status           varchar(50) DEFAULT 'Running' NOT NULL,
+  created_by       varchar(15) REFERENCES authorised_users(mobile_number),
+  created_at       timestamptz DEFAULT now() NOT NULL,
+  edited_by        varchar(15) REFERENCES authorised_users(mobile_number),
+  edited_at        timestamptz DEFAULT now() NOT NULL
+);
+```
+
+---
+
+### Table: `fund_reports`
+Stores fund records mapped to projects. Mapped as many-to-one with `projects_master`. Supports soft deletion.
+
+```sql
+CREATE TABLE fund_reports (
+  fund_report_id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_order_no    varchar(100) REFERENCES projects_master(work_order_no) NOT NULL,
+  amount           numeric(18,2) NOT NULL,
+  remarks          text,
+  is_deleted       boolean DEFAULT false NOT NULL,
+  created_by       varchar(15) REFERENCES authorised_users(mobile_number) NOT NULL,
+  created_at       timestamptz DEFAULT now() NOT NULL,
+  edited_by        varchar(15) REFERENCES authorised_users(mobile_number),
+  edited_at        timestamptz DEFAULT now(),
+  deleted_by       varchar(15) REFERENCES authorised_users(mobile_number),
+  deleted_at       timestamptz
+);
+```
+
+---
+
+### Table: `audit_log`
+Database-level audit ledger capturing actions on projects and reports.
+
+```sql
+CREATE TABLE audit_log (
+  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id           varchar(15) REFERENCES authorised_users(mobile_number),
+  action            varchar(50) NOT NULL,
+  module_name       varchar(100) NOT NULL,
+  record_identifier varchar(100) NOT NULL,
+  old_value         jsonb,
+  new_value         jsonb,
+  timestamp         timestamptz DEFAULT now() NOT NULL
+);
+```
+
+
+---
+
 ## 4. Backend — `backend/`
 
 ---
