@@ -14,73 +14,33 @@ const BackgroundShapes = () => {
         backgroundSize: '32px 32px' 
       }}></div>
 
-      {/* 3. SVG Shape Silhouettes */}
-      <svg className="absolute inset-0 w-full h-full text-white pointer-events-none" viewBox="0 0 1000 1000" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-        {/* Top Right Corner Concentric Rings and Polymer Hexagon */}
-        <g className="opacity-[0.14] origin-[800px_200px] animate-[spin_100s_linear_infinite]" style={{ transformOrigin: '800px 200px' }}>
-          <circle cx="800" cy="200" r="180" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
-          <circle cx="800" cy="200" r="240" fill="none" stroke="currentColor" strokeWidth="0.75" />
-          <circle cx="800" cy="200" r="320" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="12 6" />
+      {/* 3. Top Right Corner Concentric Rings and Polymer Hexagon (Only SVG Shape Retained) */}
+      <svg className="absolute w-[800px] h-[800px] text-white pointer-events-none" style={{ left: '80%', top: '20%', transform: 'translate(-50%, -50%)' }} viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+        <g className="opacity-[0.14] origin-[400px_400px] animate-[spin_100s_linear_infinite]" style={{ transformOrigin: '400px 400px' }}>
+          <circle cx="400" cy="400" r="180" fill="none" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
+          <circle cx="400" cy="400" r="240" fill="none" stroke="currentColor" strokeWidth="0.75" />
+          <circle cx="400" cy="400" r="320" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="12 6" />
           
           {/* Hexagonal structural silhouette */}
           <polygon 
             points="
-              800,100 
-              886.6,150 
-              886.6,250 
-              800,300 
-              713.4,250 
-              713.4,150
+              400,300 
+              486.6,350 
+              486.6,450 
+              400,500 
+              313.4,450 
+              313.4,350
             " 
             fill="rgba(99, 102, 241, 0.05)" 
             stroke="currentColor" 
             strokeWidth="1.5" 
           />
-          <line x1="800" y1="200" x2="800" y2="100" stroke="currentColor" strokeWidth="1" />
-          <line x1="800" y1="200" x2="886.6" y2="150" stroke="currentColor" strokeWidth="1" />
-          <line x1="800" y1="200" x2="886.6" y2="250" stroke="currentColor" strokeWidth="1" />
-          <line x1="800" y1="200" x2="800" y2="300" stroke="currentColor" strokeWidth="1" />
-          <line x1="800" y1="200" x2="713.4" y2="250" stroke="currentColor" strokeWidth="1" />
-          <line x1="800" y1="200" x2="713.4" y2="150" stroke="currentColor" strokeWidth="1" />
-        </g>
- 
-        {/* Bottom Left Corner Molecular Network Silhouette */}
-        <g className="opacity-[0.12] origin-[200px_800px] animate-[spin_180s_linear_infinite_reverse]" style={{ transformOrigin: '200px 800px' }}>
-          <circle cx="200" cy="800" r="120" fill="none" stroke="currentColor" strokeWidth="1.25" />
-          <circle cx="200" cy="800" r="280" fill="none" stroke="currentColor" strokeWidth="0.75" strokeDasharray="8 8" />
-          
-          {/* Molecular bonds wireframes */}
-          <g transform="translate(-100, -100)">
-            <circle cx="200" cy="800" r="8" fill="currentColor" />
-            <circle cx="250" cy="720" r="6" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="200" y1="800" x2="250" y2="720" stroke="currentColor" strokeWidth="1.5" />
- 
-            <circle cx="130" cy="780" r="5" fill="currentColor" />
-            <line x1="200" y1="800" x2="130" y2="780" stroke="currentColor" strokeWidth="1.5" />
- 
-            <circle cx="230" cy="920" r="7" fill="none" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="200" y1="800" x2="200" y2="920" stroke="currentColor" strokeWidth="1.5" />
-          </g>
-        </g>
- 
-        {/* Engineering Crosshairs / Cad Grid Markings */}
-        <g className="opacity-[0.15] text-amber-500">
-          {/* Left vertical timeline line */}
-          <line x1="80" y1="0" x2="80" y2="1000" stroke="currentColor" strokeWidth="0.5" strokeDasharray="3 9" />
-          {/* Top horizontal alignment line */}
-          <line x1="0" y1="120" x2="1000" y2="120" stroke="currentColor" strokeWidth="0.5" strokeDasharray="6 12" />
- 
-          {/* Corner crosshairs */}
-          <path d="M 50,50 L 50,30 M 50,50 L 30,50 M 50,50 L 50,70 M 50,50 L 70,50" fill="none" stroke="currentColor" strokeWidth="1" />
-          <circle cx="50" cy="50" r="10" fill="none" stroke="currentColor" strokeWidth="0.5" />
-        </g>
- 
-        {/* Concentric Amber Orb / Scope Center-Right */}
-        <g className="opacity-[0.12] text-amber-500 origin-[850px_750px] animate-[spin_150s_linear_infinite]" style={{ transformOrigin: '850px 750px' }}>
-          <circle cx="850" cy="750" r="300" fill="none" stroke="currentColor" strokeWidth="0.5" />
-          <path d="M 850,450 A 300,300 0 0,1 950,750" fill="none" stroke="currentColor" strokeWidth="3" />
-          <path d="M 750,750 A 300,300 0 0,1 850,1050" fill="none" stroke="currentColor" strokeWidth="3" />
-          <circle cx="850" cy="750" r="6" fill="currentColor" />
+          <line x1="400" y1="400" x2="400" y2="300" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="400" x2="486.6" y2="350" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="400" x2="486.6" y2="450" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="400" x2="400" y2="500" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="400" x2="313.4" y2="450" stroke="currentColor" strokeWidth="1" />
+          <line x1="400" y1="400" x2="313.4" y2="350" stroke="currentColor" strokeWidth="1" />
         </g>
       </svg>
 
