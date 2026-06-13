@@ -11,7 +11,7 @@ Welcome to the **Integrated Digital Business Platform (IDBP)** for **S.N. Polyme
 
 ---
 
-## 🏗️ Repository Architecture
+##  Repository Architecture
 
 The project is split into two primary folders:
 
@@ -37,7 +37,7 @@ SNPolymers/
 
 ---
 
-## 🛠️ Tech Stack & Key Technologies
+## Tech Stack & Key Technologies
 
 ### Frontend
 - **Framework:** React 19 (Vite bundler)
@@ -56,7 +56,7 @@ SNPolymers/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 Follow these steps to set up and run the entire application locally.
 
@@ -105,7 +105,7 @@ The client UI will run on `http://localhost:5173`.
 ---
 ---
 
-## 🌐 Live Deployment
+## Live Deployment
 
 ### Production Environment
 
@@ -144,7 +144,7 @@ VITE_API_URL=https://snpolymers.onrender.com/api/v1/auth
 ```
 ---
 
-## 🔒 Security & Best Practices
+## Security & Best Practices
 
 - **Zero Client-Side Secret Leak:** The client never directly calls Supabase. All security operations, user management, and DB mutations are mediated securely by the Express.js Backend API.
 - **Secure Sessions:** Sessions are reinforced using JWT authorization cookies and secure token verification.

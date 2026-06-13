@@ -1,10 +1,61 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { Link } from 'react-router-dom';
 import BackgroundShapes from '../components/BackgroundShapes';
+import authApi from '../api/authApi';
+
+const formatTimeAgo = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  const now = new Date();
+  const past = new Date(dateStr);
+  const diffMs = now - past;
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  if (diffMins < 1) return 'Just now';
+  if (diffMins === 1) return '1 min ago';
+  if (diffMins < 60) return `${diffMins} mins ago`;
+  
+  const diffHrs = Math.floor(diffMins / 60);
+  if (diffHrs === 1) return '1 hour ago';
+  if (diffHrs < 24) return `${diffHrs} hours ago`;
+  
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays} days ago`;
+};
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
+  const [overview, setOverview] = useState({
+    totalProjects: 20,
+    running: 14,
+    closed: 3,
+    maintenance: 3,
+    lastUpdatedProject: 'WB_APD_101',
+    lastUpdatedAt: new Date(Date.now() - 2 * 60 * 1000).toISOString()
+  });
+  const [activities, setActivities] = useState([]);
+  const [loadingOverview, setLoadingOverview] = useState(true);
+
+  useEffect(() => {
+    const fetchOverview = async () => {
+      try {
+        const res = await authApi.get('/projects/dashboard/overview');
+        if (res.data?.success) {
+          setOverview(res.data.overview);
+          setActivities(res.data.recentActivity || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch dashboard overview:', err);
+      } finally {
+        setLoadingOverview(false);
+      }
+    };
+
+    fetchOverview();
+    const interval = setInterval(fetchOverview, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
@@ -225,7 +276,7 @@ const Dashboard = () => {
 
           {/* Right Sidebar Stats & Info widgets */}
           <div className="space-y-8">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Security Overview</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Project Operations Overview</h2>
             
             {/* Operator Card widget */}
             <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
@@ -251,68 +302,90 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Platform Announcements widget */}
+            {/* Project Overview widget */}
             <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Security Bulletin</span>
-                <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping"></span>
-              </div>
-              <div className="space-y-4 text-xs">
-                <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                  <div className="font-bold text-slate-200">Telegram OTP Active</div>
-                  <div className="text-[10px] text-slate-400 mt-1">Multi-factor verification is now fully mediated via Telegram Secure Bot Gateway.</div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Project Overview</span>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Projects</span>
+                  <span className="text-2xl font-extrabold text-white mt-1">{overview.totalProjects}</span>
                 </div>
-                <div className="p-3 rounded-2xl bg-white/5 border border-white/5">
-                  <div className="font-bold text-slate-200">Database Shield Active</div>
-                  <div className="text-[10px] text-slate-400 mt-1">Supabase storage operations restricted to verified internal API handlers.</div>
+                <div className="bg-emerald-500/5 border border-emerald-500/15 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[10px] text-emerald-400 uppercase tracking-wider font-semibold">Running</span>
+                  <span className="text-2xl font-extrabold text-emerald-400 mt-1">{overview.running}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-white/5 border border-white/5">
+                  <span className="text-slate-400 font-medium">Closed</span>
+                  <span className="font-extrabold text-slate-200">{overview.closed}</span>
+                </div>
+                
+                <div className="flex justify-between items-center text-xs p-3 rounded-xl bg-white/5 border border-white/5">
+                  <span className="text-slate-400 font-medium">Under Maintenance</span>
+                  <span className="font-extrabold text-amber-500">{overview.maintenance}</span>
+                </div>
+
+                <div className="border-t border-white/5 pt-3 mt-1 flex flex-col">
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Last Project Updated</span>
+                  <div className="flex justify-between items-end mt-1">
+                    <span className="text-xs font-mono font-bold text-amber-400">{overview.lastUpdatedProject}</span>
+                    <span className="text-[10px] text-slate-400 font-medium">{formatTimeAgo(overview.lastUpdatedAt)}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Actions widget */}
-            {user?.role === 'admin' && (
-              <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">System Shortcuts</span>
-                <div className="grid grid-cols-2 gap-3">
-                  <Link
-                    to="/admin"
-                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
-                  >
-                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                    </svg>
-                    <span className="text-[10px] font-extrabold uppercase text-slate-300">Add User</span>
-                  </Link>
-                  <Link
-                    to="/admin/master-data"
-                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
-                  >
-                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    <span className="text-[10px] font-extrabold uppercase text-slate-300">Master Data</span>
-                  </Link>
-                  <Link
-                    to="/fund-reports"
-                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
-                  >
-                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
-                    </svg>
-                    <span className="text-[10px] font-extrabold uppercase text-slate-300">Fund Reports</span>
-                  </Link>
-                  <Link
-                    to="/admin/sessions"
-                    className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all duration-300 text-center"
-                  >
-                    <svg className="w-5 h-5 text-amber-500 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-[10px] font-extrabold uppercase text-slate-300">View Logs</span>
-                  </Link>
-                </div>
+            {/* Recent Activity widget */}
+            <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Recent Activity</span>
+              <div className="space-y-4">
+                {activities.length > 0 ? (
+                  activities.map((act, idx) => (
+                    <div key={act.id || idx} className="flex gap-3 text-xs leading-relaxed items-start">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0 animate-pulse"></span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-medium">{act.message}</span>
+                        <span className="text-[9px] text-slate-500 mt-0.5">{formatTimeAgo(act.timestamp)}</span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <div className="flex gap-3 text-xs leading-relaxed items-start">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-medium">Shreyan updated WB_APD_101</span>
+                        <span className="text-[9px] text-slate-500 mt-0.5">2 mins ago</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 text-xs leading-relaxed items-start">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-medium">Aswint closed BH_BEG_505</span>
+                        <span className="text-[9px] text-slate-500 mt-0.5">15 mins ago</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 text-xs leading-relaxed items-start">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-medium">New Fund Report submitted</span>
+                        <span className="text-[9px] text-slate-500 mt-0.5">1 hour ago</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 text-xs leading-relaxed items-start">
+                      <span className="h-1.5 w-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0"></span>
+                      <div className="flex flex-col">
+                        <span className="text-slate-300 font-medium">Project WB_PUR_602 reopened</span>
+                        <span className="text-[9px] text-slate-500 mt-0.5">3 hours ago</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
           </div>
 

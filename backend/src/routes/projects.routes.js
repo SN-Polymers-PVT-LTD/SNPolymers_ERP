@@ -4,7 +4,8 @@ const {
   getProjectByWorkOrder,
   createProject,
   updateProject,
-  updateProjectStatus
+  updateProjectStatus,
+  getDashboardOverview
 } = require('../controllers/projects.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireAdmin = require('../middleware/requireAdmin');
@@ -15,6 +16,7 @@ const router = express.Router();
 router.use(verifyJwt);
 
 // General staff and admin read-only access (for list select & auto-fill)
+router.get('/dashboard/overview', getDashboardOverview);
 router.get('/', getProjects);
 router.get('/:work_order_no', getProjectByWorkOrder);
 
