@@ -11,8 +11,8 @@ export const MobileHeader = () => {
     <header className="md:hidden glass-nav sticky top-0 z-50 p-4 flex items-center justify-between">
       <div className="flex items-center gap-2">
         <Link to="/dashboard" className="flex items-center gap-2">
-          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-8 w-auto object-contain" />
-          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">S.N. Polymers</span>
+          <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-8 w-auto object-contain" />
+          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">SN Polymers Pvt LTD</span>
         </Link>
       </div>
       {user && (
@@ -128,11 +128,11 @@ const Sidebar = () => {
         {!isCollapsed && (
           <div className="flex items-center gap-3.5">
             <Link to="/dashboard">
-              <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-10 w-auto object-contain" />
+              <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-10 w-auto object-contain" />
             </Link>
             <div className="flex flex-col">
               <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">
-                S.N. Polymers
+                SN Polymers Pvt LTD
               </span>
               <span className="text-[9px] text-amber-500 font-extrabold tracking-widest uppercase">
                 ERP Console
@@ -142,7 +142,7 @@ const Sidebar = () => {
         )}
         {isCollapsed && (
           <Link to="/dashboard" className="flex justify-center">
-            <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-8 w-auto object-contain" />
+            <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-8 w-auto object-contain" />
           </Link>
         )}
         <button

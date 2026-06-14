@@ -15,10 +15,10 @@ const Home = () => {
       <header className="glass-nav sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-10 w-auto object-contain" />
+            <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-10 w-auto object-contain" />
             <div className="flex flex-col">
               <span className="font-bold text-sm tracking-wider text-slate-100 uppercase font-sans">
-                S.N. Polymers
+                SN Polymers Pvt LTD
               </span>
               <span className="text-[10px] text-amber-500 font-bold tracking-widest uppercase">
                 Enterprise Resource Planning
@@ -58,7 +58,7 @@ const Home = () => {
           </h1>
           
           <p className="mt-8 text-base sm:text-lg text-slate-300 font-normal leading-relaxed max-w-xl">
-            This gateway provides centralized access to internal management portals for S.N. Polymers manufacturing formulation pipelines, logistics controls, and government infrastructure projects.
+            This gateway provides centralized access to internal management portals for SN Polymers Pvt LTD manufacturing formulation pipelines, logistics controls, and government infrastructure projects.
           </p>
 
           <div className="mt-12 flex items-center gap-4">
@@ -97,7 +97,7 @@ const Home = () => {
 
       {/* Footer */}
       <footer className="border-t border-white/5 bg-black/80 py-8 text-center text-xs text-slate-400 font-medium z-10">
-        <p>&copy; {new Date().getFullYear()} S.N. Polymers. All access logged and audited. Authorized internal personnel only.</p>
+        <p>&copy; {new Date().getFullYear()} SN Polymers Pvt LTD. All access logged and audited. Authorized internal personnel only.</p>
       </footer>
     </div>
   );

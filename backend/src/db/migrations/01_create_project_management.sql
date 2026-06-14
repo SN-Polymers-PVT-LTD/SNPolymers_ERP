@@ -7,7 +7,7 @@ CREATE TYPE project_status AS ENUM ('Running', 'Closed', 'Complete Under Mainten
 -- 2. Create projects_master table (no soft delete support)
 CREATE TABLE IF NOT EXISTS projects_master (
   work_order_no     VARCHAR PRIMARY KEY NOT NULL,
-  estimate_no       VARCHAR NOT NULL,
+  estimate_no       VARCHAR UNIQUE NOT NULL,
   site_details      TEXT NOT NULL,
   state             VARCHAR NOT NULL,
   district          VARCHAR NOT NULL,

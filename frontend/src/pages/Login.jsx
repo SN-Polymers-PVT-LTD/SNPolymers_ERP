@@ -52,7 +52,7 @@ const Login = () => {
         
         {/* Seal and Title */}
         <div className="text-center mb-8">
-          <img src="/assets/logo.png" alt="S.N. Polymers Logo" className="h-16 w-auto mx-auto mb-5 object-contain filter drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]" />
+          <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-16 w-auto mx-auto mb-5 object-contain filter drop-shadow-[0_2px_8px_rgba(255,255,255,0.08)]" />
           <h2 className="text-xl font-extrabold uppercase tracking-widest text-slate-100">Portal Authentication</h2>
           <span className="text-[10px] uppercase tracking-widest text-amber-500/90 font-bold block mt-1.5">
             Office Console Verification
