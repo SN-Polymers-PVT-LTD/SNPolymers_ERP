@@ -19,6 +19,8 @@ const adminRoutes = require('./routes/admin.routes');
 const projectRoutes = require('./routes/projects.routes');
 const reportRoutes = require('./routes/reports.routes');
 const materialsRoutes = require('./routes/materials.routes');
+const estimatesRoutes = require('./routes/estimates.routes');
+const purchaseDataRoutes = require('./routes/purchaseData.routes');
 
 const { startPolling } = require('./services/telegram.service');
 
@@ -53,6 +55,8 @@ app.use('/api/v1/auth/projects', projectRoutes);
 app.use('/api/v1/auth/reports', reportRoutes);
 app.use('/api/materials', materialsRoutes);
 app.use('/api/v1/auth/materials', materialsRoutes);
+app.use('/api/v1/auth/estimates', estimatesRoutes);
+app.use('/api/v1/auth/purchase-data', purchaseDataRoutes);
 
 // Basic sanity route
 app.get('/health', (req, res) => {
