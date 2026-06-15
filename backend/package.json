@@ -7,7 +7,8 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test": "node src/test_phase2.js",
-    "test:materials": "node src/test_phase2a.js"
+    "test:materials": "node src/test_phase2a.js",
+    "test:milestone1": "node src/test_milestone1.js"
   },
   "dependencies": {
     "@mapbox/node-pre-gyp": "^2.0.3",
