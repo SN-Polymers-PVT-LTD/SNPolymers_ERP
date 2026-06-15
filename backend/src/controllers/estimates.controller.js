@@ -671,11 +671,332 @@ async function submitEstimate(req, res) {
   }
 }
 
+/**
+ * PATCH /api/v1/auth/estimates/:id/review
+ * Opens an estimate for review. Transitions Submitted -> Under ZO Review or ZO Approved -> Under HO Review.
+ * Also handles revision deadline expiration atomically via RPC.
+ */
+async function reviewEstimate(req, res) {
+  const { id } = req.params;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    // 1. Fetch estimate header
+    const { data: estimate, error: estError } = await supabase
+      .from('project_cost_estimates')
+      .select('*')
+      .eq('estimate_id', id)
+      .maybeSingle();
+
+    if (estError) throw estError;
+
+    if (!estimate) {
+      return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Workflow actor and status check
+    const effectiveRole = req.user.role === 'staff' ? 'je' : req.user.role;
+    const isZoOrAdmin = ['zo', 'admin'].includes(effectiveRole);
+    const isHoOrAdmin = ['ho', 'admin'].includes(effectiveRole);
+
+    let allowed = false;
+    if (estimate.estimate_status === 'Submitted') {
+      allowed = isZoOrAdmin;
+    } else if (estimate.estimate_status === 'ZO Approved') {
+      allowed = isHoOrAdmin;
+    } else if (estimate.estimate_status === 'ZO Revision Requested') {
+      allowed = isZoOrAdmin;
+    } else if (estimate.estimate_status === 'HO Revision Requested') {
+      allowed = isHoOrAdmin;
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ success: false, message: 'Access denied for this workflow stage.' });
+    }
+
+    // 2. Revision Deadline Check (Auto-Resubmit)
+    const { data: openLog, error: logError } = await supabase
+      .from('estimate_revision_log')
+      .select('*')
+      .eq('estimate_id', id)
+      .is('resubmitted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (logError) throw logError;
+
+    if (openLog) {
+      const now = new Date();
+      const deadline = new Date(openLog.revision_deadline);
+      if (now > deadline) {
+        // Deadline expired! Perform auto-resubmission via SQL RPC
+        const { error: rpcError } = await supabase.rpc('auto_resubmit_estimate', {
+          p_estimate_id: id,
+          p_stage: openLog.stage
+        });
+
+        if (rpcError) throw rpcError;
+
+        // Fetch updated estimate header to return
+        const { data: updatedEst, error: fetchError } = await supabase
+          .from('project_cost_estimates')
+          .select('*, projects_master(*)')
+          .eq('estimate_id', id)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        return res.status(200).json({
+          success: true,
+          estimate: updatedEst,
+          message: 'Revision deadline expired. Estimate auto-resubmitted.'
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Estimate is currently in revision and the deadline has not expired.'
+        });
+      }
+    }
+
+    // 3. Standard Flow Transition
+    let targetStatus = null;
+    if (estimate.estimate_status === 'Submitted') {
+      targetStatus = 'Under ZO Review';
+    } else if (estimate.estimate_status === 'ZO Approved') {
+      targetStatus = 'Under HO Review';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status for starting review: ${estimate.estimate_status}`
+      });
+    }
+
+    const { data: updatedEstimate, error: updateError } = await supabase
+      .from('project_cost_estimates')
+      .update({
+        estimate_status: targetStatus,
+        last_modified_by: req.user.mobile_number,
+        updated_at: new Date().toISOString()
+      })
+      .eq('estimate_id', id)
+      .select('*, projects_master(*)')
+      .single();
+
+    if (updateError) throw updateError;
+
+    return res.status(200).json({
+      success: true,
+      estimate: updatedEstimate,
+      message: `Estimate is now ${targetStatus}.`
+    });
+
+  } catch (error) {
+    console.error(`reviewEstimate failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to open estimate for review.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/estimates/:id/row-approvals
+ * Saves row-level decisions (Approve/Not Approve) atomically.
+ */
+async function submitRowApprovals(req, res) {
+  const { id } = req.params;
+  const { approvals } = req.body;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  if (!Array.isArray(approvals)) {
+    return res.status(400).json({ success: false, message: 'approvals must be an array.' });
+  }
+
+  try {
+    // 1. Fetch estimate header
+    const { data: estimate, error: estError } = await supabase
+      .from('project_cost_estimates')
+      .select('*')
+      .eq('estimate_id', id)
+      .maybeSingle();
+
+    if (estError) throw estError;
+
+    if (!estimate) {
+      return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Stage guard: Under ZO Review and user is zo/admin
+    const effectiveRole = req.user.role === 'staff' ? 'je' : req.user.role;
+    if (estimate.estimate_status !== 'Under ZO Review') {
+      return res.status(403).json({ success: false, message: 'Row approvals can only be submitted during Under ZO Review status.' });
+    }
+
+    if (!['zo', 'admin'].includes(effectiveRole)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only ZO or Admin can approve rows.' });
+    }
+
+    // 2. Validate Approvals Array
+    const itemIds = approvals.map(a => a.item_id);
+    if (new Set(itemIds).size !== itemIds.length) {
+      return res.status(400).json({ success: false, message: 'Duplicate item_id detected.' });
+    }
+
+    for (const approval of approvals) {
+      if (!uuidRegex.test(approval.item_id)) {
+        return res.status(400).json({ success: false, message: `Invalid item UUID: ${approval.item_id}` });
+      }
+
+      if (!['Approve', 'Not Approve'].includes(approval.approve_status)) {
+        return res.status(400).json({ success: false, message: `Invalid approve_status for item ${approval.item_id}. Must be Approve or Not Approve.` });
+      }
+
+      if (approval.approve_status === 'Not Approve') {
+        if (!approval.remarks || typeof approval.remarks !== 'string' || approval.remarks.trim() === '') {
+          return res.status(400).json({ success: false, message: `Remarks are required for rejected item: ${approval.item_id}` });
+        }
+      }
+    }
+
+    // 3. Verify all items exist and belong to this estimate
+    const { data: dbItems, error: itemsFetchError } = await supabase
+      .from('project_cost_estimate_items')
+      .select('item_id')
+      .eq('estimate_id', id)
+      .in('item_id', itemIds);
+
+    if (itemsFetchError) throw itemsFetchError;
+
+    const dbItemIds = (dbItems || []).map(item => item.item_id);
+    const missingIds = itemIds.filter(id => !dbItemIds.includes(id));
+    if (missingIds.length > 0) {
+      return res.status(404).json({ success: false, message: `Item IDs not found or do not belong to this estimate: ${missingIds.join(', ')}` });
+    }
+
+    // 4. Call submit_row_approvals RPC
+    const { error: rpcError } = await supabase.rpc('submit_row_approvals', {
+      p_estimate_id: id,
+      p_approvals: approvals,
+      p_stage: 'ZO',
+      p_modified_by: req.user.mobile_number
+    });
+
+    if (rpcError) throw rpcError;
+
+    // 5. Fetch updated items array
+    const { data: finalItems, error: fetchFinalError } = await supabase
+      .from('project_cost_estimate_items')
+      .select('*')
+      .eq('estimate_id', id)
+      .order('created_at', { ascending: true });
+
+    if (fetchFinalError) throw fetchFinalError;
+
+    return res.status(200).json({
+      success: true,
+      items: finalItems,
+      message: 'Row approvals updated successfully.'
+    });
+
+  } catch (error) {
+    console.error(`submitRowApprovals failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to submit row approvals.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/estimates/:id/submit-review
+ * Submits the final review decision for ZO, transitioning the status to ZO Approved or Rejected by ZO.
+ */
+async function submitReview(req, res) {
+  const { id } = req.params;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    // 1. Fetch estimate header first to validate stage & permissions
+    const { data: estimate, error: estError } = await supabase
+      .from('project_cost_estimates')
+      .select('*')
+      .eq('estimate_id', id)
+      .maybeSingle();
+
+    if (estError) throw estError;
+
+    if (!estimate) {
+      return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Stage Guard
+    const effectiveRole = req.user.role === 'staff' ? 'je' : req.user.role;
+    if (estimate.estimate_status !== 'Under ZO Review') {
+      return res.status(403).json({ success: false, message: 'Reviews can only be submitted for estimates under ZO Review.' });
+    }
+
+    if (!['zo', 'admin'].includes(effectiveRole)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only ZO or Admin can submit reviews.' });
+    }
+
+    // 2. Call the transactional RPC submit_zo_review
+    const { error: rpcError } = await supabase.rpc('submit_zo_review', {
+      p_estimate_id: id,
+      p_reviewer: req.user.mobile_number,
+      p_remarks: req.body.remarks || null
+    });
+
+    if (rpcError) {
+      // If RPC failed due to undecided rows check, return 422
+      if (rpcError.message && rpcError.message.includes('undecided')) {
+        return res.status(422).json({ success: false, message: 'All rows must be decided.' });
+      }
+      throw rpcError;
+    }
+
+    // 3. Fetch the updated estimate header
+    const { data: updatedEstimate, error: fetchError } = await supabase
+      .from('project_cost_estimates')
+      .select('*, projects_master(*)')
+      .eq('estimate_id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // 4. Trigger Telegram notification if ZO Approved
+    if (updatedEstimate.estimate_status === 'ZO Approved') {
+      const { notifyHoEstimateApproved } = require('../services/telegram.service');
+      notifyHoEstimateApproved(updatedEstimate).catch(err => {
+        console.error(`Telegram notification failed: ${err.message}`);
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      estimate: updatedEstimate,
+      message: `Review submitted successfully. Final Status: ${updatedEstimate.estimate_status}`
+    });
+
+  } catch (error) {
+    console.error(`submitReview failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to submit final review.' });
+  }
+}
+
 module.exports = {
   _recalculateEstimateAmount,
   createEstimate,
   saveDraftItems,
   getEstimates,
   getEstimateById,
-  submitEstimate
+  submitEstimate,
+  reviewEstimate,
+  submitRowApprovals,
+  submitReview
 };
+

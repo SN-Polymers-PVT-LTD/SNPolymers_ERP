@@ -200,8 +200,77 @@ async function notifyZoEstimateSubmitted(estimate) {
   }
 }
 
+async function notifyHoEstimateApproved(estimate) {
+  try {
+    // 1. Fetch active HO users with non-null chat IDs:
+    const { data: hoUsers, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('role', 'ho')
+      .eq('is_active', true)
+      .not('telegram_chat_id', 'is', null);
+
+    if (error) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active HO users: ${error.message}`);
+      return;
+    }
+
+    // 2. Filter list in JS to ensure clean values (excluding empty strings and whitespace):
+    const recipients = (hoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+
+    if (recipients.length === 0) {
+      console.warn(
+        `[TELEGRAM ALERTS] No active HO users configured with Telegram chat IDs for estimate approval notification. ` +
+        `Estimate: ${estimate?.estimate_id || 'N/A'}, Work Order: ${estimate?.work_order_no || 'N/A'}`
+      );
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.warn(
+        `[TELEGRAM ALERTS] TELEGRAM_BOT_TOKEN is not set. Silent console fallback. ` +
+        `Estimate ID: ${estimate?.estimate_id}, Work Order: ${estimate?.work_order_no}`
+      );
+      return;
+    }
+
+    const estimateNo = estimate.estimate_no || 'N/A';
+    const amount = estimate.estimate_amount || 0;
+    const workOrder = estimate.work_order_no || 'N/A';
+    const siteDetails = estimate.projects_master?.site_details || 'N/A';
+
+    const messageText = 
+      `✅ *Estimate Approved by ZO*\n\n` +
+      `*Estimate No:* ${estimateNo}\n` +
+      `*Work Order:* ${workOrder}\n` +
+      `*Site Details:* ${siteDetails}\n` +
+      `*Approved Zonal Amount:* ₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `*Approved By ZO:* ${estimate.zo_approved_by || 'N/A'}\n\n` +
+      `Please review and finalize this estimate on the IDBP dashboard.`;
+
+    for (const recipient of recipients) {
+      try {
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!data.ok) {
+          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id}): ${data.description}`);
+        } else {
+          console.log(`[TELEGRAM ALERTS] Notification sent to ${recipient.display_name}`);
+        }
+      } catch (err) {
+        console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name}: ${err.message}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[TELEGRAM ALERTS] notifyHoEstimateApproved failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   sendOtp,
   startPolling,
-  notifyZoEstimateSubmitted
+  notifyZoEstimateSubmitted,
+  notifyHoEstimateApproved
 };
+
