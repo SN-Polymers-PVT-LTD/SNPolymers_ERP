@@ -3,7 +3,8 @@ const {
   getEstimates,
   getEstimateById,
   createEstimate,
-  saveDraftItems
+  saveDraftItems,
+  submitEstimate
 } = require('../controllers/estimates.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -20,5 +21,6 @@ router.get('/:id', getEstimateById);
 const jeRoles = ['je', 'staff', 'admin'];
 router.post('/', requireRole(jeRoles), createEstimate);
 router.put('/:id/items', requireRole(jeRoles), saveDraftItems);
+router.post('/:id/submit', requireRole(jeRoles), submitEstimate);
 
 module.exports = router;

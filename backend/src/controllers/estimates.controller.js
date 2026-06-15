@@ -544,10 +544,138 @@ async function getEstimateById(req, res) {
   }
 }
 
+/**
+ * POST /api/v1/auth/estimates/:id/submit
+ * Submits an estimate header (Draft, ZO Revision Requested, or HO Revision Requested) atomically.
+ */
+async function submitEstimate(req, res) {
+  const { id } = req.params;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    // 1. Fetch estimate header
+    const { data: estimate, error: estError } = await supabase
+      .from('project_cost_estimates')
+      .select('*')
+      .eq('estimate_id', id)
+      .maybeSingle();
+
+    if (estError) throw estError;
+
+    if (!estimate) {
+      return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Gating & Ownership check
+    const isOwner = estimate.created_by === req.user.mobile_number;
+    const isAdmin = req.user.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not own this estimate.' });
+    }
+
+    const allowedStatuses = ['Draft', 'ZO Revision Requested', 'HO Revision Requested'];
+    if (!allowedStatuses.includes(estimate.estimate_status)) {
+      return res.status(403).json({ success: false, message: 'Estimate cannot be submitted in its current status.' });
+    }
+
+    // 2. Fetch all items associated with this estimate
+    const { data: items, error: itemsError } = await supabase
+      .from('project_cost_estimate_items')
+      .select('*')
+      .eq('estimate_id', id);
+
+    if (itemsError) throw itemsError;
+
+    // Zero-item check
+    if (!items || items.length === 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Estimate must contain at least one line item.'
+      });
+    }
+
+    // Completeness validation
+    const errors = [];
+    items.forEach((item, index) => {
+      const missing_fields = [];
+      if (!item.material_main_head || String(item.material_main_head).trim() === '') missing_fields.push('material_main_head');
+      if (!item.material_sub_head || String(item.material_sub_head).trim() === '') missing_fields.push('material_sub_head');
+      if (!item.material_details || String(item.material_details).trim() === '') missing_fields.push('material_details');
+      if (!item.unit || String(item.unit).trim() === '') missing_fields.push('unit');
+      if (item.qty === null || item.qty === undefined || Number(item.qty) <= 0) missing_fields.push('qty');
+      if (item.rate === null || item.rate === undefined || Number(item.rate) <= 0) missing_fields.push('rate');
+      if (!item.rate_reference || String(item.rate_reference).trim() === '') missing_fields.push('rate_reference');
+
+      if (missing_fields.length > 0) {
+        errors.push({
+          item_id: item.item_id,
+          item_index: index,
+          missing_fields
+        });
+      }
+    });
+
+    if (errors.length > 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Estimate is incomplete.',
+        errors
+      });
+    }
+
+    // 3. Status Transitions & Transactions
+    const isFirstSubmit = estimate.estimate_status === 'Draft';
+    const isZoResubmit = estimate.estimate_status === 'ZO Revision Requested';
+    const isHoResubmit = estimate.estimate_status === 'HO Revision Requested';
+    const new_revision = estimate.estimate_revision + 1;
+
+    const p_stage = isFirstSubmit ? 'FirstSubmit' : (isZoResubmit ? 'ZO' : 'HO');
+
+    // Call public.submit_estimate RPC
+    const { error: rpcError } = await supabase.rpc('submit_estimate', {
+      p_estimate_id: id,
+      p_stage,
+      p_mobile_number: req.user.mobile_number,
+      p_new_revision: new_revision
+    });
+
+    if (rpcError) throw rpcError;
+
+    // 4. Fetch the updated estimate
+    const { data: updatedEstimate, error: fetchError } = await supabase
+      .from('project_cost_estimates')
+      .select('*, projects_master(*)')
+      .eq('estimate_id', id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // 5. Non-blocking Telegram notification (async)
+    const { notifyZoEstimateSubmitted } = require('../services/telegram.service');
+    notifyZoEstimateSubmitted(updatedEstimate).catch(err => {
+      console.error(`Telegram notification failed: ${err.message}`);
+    });
+
+    return res.status(200).json({
+      success: true,
+      estimate: updatedEstimate,
+      message: 'Estimate submitted successfully.'
+    });
+
+  } catch (error) {
+    console.error(`submitEstimate failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to submit cost estimate.' });
+  }
+}
+
 module.exports = {
   _recalculateEstimateAmount,
   createEstimate,
   saveDraftItems,
   getEstimates,
-  getEstimateById
+  getEstimateById,
+  submitEstimate
 };

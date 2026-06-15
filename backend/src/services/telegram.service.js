@@ -129,7 +129,79 @@ async function startPolling() {
   poll();
 }
 
+/**
+ * Sends a notification to all active ZO users when a new estimate is submitted.
+ * @param {object} estimate - The submitted estimate object (enriched with projects_master data if possible)
+ */
+async function notifyZoEstimateSubmitted(estimate) {
+  try {
+    // 1. Fetch active ZO users with non-null chat IDs:
+    const { data: zoUsers, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('role', 'zo')
+      .eq('is_active', true)
+      .not('telegram_chat_id', 'is', null);
+
+    if (error) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users: ${error.message}`);
+      return;
+    }
+
+    // 2. Filter list in JS to ensure clean values (excluding empty strings and whitespace):
+    const recipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+
+    if (recipients.length === 0) {
+      console.warn(
+        `[TELEGRAM ALERTS] No active ZO users configured with Telegram chat IDs for estimate submission notification. ` +
+        `Estimate: ${estimate?.estimate_id || 'N/A'}, Work Order: ${estimate?.work_order_no || 'N/A'}`
+      );
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.warn(
+        `[TELEGRAM ALERTS] TELEGRAM_BOT_TOKEN is not set. Silent console fallback. ` +
+        `Estimate ID: ${estimate?.estimate_id}, Work Order: ${estimate?.work_order_no}`
+      );
+      return;
+    }
+
+    const estimateNo = estimate.estimate_no || 'N/A';
+    const amount = estimate.estimate_amount || 0;
+    const workOrder = estimate.work_order_no || 'N/A';
+    const siteDetails = estimate.projects_master?.site_details || 'N/A';
+
+    const messageText = 
+      `📝 *New Estimate Submitted*\n\n` +
+      `*Estimate No:* ${estimateNo}\n` +
+      `*Work Order:* ${workOrder}\n` +
+      `*Site Details:* ${siteDetails}\n` +
+      `*Amount:* ₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `*Submitted By:* ${estimate.je_user_id || 'N/A'}\n\n` +
+      `Please review this estimate on the IDBP dashboard.`;
+
+    for (const recipient of recipients) {
+      try {
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!data.ok) {
+          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id}): ${data.description}`);
+        } else {
+          console.log(`[TELEGRAM ALERTS] Notification sent to ${recipient.display_name}`);
+        }
+      } catch (err) {
+        console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name}: ${err.message}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[TELEGRAM ALERTS] notifyZoEstimateSubmitted failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   sendOtp,
-  startPolling
+  startPolling,
+  notifyZoEstimateSubmitted
 };
