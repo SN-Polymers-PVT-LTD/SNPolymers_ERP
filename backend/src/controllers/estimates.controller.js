@@ -784,10 +784,14 @@ async function reviewEstimate(req, res) {
         updated_at: new Date().toISOString()
       })
       .eq('estimate_id', id)
+      .eq('estimate_status', estimate.estimate_status)
       .select('*, projects_master(*)')
-      .single();
+      .maybeSingle();
 
     if (updateError) throw updateError;
+    if (!updatedEstimate) {
+      return res.status(409).json({ success: false, message: 'Conflict: The estimate status has already been changed by another action.' });
+    }
 
     return res.status(200).json({
       success: true,
@@ -904,6 +908,14 @@ async function submitRowApprovals(req, res) {
     });
 
   } catch (error) {
+    if (error.message && error.message.includes('Unauthorized')) {
+      console.info(`submitRowApprovals authorization conflict: ${error.message}`);
+      return res.status(403).json({ success: false, message: error.message });
+    }
+    if (error.message && error.message.includes('not found or does not belong to estimate')) {
+      console.info(`submitRowApprovals validation conflict: ${error.message}`);
+      return res.status(404).json({ success: false, message: error.message });
+    }
     console.error(`submitRowApprovals failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to submit row approvals.' });
   }
@@ -948,7 +960,7 @@ async function submitReview(req, res) {
     const { error: rpcError } = await supabase.rpc('submit_zo_review', {
       p_estimate_id: id,
       p_reviewer: req.user.mobile_number,
-      p_remarks: req.body.remarks || null
+      p_remarks: req.body?.remarks || null
     });
 
     if (rpcError) {
@@ -983,6 +995,14 @@ async function submitReview(req, res) {
     });
 
   } catch (error) {
+    if (error.message && error.message.includes('Unauthorized')) {
+      console.info(`submitReview authorization conflict: ${error.message}`);
+      return res.status(403).json({ success: false, message: error.message });
+    }
+    if (error.message && (error.message.includes('Expected Under ZO Review') || error.message.includes('All rows must be decided'))) {
+      console.info(`submitReview transition conflict: ${error.message}`);
+      return res.status(409).json({ success: false, message: error.message });
+    }
     console.error(`submitReview failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to submit final review.' });
   }

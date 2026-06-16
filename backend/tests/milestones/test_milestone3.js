@@ -1,10 +1,10 @@
-const { supabase } = require('./db/supabase');
+const { supabase } = require('../../src/db/supabase');
 const {
   createEstimate,
   saveDraftItems,
   getEstimates,
   getEstimateById
-} = require('./controllers/estimates.controller');
+} = require('../../src/controllers/estimates.controller');
 
 // Helper to create mock res object
 function mockRes() {

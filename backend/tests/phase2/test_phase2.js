@@ -4,7 +4,7 @@ const {
   createProject,
   updateProject,
   updateProjectStatus
-} = require('./controllers/projects.controller');
+} = require('../../src/controllers/projects.controller');
 
 const {
   getReports,
@@ -13,11 +13,11 @@ const {
   updateReport,
   deleteReport,
   restoreReport
-} = require('./controllers/reports.controller');
+} = require('../../src/controllers/reports.controller');
 
-const { supabase } = require('./db/supabase');
+const { supabase } = require('../../src/db/supabase');
 
-const requireAdmin = require('./middleware/requireAdmin');
+const requireAdmin = require('../../src/middleware/requireAdmin');
 // Helper to create mock res object
 function mockRes() {
   const res = {

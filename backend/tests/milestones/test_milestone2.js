@@ -1,11 +1,11 @@
-const { supabase } = require('./db/supabase');
-const requireRole = require('./middleware/requireRole');
+const { supabase } = require('../../src/db/supabase');
+const requireRole = require('../../src/middleware/requireRole');
 const {
   getPurchaseOptions,
   createPurchaseOption,
   updatePurchaseOption,
   togglePurchaseOptionStatus
-} = require('./controllers/purchaseData.controller');
+} = require('../../src/controllers/purchaseData.controller');
 
 // Helper to create mock res object
 function mockRes() {

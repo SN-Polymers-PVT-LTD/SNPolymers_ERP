@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { supabase } = require('./db/supabase');
+const { supabase } = require('../../src/db/supabase');
 const {
   createEstimate,
   saveDraftItems,
@@ -7,7 +7,7 @@ const {
   reviewEstimate,
   submitRowApprovals,
   submitReview
-} = require('./controllers/estimates.controller');
+} = require('../../src/controllers/estimates.controller');
 
 // Helper to create mock res object
 function mockRes() {

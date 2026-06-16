@@ -134,6 +134,9 @@ async function startPolling() {
  * @param {object} estimate - The submitted estimate object (enriched with projects_master data if possible)
  */
 async function notifyZoEstimateSubmitted(estimate) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
   try {
     // 1. Fetch active ZO users with non-null chat IDs:
     const { data: zoUsers, error } = await supabase
@@ -201,6 +204,9 @@ async function notifyZoEstimateSubmitted(estimate) {
 }
 
 async function notifyHoEstimateApproved(estimate) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
   try {
     // 1. Fetch active HO users with non-null chat IDs:
     const { data: hoUsers, error } = await supabase

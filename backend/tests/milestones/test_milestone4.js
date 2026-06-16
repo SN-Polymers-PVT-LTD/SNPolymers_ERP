@@ -1,10 +1,10 @@
 const crypto = require('crypto');
-const { supabase } = require('./db/supabase');
+const { supabase } = require('../../src/db/supabase');
 const {
   createEstimate,
   saveDraftItems,
   submitEstimate
-} = require('./controllers/estimates.controller');
+} = require('../../src/controllers/estimates.controller');
 
 // Helper to create mock res object
 function mockRes() {
@@ -381,7 +381,7 @@ async function testMilestone4() {
     // Test 7b: Telegram alert failures are non-blocking
     // -------------------------------------------------------------
     console.log('\n7b. Testing that Telegram notification failure does not block estimate submission...');
-    const telegramService = require('./services/telegram.service');
+    const telegramService = require('../../src/services/telegram.service');
     const originalNotify = telegramService.notifyZoEstimateSubmitted;
 
     // Stub to throw error

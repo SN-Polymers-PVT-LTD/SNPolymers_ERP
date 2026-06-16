@@ -1,4 +1,4 @@
-const { supabase } = require('./db/supabase');
+const { supabase } = require('../../src/db/supabase');
 
 async function testMilestone1() {
   console.log('=== RUNNING MILESTONE 1 DATABASE FOUNDATION VERIFICATION TESTS ===\n');

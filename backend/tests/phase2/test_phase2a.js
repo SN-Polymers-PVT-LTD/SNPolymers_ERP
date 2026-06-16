@@ -4,8 +4,8 @@ const {
   createMaterial,
   updateMaterial,
   updateMaterialStatus
-} = require('./controllers/materials.controller');
-const { supabase } = require('./db/supabase');
+} = require('../../src/controllers/materials.controller');
+const { supabase } = require('../../src/db/supabase');
 
 // Mock response object helper
 function mockRes() {
