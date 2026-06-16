@@ -27,6 +27,7 @@ async function getPurchaseOptions(req, res) {
 
     return res.status(200).json({
       success: true,
+      options: sortedOptions,
       purchaseOptions: sortedOptions
     });
   } catch (error) {

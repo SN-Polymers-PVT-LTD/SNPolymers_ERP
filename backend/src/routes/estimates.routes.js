@@ -33,8 +33,8 @@ router.post('/:id/submit', requireRole(jeRoles), submitEstimate);
 const reviewRoles = ['zo', 'ho', 'admin'];
 const zoRoles = ['zo', 'admin'];
 router.patch('/:id/review', requireRole(reviewRoles), reviewEstimate);
-router.post('/:id/row-approvals', requireRole(zoRoles), submitRowApprovals);
-router.post('/:id/submit-review', requireRole(zoRoles), submitReview);
+router.post('/:id/row-approvals', requireRole(reviewRoles), submitRowApprovals);
+router.post('/:id/submit-review', requireRole(reviewRoles), submitReview);
 router.post('/:id/request-revision', requireRole(reviewRoles), requestRevision);
 
 module.exports = router;

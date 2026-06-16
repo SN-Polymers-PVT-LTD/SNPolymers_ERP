@@ -5,7 +5,8 @@ const {
   createMaterial,
   updateMaterial,
   updateMaterialStatus,
-  getMaterialCategories
+  getMaterialCategories,
+  getSubHeadsByMainHead
 } = require('../controllers/materials.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireAdmin = require('../middleware/requireAdmin');
@@ -17,6 +18,7 @@ router.use(verifyJwt);
 
 // General staff and admin access for reading
 router.get('/categories', getMaterialCategories);
+router.get('/subheads', getSubHeadsByMainHead);
 router.get('/', getMaterials);
 router.get('/:id', getMaterialById);
 
