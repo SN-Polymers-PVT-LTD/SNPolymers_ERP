@@ -37,6 +37,7 @@ const Dashboard = () => {
   });
   const [activities, setActivities] = useState([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
+  const [estimatesOverview, setEstimatesOverview] = useState({ total: 0, pending: 0 });
 
   useEffect(() => {
     const fetchOverview = async () => {
@@ -45,6 +46,15 @@ const Dashboard = () => {
         if (res.data?.success) {
           setOverview(res.data.overview);
           setActivities(res.data.recentActivity || []);
+        }
+
+        const estRes = await authApi.get('/estimates?limit=100');
+        if (estRes.data?.success) {
+          const total = estRes.data.pagination.total || 0;
+          const pending = estRes.data.estimates.filter(
+            e => !['Final Approved', 'Rejected by ZO', 'Rejected by HO'].includes(e.estimate_status)
+          ).length;
+          setEstimatesOverview({ total, pending });
         }
       } catch (err) {
         console.error('Failed to fetch dashboard overview:', err);
@@ -119,10 +129,10 @@ const Dashboard = () => {
                 <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
                   <span className="text-[9px] uppercase tracking-widest font-extrabold text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 px-2 py-0.5 rounded-lg">Active System</span>
                   <Link
-                    to="/fund-reports"
+                    to="/estimates"
                     className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
                   >
-                    Open Fund Reports &rarr;
+                    Open Cost Estimates &rarr;
                   </Link>
                 </div>
               </div>
@@ -210,6 +220,42 @@ const Dashboard = () => {
                     <span className="text-xs font-mono font-bold text-amber-400">{overview.lastUpdatedProject}</span>
                     <span className="text-[10px] text-slate-400 font-medium">{formatTimeAgo(overview.lastUpdatedAt)}</span>
                   </div>
+              </div>
+            </div>
+          </div>
+            
+            {/* Estimates Overview widget */}
+            <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Estimates Overview</span>
+              
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Total Estimates</span>
+                  <span className="text-2xl font-extrabold text-white mt-1">{estimatesOverview.total}</span>
+                </div>
+                <div className="bg-amber-500/5 border border-amber-500/15 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[10px] text-amber-400 uppercase tracking-wider font-semibold">Pending Review</span>
+                  <span className="text-2xl font-extrabold text-amber-500 mt-1">{estimatesOverview.pending}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-white/5 pt-3 mt-1 flex flex-col">
+                <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Quick Actions</span>
+                <div className="mt-2 flex gap-2">
+                  <Link
+                    to="/estimates"
+                    className="flex-1 text-center py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] uppercase font-bold text-slate-300 transition-all duration-200"
+                  >
+                    View Estimates List
+                  </Link>
+                  {['je', 'staff', 'admin'].includes(user?.role) && (
+                    <Link
+                      to="/estimates/new"
+                      className="flex-1 text-center py-2 bg-white hover:bg-slate-100 rounded-xl text-[10px] uppercase font-bold text-slate-950 transition-all duration-200 shadow-md"
+                    >
+                      New Estimate
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>

@@ -69,8 +69,8 @@ const MaterialMaster = () => {
   });
 
   const categories = {
-    mainHeads: categoriesData?.mainHeads || [],
-    subHeads: categoriesData?.subHeads || []
+    mainHeads: Array.from(new Set(categoriesData?.mainHeads || [])),
+    subHeads: Array.from(new Set(categoriesData?.subHeads || []))
   };
 
   // Fetch main material records using React Query

@@ -7,7 +7,7 @@ const { supabase } = require('../db/supabase');
 async function getMaterials(req, res) {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit || 50), 100);
+    const limit = Math.min(parseInt(req.query.limit || 50), 1000);
     const offset = (page - 1) * limit;
 
     const { search, main_head, sub_head, is_active } = req.query;
@@ -301,6 +301,28 @@ async function updateMaterialStatus(req, res) {
   }
 }
 
+async function getSubHeadsByMainHead(req, res) {
+  try {
+    const { main_head } = req.query;
+    if (!main_head) {
+      return res.status(400).json({ success: false, message: 'main_head query param required.' });
+    }
+    const isAdmin = req.user && req.user.role === 'admin';
+    let query = supabase.from('material_master').select('Material_Sub_Head').limit(1000);
+    if (!isAdmin) {
+      query = query.eq('is_active', true);
+    }
+    query = query.eq('Material_Main_Head', main_head);
+    const { data, error } = await query;
+    if (error) throw error;
+    const subHeads = [...new Set(data.map(item => item.Material_Sub_Head).filter(Boolean))].sort();
+    return res.status(200).json({ success: true, subHeads });
+  } catch (error) {
+    console.error(`getSubHeadsByMainHead failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve sub heads.' });
+  }
+}
+
 async function getMaterialCategories(req, res) {
   try {
     const isAdmin = req.user && req.user.role === 'admin';
@@ -329,5 +351,6 @@ module.exports = {
   createMaterial,
   updateMaterial,
   updateMaterialStatus,
-  getMaterialCategories
+  getMaterialCategories,
+  getSubHeadsByMainHead
 };

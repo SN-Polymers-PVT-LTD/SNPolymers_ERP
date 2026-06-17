@@ -13,8 +13,12 @@ import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/admin/AdminPanel';
 import AuditLog from './pages/admin/AuditLog';
 import MasterData from './pages/admin/MasterData';
+import PurchaseOptions from './pages/admin/PurchaseOptions';
 import FundReports from './pages/FundReports';
 import MaterialMaster from './pages/MaterialMaster';
+import Estimates from './pages/Estimates';
+import EstimateForm from './pages/EstimateForm';
+import EstimateView from './pages/EstimateView';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,11 +40,15 @@ function App() {
           <Route path="/verify-otp" element={<OtpVerify />} />
           <Route path="/telegram-setup" element={<TelegramSetup />} />
 
-          {/* Protected Routes (Staff & Admin) */}
-          <Route element={<ProtectedRoute allowedRoles={['staff', 'admin']} />}>
+          {/* Protected Routes (All Phase 2 Roles) */}
+          <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/fund-reports" element={<FundReports />} />
             <Route path="/materials" element={<MaterialMaster />} />
+            <Route path="/estimates" element={<Estimates />} />
+            <Route path="/estimates/new" element={<EstimateForm />} />
+            <Route path="/estimates/:id" element={<EstimateView />} />
+            <Route path="/estimates/:id/edit" element={<EstimateForm />} />
           </Route>
 
           {/* Admin Protected Routes */}
@@ -48,6 +56,7 @@ function App() {
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/admin/sessions" element={<AuditLog />} />
             <Route path="/admin/master-data" element={<MasterData />} />
+            <Route path="/admin/purchase-options" element={<PurchaseOptions />} />
           </Route>
 
           {/* Fallback Catch All */}

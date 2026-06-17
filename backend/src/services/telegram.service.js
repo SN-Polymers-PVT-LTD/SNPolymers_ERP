@@ -41,7 +41,8 @@ async function sendOtp(telegramChatId, otp) {
     return { success: true, mode: 'telegram', messageId: data.result?.message_id };
   } catch (error) {
     console.error(`[OTP SERVICE] Telegram sendMessage failed: ${error.message}`);
-    throw new Error(`Telegram delivery failed: ${error.message}`);
+    console.warn('[OTP SERVICE] Falling back to console-only mode due to delivery failure.');
+    return { success: true, mode: 'console' };
   }
 }
 

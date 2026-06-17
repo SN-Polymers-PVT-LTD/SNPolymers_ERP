@@ -194,13 +194,17 @@ const AdminPanel = () => {
       <MobileHeader />
 
       {/* Content */}
-      <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
+      <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10 font-sans">
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10 pb-6 border-b border-white/5">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 font-mono">Console System Policies</span>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Authorized Access Whitelist</h1>
-            <p className="text-xs text-slate-400 font-medium mt-1.5">Configure user accounts and mobile number tokens authorized to bypass firewall credentials.</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">
+              Authorized Access Whitelist
+            </h1>
+            <p className="text-xs text-slate-400 font-medium mt-1.5">
+              Configure user accounts and mobile number tokens authorized to bypass firewall credentials.
+            </p>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
@@ -227,7 +231,6 @@ const AdminPanel = () => {
           </div>
         )}
 
-        {/* Database Whitelist Table */}
         <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
           {loading ? (
             <div className="flex items-center justify-center p-24">
@@ -260,11 +263,10 @@ const AdminPanel = () => {
                       </td>
                       <td className="py-4 px-6 font-mono text-slate-200 font-semibold">{user.mobile_number}</td>
                       <td className="py-4 px-6">
-                        <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider ${
-                          user.role === 'admin'
+                        <span className={`px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider ${user.role === 'admin'
                             ? 'bg-indigo-950/40 text-indigo-400 border border-indigo-900/30'
                             : 'bg-white/5 text-slate-300 border border-white/5'
-                        }`}>
+                          }`}>
                           {user.role}
                         </span>
                       </td>
@@ -293,11 +295,10 @@ const AdminPanel = () => {
                       <td className="py-4 px-6 text-center">
                         <button
                           onClick={() => toggleUserStatus(user)}
-                          className={`px-3 py-1.5 rounded-xl text-[10px] uppercase font-bold tracking-wider transition-all duration-300 shadow-md ${
-                            user.is_active
+                          className={`px-3 py-1.5 rounded-xl text-[10px] uppercase font-bold tracking-wider transition-all duration-300 shadow-md ${user.is_active
                               ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
                               : 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20'
-                          }`}
+                            }`}
                         >
                           {user.is_active ? 'Active' : 'Deactivated'}
                         </button>
@@ -380,6 +381,9 @@ const AdminPanel = () => {
                     disabled={submitting}
                   >
                     <option value="staff" className="bg-slate-900 text-slate-100">Staff Operator (Standard Access)</option>
+                    <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
+                    <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
+                    <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
                     <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
                   </select>
                 </div>
@@ -478,6 +482,9 @@ const AdminPanel = () => {
                     disabled={editSubmitting}
                   >
                     <option value="staff" className="bg-slate-900 text-slate-100">Staff Operator (Standard Access)</option>
+                    <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
+                    <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
+                    <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
                     <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
                   </select>
                 </div>
@@ -490,11 +497,10 @@ const AdminPanel = () => {
                     <button
                       type="button"
                       onClick={() => setEditActive(true)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${
-                        editActive
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${editActive
                           ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                           : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
-                      }`}
+                        }`}
                       disabled={editSubmitting}
                     >
                       Active
@@ -502,11 +508,10 @@ const AdminPanel = () => {
                     <button
                       type="button"
                       onClick={() => setEditActive(false)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${
-                        !editActive
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${!editActive
                           ? 'bg-red-500/15 border-red-500/30 text-red-400'
                           : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
-                      }`}
+                        }`}
                       disabled={editSubmitting}
                     >
                       Deactivated
@@ -584,6 +589,7 @@ const AdminPanel = () => {
             </div>
           </div>
         )}
+
       </main>
     </div>
   );
