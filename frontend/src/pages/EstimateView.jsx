@@ -260,6 +260,17 @@ const EstimateView = () => {
       return;
     }
 
+    // Rejections must have remarks
+    for (const itemId of Object.keys(rowDecisions)) {
+      const dec = rowDecisions[itemId];
+      if (dec.approve_status === 'Not Approve' && (!dec.remarks || dec.remarks.trim() === '')) {
+        const item = items.find(i => i.item_id === itemId);
+        setError(`Please enter rejection comments for item: ${item ? item.material_details : 'Selected item'}`);
+        setShowRevisionModal(false);
+        return;
+      }
+    }
+
     if (deadlineHours < 1 || deadlineHours > 168 || !Number.isInteger(deadlineHours)) {
       setError('Deadline must be an integer between 1 and 168 hours.');
       return;

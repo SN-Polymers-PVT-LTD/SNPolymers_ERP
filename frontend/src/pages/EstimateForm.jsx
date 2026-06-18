@@ -136,7 +136,7 @@ const EstimateForm = () => {
         // 3. Create Mode: Fetch Projects for Selection
         const [projRes, estsRes] = await Promise.all([
           authApi.get('/projects'),
-          authApi.get('/estimates?limit=100')
+          authApi.get('/estimates?limit=1000&global=true')
         ]);
 
         if (projRes.data?.success && estsRes.data?.success) {

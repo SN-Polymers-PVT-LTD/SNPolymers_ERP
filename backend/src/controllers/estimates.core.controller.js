@@ -98,7 +98,7 @@ async function getEstimates(req, res) {
     const page = Math.max(parseInt(query.page) || 1, 1);
     let limit = parseInt(query.limit) || 50;
     if (limit < 1) limit = 50;
-    limit = Math.min(limit, 100);
+    limit = Math.min(limit, 1000);
     const offset = (page - 1) * limit;
 
     const effectiveRole = getEffectiveRole(req.user.role);
@@ -106,7 +106,7 @@ async function getEstimates(req, res) {
       .from('project_cost_estimates')
       .select('*, projects_master(*)', { count: 'exact' });
 
-    if (effectiveRole === 'je') {
+    if (effectiveRole === 'je' && query.global !== 'true') {
       dbQuery = dbQuery.eq('created_by', req.user.mobile_number);
     } else if (effectiveRole === 'zo') {
       dbQuery = dbQuery.in('estimate_status', ZO_VISIBLE_STATUSES);
