@@ -609,15 +609,32 @@ async function testMilestone3() {
     try {
       if (createdEstimateId) {
         await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', createdEstimateId);
+        await supabase.from('project_cost_estimates').update({
+          work_order_no: 'WB_BAN_102',
+          created_by: '+918276071523',
+          last_modified_by: '+918276071523',
+          je_user_id: '+918276071523',
+          zo_approved_by: null,
+          ho_approved_by: null
+        }).eq('estimate_id', createdEstimateId);
       }
       if (createdEstimateId2) {
         await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', createdEstimateId2);
+        await supabase.from('project_cost_estimates').update({
+          work_order_no: 'WB_BAN_102',
+          created_by: '+918276071523',
+          last_modified_by: '+918276071523',
+          je_user_id: '+918276071523',
+          zo_approved_by: null,
+          ho_approved_by: null
+        }).eq('estimate_id', createdEstimateId2);
       }
       if (insertedMaterialIds.length > 0) {
         await supabase.from('material_master').delete().in('id', insertedMaterialIds);
       }
-      // Delete projects master row ONLY for closed project (active projects are referenced by immutable estimate headers and cannot be deleted due to FK constraint)
-      await supabase.from('projects_master').delete().eq('work_order_no', closedWorkOrder);
+      // Delete projects master rows
+      await supabase.from('projects_master').delete().in('work_order_no', [activeWorkOrder, activeWorkOrder2, closedWorkOrder]);
+      // Delete test users
       await supabase.from('authorised_users').delete().in('mobile_number', [mobileJE_A, mobileJE_B, mobileZO, mobileAdmin]);
       console.log('   Cleanup done.');
     } catch (cleanupErr) {

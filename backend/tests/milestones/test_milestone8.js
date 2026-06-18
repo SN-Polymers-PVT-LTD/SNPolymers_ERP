@@ -513,10 +513,16 @@ async function testMilestone8() {
     if (testEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', testEstimateId);
       await supabase.from('project_cost_estimates')
-        .update({ estimate_status: 'Rejected by ZO', last_modified_by: testAdminMobile })
+        .update({
+          estimate_status: 'Rejected by ZO',
+          created_by: '+918276071523',
+          last_modified_by: '+918276071523',
+          je_user_id: '+918276071523',
+          zo_approved_by: null,
+          ho_approved_by: null
+        })
         .eq('estimate_id', testEstimateId);
       await supabase.from('estimate_revision_log').delete().eq('estimate_id', testEstimateId);
-      await supabase.from('audit_log').delete().eq('record_identifier', String(testEstimateId));
     }
     await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile]);
     console.log('  [PASS] Test data cleaned up.');

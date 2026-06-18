@@ -1,39 +1,20 @@
 const { supabase } = require('../src/db/supabase');
 
-async function checkTriggers() {
-  console.log('Checking trigger status on database...');
-  // We can query pg_trigger view using sql RPC or raw query if available.
-  // Wait, does the supabase client support raw SQL execution? Usually no, unless there is a custom RPC.
-  // Let's see if there is any RPC for running SQL, or we can check what functions exist.
-  const { data, error } = await supabase.rpc('execute_sql_query', {
-    query_text: `
-      SELECT 
-        tgname AS trigger_name, 
-        relname AS table_name,
-        CASE tgenabled
-          WHEN 'O' THEN 'Enabled (Origin)'
-          WHEN 'D' THEN 'Disabled'
-          WHEN 'A' THEN 'Always Enabled'
-          WHEN 'R' THEN 'Replica Only'
-          ELSE tgenabled::text
-        END AS status
-      FROM pg_trigger
-      JOIN pg_class ON pg_class.oid = tgrelid
-      WHERE relname IN ('project_cost_estimates', 'material_master', 'authorised_users', 'projects_master')
-        AND NOT tgisinternal;
-    `
+async function check() {
+  const { data, error } = await supabase.rpc('submit_estimate', {
+    p_estimate_id: '00000000-0000-0000-0000-000000000000',
+    p_stage: 'ZO',
+    p_mobile_number: '+919999999999',
+    p_new_revision: 1
   });
-
-  if (error) {
-    // If execute_sql_query RPC doesn't exist, we can try to see what we can do or just inform the user.
-    console.error('Error querying triggers:', error);
-    
-    // Let's fallback to checking if we can query some other tables or if we should just guide the user.
-    console.log('Falling back to a query to try executing basic info...');
-  } else {
-    console.log('Trigger Statuses:');
-    console.table(data);
-  }
+  
+  // Let's run raw SQL query to get the function source
+  const { data: triggerFunc, error: trigErr } = await supabase.rpc('get_estimate_by_id', { p_id: '00000000-0000-0000-0000-000000000000' });
+  console.log(triggerFunc, trigErr);
 }
-
-checkTriggers();
+// Let's just do a direct query on pg_proc using a known read-only rpc or method if available.
+// Actually, do we have any RPC that lets us run a select or look at things?
+// Wait, we have the migration files. Let's see if prevent_estimate_hard_delete trigger is defined differently in the DB.
+// Let's run a query to get pg_proc source if possible.
+// Wait! Let's check if the trigger function prevent_estimate_hard_delete is indeed what's defined in migration 13.
+// Let's look at migration 10_create_project_cost_estimates.sql.

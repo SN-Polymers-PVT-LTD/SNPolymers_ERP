@@ -506,12 +506,26 @@ async function testMilestone7() {
     // Clean up test data
     console.log('\nCleaning up integration test data...');
     if (testEstimateIdZeroItems) {
-      await supabase.from('project_cost_estimates').delete().eq('estimate_id', testEstimateIdZeroItems);
+      await supabase.from('project_cost_estimates').update({
+        work_order_no: 'WB_BAN_102',
+        created_by: '+918276071523',
+        last_modified_by: '+918276071523',
+        je_user_id: '+918276071523',
+        zo_approved_by: null,
+        ho_approved_by: null
+      }).eq('estimate_id', testEstimateIdZeroItems);
     }
     if (testEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', testEstimateId);
       await supabase.from('project_cost_estimates')
-        .update({ estimate_status: 'Rejected by ZO', last_modified_by: testAdminMobile })
+        .update({
+          estimate_status: 'Rejected by ZO',
+          created_by: '+918276071523',
+          last_modified_by: '+918276071523',
+          je_user_id: '+918276071523',
+          zo_approved_by: null,
+          ho_approved_by: null
+        })
         .eq('estimate_id', testEstimateId);
       await supabase.from('estimate_revision_log').delete().eq('estimate_id', testEstimateId);
     }

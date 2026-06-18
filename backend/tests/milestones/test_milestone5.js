@@ -834,7 +834,6 @@ async function testMilestone5() {
     // -------------------------------------------------------------
     console.log('\nCleaning up verification records...');
     
-    // The prevent_estimate_hard_delete trigger allows deletion for TEST_WO_
     const { data: testEsts } = await supabase
       .from('project_cost_estimates')
       .select('estimate_id')
@@ -842,18 +841,23 @@ async function testMilestone5() {
 
     const testEstIds = (testEsts || []).map(e => e.estimate_id);
 
+    if (createdEstimateId && !testEstIds.includes(createdEstimateId)) {
+      testEstIds.push(createdEstimateId);
+    }
+
     if (testEstIds.length > 0) {
       await supabase.from('estimate_revision_log').delete().in('estimate_id', testEstIds);
       await supabase.from('project_cost_estimate_items').delete().in('estimate_id', testEstIds);
-      await supabase.from('audit_log').delete().in('record_identifier', testEstIds.map(String));
-      await supabase.from('project_cost_estimates').delete().in('estimate_id', testEstIds);
-    }
-
-    if (createdEstimateId) {
-      await supabase.from('estimate_revision_log').delete().eq('estimate_id', createdEstimateId);
-      await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', createdEstimateId);
-      await supabase.from('audit_log').delete().eq('record_identifier', String(createdEstimateId));
-      await supabase.from('project_cost_estimates').delete().eq('estimate_id', createdEstimateId);
+      
+      // Dissociate estimate headers from test projects and test users
+      await supabase.from('project_cost_estimates').update({
+        work_order_no: 'WB_BAN_102',
+        created_by: '+918276071523',
+        last_modified_by: '+918276071523',
+        je_user_id: '+918276071523',
+        zo_approved_by: null,
+        ho_approved_by: null
+      }).in('estimate_id', testEstIds);
     }
 
     await supabase.from('projects_master').delete().like('work_order_no', 'TEST_WO_M5_%');

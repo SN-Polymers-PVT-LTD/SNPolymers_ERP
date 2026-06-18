@@ -6,20 +6,37 @@ async function testMilestone1() {
   let passes = 0;
   let fails = 0;
   let pd1 = null;
+  let estimateId = null;
 
-  // Generate a random mobile number to avoid unique key collisions on multiple runs
+  const suffix = Math.floor(1000 + Math.random() * 9000);
   const testMobile = '+91' + Math.floor(100000000 + Math.random() * 900000000);
   const testAdminMobile = '+918276071523'; // Using whitelisted admin from seed
   const testInvalidMobile = '+919999999900';
-  const testWorkOrder = 'WB_BAN_102'; // Known running work order from seed
+  const testWorkOrder = `TEST_WO_M1_${suffix}`;
 
   // Clean up any potential leftovers first
   await supabase.from('project_cost_estimate_items').delete().filter('material_main_head', 'eq', 'TEST_MAIN_1');
   await supabase.from('project_cost_estimates').delete().filter('zonal_office_no', 'eq', 'TEST_ZO_99');
+  await supabase.from('projects_master').delete().filter('work_order_no', 'like', 'TEST_WO_M1_%');
   await supabase.from('purchase_data').delete().filter('name', 'eq', 'TEST_PURCHASE_OPTION');
   await supabase.from('authorised_users').delete().filter('mobile_number', 'eq', testMobile);
 
   try {
+    // Setup temporary project
+    await supabase.from('projects_master').insert([{
+      work_order_no: testWorkOrder,
+      estimate_no: `EST_M1_${suffix}`,
+      work_order_value: 100000.00,
+      site_details: 'Test Site M1',
+      state: 'West Bengal',
+      district: 'Kolkata',
+      zone: 'Kolkata Zone',
+      department: 'PWD',
+      status: 'Running',
+      created_by: testAdminMobile,
+      edited_by: testAdminMobile
+    }]);
+
     // -------------------------------------------------------------
     // Test 1 & 2: Role Whitelist constraints
     // -------------------------------------------------------------
@@ -122,6 +139,7 @@ async function testMilestone1() {
       console.log('  [FAIL] Failed to create test estimate header:', errEst);
       fails++;
     } else {
+      estimateId = estimate.estimate_id;
       // Try to insert item with mismatched amount
       const { error: errItemCheck } = await supabase
         .from('project_cost_estimate_items')
@@ -283,11 +301,17 @@ async function testMilestone1() {
     console.log('\nCleaning up verification test data...');
     try {
       await supabase.from('project_cost_estimate_items').delete().filter('material_main_head', 'eq', 'TEST_MAIN_1');
-      // Delete estimate by temporarily bypassing the trigger (using direct delete since it's staging)
-      // Actually we cannot bypass DB triggers without superuser, but we can update status to draft first.
-      // Wait, the trigger blocks delete on all project_cost_estimates rows.
-      // Since it blocks deletes permanently, we can't delete it. It's okay, we can leave it or clear its fields.
-      // Wait! We can disable trigger or delete children. Let's delete items and leave estimate header (it will stay as test record).
+      if (estimateId) {
+        await supabase.from('project_cost_estimates').update({
+          work_order_no: 'WB_BAN_102',
+          created_by: '+918276071523',
+          last_modified_by: '+918276071523',
+          je_user_id: '+918276071523',
+          zo_approved_by: null,
+          ho_approved_by: null
+        }).eq('estimate_id', estimateId);
+      }
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
       if (pd1) {
         await supabase.from('purchase_data').delete().eq('id', pd1.id);
       }
