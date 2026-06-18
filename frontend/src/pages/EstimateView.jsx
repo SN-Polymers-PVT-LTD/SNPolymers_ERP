@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import authApi from '../api/authApi';
+import { exportToExcel, exportToPDF } from '../utils/exportHelpers';
 
 const ESTIMATE_STATUS = {
   DRAFT: 'Draft',
@@ -361,6 +362,18 @@ const EstimateView = () => {
             <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, audit, and audit trail logs for cost estimate entry.</p>
           </div>
           <div className="flex gap-3">
+            <button
+              onClick={() => exportToExcel(estimate, items)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-slate-100 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg transition duration-200"
+            >
+              Excel
+            </button>
+            <button
+              onClick={() => exportToPDF('printable-estimate-area', estimate.estimate_no)}
+              className="bg-rose-600 hover:bg-rose-700 text-slate-100 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg transition duration-200"
+            >
+              PDF
+            </button>
             {canEditEstimate && (
               <Link
                 to={`/estimates/${id}/edit`}
@@ -399,6 +412,9 @@ const EstimateView = () => {
             {success}
           </div>
         )}
+
+        {/* PRINTABLE AREA CONTAINER */}
+        <div id="printable-estimate-area" className="space-y-8 bg-black p-4 rounded-3xl">
 
         {/* 1. HEADER INFORMATION */}
         <div className="glass-panel p-6 rounded-3xl mb-8 border border-white/5 space-y-6">
@@ -562,7 +578,7 @@ const EstimateView = () => {
                               </td>
                             </>
                           )}
-                          <td className="py-4 px-5 text-slate-300 font-semibold">{item.source_of_purchase || 'N/A'}</td>
+                          <td className="py-4 px-5 text-slate-300 font-semibold">{item.purchase_data?.name || item.source_of_purchase || 'N/A'}</td>
                         </tr>
                       );
                     })}
@@ -796,6 +812,7 @@ const EstimateView = () => {
             )}
           </div>
         )}
+        </div>
 
         {/* ── REQUEST REVISION MODAL ── */}
         {showRevisionModal && (

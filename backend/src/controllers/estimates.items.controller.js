@@ -195,7 +195,7 @@ async function saveDraftItems(req, res) {
 
     const { data: finalItems, error: fetchFinalError } = await supabase
       .from('project_cost_estimate_items')
-      .select('*')
+      .select('*, purchase_data(name)')
       .eq('estimate_id', id)
       .order('created_at', { ascending: true });
 
@@ -303,7 +303,7 @@ async function submitRowApprovals(req, res) {
     // Fetch updated items array
     const { data: finalItems, error: fetchFinalError } = await supabase
       .from('project_cost_estimate_items')
-      .select('*')
+      .select('*, purchase_data(name)')
       .eq('estimate_id', id)
       .order('created_at', { ascending: true });
 

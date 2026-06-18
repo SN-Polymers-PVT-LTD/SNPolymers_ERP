@@ -195,7 +195,7 @@ async function getEstimateById(req, res) {
 
     const { data: items, error: itemsError } = await supabase
       .from('project_cost_estimate_items')
-      .select('*')
+      .select('*, purchase_data(name)')
       .eq('estimate_id', id)
       .order('created_at', { ascending: true });
 

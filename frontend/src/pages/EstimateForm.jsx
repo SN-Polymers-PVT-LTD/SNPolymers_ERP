@@ -666,7 +666,7 @@ const EstimateForm = () => {
                           disabled={isExpired || submitting || isLocked}
                         >
                           <option value="">Select Source</option>
-                          {purchaseOptions.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
+                          {purchaseOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                         </select>
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-200">
