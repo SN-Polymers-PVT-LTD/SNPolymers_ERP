@@ -602,10 +602,142 @@ async function getRevisionLog(req, res) {
   }
 }
 
+/**
+ * POST /api/v1/auth/estimates/:id/reopen
+ * Reopens an estimate in a terminal/final status back to revision cycle.
+ * Restricted to HO and Admin.
+ */
+async function reopenEstimate(req, res) {
+  const { id } = req.params;
+
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    const estimate = await getEstimateById(id);
+    if (!estimate) {
+      return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Role check: Only HO and Admin can reopen
+    const effectiveRole = getEffectiveRole(req.user.role);
+    if (!['ho', 'admin'].includes(effectiveRole)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only HO or Admin can reopen estimates.' });
+    }
+
+    // Check if there's already an active revision log
+    const { data: activeRevision, error: activeRevError } = await supabase
+      .from('estimate_revision_log')
+      .select('id')
+      .eq('estimate_id', id)
+      .is('resubmitted_at', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (activeRevError) throw activeRevError;
+    if (activeRevision) {
+      return res.status(409).json({
+        success: false,
+        message: 'A revision request is already active for this estimate.'
+      });
+    }
+
+    // Calculate cycle number
+    const { data: lastLog, error: lastLogError } = await supabase
+      .from('estimate_revision_log')
+      .select('revision_cycle')
+      .eq('estimate_id', id)
+      .eq('stage', 'HO')
+      .order('revision_cycle', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastLogError) throw lastLogError;
+    const cycle = lastLog ? lastLog.revision_cycle + 1 : 1;
+
+    // Create a new HO revision log cycle with a default 24-hour deadline
+    const durationHours = 24;
+    const revision_deadline = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+
+    const { data: logEntry, error: insertError } = await supabase
+      .from('estimate_revision_log')
+      .insert([
+        {
+          estimate_id: id,
+          revision_cycle: cycle,
+          stage: 'HO',
+          requested_by: req.user.mobile_number,
+          revision_deadline,
+          resubmitted_at: null,
+          is_auto_resubmitted: false
+        }
+      ])
+      .select()
+      .single();
+
+    if (insertError) {
+      if (insertError.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'A revision request is already active for this estimate.'
+        });
+      }
+      throw insertError;
+    }
+
+    // Reset all item-level ZO/HO approvals/remarks to null
+    const { error: itemsUpdateError } = await supabase
+      .from('project_cost_estimate_items')
+      .update({
+        zo_office_approve: null,
+        zo_remarks: null,
+        ho_office_approve: null,
+        ho_remarks: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('estimate_id', id);
+
+    if (itemsUpdateError) throw itemsUpdateError;
+
+    // Update estimate header: status to HO Revision Requested and nullify approvals/remarks
+    const { data: updatedEstimate, error: updateError } = await supabase
+      .from('project_cost_estimates')
+      .update({
+        estimate_status: ESTIMATE_STATUS.HO_REVISION_REQUESTED,
+        zo_approved_by: null,
+        zo_approval_date: null,
+        zo_remarks: null,
+        ho_approved_by: null,
+        ho_approval_date: null,
+        ho_remarks: null,
+        last_modified_by: req.user.mobile_number,
+        updated_at: new Date().toISOString()
+      })
+      .eq('estimate_id', id)
+      .select('*, projects_master(*)')
+      .single();
+
+    if (updateError) throw updateError;
+
+    return res.status(200).json({
+      success: true,
+      estimate: updatedEstimate,
+      revisionLog: logEntry,
+      message: 'Estimate reopened successfully.'
+    });
+
+  } catch (error) {
+    console.error(`reopenEstimate failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to reopen estimate.' });
+  }
+}
+
 module.exports = {
   submitEstimate,
   reviewEstimate,
   submitReview,
   requestRevision,
-  getRevisionLog
+  getRevisionLog,
+  reopenEstimate
 };

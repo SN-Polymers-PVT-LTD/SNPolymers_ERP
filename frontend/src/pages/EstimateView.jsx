@@ -308,6 +308,26 @@ const EstimateView = () => {
     }
   };
 
+  const handleReopenEstimate = async () => {
+    if (!window.confirm('Are you sure you want to reopen this estimate? This will reset all ZO/HO approvals and remarks, and place it in the HO Revision stage.')) {
+      return;
+    }
+    setError('');
+    setSuccess('');
+    setSubmitting(true);
+    try {
+      const res = await authApi.post(`/estimates/${id}/reopen`);
+      if (res.data?.success) {
+        setSuccess(res.data.message || 'Estimate reopened successfully.');
+        fetchEstimateDetails();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to reopen estimate.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
     return new Date(dateStr).toLocaleString('en-IN');
@@ -365,7 +385,12 @@ const EstimateView = () => {
   const isCurrentlyInHOReview = estimate.estimate_status === ESTIMATE_STATUS.UNDER_HO_REVIEW;
   
   const showReviewPanel = ((isZO || isAdmin) && isCurrentlyInZOReview) || ((isHO || isAdmin) && isCurrentlyInHOReview);
-  const canEditEstimate = isJE && [ESTIMATE_STATUS.DRAFT, ESTIMATE_STATUS.ZO_REVISION_REQUESTED, ESTIMATE_STATUS.HO_REVISION_REQUESTED].includes(estimate.estimate_status);
+  const canEditEstimate = (isJE && [ESTIMATE_STATUS.DRAFT, ESTIMATE_STATUS.ZO_REVISION_REQUESTED, ESTIMATE_STATUS.HO_REVISION_REQUESTED].includes(estimate.estimate_status)) || isAdmin;
+  const canReopen = (isHO || isAdmin) && [
+    ESTIMATE_STATUS.FINAL_APPROVED,
+    ESTIMATE_STATUS.REJECTED_BY_HO,
+    ESTIMATE_STATUS.REJECTED_BY_ZO
+  ].includes(estimate.estimate_status);
 
   return (
     <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
@@ -395,6 +420,15 @@ const EstimateView = () => {
             >
               PDF
             </button>
+            {canReopen && (
+              <button
+                onClick={handleReopenEstimate}
+                className="bg-red-600 hover:bg-red-700 text-slate-100 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg transition duration-200 shadow-red-950/20"
+                disabled={submitting}
+              >
+                Reopen Estimate
+              </button>
+            )}
             {canEditEstimate && (
               <Link
                 to={`/estimates/${id}/edit`}

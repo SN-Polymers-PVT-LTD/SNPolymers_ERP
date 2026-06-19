@@ -10,7 +10,8 @@ const {
   submitRowApprovals,
   submitReview,
   requestRevision,
-  getRevisionLog
+  getRevisionLog,
+  reopenEstimate
 } = require('../controllers/estimates.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -38,6 +39,7 @@ router.patch('/:id/review', requireRole(reviewRoles), reviewEstimate);
 router.post('/:id/row-approvals', requireRole(reviewRoles), submitRowApprovals);
 router.post('/:id/submit-review', requireRole(reviewRoles), submitReview);
 router.post('/:id/request-revision', requireRole(reviewRoles), requestRevision);
+router.post('/:id/reopen', requireRole(['ho', 'admin']), reopenEstimate);
 
 module.exports = router;
 

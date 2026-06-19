@@ -378,6 +378,7 @@ const EstimateForm = () => {
   };
 
   const isRevisionMode = estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED || estimateStatus === ESTIMATE_STATUS.HO_REVISION_REQUESTED;
+  const isFormLockedByExpiry = isExpired && user?.role !== 'admin';
 
   return (
     <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
@@ -447,7 +448,7 @@ const EstimateForm = () => {
                   value={selectedWorkOrder}
                   onChange={(e) => handleWorkOrderChange(e.target.value)}
                   className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold"
-                  disabled={isExpired || submitting}
+                  disabled={isFormLockedByExpiry || submitting}
                   required
                 >
                   <option value="">Select Work Order</option>
@@ -505,7 +506,7 @@ const EstimateForm = () => {
               onChange={(e) => setJeRemarks(e.target.value)}
               placeholder="Enter context, rate assumptions, or instructions..."
               className="w-full glass-input focus:ring-0 outline-none rounded-xl p-4 text-slate-100 text-sm font-semibold"
-              disabled={isExpired || submitting}
+              disabled={isFormLockedByExpiry || submitting}
             />
           </div>
         </div>
@@ -518,7 +519,7 @@ const EstimateForm = () => {
               type="button"
               onClick={handleAddItem}
               className="bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition disabled:opacity-50"
-              disabled={isExpired || submitting}
+              disabled={isFormLockedByExpiry || submitting}
             >
               Add Item
             </button>
@@ -543,7 +544,7 @@ const EstimateForm = () => {
               <tbody className="divide-y divide-white/5 text-xs text-slate-300">
                 {paginatedItems.map((item, idx) => {
                   const globalIdx = (currentPage - 1) * itemsPerPage + idx;
-                  const isLocked = isRevisionMode && (
+                  const isLocked = user?.role !== 'admin' && isRevisionMode && (
                     (estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED && item.zo_office_approve === 'Approve') ||
                     (estimateStatus === ESTIMATE_STATUS.HO_REVISION_REQUESTED && item.ho_office_approve === 'Approve')
                   );
@@ -558,10 +559,10 @@ const EstimateForm = () => {
                     } ${isLocked ? 'opacity-60 bg-white/[0.01] pointer-events-none' : ''}`}>
                       <td className="py-3 px-4">
                         <select
-                          value={item.material_main_head}
-                          onChange={(e) => handleItemChange(idx, 'material_main_head', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isExpired || submitting || isLocked}
+                           value={item.material_main_head}
+                           onChange={(e) => handleItemChange(idx, 'material_main_head', e.target.value)}
+                           className="w-full glass-input p-2 rounded-lg text-xs"
+                           disabled={isFormLockedByExpiry || submitting || isLocked}
                         >
                           <option value="">Select Main Head</option>
                           {mainHeads.map(h => <option key={h} value={h}>{h}</option>)}
@@ -569,10 +570,10 @@ const EstimateForm = () => {
                       </td>
                       <td className="py-3 px-4">
                         <select
-                          value={item.material_sub_head}
-                          onChange={(e) => handleItemChange(idx, 'material_sub_head', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isExpired || submitting || isLocked || !item.material_main_head}
+                           value={item.material_sub_head}
+                           onChange={(e) => handleItemChange(idx, 'material_sub_head', e.target.value)}
+                           className="w-full glass-input p-2 rounded-lg text-xs"
+                           disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_main_head}
                         >
                           <option value="">Select Sub Head</option>
                           {item.subHeadsList?.map(s => <option key={s} value={s}>{s}</option>)}
@@ -580,10 +581,10 @@ const EstimateForm = () => {
                       </td>
                       <td className="py-3 px-4">
                         <select
-                          value={item.material_details}
-                          onChange={(e) => handleItemChange(idx, 'material_details', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isExpired || submitting || isLocked || !item.material_sub_head}
+                           value={item.material_details}
+                           onChange={(e) => handleItemChange(idx, 'material_details', e.target.value)}
+                           className="w-full glass-input p-2 rounded-lg text-xs"
+                           disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_sub_head}
                         >
                           <option value="">Select Details</option>
                           {item.matsList?.map((m, mIdx) => (
@@ -609,7 +610,7 @@ const EstimateForm = () => {
                           value={item.qty || ''}
                           onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
                           className="w-full glass-input p-2 rounded-lg text-xs font-semibold text-center"
-                          disabled={isExpired || submitting || isLocked}
+                          disabled={isFormLockedByExpiry || submitting || isLocked}
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -620,7 +621,7 @@ const EstimateForm = () => {
                           value={item.rate || ''}
                           onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
                           className="w-full glass-input p-2 rounded-lg text-xs font-semibold text-center"
-                          disabled={isExpired || submitting || isLocked}
+                          disabled={isFormLockedByExpiry || submitting || isLocked}
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -630,7 +631,7 @@ const EstimateForm = () => {
                           value={item.rate_reference || ''}
                           onChange={(e) => handleItemChange(idx, 'rate_reference', e.target.value)}
                           className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isExpired || submitting || isLocked}
+                          disabled={isFormLockedByExpiry || submitting || isLocked}
                         />
                       </td>
                       <td className="py-3 px-4">
@@ -638,7 +639,7 @@ const EstimateForm = () => {
                           value={item.source_of_purchase || ''}
                           onChange={(e) => handleItemChange(idx, 'source_of_purchase', e.target.value)}
                           className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isExpired || submitting || isLocked || user?.role === 'je' || user?.role === 'staff'}
+                          disabled={isFormLockedByExpiry || submitting || isLocked || user?.role === 'je' || user?.role === 'staff'}
                         >
                           <option value="">Select Source</option>
                           {purchaseOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -652,7 +653,7 @@ const EstimateForm = () => {
                           type="button"
                           onClick={() => handleRemoveItem(idx)}
                           className="text-red-400 hover:text-red-300 p-1.5 hover:bg-white/5 rounded-lg transition"
-                          disabled={isExpired || submitting || isLocked}
+                          disabled={isFormLockedByExpiry || submitting || isLocked}
                           title="Remove item"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -705,7 +706,7 @@ const EstimateForm = () => {
             type="button"
             onClick={handleSaveDraft}
             className="bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 px-6 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition disabled:opacity-50"
-            disabled={isExpired || submitting || items.length === 0}
+            disabled={isFormLockedByExpiry || submitting || items.length === 0}
           >
             Save as Draft
           </button>
@@ -713,7 +714,7 @@ const EstimateForm = () => {
             type="button"
             onClick={handleSubmit}
             className="bg-white hover:bg-slate-100 text-slate-950 px-6 py-3.5 rounded-xl text-xs font-bold uppercase tracking-wider transition disabled:opacity-50 shadow-lg"
-            disabled={isExpired || submitting || items.length === 0}
+            disabled={isFormLockedByExpiry || submitting || items.length === 0}
           >
             {submitting ? 'Submitting...' : 'Submit Estimate'}
           </button>

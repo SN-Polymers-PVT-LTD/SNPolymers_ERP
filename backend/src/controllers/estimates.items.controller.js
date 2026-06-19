@@ -38,7 +38,10 @@ async function saveDraftItems(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied. You do not own this estimate.' });
     }
 
-    if (!EDITABLE_STATUSES.includes(estimate.estimate_status)) {
+    const effectiveRole = getEffectiveRole(req.user.role);
+    const isAdmin = effectiveRole === 'admin';
+
+    if (!isAdmin && !EDITABLE_STATUSES.includes(estimate.estimate_status)) {
       return res.status(403).json({ success: false, message: 'Estimate cannot be edited in its current status.' });
     }
 
@@ -70,7 +73,7 @@ async function saveDraftItems(req, res) {
       }
     }
 
-    // Batch fetch materials with a proper composite lookup strategy to avoid correctness/uniqueness bugs
+    // Batch fetch materials with a composite lookup strategy to avoid correctness/uniqueness bugs
     // We fetch in chunks of 40 to avoid URL length limitations on large estimate batches (e.g. 500 items)
     let masterMats = [];
     if (items.length > 0) {
@@ -110,7 +113,7 @@ async function saveDraftItems(req, res) {
         return res.status(400).json({ success: false, message: `Unit mismatch for item: ${item.material_details}. Expected: ${masterMat ? masterMat.M_Unit : 'N/A'}` });
       }
 
-      if (isZoRevision || isHoRevision) {
+      if (!isAdmin && (isZoRevision || isHoRevision)) {
         if (!item.item_id || !existingMap[item.item_id]) {
           return res.status(403).json({ success: false, message: 'New items cannot be added during revision.' });
         }
@@ -174,10 +177,12 @@ async function saveDraftItems(req, res) {
         .delete()
         .in('item_id', toDeleteIds);
 
-      if (isZoRevision) {
-        deleteQuery = deleteQuery.or(`zo_office_approve.is.null,zo_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
-      } else if (isHoRevision) {
-        deleteQuery = deleteQuery.or(`ho_office_approve.is.null,ho_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
+      if (!isAdmin) {
+        if (isZoRevision) {
+          deleteQuery = deleteQuery.or(`zo_office_approve.is.null,zo_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
+        } else if (isHoRevision) {
+          deleteQuery = deleteQuery.or(`ho_office_approve.is.null,ho_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
+        }
       }
 
       const { error: deleteError } = await deleteQuery;
