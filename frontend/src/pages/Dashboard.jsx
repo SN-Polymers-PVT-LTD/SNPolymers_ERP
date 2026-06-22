@@ -138,7 +138,7 @@ const Dashboard = () => {
               </div>
 
               {/* Module 3: Active Workspace */}
-              <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] lg:col-span-2 glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+              <div className={`glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)] ${!['zo', 'staff', 'ho', 'admin'].includes(user?.role) ? 'lg:col-span-2' : ''}`}>
                 <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
                   <svg className="w-24 h-24 text-amber-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ animationDuration: '4s' }}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 009 11.5V10c0-2.5 2-4.5 4.5-4.5S18 7.5 18 10v1.5c0 3 .07 3.53 2.384 4.762A2 2 0 0120 19.5H8.293m0 0l-1.143-1.143M12 21a2 2 0 01-2-2h4a2 2 0 01-2 2z" />
@@ -147,7 +147,7 @@ const Dashboard = () => {
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Systems & Policy</span>
                   <h3 className="text-xl font-extrabold mt-1 text-slate-200">Office Administration Console</h3>
-                  <p className="text-xs text-slate-300 font-normal mt-4 leading-relaxed max-w-xl">Central system configurations. Access control management, user authorization whitelist keys, live session tracking audits, security compliance metrics, and verification logs ledger.</p>
+                  <p className="text-xs text-slate-300 font-normal mt-4 leading-relaxed">Central system configurations. Access control management, whitelist keys, live session tracking audits, and compliance metrics.</p>
                 </div>
                 <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
                   <span className="text-[9px] uppercase tracking-widest font-extrabold text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 px-2 py-0.5 rounded-lg">Active System</span>
@@ -163,6 +163,31 @@ const Dashboard = () => {
                   )}
                 </div>
               </div>
+
+              {/* Module 4: Fund Requests (ZO & HO Requisitions) */}
+              {['zo', 'staff', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Government Division</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">Fund Requisitions</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">Manages ZO fund requests and HO approval workflows. Tracks CC / OD / CR disbursement accounts.</p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
+                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 px-2 py-0.5 rounded-lg">Active System</span>
+                    <Link
+                      to="/fund-requests"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Fund Requests &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>

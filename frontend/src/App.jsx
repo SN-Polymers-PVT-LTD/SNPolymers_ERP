@@ -15,6 +15,7 @@ import AuditLog from './pages/admin/AuditLog';
 import MasterData from './pages/admin/MasterData';
 import PurchaseOptions from './pages/admin/PurchaseOptions';
 import FundReports from './pages/FundReports';
+import FundRequests from './pages/FundRequests';
 import MaterialMaster from './pages/MaterialMaster';
 import Estimates from './pages/Estimates';
 import EstimateForm from './pages/EstimateForm';
@@ -49,6 +50,11 @@ function App() {
             <Route path="/estimates/new" element={<EstimateForm />} />
             <Route path="/estimates/:id" element={<EstimateView />} />
             <Route path="/estimates/:id/edit" element={<EstimateForm />} />
+          </Route>
+
+          {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
+          <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
+            <Route path="/fund-requests" element={<FundRequests />} />
           </Route>
 
           {/* Admin Protected Routes */}
