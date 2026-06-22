@@ -110,22 +110,13 @@ async function getEstimates(req, res) {
       .from('project_cost_estimates')
       .select('*, projects_master(*)', { count: 'exact' });
 
-    const legitMobiles = [
-      '+918276071523',
-      '+917980526576',
-      '+919883321834',
-      '+919910076148',
-      '+919920076148',
-      '+919930076148',
-      '+919940076148'
-    ];
-    if (legitMobiles.includes(req.user.mobile_number)) {
+    if (process.env.IDBP_FILTER_TEST_DATA === 'true') {
       dbQuery = dbQuery
         .not('work_order_no', 'like', 'TEST_%')
         .not('estimate_no', 'like', 'EST_%');
     }
 
-    if (effectiveRole === 'je' && query.global !== 'true') {
+    if (effectiveRole === 'je') {
       dbQuery = dbQuery.eq('created_by', req.user.mobile_number);
     } else if (effectiveRole === 'zo') {
       dbQuery = dbQuery.in('estimate_status', ZO_VISIBLE_STATUSES);

@@ -28,6 +28,11 @@ TESTS=(
 "milestones/test_milestone6.js"
 "milestones/test_milestone7.js"
 "milestones/test_milestone8.js"
+"milestones/test_milestone_p3_m1.js"
+"milestones/test_milestone_p3_m2.js"
+"milestones/test_milestone_p3_m3.js"
+"milestones/test_milestone_p3_m4.js"
+"milestones/test_milestone_p3_m5.js"
 
 "phase2/test_phase2.js"
 "phase2/test_phase2a.js"
