@@ -42,7 +42,7 @@ async function runFailureInjectionTests() {
     if (matErr) throw matErr;
 
     const setupProjectAndEstimate = async (testName) => {
-      const wo = `TEST_WO_FAIL_${testName}_${suffix}`;
+      const wo = `TEST_FAIL_WO_${testName}_${suffix}`;
       await setupProject(wo, `EST_FAIL_${testName}_${suffix}`, 5000000.00, mobileAdmin);
 
       const res = mockRes();

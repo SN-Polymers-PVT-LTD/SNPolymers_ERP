@@ -298,7 +298,8 @@ async function notifyZoFundRequestApproved(originalRequest, updatedRequest) {
       return;
     }
 
-    if (!TELEGRAM_BOT_TOKEN) {
+    const activeToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!activeToken) {
       console.warn(
         `[FUND REQUEST] TELEGRAM_BOT_TOKEN not set. Cannot notify ZO for FR: ${originalRequest.zo_fr_no}`
       );
@@ -309,16 +310,21 @@ async function notifyZoFundRequestApproved(originalRequest, updatedRequest) {
     const requestedAmount = Number(originalRequest.zo_fr_amount);
     const account = updatedRequest.transfer_from_account;
 
+    // Escape underscores for Telegram Markdown V1 parser
+    const frNoClean = String(originalRequest.zo_fr_no).replace(/_/g, '\\_');
+    const remarksClean = String(updatedRequest.ho_remarks || 'None').replace(/_/g, '\\_');
+
     const messageText =
       `✅ *Fund Request Approved*\n\n` +
-      `*Fund Request No:* ${originalRequest.zo_fr_no}\n` +
+      `*Fund Request No:* ${frNoClean}\n` +
       `*Requested Amount:* ₹${requestedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
       `*Approved Amount:* ₹${approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
       `*Transfer Account:* ${account}\n` +
-      `*HO Remarks:* ${updatedRequest.ho_remarks || 'None'}\n\n` +
+      `*HO Remarks:* ${remarksClean}\n\n` +
       `Your fund request has been approved. Funds will be transferred from the *${account}* account.`;
 
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
+    const apiBase = `https://api.telegram.org/bot${activeToken}`;
+    const url = `${apiBase}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
     const response = await fetch(url);
     const data = await response.json();
 

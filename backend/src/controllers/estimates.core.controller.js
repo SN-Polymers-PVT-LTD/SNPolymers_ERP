@@ -110,7 +110,7 @@ async function getEstimates(req, res) {
       .from('project_cost_estimates')
       .select('*, projects_master(*)', { count: 'exact' });
 
-    if (process.env.IDBP_FILTER_TEST_DATA === 'true') {
+    if (process.env.IDBP_FILTER_TEST_DATA === 'true' && process.env.NODE_ENV !== 'test') {
       dbQuery = dbQuery
         .not('work_order_no', 'like', 'TEST_%')
         .not('estimate_no', 'like', 'EST_%');
