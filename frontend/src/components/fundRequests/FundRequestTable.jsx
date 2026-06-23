@@ -31,7 +31,7 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
             <th className="py-4 px-5 w-8">
               <input type="checkbox" className="rounded bg-slate-900 border-white/10 text-amber-500 focus:ring-0 cursor-pointer" readOnly />
             </th>
-            {['Fund Request Order No', 'Project Name', 'Zone', 'Requested Amount', 'Approved Amount', 'Request Date', 'Current Status', 'Assigned HO', 'Actions'].map((h) => (
+            {['Fund Request Order No', 'Project Name', 'Zone', 'Requested Amount', 'Approved Amount', 'Request Date', 'Current Status', 'Actions'].map((h) => (
               <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
             ))}
           </tr>
@@ -72,9 +72,6 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
                 </td>
                 <td className="py-4 px-5 whitespace-nowrap">
                   <FundRequestStatusBadge status={req.request_status} />
-                </td>
-                <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
-                  {mockProj.ho}
                 </td>
                 <td className="py-4 px-5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2">

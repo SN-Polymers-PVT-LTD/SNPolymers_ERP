@@ -39,13 +39,6 @@ const RequestDetailPanel = ({
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState('');
 
-  // Attachments
-  const [attachments, setAttachments] = useState([
-    { name: 'Fund Request.pdf', size: '1.2 MB' },
-    { name: 'Estimate Approval.pdf', size: '2.4 MB' },
-    { name: 'Supporting Document.pdf', size: '840 KB' }
-  ]);
-
   // Load request details if viewing
   useEffect(() => {
     if (request) {
@@ -78,6 +71,15 @@ const RequestDetailPanel = ({
       setHoAmount(request.zo_fr_amount);
     }
   }, [request, isPending]);
+
+  // Clear HO inputs when action changes to Hold (per process flow specs)
+  useEffect(() => {
+    if (hoAction === 'Hold') {
+      setHoRemarks('');
+      setHoAmount('');
+      setHoAccount('');
+    }
+  }, [hoAction]);
 
   // Handle project selection in creation mode
   const handleProjectSelect = (e) => {
@@ -467,10 +469,10 @@ const RequestDetailPanel = ({
                     <textarea
                       value={hoRemarks}
                       onChange={(e) => setHoRemarks(e.target.value)}
-                      placeholder="Review notes..."
+                      placeholder={hoAction === 'Hold' ? "Remarks disabled for Hold status" : "Review notes..."}
                       rows={2}
-                      disabled={actionSubmitting}
-                      className="w-full glass-input rounded-xl px-3 py-2 text-xs resize-none outline-none"
+                      disabled={actionSubmitting || hoAction === 'Hold'}
+                      className="w-full glass-input rounded-xl px-3 py-2 text-xs resize-none outline-none disabled:opacity-40"
                     />
                   </div>
 
@@ -506,24 +508,6 @@ const RequestDetailPanel = ({
               )}
             </div>
           )}
-
-          {/* Panel 2: ATTACHMENTS */}
-          <div className="glass-panel p-5 rounded-3xl border border-white/5">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Attachments</span>
-            <div className="space-y-3">
-              {attachments.map((file, idx) => (
-                <div key={idx} className="flex justify-between items-center p-2.5 rounded-xl bg-white/[0.01] border border-white/5 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <span className="truncate font-semibold text-slate-300">{file.name}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500 font-mono shrink-0">{file.size}</span>
-                </div>
-              ))}
-            </div>
-          </div>
 
           {/* Panel 3: DISCUSSION FEED */}
           {!isCreate && (
