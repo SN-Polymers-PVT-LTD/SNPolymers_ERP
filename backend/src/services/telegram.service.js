@@ -83,9 +83,15 @@ async function startPolling() {
     return;
   }
 
+  if (process.env.DISABLE_TELEGRAM_POLLING === 'true') {
+    console.log('[BOT] Telegram long polling is disabled via DISABLE_TELEGRAM_POLLING env variable.');
+    return;
+  }
+
   console.log('[BOT] Telegram long polling started. Waiting for messages from @snpolymers_bot...');
 
   let offset = 0;
+  let conflictLogged = false;
 
   // Infinite polling loop — runs for the lifetime of the server process
   const poll = async () => {
@@ -95,8 +101,18 @@ async function startPolling() {
       const data = await response.json();
 
       if (!data.ok) {
-        console.warn(`[BOT] getUpdates error: ${data.description || 'Unknown error'}`);
+        const isConflict = data.description && data.description.includes('Conflict');
+        if (isConflict) {
+          if (!conflictLogged) {
+            console.warn(`[BOT] getUpdates error: Conflict (another instance is running). Suppressing further conflict logs.`);
+            conflictLogged = true;
+          }
+        } else {
+          console.warn(`[BOT] getUpdates error: ${data.description || 'Unknown error'}`);
+          conflictLogged = false;
+        }
       } else {
+        conflictLogged = false;
         for (const update of data.result) {
           // Advance offset so this update is not processed again
           offset = update.update_id + 1;
