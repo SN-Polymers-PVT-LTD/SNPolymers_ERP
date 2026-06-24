@@ -1,0 +1,640 @@
+Material_Main_Head,Material_Sub_Head,Material_Details,M_Unit
+Materials,Raw Materials,Cement (OPC/PPC),Bag
+Materials,Raw Materials,Fine Sand,Cum / CFT
+Materials,Raw Materials,Coarse Sand,Cum / CFT
+Materials,Raw Materials,Stone Chips 10 mm,Cum / CFT
+Materials,Raw Materials,Stone Chips 20 mm,Cum / CFT
+Materials,Raw Materials,Stone Aggregate 40 mm,Cum / CFT
+Materials,Raw Materials,Water,KL / Ltr
+Materials,Raw Materials,TMT Bar,Kg
+Materials,Raw Materials,Binding Wire,Kg
+Materials,Raw Materials,Cover Block,Nos
+Materials,Raw Materials,Plasticizer,Ltr
+Materials,Raw Materials,Super Plasticizer,Ltr
+Materials,Raw Materials,Waterproofing Compound,Kg / Ltr
+Materials,Raw Materials,Expansion Joint Filler,Mtr
+Materials,Raw Materials,Curing Compound,Ltr
+Materials,Raw Materials,Shuttering Plywood,Sqft
+Materials,Raw Materials,Steel Shuttering Plate,Sqft
+Materials,Raw Materials,Wooden Batten,Nos
+Materials,Raw Materials,Nails,Kg
+Materials,Raw Materials,Polythene Sheet,Sqm
+Electrical,Electrical Consumables,Copper Wire 1.5 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 2.5 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 4 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 6 Sqmm,Mtr
+Electrical,Electrical Consumables,Aluminium Cable,Mtr
+Electrical,Electrical Consumables,Control Cable,Mtr
+Electrical,Electrical Consumables,Flexible Wire,Mtr
+Electrical,Electrical Consumables,Cable Lug,Nos
+Electrical,Electrical Consumables,Cable Gland,Nos
+Electrical,Electrical Consumables,Ferrule,Nos
+Electrical,Electrical Consumables,Terminal Block,Nos
+Electrical,Electrical Consumables,Connector Strip,Nos
+Electrical,Electrical Consumables,Cable Tie (100 mm),Pkt
+Electrical,Electrical Consumables,Cable Tie (200 mm),Pkt
+Electrical,Electrical Consumables,Insulation Tape,Roll
+Electrical,Electrical Consumables,Heat Shrink Sleeve,Mtr
+Electrical,Electrical Consumables,PVC Conduit Pipe,Mtr
+Electrical,Electrical Consumables,Flexible Conduit Pipe,Mtr
+Electrical,Electrical Consumables,Conduit Bend,Nos
+Electrical,Electrical Consumables,Junction Box,Nos
+Electrical,Electrical Consumables,Inspection Box,Nos
+Electrical,Electrical Consumables,Saddle Clamp,Nos
+Electrical,Electrical Consumables,PVC Adhesive,Nos
+Electrical,Electrical Consumables,MCB SP,Nos
+Electrical,Electrical Consumables,MCB DP,Nos
+Electrical,Electrical Consumables,MCCB,Nos
+Electrical,Electrical Consumables,Fuse,Nos
+Electrical,Electrical Consumables,Fuse Wire,Mtr
+Electrical,Electrical Consumables,Indicator Lamp,Nos
+Electrical,Electrical Consumables,Push Button,Nos
+Electrical,Electrical Consumables,Selector Switch,Nos
+Electrical,Electrical Consumables,Contactor Coil,Nos
+Electrical,Electrical Consumables,Relay Base,Nos
+Electrical,Electrical Consumables,LED Bulb,Nos
+Electrical,Electrical Consumables,LED Tube Light,Nos
+Electrical,Electrical Consumables,Lamp Holder,Nos
+Electrical,Electrical Consumables,Ceiling Rose,Nos
+Electrical,Electrical Consumables,GI Earthing Wire,Mtr
+Electrical,Electrical Consumables,Copper Earthing Wire,Mtr
+Electrical,Electrical Consumables,Earthing Clamp,Nos
+Electrical,Electrical Consumables,Charcoal,Kg
+Electrical,Electrical Consumables,Salt,Kg
+Electrical,Electrical Consumables,Screw,Nos
+Electrical,Electrical Consumables,Nut & Bolt,Set
+Electrical,Electrical Consumables,Washer,Nos
+Electrical,Electrical Consumables,Rawl Plug,Nos
+Electrical,Electrical Consumables,Cable Marker,Nos
+Electrical,Electrical Consumables,Name Plate,Nos
+Electrical,Electrical Consumables,PVC Cable Channel,Mtr
+Electrical,Electrical Consumables,Panel Lock,Nos
+Electrical,Electrical Consumables,LT Panel,Nos
+Electrical,Electrical Consumables,MCC Panel,Nos
+Electrical,Electrical Consumables,APFC Panel,Nos
+Electrical,Electrical Consumables,Distribution Board (DB),Nos
+Electrical,Electrical Consumables,Changeover Switch,Nos
+Electrical,Electrical Consumables,Isolator,Nos
+Electrical,Electrical Consumables,MCB SP,Nos
+Electrical,Electrical Consumables,MCB DP,Nos
+Electrical,Electrical Consumables,MCB TPN,Nos
+Electrical,Electrical Consumables,MCCB,Nos
+Electrical,Electrical Consumables,RCCB / ELCB,Nos
+Electrical,Electrical Consumables,Contactor,Nos
+Electrical,Electrical Consumables,Overload Relay,Nos
+Electrical,Electrical Consumables,Timer Relay,Nos
+Electrical,Electrical Consumables,Push Button,Nos
+Electrical,Electrical Consumables,Selector Switch,Nos
+Electrical,Electrical Consumables,Indicator Lamp,Nos
+Electrical,Electrical Consumables,Power Cable,Mtr
+Electrical,Electrical Consumables,Control Cable,Mtr
+Electrical,Electrical Consumables,Copper Wire 1.5 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 2.5 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 4 Sqmm,Mtr
+Electrical,Electrical Consumables,Copper Wire 6 Sqmm,Mtr
+Electrical,Electrical Consumables,Flexible Wire,Mtr
+Electrical,Electrical Consumables,Earthing Cable,Mtr
+Electrical,Electrical Consumables,Cable Lug,Nos
+Electrical,Electrical Consumables,Cable Gland,Nos
+Electrical,Electrical Consumables,Ferrule,Nos
+Electrical,Electrical Consumables,Terminal Block,Nos
+Electrical,Electrical Consumables,Cable Tie,Pkt
+Electrical,Electrical Consumables,Heat Shrink Sleeve,Mtr
+Electrical,Electrical Consumables,PVC Conduit Pipe,Mtr
+Electrical,Electrical Consumables,GI Conduit Pipe,Mtr
+Electrical,Electrical Consumables,Flexible Conduit Pipe,Mtr
+Electrical,Electrical Consumables,Cable Tray,Mtr
+Electrical,Electrical Consumables,Cable Raceway,Mtr
+Electrical,Electrical Consumables,Junction Box,Nos
+Electrical,Electrical Consumables,LED Bulb,Nos
+Electrical,Electrical Consumables,LED Tube Light,Nos
+Electrical,Electrical Consumables,Street Light,Nos
+Electrical,Electrical Consumables,Flood Light,Nos
+Electrical,Electrical Consumables,High Bay Light,Nos
+Electrical,Electrical Consumables,Light Fitting,Nos
+Electrical,Electrical Consumables,Lamp Holder,Nos
+Electrical,Electrical Consumables,Modular Switch,Nos
+Electrical,Electrical Consumables,Socket Outlet,Nos
+Electrical,Electrical Consumables,Industrial Socket,Nos
+Electrical,Electrical Consumables,Plug Top,Nos
+Electrical,Electrical Consumables,Fan Regulator,Nos
+Electrical,Electrical Consumables,Earthing Electrode,Nos
+Electrical,Electrical Consumables,GI Strip,Mtr
+Electrical,Electrical Consumables,Copper Strip,Mtr
+Electrical,Electrical Consumables,GI Wire,Mtr
+Electrical,Electrical Consumables,Earthing Clamp,Nos
+Electrical,Electrical Consumables,Earthing Pit Cover,Nos
+Electrical,Electrical Consumables,Charcoal,Kg
+Electrical,Electrical Consumables,Salt,Kg
+Electrical,Electrical Consumables,PLC,Nos
+Electrical,Electrical Consumables,HMI,Nos
+Electrical,Electrical Consumables,SMPS,Nos
+Electrical,Electrical Consumables,Transformer,Nos
+Electrical,Electrical Consumables,Battery Set,Nos
+Electrical,Electrical Consumables,Battery Charger,Nos
+Electrical,Electrical Consumables,Solar Panel,Nos
+Electrical,Electrical Consumables,Solar Inverter,Nos
+Electrical,Electrical Consumables,DCDB,Nos
+Electrical,Electrical Consumables,ACDB,Nos
+Electrical,Electrical Consumables,MC4 Connector,Pair
+Electrical,Electrical Consumables,Solar Cable,Mtr
+Mechanical,Mechanical consumable,Module Mounting Structure,Kg
+Mechanical,Mechanical consumable,Fire Alarm Panel,Nos
+Mechanical,Mechanical consumable,Smoke Detector,Nos
+Mechanical,Mechanical consumable,Heat Detector,Nos
+Mechanical,Mechanical consumable,Hooter,Nos
+Mechanical,Mechanical consumable,Manual Call Point (MCP),Nos
+Mechanical,Mechanical consumable,Nut & Bolt,Set
+Mechanical,Mechanical consumable,Washer,Nos
+Mechanical,Mechanical consumable,Screw,Nos
+Mechanical,Mechanical consumable,Rawl Plug,Nos
+Mechanical,Mechanical consumable,Name Plate,Nos
+Mechanical,Mechanical proj items,MS Plate,Kg
+Mechanical,Mechanical proj items,SS Plate,Kg
+Mechanical,Mechanical proj items,Chequered Plate,Kg
+Mechanical,Mechanical proj items,MS Angle,Kg
+Mechanical,Mechanical proj items,MS Channel,Kg
+Mechanical,Mechanical proj items,ISMB Beam,Kg
+Mechanical,Mechanical proj items,ISMC Channel,Kg
+Mechanical,Mechanical proj items,MS Flat,Kg
+Mechanical,Mechanical proj items,MS Round Bar,Kg
+Mechanical,Mechanical proj items,SS Round Bar,Kg
+Mechanical,Mechanical proj items,Square Bar,Kg
+Mechanical,Mechanical proj items,Pipe Elbow,Nos
+Mechanical,Mechanical proj items,Pipe Tee,Nos
+Mechanical,Mechanical proj items,Reducer,Nos
+Mechanical,Mechanical proj items,Flange,Nos
+Mechanical,Mechanical proj items,Blind Flange,Nos
+Mechanical,Mechanical proj items,Union,Nos
+Mechanical,Mechanical proj items,Coupling,Nos
+Mechanical,Mechanical proj items,Ball Valve,Nos
+Mechanical,Mechanical proj items,Gate Valve,Nos
+Mechanical,Mechanical proj items,Globe Valve,Nos
+Mechanical,Mechanical proj items,Butterfly Valve,Nos
+Mechanical,Mechanical proj items,Check Valve (NRV),Nos
+Mechanical,Mechanical proj items,Strainer,Nos
+Mechanical,Mechanical proj items,Expansion Joint,Nos
+Mechanical,Mechanical proj items,Pump,Nos
+Mechanical,Mechanical proj items,Centrifugal Pump,Nos
+Mechanical,Mechanical proj items,Submersible Pump,Nos
+Mechanical,Mechanical proj items,Gear Pump,Nos
+Mechanical,Mechanical proj items,Motor,Nos
+Mechanical,Mechanical proj items,Gearbox,Nos
+Mechanical,Mechanical proj items,Coupling Set,Nos
+Mechanical,Mechanical proj items,Bearing,Nos
+Mechanical,Mechanical proj items,Pillow Block Bearing,Nos
+Mechanical,Mechanical proj items,V-Belt,Nos
+Mechanical,Mechanical proj items,Pulley,Nos
+Mechanical,Mechanical proj items,Conveyor Belt,Mtr
+Mechanical,Mechanical proj items,Conveyor Roller,Nos
+Mechanical,Mechanical proj items,Chain Sprocket,Set
+Mechanical,Mechanical proj items,Roller Chain,Mtr
+Mechanical,Mechanical proj items,Mechanical Seal,Nos
+Mechanical,Mechanical proj items,Gasket,Nos
+Mechanical,Mechanical proj items,Oil Seal,Nos
+Mechanical,Mechanical proj items,O-Ring,Nos
+Mechanical,Mechanical proj items,Rubber Sheet,Sqft
+Mechanical,Mechanical proj items,Insulation Material,Sqm
+Mechanical,Mechanical proj items,Cladding Sheet,Sqm
+Mechanical,Mechanical proj items,Grating,Sqft
+Mechanical,Mechanical proj items,Handrail Pipe,Mtr
+Mechanical,Mechanical proj items,Ladder Material,Set
+Mechanical,Mechanical proj items,Structural Steel Fabrication,Kg
+Mechanical,Mechanical proj items,Anchor Bolt,Nos
+Mechanical,Mechanical proj items,Foundation Bolt,Nos
+Mechanical,Mechanical proj items,Stud Bolt,Nos
+Mechanical,Mechanical proj items,Nut & Bolt,Set
+Mechanical,Mechanical proj items,Spring Washer,Nos
+Mechanical,Mechanical proj items,Plain Washer,Nos
+Mechanical,Mechanical proj items,Welding Electrode,Kg
+Mechanical,Mechanical proj items,Welding Wire,Kg
+Mechanical,Mechanical proj items,Oxygen Gas,Cylinder
+Mechanical,Mechanical proj items,Acetylene Gas,Cylinder
+Mechanical,Mechanical proj items,Paint,Ltr
+Mechanical,Mechanical proj items,Primer,Ltr
+Mechanical,Mechanical proj items,Thinner,Ltr
+Mechanical,Mechanical proj items,Hydraulic Power Pack,Nos
+Mechanical,Mechanical proj items,Air Compressor,Nos
+Mechanical,Mechanical proj items,Pressure Gauge,Nos
+Mechanical,Mechanical proj items,Temperature Gauge,Nos
+Mechanical,Mechanical proj items,Flow Meter,Nos
+Mechanical,Mechanical proj items,Level Indicator,Nos
+Mechanical,Mechanical proj items,Storage Tank,Nos
+Mechanical,Mechanical proj items,Reactor Vessel,Nos
+Mechanical,Mechanical proj items,Hopper,Nos
+Mechanical,Mechanical proj items,Chimney / Stack,Nos
+Mechanical,Mechanical proj items,Ducting Material,Sqm
+Pipes,Pipe HDPE,HDPE Pipe 20 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 25 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 32 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 40 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 50 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 63 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 75 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 90 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 110 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 160 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 200 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 250 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 315 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 355 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe 400 mm,Mtr
+Pipes,Pipe HDPE,HDPE Pipe Elbow,Nos
+Pipes,Pipe HDPE,HDPE Tee,Nos
+Pipes,Pipe HDPE,HDPE Reducer,Nos
+Pipes,Pipe HDPE,HDPE End Cap,Nos
+Pipes,Pipe HDPE,HDPE Coupler,Nos
+Pipes,Pipe HDPE,HDPE Flange Adapter,Nos
+Pipes,Pipe HDPE,HDPE Backing Ring,Nos
+Pipes,Pipe HDPE,HDPE Stub End,Nos
+Pipes,Pipe HDPE,HDPE Service Saddle,Nos
+Pipes,Pipe HDPE,HDPE Compression Coupler,Nos
+Pipes,Pipe HDPE,HDPE Compression Elbow,Nos
+Pipes,Pipe HDPE,HDPE Compression Tee,Nos
+Pipes,Pipe HDPE,HDPE Ball Valve,Nos
+Pipes,Pipe HDPE,HDPE Non Return Valve (NRV),Nos
+Pipes,Pipe HDPE,GI Flange,Nos
+Pipes,Pipe HDPE,Rubber Gasket,Nos
+Pipes,Pipe HDPE,Nut & Bolt Set,Set
+Pipes,Pipe HDPE,Electrofusion Coupler,Nos
+Pipes,Pipe HDPE,Electrofusion Elbow,Nos
+Pipes,Pipe HDPE,Electrofusion Tee,Nos
+Pipes,Pipe HDPE,Electrofusion Reducer,Nos
+Pipes,Pipe HDPE,Warning Tape,Roll
+Pipes,Pipe HDPE,Marker Post,Nos
+Pipes,Pipe HDPE,Sand Bedding Material,Cum
+Pipes,Pipe HDPE,Thrust Block Concrete,Cum
+Pipes,Pipes Steel,"MS Pipe 15 mm (½"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 20 mm (¾"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 25 mm (1"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 32 mm (1¼"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 40 mm (1½"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 50 mm (2"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 65 mm (2½"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 80 mm (3"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 100 mm (4"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 150 mm (6"")",Mtr
+Pipes,Pipes Steel,"MS Pipe 200 mm (8"")",Mtr
+Pipes,Pipes Steel,"GI Pipe 15 mm (½"")",Mtr
+Pipes,Pipes Steel,"GI Pipe 20 mm (¾"")",Mtr
+Pipes,Pipes Steel,"GI Pipe 25 mm (1"")",Mtr
+Pipes,Pipes Steel,"GI Pipe 50 mm (2"")",Mtr
+Pipes,Pipes Steel,SS Pipe 25 mm,Mtr
+Pipes,Pipes Steel,SS Pipe 50 mm,Mtr
+Pipes,Pipes Steel,SS Pipe 100 mm,Mtr
+Pipes,Pipes Steel,Pipe Elbow 90°,Nos
+Pipes,Pipes Steel,Pipe Elbow 45°,Nos
+Pipes,Pipes Steel,Equal Tee,Nos
+Pipes,Pipes Steel,Reducing Tee,Nos
+Pipes,Pipes Steel,Reducer Concentric,Nos
+Pipes,Pipes Steel,Reducer Eccentric,Nos
+Pipes,Pipes Steel,Pipe Cap,Nos
+Pipes,Pipes Steel,Coupling,Nos
+Pipes,Pipes Steel,Union,Nos
+Pipes,Pipes Steel,Flange,Nos
+Pipes,Pipes Steel,Blind Flange,Nos
+Pipes,Pipes Steel,Slip-On Flange,Nos
+Pipes,Pipes Steel,Weld Neck Flange,Nos
+Pipes,Pipes Steel,Rubber Gasket,Nos
+Pipes,Pipes Steel,Spiral Wound Gasket,Nos
+Pipes,Pipes Steel,Nut & Bolt Set,Set
+Pipes,Pipes Steel,U-Bolt,Nos
+Pipes,Pipes Steel,Pipe Clamp,Nos
+Pipes,Pipes Steel,Pipe Support,Nos
+Pipes,Pipes Steel,Saddle Support,Nos
+Pipes,Pipes Steel,Ball Valve,Nos
+Pipes,Pipes Steel,Gate Valve,Nos
+Pipes,Pipes Steel,Globe Valve,Nos
+Pipes,Pipes Steel,Butterfly Valve,Nos
+Pipes,Pipes Steel,Check Valve (NRV),Nos
+Pipes,Pipes Steel,Air Release Valve,Nos
+Pipes,Pipes Steel,Pressure Relief Valve,Nos
+Pipes,Pipes Steel,Y-Strainer,Nos
+Pipes,Pipes Steel,Expansion Joint,Nos
+Pipes,Pipes Steel,Flexible Joint,Nos
+Pipes,Pipes Steel,Pressure Gauge,Nos
+Pipes,Pipes Steel,Flow Meter,Nos
+Pipes,Pipe DI,DI Pipe 80 mm,Mtr
+Pipes,Pipe DI,DI Pipe 100 mm,Mtr
+Pipes,Pipe DI,DI Pipe 150 mm,Mtr
+Pipes,Pipe DI,DI Pipe 200 mm,Mtr
+Pipes,Pipe DI,DI Pipe 250 mm,Mtr
+Pipes,Pipe DI,DI Pipe 300 mm,Mtr
+Pipes,Pipe DI,DI Pipe 350 mm,Mtr
+Pipes,Pipe DI,DI Pipe 400 mm,Mtr
+Pipes,Pipe DI,DI Pipe 450 mm,Mtr
+Pipes,Pipe DI,DI Pipe 500 mm,Mtr
+Pipes,Pipe DI,DI Pipe 600 mm,Mtr
+Pipes,Pipe DI,DI Bend 11.25°,Nos
+Pipes,Pipe DI,DI Bend 22.5°,Nos
+Pipes,Pipe DI,DI Bend 45°,Nos
+Pipes,Pipe DI,DI Bend 90°,Nos
+Pipes,Pipe DI,DI Tee Equal,Nos
+Pipes,Pipe DI,DI Tee Reducing,Nos
+Pipes,Pipe DI,DI Reducer,Nos
+Pipes,Pipe DI,DI Double Socket,Nos
+Pipes,Pipe DI,DI Collar,Nos
+Pipes,Pipe DI,DI Flange Adapter,Nos
+Pipes,Pipe DI,DI Dismantling Joint,Nos
+Pipes,Pipe DI,DI Duckfoot Bend,Nos
+Pipes,Pipe DI,DI End Cap,Nos
+Pipes,Pipe DI,DI Socket Spigot Joint,Nos
+Pipes,Pipe DI,Rubber Gasket,Nos
+Pipes,Pipe DI,Nut & Bolt Set,Set
+Pipes,Pipe DI,Mechanical Joint Kit,Set
+Pipes,Pipe DI,Air Valve,Nos
+Pipes,Pipe DI,Sluice Valve,Nos
+Pipes,Pipe DI,Butterfly Valve,Nos
+Pipes,Pipe DI,Non Return Valve (NRV),Nos
+Pipes,Pipe DI,Scour Valve,Nos
+Pipes,Pipe DI,Pressure Reducing Valve (PRV),Nos
+Pipes,Pipe DI,Flow Meter,Nos
+Pipes,Pipe DI,Water Meter,Nos
+Pipes,Pipe DI,Valve Chamber Cover,Nos
+Pipes,Pipe DI,Marker Post,Nos
+Pipes,Pipe DI,Warning Tape,Roll
+Pipes,Pipe DI,Sand Bedding Material,Cum
+Pipes,Pipe DI,Thrust Block Concrete,Cum
+Pipes,Pipe PVC,PVC Pipe 20 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 25 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 32 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 40 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 50 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 63 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 75 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 90 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 110 mm,Mtr
+Pipes,Pipe PVC,PVC Pipe 160 mm,Mtr
+Pipes,Pipe PVC,PVC Elbow 90°,Nos
+Pipes,Pipe PVC,PVC Elbow 45°,Nos
+Pipes,Pipe PVC,PVC Tee Equal,Nos
+Pipes,Pipe PVC,PVC Tee Reducing,Nos
+Pipes,Pipe PVC,PVC Reducer,Nos
+Pipes,Pipe PVC,PVC Coupler,Nos
+Pipes,Pipe PVC,PVC Union,Nos
+Pipes,Pipe PVC,PVC End Cap,Nos
+Pipes,Pipe PVC,PVC Socket,Nos
+Pipes,Pipe PVC,PVC Flange,Nos
+Pipes,Pipe PVC,PVC Ball Valve,Nos
+Pipes,Pipe PVC,PVC Non Return Valve (NRV),Nos
+Pipes,Pipe PVC,PVC Foot Valve,Nos
+Pipes,Pipe PVC,PVC Service Saddle,Nos
+Pipes,Pipe PVC,PVC Repair Clamp,Nos
+Pipes,Pipe PVC,Rubber Ring,Nos
+Pipes,Pipe PVC,Nut & Bolt Set,Set
+Pipes,Pipe PVC,GI Flange,Nos
+Pipes,Pipe PVC,Water Meter,Nos
+Pipes,Pipe PVC,Flow Meter,Nos
+Pipes,Pipe PVC,Air Valve,Nos
+Pipes,Pipe PVC,Marker Post,Nos
+Pipes,Pipe PVC,Warning Tape,Roll
+Pipes,Pipe PVC,Sand Bedding Material,Cum
+Pipes,Pipe PVC,Thrust Block Concrete,Cum
+Solar System,Solar Pump Set Material,Solar PV Module 540W/550W,Nos
+Solar System,Solar Pump Set Material,Module Mounting Structure (MMS),Kg / Set
+Solar System,Solar Pump Set Material,Solar Pump Controller (VFD),Nos
+Solar System,Solar Pump Set Material,Solar Pump Inverter,Nos
+Solar System,Solar Pump Set Material,DC Combiner Box (DCDB),Nos
+Solar System,Solar Pump Set Material,AC Distribution Box (ACDB),Nos
+Solar System,Solar Pump Set Material,Solar Submersible Pump,Nos
+Solar System,Solar Pump Set Material,Solar Surface Pump,Nos
+Solar System,Solar Pump Set Material,Pump Motor,Nos
+Solar System,Solar Pump Set Material,Borewell Pump Set,Nos
+Solar System,Solar Pump Set Material,Pump Starter,Nos
+Solar System,Solar Pump Set Material,Float Switch,Nos
+Solar System,Solar Pump Set Material,Water Level Sensor,Nos
+Solar System,Solar Pump Set Material,Dry Run Protection Unit,Nos
+Solar System,Solar Pump Set Material,Solar DC Cable 4 Sqmm,Mtr
+Solar System,Solar Pump Set Material,Solar DC Cable 6 Sqmm,Mtr
+Solar System,Solar Pump Set Material,AC Power Cable,Mtr
+Solar System,Solar Pump Set Material,Earthing Cable,Mtr
+Solar System,Solar Pump Set Material,MC4 Connector Pair,Pair
+Solar System,Solar Pump Set Material,Cable Lug,Nos
+Solar System,Solar Pump Set Material,Cable Gland,Nos
+Solar System,Solar Pump Set Material,Ferrule,Nos
+Solar System,Solar Pump Set Material,Cable Tie,Pkt
+Solar System,Solar Pump Set Material,GI Earthing Electrode,Nos
+Solar System,Solar Pump Set Material,Copper Earthing Electrode,Nos
+Solar System,Solar Pump Set Material,GI Strip,Mtr
+Solar System,Solar Pump Set Material,Earthing Pit Cover,Nos
+Solar System,Solar Pump Set Material,Lightning Arrester,Nos
+Solar System,Solar Pump Set Material,Surge Protection Device (SPD),Nos
+Solar System,Solar Pump Set Material,MCB,Nos
+Solar System,Solar Pump Set Material,MCCB,Nos
+Solar System,Solar Pump Set Material,Isolator Switch,Nos
+Solar System,Solar Pump Set Material,Junction Box,Nos
+Solar System,Solar Pump Set Material,HDPE Riser Pipe,Mtr
+Solar System,Solar Pump Set Material,GI Riser Pipe,Mtr
+Solar System,Solar Pump Set Material,HDPE Delivery Pipe,Mtr
+Solar System,Solar Pump Set Material,PVC Delivery Pipe,Mtr
+Solar System,Solar Pump Set Material,NRV (Non Return Valve),Nos
+Solar System,Solar Pump Set Material,Foot Valve,Nos
+Solar System,Solar Pump Set Material,Ball Valve,Nos
+Solar System,Solar Pump Set Material,Air Valve,Nos
+Solar System,Solar Pump Set Material,Pipe Clamp,Nos
+Solar System,Solar Pump Set Material,Bend,Nos
+Solar System,Solar Pump Set Material,Tee,Nos
+Solar System,Solar Pump Set Material,Reducer,Nos
+Solar System,Solar Pump Set Material,Coupler,Nos
+Solar System,Solar Pump Set Material,Rubber Gasket,Nos
+Solar System,Solar Pump Set Material,Nut & Bolt Set,Set
+Solar System,Solar Pump Set Material,RCC Foundation Material,Cum
+Solar System,Solar Pump Set Material,Fencing Material,Mtr / Kg
+Solar System,Solar Pump Set Material,Solar Pump Controller,Nos
+Solar System,Solar Pump Set Material,Solar Inverter,Nos
+Solar System,Solar Pump Set Material,Variable Frequency Drive (VFD),Nos
+Solar System,Solar Pump Set Material,MPPT Charge Controller,Nos
+Solar System,Solar Pump Set Material,DC Combiner Box (DCDB),Nos
+Solar System,Solar Pump Set Material,AC Distribution Box (ACDB),Nos
+Solar System,Solar Pump Set Material,Junction Box,Nos
+Solar System,Solar Pump Set Material,String Monitoring Unit (SMU),Nos
+Solar System,Solar Pump Set Material,Data Logger,Nos
+Solar System,Solar Pump Set Material,Remote Monitoring Unit (RMU),Nos
+Solar System,Solar Pump Set Material,GSM/GPRS Modem,Nos
+Solar System,Solar Pump Set Material,Wi-Fi Monitoring Device,Nos
+Solar System,Solar Pump Set Material,SCADA Interface Module,Nos
+Solar System,Solar Pump Set Material,Solar Energy Meter,Nos
+Solar System,Solar Pump Set Material,Digital Multifunction Meter,Nos
+Solar System,Solar Pump Set Material,DC Voltmeter,Nos
+Solar System,Solar Pump Set Material,DC Ammeter,Nos
+Solar System,Solar Pump Set Material,AC Voltmeter,Nos
+Solar System,Solar Pump Set Material,AC Ammeter,Nos
+Solar System,Solar Pump Set Material,CT (Current Transformer),Nos
+Solar System,Solar Pump Set Material,PT (Potential Transformer),Nos
+Solar System,Solar Pump Set Material,MCB,Nos
+Solar System,Solar Pump Set Material,MCCB,Nos
+Solar System,Solar Pump Set Material,RCCB,Nos
+Solar System,Solar Pump Set Material,DC Isolator Switch,Nos
+Solar System,Solar Pump Set Material,AC Isolator Switch,Nos
+Solar System,Solar Pump Set Material,Changeover Switch,Nos
+Solar System,Solar Pump Set Material,Surge Protection Device (SPD) DC,Nos
+Solar System,Solar Pump Set Material,Surge Protection Device (SPD) AC,Nos
+Solar System,Solar Pump Set Material,Lightning Arrester Counter,Nos
+Solar System,Solar Pump Set Material,Relay Module,Nos
+Solar System,Solar Pump Set Material,Contactor,Nos
+Solar System,Solar Pump Set Material,Overload Relay,Nos
+Solar System,Solar Pump Set Material,Timer Relay,Nos
+Solar System,Solar Pump Set Material,Phase Failure Relay,Nos
+Solar System,Solar Pump Set Material,Dry Run Protection Device,Nos
+Solar System,Solar Pump Set Material,Water Level Controller,Nos
+Solar System,Solar Pump Set Material,Float Switch,Nos
+Solar System,Solar Pump Set Material,Ultrasonic Water Level Sensor,Nos
+Solar System,Solar Pump Set Material,Pressure Sensor,Nos
+Solar System,Solar Pump Set Material,Flow Sensor,Nos
+Solar System,Solar Pump Set Material,Temperature Sensor,Nos
+Solar System,Solar Pump Set Material,PLC,Nos
+Solar System,Solar Pump Set Material,HMI,Nos
+Solar System,Solar Pump Set Material,SMPS,Nos
+Solar System,Solar Pump Set Material,Battery Charger,Nos
+Solar System,Solar Pump Set Material,Battery Bank (if applicable),Nos
+Solar System,Solar Pump Set Material,Indicator Lamp,Nos
+Solar System,Solar Pump Set Material,Push Button,Nos
+Solar System,Solar Pump Set Material,Selector Switch,Nos
+Solar System,Solar Pump Set Material,GI C Channel 41x41 mm,Mtr / Kg
+Solar System,Solar Pump Set Material,GI C Channel 61x41 mm,Mtr / Kg
+Solar System,Solar Pump Set Material,GI C Channel 81x41 mm,Mtr / Kg
+Solar System,Solar Pump Set Material,GI Angle 40x40x5 mm,Kg
+Solar System,Solar Pump Set Material,GI Angle 50x50x6 mm,Kg
+Solar System,Solar Pump Set Material,GI Square Pipe 40x40 mm,Mtr
+Solar System,Solar Pump Set Material,GI Square Pipe 50x50 mm,Mtr
+Solar System,Solar Pump Set Material,GI Rectangular Pipe,Mtr
+Solar System,Solar Pump Set Material,GI Round Pipe,Mtr
+Solar System,Solar Pump Set Material,Hot Dip Galvanized Structural Steel,Kg
+Solar System,Solar Pump Set Material,Module Mounting Rail,Mtr
+Solar System,Solar Pump Set Material,Rail Splice,Nos
+Solar System,Solar Pump Set Material,Mid Clamp,Nos
+Solar System,Solar Pump Set Material,End Clamp,Nos
+Solar System,Solar Pump Set Material,Module Clamp Set,Set
+Solar System,Solar Pump Set Material,U-Bolt,Nos
+Solar System,Solar Pump Set Material,J-Bolt,Nos
+Solar System,Solar Pump Set Material,Foundation Bolt,Nos
+Solar System,Solar Pump Set Material,Anchor Bolt,Nos
+Solar System,Solar Pump Set Material,SS Nut,Nos
+Solar System,Solar Pump Set Material,SS Bolt,Nos
+Solar System,Solar Pump Set Material,Spring Washer,Nos
+Solar System,Solar Pump Set Material,Plain Washer,Nos
+Solar System,Solar Pump Set Material,GI Nut & Bolt Set,Set
+Solar System,Solar Pump Set Material,Cross Bracing Member,Mtr
+Solar System,Solar Pump Set Material,Vertical Support Leg,Nos
+Solar System,Solar Pump Set Material,Horizontal Support Member,Nos
+Solar System,Solar Pump Set Material,Base Plate,Nos
+Solar System,Solar Pump Set Material,Gusset Plate,Nos
+Solar System,Solar Pump Set Material,Cleat Plate,Nos
+Solar System,Solar Pump Set Material,Cable Tray Support Structure,Mtr
+Solar System,Solar Pump Set Material,Earthing Strip Support,Nos
+Solar System,Solar Pump Set Material,Lightning Arrester Mast,Nos
+Solar System,Solar Pump Set Material,Walkway Structure,Sqm
+Solar System,Solar Pump Set Material,Fence Support Post,Nos
+Solar System,Solar Pump Set Material,Structure Touch-up Zinc Paint,Ltr
+Solar System,Solar Pump Set Material,Cold Galvanizing Spray,Nos
+Solar System,Solar Pump Set Material,RCC Foundation Concrete,Cum
+Solar System,Solar Pump Set Material,PCC Foundation Concrete,Cum
+Solar System,Solar Pump Set Material,Excavation for Foundation,Cum
+Labour,Labour Category,Electrician,Day
+Labour,Labour Category,Senior Electrician,Day
+Labour,Labour Category,Solar Technician,Day
+Labour,Labour Category,Mechanical Technician,Day
+Labour,Labour Category,Fitter,Day
+Labour,Labour Category,Pipe Fitter,Day
+Labour,Labour Category,Plumber,Day
+Labour,Labour Category,Welder,Day
+Labour,Labour Category,Fabricator,Day
+Labour,Labour Category,Mason (Rajmistri),Day
+Labour,Labour Category,Carpenter,Day
+Labour,Labour Category,Bar Bender,Day
+Labour,Labour Category,Painter,Day
+Labour,Labour Category,Helper,Day
+Labour,Labour Category,Skilled Labour,Day
+Labour,Labour Category,Semi-Skilled Labour,Day
+Labour,Labour Category,Unskilled Labour,Day
+Labour,Labour Category,Rigger,Day
+Labour,Labour Category,Scaffolding Labour,Day
+Labour,Labour Category,Excavator Operator,Day
+Labour,Labour Category,Crane Operator,Day
+Labour,Labour Category,Tractor Driver,Day
+Labour,Labour Category,Truck Driver,Day
+Labour,Labour Category,Borewell Technician,Day
+Labour,Labour Category,Pump Installation Technician,Day
+Labour,Labour Category,Surveyor,Day
+Labour,Labour Category,Security Guard,Day
+Labour,Labour Category,Housekeeping Labour,Day
+Transport,Transport / Logistics,Material Transportation,Trip
+Transport,Transport / Logistics,Local Transportation,Trip
+Transport,Transport / Logistics,Long Distance Transportation,Trip
+Transport,Transport / Logistics,Vehicle Hiring Charge,Day
+Transport,Transport / Logistics,Pickup Van Charge,Trip
+Transport,Transport / Logistics,Tata 407 Charge,Trip
+Transport,Transport / Logistics,Mini Truck Charge,Trip
+Transport,Transport / Logistics,Truck (10 Wheeler) Charge,Trip
+Transport,Transport / Logistics,Truck (12 Wheeler) Charge,Trip
+Transport,Transport / Logistics,Trailer Charge,Trip
+Transport,Transport / Logistics,Low Bed Trailer Charge,Trip
+Transport,Transport / Logistics,Crane Transportation,Trip
+Transport,Transport / Logistics,Equipment Transportation,Trip
+Transport,Transport / Logistics,Solar Panel Transportation,Trip
+Transport,Transport / Logistics,Pipe Transportation,Trip
+Transport,Transport / Logistics,DI Pipe Transportation,Trip
+Transport,Transport / Logistics,HDPE Pipe Transportation,Trip
+Transport,Transport / Logistics,Steel Material Transportation,Trip
+Transport,Transport / Logistics,Cement Transportation,Trip
+Transport,Transport / Logistics,Sand Transportation,Trip
+Transport,Transport / Logistics,Stone Chips Transportation,Trip
+Transport,Transport / Logistics,Water Tanker Charge,Trip
+Transport,Transport / Logistics,Fuel Charge,Ltr
+Transport,Transport / Logistics,Driver Allowance,Day
+Transport,Transport / Logistics,Loading Charge,Trip
+Transport,Transport / Logistics,Unloading Charge,Trip
+Transport,Transport / Logistics,Loading & Unloading Charge,Trip
+Transport,Transport / Logistics,Material Shifting Charge,Trip
+Transport,Transport / Logistics,Site-to-Site Transfer Charge,Trip
+Transport,Transport / Logistics,Courier / Parcel Charge,Nos
+Miscellaneous,Miscellaneous Cost,Material Transportation,Trip
+Miscellaneous,Miscellaneous Cost,Loading Charge,Trip
+Miscellaneous,Miscellaneous Cost,Unloading Charge,Trip
+Miscellaneous,Miscellaneous Cost,Loading & Unloading Charge,Trip
+Miscellaneous,Miscellaneous Cost,Vehicle Hire Charge,Day
+Miscellaneous,Miscellaneous Cost,Fuel Charge,Ltr
+Miscellaneous,Miscellaneous Cost,Driver Allowance,Day
+Miscellaneous,Miscellaneous Cost,Crane Mobilization,Trip
+Miscellaneous,Miscellaneous Cost,Crane Rental,Hour / Day
+Miscellaneous,Miscellaneous Cost,JCB / Excavator Mobilization,Trip
+Miscellaneous,Miscellaneous Cost,JCB / Excavator Rental,Hour / Day
+Miscellaneous,Miscellaneous Cost,Dumper Rental,Day
+Miscellaneous,Miscellaneous Cost,Tractor Rental,Day
+Miscellaneous,Miscellaneous Cost,Forklift Rental,Day
+Miscellaneous,Miscellaneous Cost,Hydro Testing Charge,Job
+Miscellaneous,Miscellaneous Cost,Pressure Testing Charge,Job
+Miscellaneous,Miscellaneous Cost,Water Testing Charge,Job
+Miscellaneous,Miscellaneous Cost,Electrical Testing Charge,Job
+Miscellaneous,Miscellaneous Cost,Commissioning Charge,Job
+Miscellaneous,Miscellaneous Cost,Survey Charge,Job
+Miscellaneous,Miscellaneous Cost,Site Inspection Charge,Job
+Miscellaneous,Miscellaneous Cost,Borewell Testing Charge,Job
+Miscellaneous,Miscellaneous Cost,Road Cutting Charge,Job
+Miscellaneous,Miscellaneous Cost,Road Restoration Charge,Job
+Miscellaneous,Miscellaneous Cost,Excavation Charge,Cum
+Miscellaneous,Miscellaneous Cost,Backfilling Charge,Cum
+Miscellaneous,Miscellaneous Cost,Dewatering Charge,Day
+Miscellaneous,Miscellaneous Cost,Temporary Power Supply Charge,Month
+Miscellaneous,Miscellaneous Cost,Temporary Water Supply Charge,Month
+Miscellaneous,Miscellaneous Cost,Generator Rental,Day
+Miscellaneous,Miscellaneous Cost,Security Guard Charge,Day
+Miscellaneous,Miscellaneous Cost,Housekeeping Charge,Day
+Miscellaneous,Miscellaneous Cost,Site Office Expense,Month
+Miscellaneous,Miscellaneous Cost,Internet & Communication Charge,Month
+Miscellaneous,Miscellaneous Cost,Printing & Documentation Charge,Job
+Miscellaneous,Miscellaneous Cost,Courier Charge,Nos
+Miscellaneous,Miscellaneous Cost,Travel Expense,Trip
+Miscellaneous,Miscellaneous Cost,Lodging Expense,Day
+Miscellaneous,Miscellaneous Cost,Boarding Expense,Day
+Miscellaneous,Miscellaneous Cost,Safety Equipment Expense,Job
+Miscellaneous,Miscellaneous Cost,PPE Kit Expense,Nos
+Miscellaneous,Miscellaneous Cost,First Aid Expense,Job
+Miscellaneous,Miscellaneous Cost,Statutory Approval Fee,Job
+Miscellaneous,Miscellaneous Cost,Government Fee,Job
+Miscellaneous,Miscellaneous Cost,Contingency Expense,Job
+Miscellaneous,Miscellaneous Cost,Site Cleaning Charge,Job
+Miscellaneous,Miscellaneous Cost,Waste Disposal Charge,Job
+Miscellaneous,Miscellaneous Cost,Contractor Overhead,% / Job
+Miscellaneous,Miscellaneous Cost,Project Management Cost,Month
+Miscellaneous,Miscellaneous Cost,Miscellaneous Expense,Job

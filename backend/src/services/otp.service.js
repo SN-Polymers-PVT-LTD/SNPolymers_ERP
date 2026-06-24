@@ -85,7 +85,12 @@ async function verifyOtp(mobileNumber, rawOtp) {
   const isValid = await bcrypt.compare(rawOtp, otpRequest.otp_hash);
 
   if (!isValid) {
-    // Increment attempts count
+    // Security note: This increment is not atomic — a theoretical race condition exists
+    // under concurrent invalid attempts. In practice, this is mitigated by:
+    // 1. Only 1 active OTP per user (LIFO fetch ensures old tokens are effectively voided)
+    // 2. 5-minute window before expiry
+    // 3. OTP rate limiter: max 3 requests per 15 min per mobile number
+    // If atomicity becomes critical, implement increment_otp_attempts RPC (Migration 20).
     await supabase
       .from('otp_requests')
       .update({ attempts: otpRequest.attempts + 1 })

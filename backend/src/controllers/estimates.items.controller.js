@@ -4,6 +4,8 @@ const ESTIMATE_STATUS = require('../constants/estimate-status');
 const APPROVAL_STATUS = require('../constants/approval-status');
 const { EDITABLE_STATUSES } = require('../workflow/estimate-rules');
 const { _recalculateEstimateAmount } = require('../services/estimate.service');
+const validate = require('../validation/validate');
+const { saveDraftItemsSchema, submitRowApprovalsSchema } = require('../validation/estimate.schema');
 const {
   getEstimateById,
   isOwnerOrAdmin,
@@ -17,16 +19,9 @@ const {
  * Full replacement logic for line items.
  */
 async function saveDraftItems(req, res) {
+  if (!validate(req, res, saveDraftItemsSchema)) return;
   const { id } = req.params;
   const { items } = req.body;
-
-  if (!Array.isArray(items)) {
-    return res.status(400).json({ success: false, message: 'items must be an array.' });
-  }
-
-  if (!uuidRegex.test(id)) {
-    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
-  }
 
   try {
     const estimate = await getEstimateById(id);
@@ -59,19 +54,6 @@ async function saveDraftItems(req, res) {
 
     const isZoRevision = estimate.estimate_status === ESTIMATE_STATUS.ZO_REVISION_REQUESTED;
     const isHoRevision = estimate.estimate_status === ESTIMATE_STATUS.HO_REVISION_REQUESTED;
-
-    // Validate request payload fields and non-negative quantity/rate before querying DB
-    for (const item of items) {
-      if (!item.material_main_head || !item.material_sub_head || !item.material_details || !item.unit) {
-        return res.status(400).json({ success: false, message: 'Material heads, details, and unit are required.' });
-      }
-
-      const qtyNum = Number(item.qty);
-      const rateNum = Number(item.rate);
-      if (isNaN(qtyNum) || isNaN(rateNum) || qtyNum < 0 || rateNum < 0) {
-        return res.status(400).json({ success: false, message: 'Quantity and rate must be non-negative numbers.' });
-      }
-    }
 
     // Batch fetch materials with a composite lookup strategy to avoid correctness/uniqueness bugs
     // We fetch in chunks of 40 to avoid URL length limitations on large estimate batches (e.g. 500 items)
@@ -234,16 +216,9 @@ async function saveDraftItems(req, res) {
  * Saves row-level decisions (Approve/Not Approve) atomically.
  */
 async function submitRowApprovals(req, res) {
+  if (!validate(req, res, submitRowApprovalsSchema)) return;
   const { id } = req.params;
   const { approvals } = req.body;
-
-  if (!Array.isArray(approvals)) {
-    return res.status(400).json({ success: false, message: 'approvals must be an array.' });
-  }
-
-  if (!uuidRegex.test(id)) {
-    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
-  }
 
   try {
     const estimate = await getEstimateById(id);
@@ -273,22 +248,6 @@ async function submitRowApprovals(req, res) {
     const itemIds = approvals.map(a => a.item_id);
     if (new Set(itemIds).size !== itemIds.length) {
       return res.status(400).json({ success: false, message: 'Duplicate item_id detected.' });
-    }
-
-    for (const approval of approvals) {
-      if (!uuidRegex.test(approval.item_id)) {
-        return res.status(400).json({ success: false, message: `Invalid item UUID: ${approval.item_id}` });
-      }
-
-      if (![APPROVAL_STATUS.APPROVED, APPROVAL_STATUS.REJECTED].includes(approval.approve_status)) {
-        return res.status(400).json({ success: false, message: `Invalid approve_status for item ${approval.item_id}. Must be ${APPROVAL_STATUS.APPROVED} or ${APPROVAL_STATUS.REJECTED}.` });
-      }
-
-      if (approval.approve_status === APPROVAL_STATUS.REJECTED) {
-        if (!approval.remarks || typeof approval.remarks !== 'string' || approval.remarks.trim() === '') {
-          return res.status(400).json({ success: false, message: `Remarks are required for rejected item: ${approval.item_id}` });
-        }
-      }
     }
 
     // Verify all items exist and belong to this estimate

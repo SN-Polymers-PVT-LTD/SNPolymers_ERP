@@ -70,6 +70,8 @@ async function verifyJwt(req, res, next) {
   } catch (error) {
     console.error(`JWT Validation Error: ${error.message}`);
     if (error.name === 'TokenExpiredError') {
+      // Clear stale cookies so the client stops sending the expired token
+      res.clearCookie('accessToken', cookieOptions);
       return res.status(401).json({
         success: false,
         code: 'ACCESS_TOKEN_EXPIRED',

@@ -9,6 +9,12 @@ const {
 } = require('../controllers/projects.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireAdmin = require('../middleware/requireAdmin');
+const validateRequest = require('../middleware/validateRequest');
+const {
+  createProjectSchema,
+  updateProjectSchema,
+  updateProjectStatusSchema
+} = require('../validation/project.schema');
 
 const router = express.Router();
 
@@ -21,8 +27,8 @@ router.get('/', getProjects);
 router.get('/:work_order_no', getProjectByWorkOrder);
 
 // Admin-only write and status change routes
-router.post('/', requireAdmin, createProject);
-router.put('/:work_order_no', requireAdmin, updateProject);
-router.patch('/:work_order_no/status', requireAdmin, updateProjectStatus);
+router.post('/', requireAdmin, validateRequest(createProjectSchema), createProject);
+router.put('/:work_order_no', requireAdmin, validateRequest(updateProjectSchema), updateProject);
+router.patch('/:work_order_no/status', requireAdmin, validateRequest(updateProjectStatusSchema), updateProjectStatus);
 
 module.exports = router;

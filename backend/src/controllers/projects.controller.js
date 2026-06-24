@@ -1,4 +1,6 @@
 const { supabase } = require('../db/supabase');
+const validate = require('../validation/validate');
+const { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } = require('../validation/project.schema');
 
 /**
  * GET /api/v1/auth/projects
@@ -83,6 +85,7 @@ async function createProject(req, res) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
   }
+  if (!validate(req, res, createProjectSchema)) return;
 
   const {
     work_order_no,
@@ -96,31 +99,8 @@ async function createProject(req, res) {
     status
   } = req.body;
 
-  // Validation
-  if (!work_order_no || !estimate_no || work_order_value === undefined || work_order_value === null || !site_details || !state || !district || !zone || !department) {
-    return res.status(400).json({
-      success: false,
-      message: 'All fields including work_order_value are required (work_order_no, estimate_no, work_order_value, site_details, state, district, zone, department).'
-    });
-  }
-
-  const valNum = Number(work_order_value);
-  if (isNaN(valNum) || typeof work_order_value === 'string' && work_order_value.trim() === '' || valNum < 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'work_order_value must be a valid non-negative number.'
-    });
-  }
-
-  const allowedStatuses = ['Running', 'Closed', 'Complete Under Maintenance'];
+  const valNum = work_order_value;
   const projectStatus = status || 'Running';
-
-  if (!allowedStatuses.includes(projectStatus)) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid status. Allowed values are: ${allowedStatuses.join(', ')}`
-    });
-  }
 
   try {
     const { data, error } = await supabase
@@ -172,25 +152,12 @@ async function updateProject(req, res) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
   }
+  if (!validate(req, res, updateProjectSchema)) return;
 
   const { work_order_no } = req.params;
   const { estimate_no, work_order_value, site_details, state, district, zone, department } = req.body;
 
-  // Validation
-  if (!estimate_no || work_order_value === undefined || work_order_value === null || !site_details || !state || !district || !zone || !department) {
-    return res.status(400).json({
-      success: false,
-      message: 'All standard fields including work_order_value are required (estimate_no, work_order_value, site_details, state, district, zone, department).'
-    });
-  }
-
-  const valNum = Number(work_order_value);
-  if (isNaN(valNum) || typeof work_order_value === 'string' && work_order_value.trim() === '' || valNum < 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'work_order_value must be a valid non-negative number.'
-    });
-  }
+  const valNum = work_order_value;
 
   try {
     // 1. Fetch current project to verify existence
@@ -243,21 +210,10 @@ async function updateProjectStatus(req, res) {
   if (!req.user || req.user.role !== 'admin') {
     return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
   }
+  if (!validate(req, res, updateProjectStatusSchema)) return;
 
   const { work_order_no } = req.params;
   const { status } = req.body;
-
-  if (!status) {
-    return res.status(400).json({ success: false, message: 'Status is required.' });
-  }
-
-  const allowedStatuses = ['Running', 'Closed', 'Complete Under Maintenance'];
-  if (!allowedStatuses.includes(status)) {
-    return res.status(400).json({
-      success: false,
-      message: `Invalid status. Allowed values are: ${allowedStatuses.join(', ')}`
-    });
-  }
 
   try {
     // 1. Fetch current project to verify existence

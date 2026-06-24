@@ -216,6 +216,14 @@ async function createReport(req, res) {
     return res.status(400).json({ success: false, message: 'work_order_no and amount are required.' });
   }
 
+  const amountNum = Number(amount);
+  if (amount === null || isNaN(amountNum) || amountNum < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'amount must be a non-negative number.'
+    });
+  }
+
   try {
     // Enforce Mutability Gate: Check if project status is Closed
     const isClosed = await isProjectClosed(work_order_no);
@@ -270,6 +278,14 @@ async function updateReport(req, res) {
 
   if (amount === undefined) {
     return res.status(400).json({ success: false, message: 'amount is required.' });
+  }
+
+  const amountNum = Number(amount);
+  if (amount === null || isNaN(amountNum) || amountNum < 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'amount must be a non-negative number.'
+    });
   }
 
   try {

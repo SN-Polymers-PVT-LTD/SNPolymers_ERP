@@ -22,6 +22,7 @@ const materialsRoutes = require('./routes/materials.routes');
 const estimatesRoutes = require('./routes/estimates.routes');
 const purchaseDataRoutes = require('./routes/purchaseData.routes');
 const masterDataRoutes = require('./routes/masterData.routes');
+const fundRequestsRoutes = require('./routes/fundRequests.routes');
 
 const { startPolling } = require('./services/telegram.service');
 
@@ -54,11 +55,12 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/auth/admin', adminRoutes);
 app.use('/api/v1/auth/projects', projectRoutes);
 app.use('/api/v1/auth/reports', reportRoutes);
-app.use('/api/materials', materialsRoutes);
+// Materials endpoint — requires JWT via verifyJwt in materials.routes.js
 app.use('/api/v1/auth/materials', materialsRoutes);
 app.use('/api/v1/auth/estimates', estimatesRoutes);
 app.use('/api/v1/auth/purchase-data', purchaseDataRoutes);
 app.use('/api/v1/auth/master-data', masterDataRoutes);
+app.use('/api/v1/auth/fund-requests', fundRequestsRoutes);
 
 // Basic sanity route
 app.get('/health', (req, res) => {

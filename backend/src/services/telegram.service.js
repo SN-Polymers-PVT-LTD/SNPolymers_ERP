@@ -274,10 +274,79 @@ async function notifyHoEstimateApproved(estimate) {
   }
 }
 
+async function notifyZoFundRequestApproved(originalRequest, updatedRequest) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const { data: zoUser, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', originalRequest.zo_user_id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[FUND REQUEST] Failed to fetch ZO user for notification: ${error.message}`);
+      return;
+    }
+
+    if (!zoUser || !zoUser.telegram_chat_id || zoUser.telegram_chat_id.trim() === '') {
+      console.warn(
+        `[FUND REQUEST] ZO user ${originalRequest.zo_user_id} has no Telegram chat ID configured. ` +
+        `Fund Request: ${originalRequest.fund_request_id}, FR No: ${originalRequest.zo_fr_no}`
+      );
+      return;
+    }
+
+    const activeToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!activeToken) {
+      console.warn(
+        `[FUND REQUEST] TELEGRAM_BOT_TOKEN not set. Cannot notify ZO for FR: ${originalRequest.zo_fr_no}`
+      );
+      return;
+    }
+
+    const approvedAmount = Number(updatedRequest.approve_ho_amount);
+    const requestedAmount = Number(originalRequest.zo_fr_amount);
+    const account = updatedRequest.transfer_from_account;
+
+    // Escape underscores for Telegram Markdown V1 parser
+    const frNoClean = String(originalRequest.zo_fr_no).replace(/_/g, '\\_');
+    const remarksClean = String(updatedRequest.ho_remarks || 'None').replace(/_/g, '\\_');
+
+    const messageText =
+      `✅ *Fund Request Approved*\n\n` +
+      `*Fund Request No:* ${frNoClean}\n` +
+      `*Requested Amount:* ₹${requestedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `*Approved Amount:* ₹${approvedAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n` +
+      `*Transfer Account:* ${account}\n` +
+      `*HO Remarks:* ${remarksClean}\n\n` +
+      `Your fund request has been approved. Funds will be transferred from the *${account}* account.`;
+
+    const apiBase = `https://api.telegram.org/bot${activeToken}`;
+    const url = `${apiBase}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!data.ok) {
+      console.warn(
+        `[FUND REQUEST] Telegram notification failed for ${zoUser.display_name}: ${data.description}`
+      );
+    } else {
+      console.log(`[FUND REQUEST] Approval notification sent to ${zoUser.display_name}`);
+    }
+
+  } catch (error) {
+    console.error(`[FUND REQUEST] notifyZoFundRequestApproved failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   sendOtp,
   startPolling,
   notifyZoEstimateSubmitted,
-  notifyHoEstimateApproved
+  notifyHoEstimateApproved,
+  notifyZoFundRequestApproved
 };
+
 

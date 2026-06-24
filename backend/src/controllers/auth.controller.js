@@ -5,6 +5,8 @@ const { generateOtp, hashOtp, storeOtp, verifyOtp } = require('../services/otp.s
 const { sendOtp } = require('../services/telegram.service');
 const { generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
+const validate = require('../validation/validate');
+const { requestOtpSchema, linkTelegramSchema, verifyOtpSchema } = require('../validation/auth.schema');
 
 const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {
@@ -20,17 +22,8 @@ const cookieOptions = {
  * If not, returns needsTelegramSetup: true so the frontend can gate the user.
  */
 async function requestOtp(req, res) {
+  if (!validate(req, res, requestOtpSchema)) return;
   const { mobileNumber } = req.body;
-
-  if (!mobileNumber) {
-    return res.status(400).json({ success: false, message: 'Mobile number is required.' });
-  }
-
-  // Validate format (basic check)
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-  if (!phoneRegex.test(mobileNumber)) {
-    return res.status(400).json({ success: false, message: 'Invalid mobile number format. Must be in E.164 format (+[country][number]).' });
-  }
 
   try {
     // 1. Check if user is whitelisted & active
@@ -83,17 +76,9 @@ async function requestOtp(req, res) {
  * the bot directly and reading the auto-reply.
  */
 async function linkTelegram(req, res) {
+  if (!validate(req, res, linkTelegramSchema)) return;
   const { mobileNumber, chatId } = req.body;
-
-  if (!mobileNumber || !chatId) {
-    return res.status(400).json({ success: false, message: 'Mobile number and Chat ID are required.' });
-  }
-
-  // Basic validation — Telegram chat IDs are integers (can be negative for groups)
-  const chatIdStr = String(chatId).trim();
-  if (!/^-?\d+$/.test(chatIdStr)) {
-    return res.status(400).json({ success: false, message: 'Invalid Chat ID format. Please enter the number exactly as the bot sent it.' });
-  }
+  const chatIdStr = chatId;
 
   try {
     // 1. Verify the mobile number is whitelisted & active
@@ -136,11 +121,8 @@ async function linkTelegram(req, res) {
  * Verifies OTP and generates Session / JWT
  */
 async function verifyOtpCode(req, res) {
+  if (!validate(req, res, verifyOtpSchema)) return;
   const { mobileNumber, otp } = req.body;
-
-  if (!mobileNumber || !otp) {
-    return res.status(400).json({ success: false, message: 'Mobile number and OTP are required.' });
-  }
 
   try {
     // 1. Verify OTP
@@ -168,7 +150,7 @@ async function verifyOtpCode(req, res) {
 
     // 3. Issue Tokens & Create DB Session
     const refreshJti = uuidv4();
-    const ipAddress = req.ip || req.headers['x-forwarded-for'];
+    const ipAddress = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
     const userAgent = req.headers['user-agent'];
 
     const session = await createSession({

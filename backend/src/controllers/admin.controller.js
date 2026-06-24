@@ -75,6 +75,14 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
+  const ALLOWED_ROLES = ['staff', 'admin', 'je', 'zo', 'ho'];
+  if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid role. Allowed values: ${ALLOWED_ROLES.join(', ')}.`
+    });
+  }
+
   const updateFields = {};
   if (displayName !== undefined) updateFields.display_name = displayName;
   if (role !== undefined) updateFields.role = role;
@@ -117,6 +125,44 @@ async function removeUser(req, res) {
   const { id } = req.params;
 
   try {
+    // 0. Pre-check: block deletion if user has active resource associations
+    const { data: userRecord } = await supabase
+      .from('authorised_users')
+      .select('mobile_number')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (userRecord) {
+      // Check for active estimates
+      const { count: estimateCount, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('estimate_id', { count: 'exact', head: true })
+        .eq('created_by', userRecord.mobile_number);
+
+      if (estErr) throw estErr;
+      if (estimateCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have ${estimateCount} cost estimate(s). Deactivate the user instead.`
+        });
+      }
+
+      // Check for active fund requests
+      const { count: frCount, error: frErr } = await supabase
+        .from('fund_requests')
+        .select('fund_request_id', { count: 'exact', head: true })
+        .eq('zo_user_id', userRecord.mobile_number)
+        .eq('request_status', 'Pending');
+
+      if (frErr) throw frErr;
+      if (frCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have ${frCount} pending fund request(s). Cancel them first.`
+        });
+      }
+    }
+
     // 1. Invalidate active sessions first
     await supabase
       .from('sessions')
