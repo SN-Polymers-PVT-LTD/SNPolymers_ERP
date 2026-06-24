@@ -10,6 +10,17 @@
 
 ---
 
+## Role Authorization Matrix
+
+| Role | Create Requisition | Approve / Hold | Cancel | Read Requisitions |
+|---|---|---|---|---|
+| **JE** | Yes | No | Own | Own |
+| **ZO** | No | Yes | No | All |
+| **HO** | No | Yes | No | All |
+| **Admin** | Yes | Yes | Yes | All |
+
+---
+
 ## Milestone Overview
 
 | # | Milestone | Primary Layer | Depends On |
@@ -38,6 +49,10 @@ A milestone is complete only if:
 ---
 
 ## M1 — Database Foundation
+
+> [!IMPORTANT]
+> **Explicit Work Order → Estimate Snapshot**: Geographic metadata (`state`, `district`, `area_code` / `zone`, `department`, `site_details`) and estimate metadata (`estimate_no`, `estimate_amount`) are explicitly copied as a frozen snapshot from `projects_master` and `project_cost_estimates` at the exact moment of requisition creation. They must NEVER be re-read from master tables later, protecting historical records if estimate or project data is updated or changed in the future.
+
 
 ### Objective
 Establish all schema objects required by Phase 4: enums, the `requisitions` table, indexes, and triggers. The migration number is `20` (following migration `19_create_fund_requests.sql` from Phase 3).
@@ -107,9 +122,10 @@ CREATE TABLE IF NOT EXISTS requisitions (
   site_details                 TEXT NOT NULL,
 
   -- Requester user-entered fields
-  requisition_no               VARCHAR NOT NULL UNIQUE,        -- User-entered, unique, filename must match
+  requisition_no               VARCHAR NOT NULL UNIQUE,        -- User-entered, unique
   material_main_head           VARCHAR NOT NULL,               -- Dropdown from material_master
-  requisition_pdf_url          TEXT NOT NULL,                  -- Supabase Storage URL (private bucket)
+  requisition_pdf_url          TEXT NOT NULL,                  -- Storage path (requisition-pdfs/{uuid}.pdf)
+  original_filename            VARCHAR,                        -- Original filename uploaded by user
   requisition_amount           NUMERIC(18,2) NOT NULL CHECK (requisition_amount > 0),
   gst_bill                     gst_bill_enum NOT NULL,
   gst_bill_pdf_url             TEXT,                           -- Required only when gst_bill = 'Yes'
@@ -125,7 +141,7 @@ CREATE TABLE IF NOT EXISTS requisitions (
   approve_type                 VARCHAR,                        -- 'Approve' or 'Hold'
   approved_amount              NUMERIC(18,2),                  -- Required on Approve; NULL on Hold
   approved_balance_amount      NUMERIC(18,2),                  -- Computed: requisition_amount - approved_amount
-  remarks_approved_authority   TEXT,                           -- Required on Approve; NULL on Hold
+  remarks_approved_authority   TEXT,                           -- Required on both Approve and Hold
 
   -- Cancellation tracking
   cancelled_by                 VARCHAR REFERENCES authorised_users(mobile_number) ON DELETE RESTRICT,
@@ -301,11 +317,76 @@ Implement `createRequisition`, `getRequisitions`, and `getRequisitionById`. Thes
 ### Files Created or Modified
 | File | Action |
 |---|---|
+| `backend/src/validation/requisition.schema.js` | **NEW** — Zod schemas |
 | `backend/src/controllers/requisitions.controller.js` | **NEW** (partial — CRUD functions) |
 | `backend/src/routes/requisitions.routes.js` | **NEW** |
 | `backend/src/app.js` | **MODIFY** — add route mount |
 
 ### Backend Work
+
+**Zod Schema Spec (`requisition.schema.js`):**
+
+```javascript
+const { z } = require('zod');
+
+const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const uuidSchema = z.string().regex(uuidRegex, 'Invalid requisition ID.');
+
+const createRequisitionSchema = {
+  body: z.object({
+    work_order_no: z.string({ required_error: 'work_order_no is required.' }).trim().min(1, 'work_order_no is required.'),
+    requisition_no: z.string({ required_error: 'requisition_no (Requisition Number) is required.' })
+      .trim()
+      .min(1, 'requisition_no (Requisition Number) is required.')
+      .regex(/^[A-Za-z0-9_\-.]+$/, 'requisition_no contains invalid characters. Only letters, digits, hyphens, underscores, and dots are allowed.'),
+    material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
+    requisition_pdf_url: z.string({ required_error: 'requisition_pdf_url is required. Upload the PDF first.' }).trim().min(1, 'requisition_pdf_url is required. Upload the PDF first.'),
+    original_filename: z.string().optional().nullable(),
+    requisition_amount: z.union([z.number(), z.string()], {
+      required_error: 'requisition_amount must be a positive number greater than zero.'
+    })
+      .transform((val) => Number(val))
+      .refine((val) => !isNaN(val) && val > 0 && isFinite(val), 'requisition_amount must be a positive number greater than zero.'),
+    gst_bill: z.enum(['Yes', 'No'], {
+      errorMap: () => ({ message: "gst_bill must be 'Yes' or 'No'." })
+    }),
+    gst_bill_pdf_url: z.string().optional().nullable(),
+    bank_details: z.string({ required_error: 'bank_details is required.' }).trim().min(1, 'bank_details is required.'),
+    expen_head_remarks: z.string().optional().nullable()
+  }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_url && data.gst_bill_pdf_url.trim() !== ''), {
+    message: "gst_bill_pdf_url is required when GST Bill is 'Yes'.",
+    path: ['gst_bill_pdf_url']
+  })
+};
+
+const actOnRequisitionSchema = {
+  params: z.object({
+    id: uuidSchema
+  }),
+  body: z.object({
+    action: z.enum(['Approve', 'Hold'], {
+      errorMap: () => ({ message: "action must be 'Approve' or 'Hold'." })
+    }),
+    approved_amount: z.union([z.number(), z.string()]).optional().nullable()
+      .transform((val) => val === undefined || val === null ? val : Number(val)),
+    remarks_approved_authority: z.string({
+      required_error: 'remarks_approved_authority is required.'
+    }).trim().min(1, 'remarks_approved_authority is required.')
+  })
+};
+
+const cancelRequisitionSchema = {
+  params: z.object({
+    id: uuidSchema
+  })
+};
+
+module.exports = {
+  createRequisitionSchema,
+  actOnRequisitionSchema,
+  cancelRequisitionSchema
+};
+```
 
 **Controller file skeleton:**
 
@@ -317,10 +398,10 @@ const { supabase } = require('../db/supabase');
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const VALID_STATUSES    = ['Pending', 'Approved', 'Hold', 'Cancelled'];
-// Only JE can create requisitions
-const REQUESTER_ROLES   = ['je'];
-// Only ZO and HO can approve/hold requisitions
-const APPROVER_ROLES    = ['zo', 'ho'];
+// JE and Admin can create requisitions
+const REQUESTER_ROLES   = ['je', 'admin'];
+// ZO, HO, and Admin can approve/hold requisitions
+const APPROVER_ROLES    = ['zo', 'ho', 'admin'];
 const VALID_GST_VALUES  = ['Yes', 'No'];
 
 // Sanitize requisition_no for use as a Storage filename
@@ -338,27 +419,10 @@ function sanitizeRequisitionNo(str) {
      requisition_amount, gst_bill, gst_bill_pdf_url, bank_details, expen_head_remarks }
 
    Role guard (enforced at route level via requireRole(['je'])):
-   → Only JE can call this endpoint. ZO, HO, admin, staff → 403.
+   → Only JE can call this endpoint. ZO, HO → 403.
 
-2. Input validation (all → 400):
-   a. work_order_no: required, non-blank string after .trim()
-      Error: "work_order_no is required."
-   b. requisition_no: required, non-blank string after .trim()
-      Error: "requisition_no (Requisition Number) is required."
-   c. sanitizeRequisitionNo(requisition_no.trim()) must be true
-      Error: "requisition_no contains invalid characters. Only letters, digits, hyphens, underscores, and dots are allowed."
-   d. material_main_head: required, non-blank
-      Error: "material_main_head is required."
-   e. requisition_pdf_url: required, non-blank string
-      Error: "requisition_pdf_url is required. Upload the PDF first."
-   f. requisition_amount: required, Number(requisition_amount) > 0 and finite
-      Error: "requisition_amount must be a positive number greater than zero."
-   g. gst_bill: must be 'Yes' or 'No'
-      Error: "gst_bill must be 'Yes' or 'No'."
-   h. if gst_bill === 'Yes': gst_bill_pdf_url required, non-blank
-      Error: "gst_bill_pdf_url is required when GST Bill is 'Yes'."
-   i. bank_details: required, non-blank string after .trim()
-      Error: "bank_details is required."
+2. Input validation:
+   * Checked automatically at the route layer by `validateRequest(createRequisitionSchema)` middleware.
 
 3. Unique requisition_no check:
    SELECT COUNT(*) FROM requisitions WHERE requisition_no = $1
@@ -428,8 +492,18 @@ function sanitizeRequisitionNo(str) {
 
 8. On insert error code '23505': return 409 (duplicate unique constraint on requisition_no)
 
-9. Return 201 with created requisition and computed remainingAmount for display:
-   { success: true, requisition: {...}, remainingAmountAfter: remainingAmount - Number(requisition_amount) }
+9. Return 201 with created requisition, budget metrics, and computed remainingAmount for display:
+
+* Every create response returns the current budget metrics for the frontend:
+  ```json
+  {
+    "success": true,
+    "requisition": { ... },
+    "estimateAmount": 100000,
+    "committedAmount": 50000,
+    "remainingAmount": 50000
+  }
+  ```
 ```
 
 **`getRequisitions(req, res)`** — Role-filtered list with pagination:
@@ -442,7 +516,7 @@ Filtering by role:
   'zo':    all requisitions (approver — sees all)
   'ho':    all requisitions (approver — sees all)
   'admin': all requisitions (read-only oversight)
-  'staff': 403 Forbidden (no access to requisition module)
+
 
 Apply optional status filter if provided and valid (must be in VALID_STATUSES).
 Order: created_at DESC.
@@ -467,7 +541,7 @@ Return: { success, requisitions, pagination }
    'zo':    always visible (approver role)
    'ho':    always visible (approver role)
    'admin': always visible (oversight)
-   'staff': 403 Forbidden
+
 4. Resolve display names for requester_user_id and approved_user_id.
 5. Generate a fresh signed URL for requisition_pdf_url (60-minute TTL) if url is a storage path.
 6. Generate a fresh signed URL for gst_bill_pdf_url (60-minute TTL) if present.
@@ -489,7 +563,7 @@ app.use('/api/v1/auth/requisitions', requisitionsRoutes);
 ✓ POST /requisitions by 'je' with valid parameters → 201, status = 'Pending'
 ✓ POST /requisitions by 'zo' user → 403 (JE-only creation)
 ✓ POST /requisitions by 'ho' user → 403 (JE-only creation)
-✓ POST /requisitions by 'admin' user → 403 (JE-only creation)
+✓ POST /requisitions by 'admin' user → 201 (admin has superuser creation access)
 ✓ POST /requisitions with duplicate requisition_no → 409
 ✓ POST /requisitions with requisition_amount = 0 → 400
 ✓ POST /requisitions with requisition_amount = -100 → 400
@@ -502,7 +576,6 @@ app.use('/api/v1/auth/requisitions', requisitionsRoutes);
 ✓ GET /requisitions as 'zo': all requisitions returned (approver view)
 ✓ GET /requisitions as 'ho': all requisitions returned (approver view)
 ✓ GET /requisitions as 'admin': all requests returned
-✓ GET /requisitions as 'staff' → 403
 ✓ GET /requisitions/:id by je non-owner → 404 (not 403 — no ID leakage)
 ✓ Pagination: page, limit, total, totalPages present in response
 ✓ Auto-filled fields (state, district, area_code, department, site_details, estimate_no) correctly populated
@@ -567,8 +640,7 @@ Expected: 404 (no ID leakage).
 **Test 9b:** `GET /requisitions/:id` as `zo` user — any requisition.  
 Expected: 200 (approver sees all).
 
-**Test 9c:** `GET /requisitions` as `staff` user.  
-Expected: 403 Forbidden.
+
 
 **Test 10:** `GET /requisitions?page=1&limit=5`.  
 Expected: 200, `pagination.limit = 5`, `pagination.total` ≥ 0.
@@ -644,10 +716,21 @@ async function actOnRequisition(req, res) {
       approve_type:     action
     };
 
+    // Remarks are mandatory for both Approve and Hold
+    const remarksStr = (remarks_approved_authority || '').trim();
+    if (!remarksStr) {
+      return res.status(400).json({
+        success: false,
+        message: 'remarks_approved_authority is required for both Approve and Hold actions.'
+      });
+    }
+    updatePayload.remarks_approved_authority = remarksStr;
+
     // 5a. Hold path
     if (action === 'Hold') {
       updatePayload.requisition_status          = 'Hold';
-      // approved_amount, approved_balance_amount, remarks_approved_authority remain NULL
+      updatePayload.approve_type               = 'Hold';
+      // approved_amount and approved_balance_amount remain NULL
     }
 
     // 5b. Approve path
@@ -660,20 +743,20 @@ async function actOnRequisition(req, res) {
         });
       }
 
-      const remarksStr = (remarks_approved_authority || '').trim();
-      if (!remarksStr) {
+      // Approved Amount Validation (approved_amount <= requisition_amount)
+      if (hoAmount > Number(req_record.requisition_amount)) {
         return res.status(400).json({
           success: false,
-          message: 'remarks_approved_authority is required for approval.'
+          message: 'Approved amount cannot exceed requisition amount.'
         });
       }
 
       const balanceAmount = Number(req_record.requisition_amount) - hoAmount;
 
       updatePayload.requisition_status          = 'Approved';
+      updatePayload.approve_type               = 'Approve';
       updatePayload.approved_amount             = hoAmount;
       updatePayload.approved_balance_amount     = balanceAmount;
-      updatePayload.remarks_approved_authority  = remarksStr;
     }
 
     // 6. Perform update with optimistic lock
@@ -726,9 +809,9 @@ async function cancelRequisition(req, res) {
     if (fetchError) throw fetchError;
     if (!req_record) return res.status(404).json({ success: false, message: 'Requisition not found.' });
 
-    // Ownership check — only the JE who created the requisition can cancel it.
-    // There is no admin bypass for cancellation in the Requisition module.
-    if (req_record.requester_user_id !== req.user.mobile_number) {
+    // Ownership / Admin check — only the JE who created the requisition OR an Admin can cancel it.
+    const isAdmin = req.user.role === 'admin';
+    if (!isAdmin && req_record.requester_user_id !== req.user.mobile_number) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Only the JE who created this requisition can cancel it.'
@@ -785,12 +868,12 @@ async function cancelRequisition(req, res) {
 ✓ PATCH /:id/action with action='Approve', missing remarks → 400
 ✓ PATCH /:id/action on non-Pending → 403
 ✓ PATCH /:id/action by 'je' user → 403 (requireRole(['zo','ho']) blocks it)
-✓ PATCH /:id/action by 'admin' user → 403 (admin is not an approver in this module)
+✓ PATCH /:id/action by 'admin' user → 200 (admin is superuser and can approve/hold)
 ✓ PATCH /:id/action with action='Maybe' → 400
 ✓ approved_balance_amount = requisition_amount - approved_amount (e.g., 10000 - 8000 = 2000)
 ✓ PATCH /:id/cancel by 'je' on own Pending → 200, status = 'Cancelled'
 ✓ PATCH /:id/cancel by 'zo' on a requisition → 403 (ZO cannot cancel)
-✓ PATCH /:id/cancel on another user's → 403
+✓ PATCH /:id/cancel on another user's by non-admin → 403
 ✓ PATCH /:id/cancel on Approved → 403
 ✓ Concurrent PATCH /:id/action calls → optimistic lock returns 409 for the second
 ```
@@ -801,7 +884,7 @@ async function cancelRequisition(req, res) {
 Expected: 200, `requisition_status = 'Approved'`, `approved_amount = 8000`, `approved_balance_amount = requisition_amount - 8000`, `payment_date` and `approved_user_id` set.
 
 **Test 2:** HO calls `PATCH /:id/action` with `action='Hold'`.  
-Expected: 200, `requisition_status = 'Hold'`, `approved_amount` is NULL, `approved_balance_amount` is NULL, `remarks_approved_authority` is NULL.
+Expected: 200, `requisition_status = 'Hold'`, `approved_amount` is NULL, `approved_balance_amount` is NULL, `remarks_approved_authority` is updated with remarks.
 
 **Test 3:** ZO calls `PATCH /:id/action` with `action='Approve'`, `approved_amount = 0`.  
 Expected: 400 — amount must be greater than zero.
@@ -816,7 +899,7 @@ Expected: 403 — not Pending.
 Expected: 403 — role guard at route level (requireRole(['zo', 'ho'])).
 
 **Test 6b:** Admin calls `PATCH /:id/action`.  
-Expected: 403 — admin is not an approver in this module.
+Expected: 200 — Admin has superuser approval/hold capabilities.
 
 **Test 7:** JE calls `PATCH /:id/cancel` on own Pending requisition.  
 Expected: 200, `requisition_status = 'Cancelled'`, `cancelled_by` set.
@@ -908,19 +991,16 @@ async function uploadRequisitionPdf(req, res) {
     return res.status(400).json({ success: false, message: 'File size must not exceed 5MB.' });
   }
 
-  if (!requisition_no || String(requisition_no).trim() === '') {
-    return res.status(400).json({ success: false, message: 'requisition_no is required for naming the uploaded file.' });
-  }
-
-  const safeRequisitionNo = sanitizeFilename(String(requisition_no).trim());
-  const storagePath = `${safeRequisitionNo}.pdf`;
+  const { v4: uuidv4 } = require('uuid');
+  const storagePath = `${uuidv4()}.pdf`;
+  const originalFilename = file.originalname;
 
   try {
     const { error: uploadError } = await supabase.storage
       .from('requisition-pdfs')
       .upload(storagePath, file.buffer, {
         contentType: 'application/pdf',
-        upsert: false  // reject duplicate — requisition_no must be unique
+        upsert: false
       });
 
     if (uploadError) {
@@ -975,19 +1055,16 @@ async function uploadGstBillPdf(req, res) {
     return res.status(400).json({ success: false, message: 'File size must not exceed 5MB.' });
   }
 
-  if (!requisition_no || String(requisition_no).trim() === '') {
-    return res.status(400).json({ success: false, message: 'requisition_no is required for naming the uploaded GST bill.' });
-  }
-
-  const safeRequisitionNo = sanitizeFilename(String(requisition_no).trim());
-  const storagePath = `${safeRequisitionNo}_gst.pdf`;
+  const { v4: uuidv4 } = require('uuid');
+  const storagePath = `${uuidv4()}_gst.pdf`;
+  const originalFilename = file.originalname;
 
   try {
     const { error: uploadError } = await supabase.storage
       .from('gst-bills')
       .upload(storagePath, file.buffer, {
         contentType: 'application/pdf',
-        upsert: true  // allow re-upload if GST bill changes before final save
+        upsert: true
       });
 
     if (uploadError) throw uploadError;
@@ -1310,7 +1387,7 @@ if (effectiveRole === 'je') {
 if (role !== undefined) updateFields.role = role;
 
 // AFTER:
-const VALID_ROLES = ['staff', 'je', 'zo', 'ho', 'admin'];
+const VALID_ROLES = ['je', 'zo', 'ho', 'admin'];
 if (role !== undefined) {
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({
@@ -1736,7 +1813,7 @@ Section B: Master Data Selection
 Section C: Requester Input
   Requisition_NO     → <input type="text" required>
                      → Validate: non-blank, sanitized chars only
-                     → Hint: "File name must be the Requisition No."
+                     → Hint: "Files are renamed securely on upload."
 
   Material_Main_Head → <select> populated from distinct Material_Main_Head values
                      → Fetched from GET /master-data/catalog → categories[].name
@@ -1745,7 +1822,7 @@ Section C: Requester Input
     "Upload Requisition PDF" → <input type="file" accept=".pdf">
     Validation (on frontend):
       - File name must equal requisition_no + '.pdf'
-        Error: "File name must match Requisition No. exactly: {requisition_no}.pdf"
+        Error: "Only PDF files are accepted"
       - File type must be PDF
       - File size ≤ 5MB
     On file select → call uploadRequisitionPdf() immediately
@@ -1817,7 +1894,6 @@ Actions per row:
 ✓ Remaining Estimate Amount indicator shown below requisition_amount input
 ✓ Frontend prevents submission if requisition_amount > remaining balance
 ✓ Server-side 422 error displayed with detailed balance breakdown if bypassed
-✓ Requisition PDF filename validation enforced on frontend
 ✓ PDF upload succeeds and preview link works
 ✓ GST Bill field appears ONLY when gst_bill = 'Yes'
 ✓ Form submits correctly → 201 → list refreshes
@@ -1825,7 +1901,6 @@ Actions per row:
 ✓ Cancel confirmation modal visible ONLY to JE (own Pending records)
 ✓ ZO/HO do not see 'New Requisition' or 'Cancel' buttons
 ✓ Status badges render correctly for all 4 states
-✓ Staff users see 403 / empty state — not a Requisitions module user
 ```
 
 ### Exit Criteria
@@ -1904,7 +1979,7 @@ No action buttons (read-only history view)
 ### Acceptance Criteria
 ```
 ✓ Approve flow: approved_amount + remarks required → 200 → status = 'Approved'
-✓ Hold flow: no extra fields needed → 200 → status = 'Hold'
+✓ Hold flow: remarks required → 200 → status = 'Hold'
 ✓ Approved_Balance_Amount computed live in UI (e.g., ₹10,000 − ₹8,000 = ₹2,000)
 ✓ Non-admin users cannot see Take Action button
 ✓ Already-Approved requisitions do not show action button
@@ -1930,7 +2005,7 @@ Wire the Requisitions module into the main application routing and the Dashboard
 ```jsx
 import Requisitions from './pages/Requisitions';
 
-// Inside the ProtectedRoute for ['je', 'zo', 'ho', 'admin'] (staff excluded):
+// Inside the ProtectedRoute for ['je', 'zo', 'ho', 'admin'] :
 <Route path="/requisitions" element={<Requisitions />} />
 ```
 
@@ -1972,9 +2047,7 @@ Add a new glassmorphism module card in the `grid grid-cols-1 md:grid-cols-2` sec
 ### Acceptance Criteria
 ```
 ✓ /requisitions route accessible to je, zo, ho, admin roles
-✓ /requisitions route NOT accessible to staff role (403)
 ✓ Dashboard card visible to je, zo, ho, admin
-✓ Dashboard card hidden from staff
 ✓ Navigation from Dashboard card to Requisitions page works
 ✓ JE lands on the creation/list view; ZO/HO land on the approver/pending view by default
 ```
@@ -2030,7 +2103,7 @@ Create comprehensive automated tests for all milestones following the pattern es
 // T10: POST /requisitions — estimate_amount is null when no Final Approved estimate
 // T11: GET /requisitions as 'je' — only own records returned
 // T12: GET /requisitions as 'admin' — all records returned
-// T13: GET /requisitions as 'ho' → 403
+// T13: GET /requisitions as 'ho' → 200
 // T14: GET /requisitions/:id — non-owner → 404 (no ID leakage)
 // T15: GET /requisitions/:id — admin → 200 regardless of owner
 // T16: GET /requisitions?page=1&limit=3 — pagination structure correct
@@ -2180,13 +2253,12 @@ End-to-end manual verification by a real user (requester) and admin (approver) i
 **Scenario 6 — PDF file name mismatch:**
 1. Enter Requisition NO: `BP-01-TEST`
 2. Attempt to upload PDF named `BP-02-WRONG.pdf`
-3. Frontend validation triggers: "File name must match Requisition No. exactly: BP-01-TEST.pdf"
+3. Frontend validation triggers: "File upload does not require specific naming convention"
 
 **Scenario 7 — Role boundaries enforcement:**
 1. ZO logs in → clicks "New Requisition" button: Expected — button is hidden/absent for ZO
 2. JE logs in → sees a Pending requisition → "Take Action" button: Expected — button is hidden/absent for JE
 3. ZO logs in → tries to cancel a Pending requisition: Expected — no cancel button; direct API call returns 403
-4. Staff user logs in → navigates to `/requisitions` directly: Expected — 403 error page or redirect
 
 ### Release Checklist
 ```
@@ -2229,6 +2301,7 @@ SELECT typname FROM pg_type WHERE typname IN ('requisition_status_enum', 'gst_bi
 | File | Action | Component |
 |---|---|---|
 | `backend/src/db/migrations/20_create_requisitions.sql` | **NEW** | M1 — DB |
+| `backend/src/validation/requisition.schema.js` | **NEW** | M2 — Zod Schemas |
 | `backend/src/controllers/requisitions.controller.js` | **NEW** | M2, M3 — API |
 | `backend/src/controllers/requisitions.uploads.controller.js` | **NEW** | M4 — Uploads |
 | `backend/src/routes/requisitions.routes.js` | **NEW** | M2, M3, M4 — Routes |
