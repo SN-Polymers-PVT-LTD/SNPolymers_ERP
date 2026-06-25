@@ -1,15 +1,12 @@
 const { supabase } = require('../src/db/supabase');
 
-async function check() {
-  const { data: users, error } = await supabase.from('authorised_users').select('*');
-  if (error) {
-    console.error('Error fetching users:', error);
-  } else {
-    console.log('Whitelisted Users:');
-    users.forEach(u => {
-      console.log(`- Mob: ${u.mobile_number}, Name: ${u.display_name}, Role: ${u.role}, Active: ${u.is_active}`);
-    });
-  }
+async function main() {
+  const { data, error } = await supabase
+    .from('authorised_users')
+    .select('mobile_number, display_name, role, is_active');
+  
+  console.log('Authorised users:', data);
+  console.log('Error:', error);
 }
 
-check();
+main();

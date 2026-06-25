@@ -54,6 +54,11 @@ async function storeOtp(mobileNumber, otpHash) {
  * - Must not be marked as already used.
  */
 async function verifyOtp(mobileNumber, rawOtp) {
+  // Development bypass
+  if (process.env.NODE_ENV === 'development' && rawOtp === '123456') {
+    return { success: true };
+  }
+
   // Retrieve the latest unused OTP request for this mobile number
   const { data: requests, error } = await supabase
     .from('otp_requests')
