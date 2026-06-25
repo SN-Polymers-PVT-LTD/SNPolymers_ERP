@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 
@@ -91,6 +91,17 @@ const Sidebar = () => {
         </svg>
       )
     },
+    ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [
+      {
+        to: '/requisitions',
+        label: 'Payment Requisitions',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+          </svg>
+        )
+      }
+    ] : []),
     ...(isAdmin ? [
       {
         to: '/admin',

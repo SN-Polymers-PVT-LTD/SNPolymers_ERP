@@ -20,6 +20,7 @@ import MaterialMaster from './pages/MaterialMaster';
 import Estimates from './pages/Estimates';
 import EstimateForm from './pages/EstimateForm';
 import EstimateView from './pages/EstimateView';
+import Requisitions from './pages/Requisitions';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,11 @@ function App() {
             <Route path="/estimates/new" element={<EstimateForm />} />
             <Route path="/estimates/:id" element={<EstimateView />} />
             <Route path="/estimates/:id/edit" element={<EstimateForm />} />
+          </Route>
+
+          {/* Requisitions Protected Routes (JE, ZO, HO, Admin) */}
+          <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
+            <Route path="/requisitions" element={<Requisitions />} />
           </Route>
 
           {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
