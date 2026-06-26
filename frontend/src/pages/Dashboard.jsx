@@ -165,6 +165,34 @@ const Dashboard = () => {
                 </div>
               )}
 
+              {/* Module 2c: Daily Work Progress — Now Live */}
+              {['je', 'zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(16,185,129,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500">Field · Site Visits</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">Daily Work Progress</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Log daily site visit progress reports against work orders. Upload site photos, track cumulative physical progress, and enable authority review with remarks.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
+                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 px-2 py-0.5 rounded-lg">Active System</span>
+                    <Link
+                      to="/daily-progress"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Reports &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
               {/* Module 3: Active Workspace */}
               <div className={`glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)] ${!['zo', 'staff', 'ho', 'admin'].includes(user?.role) ? 'lg:col-span-2' : ''}`}>
                 <div className="absolute top-0 right-0 p-5 opacity-[0.14]">

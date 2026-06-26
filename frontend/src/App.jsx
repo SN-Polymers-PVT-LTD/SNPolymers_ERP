@@ -21,6 +21,7 @@ import Estimates from './pages/Estimates';
 import EstimateForm from './pages/EstimateForm';
 import EstimateView from './pages/EstimateView';
 import Requisitions from './pages/Requisitions';
+import DailyProgress from './pages/DailyProgress';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,9 +54,10 @@ function App() {
             <Route path="/estimates/:id/edit" element={<EstimateForm />} />
           </Route>
 
-          {/* Requisitions Protected Routes (JE, ZO, HO, Admin) */}
+          {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
           <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
             <Route path="/requisitions" element={<Requisitions />} />
+            <Route path="/daily-progress" element={<DailyProgress />} />
           </Route>
 
           {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
