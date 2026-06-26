@@ -79,6 +79,10 @@ const otpVerifyLimiter = rateLimit({
 /**
  * Global general-purpose rate limiter:
  * 1,000 requests per 1-minute window.
+ *
+ * INTENTIONALLY PERMISSIVE: This is an internal ERP application used by a small
+ * set of known users. The limit is set high to avoid blocking legitimate bulk
+ * operations (e.g. saving estimate items). (CQ-8).
  */
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute

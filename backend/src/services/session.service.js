@@ -3,7 +3,10 @@ const { v4: uuidv4 } = require('uuid');
 const { supabase } = require('../db/supabase');
 require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
+const JWT_SECRET = process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'production'
+    ? (() => { throw new Error('FATAL: JWT_SECRET must be set in production.'); })()
+    : 'fallback_development_jwt_secret_key_minimum_256_bit');
 const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY || '15m';
 const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY || '7d';
 
@@ -47,7 +50,7 @@ async function createSession({ userId, jti, ipAddress, userAgent }) {
         user_id: userId,
         jwt_jti: jti,
         ip_address: ipAddress || null,
-        user_agent: userAgent || null,
+        user_agent: userAgent ? String(userAgent).substring(0, 500) : null,
         is_active: true,
         login_at: new Date().toISOString()
       }
@@ -116,6 +119,7 @@ function formatDuration(seconds) {
 }
 
 module.exports = {
+  JWT_SECRET,
   generateTokens,
   createSession,
   closeSession,

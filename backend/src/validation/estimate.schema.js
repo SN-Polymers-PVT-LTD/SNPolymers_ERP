@@ -20,6 +20,8 @@ const saveDraftItemsSchema = {
     id: uuidSchema
   }),
   body: z.object({
+    zonal_office_no: z.string().trim().min(1, 'zonal_office_no is required and cannot be blank.').optional(),
+    je_remarks: z.string().optional().nullable(),
     items: z.array(
       z.object({
         item_id: z.string().regex(uuidRegex, 'Invalid UUID format.').optional(),

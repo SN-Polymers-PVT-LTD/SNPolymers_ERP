@@ -21,7 +21,7 @@ const {
 async function saveDraftItems(req, res) {
   if (!validate(req, res, saveDraftItemsSchema)) return;
   const { id } = req.params;
-  const { items } = req.body;
+  const { items, zonal_office_no, je_remarks } = req.body;
 
   try {
     const estimate = await getEstimateById(id);
@@ -181,12 +181,20 @@ async function saveDraftItems(req, res) {
 
     await _recalculateEstimateAmount(id, estimate.estimate_status);
 
+    const updatePayload = {
+      last_modified_by: req.user.mobile_number,
+      updated_at: new Date().toISOString()
+    };
+    if (zonal_office_no !== undefined) {
+      updatePayload.zonal_office_no = zonal_office_no ? zonal_office_no.trim() : 'N/A';
+    }
+    if (je_remarks !== undefined) {
+      updatePayload.je_remarks = je_remarks || null;
+    }
+
     const { error: headerUpdateError } = await supabase
       .from('project_cost_estimates')
-      .update({
-        last_modified_by: req.user.mobile_number,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('estimate_id', id);
 
     if (headerUpdateError) throw headerUpdateError;

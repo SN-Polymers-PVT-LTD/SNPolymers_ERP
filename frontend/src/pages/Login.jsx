@@ -14,13 +14,14 @@ const Login = () => {
     setError('');
     setLoading(true);
 
-    let formattedNumber = mobileNumber.trim();
-    if (/^\d{10}$/.test(formattedNumber)) {
-      formattedNumber = `+91${formattedNumber}`;
-    }
+    // Always normalise: strip everything except digits, then prepend +91
+    const digits = mobileNumber.replace(/\D/g, '');
+    // Support full 12-digit input (91XXXXXXXXXX) or 10-digit (XXXXXXXXXX)
+    const last10 = digits.slice(-10);
+    const formattedNumber = last10.length === 10 ? `+91${last10}` : mobileNumber.trim();
 
-    if (!/^\+?[1-9]\d{1,14}$/.test(formattedNumber)) {
-      setError('Please enter a valid mobile number (e.g. +91XXXXXXXXXX).');
+    if (!/^\+91\d{10}$/.test(formattedNumber)) {
+      setError('Please enter a valid 10-digit mobile number.');
       setLoading(false);
       return;
     }

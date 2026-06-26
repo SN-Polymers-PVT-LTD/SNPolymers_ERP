@@ -314,13 +314,32 @@ const EstimateForm = () => {
           currentId = headerRes.data.estimate.estimate_id;
           setCreatedEstimateId(currentId);
         }
-      } else if (isEditMode) {
-        // Update header comments/zonal office no
-        await authApi.put(`/estimates/${currentId}/items`, { items: [] }); // Stub items update or headers update trigger
       }
 
-      // Save line items
-      const saveRes = await authApi.put(`/estimates/${currentId}/items`, { items });
+      // Clean up items for backend validation (remove frontend-only properties and empty UUID strings)
+      const cleanedItems = items.map(item => {
+        const cleaned = {
+          material_main_head: item.material_main_head,
+          material_sub_head: item.material_sub_head,
+          material_details: item.material_details,
+          unit: item.unit,
+          qty: item.qty,
+          rate: item.rate,
+          rate_reference: item.rate_reference || null,
+          source_of_purchase: (item.source_of_purchase && item.source_of_purchase !== '') ? item.source_of_purchase : null
+        };
+        if (item.item_id && item.item_id !== '') {
+          cleaned.item_id = item.item_id;
+        }
+        return cleaned;
+      });
+
+      // Save line items and header details
+      const saveRes = await authApi.put(`/estimates/${currentId}/items`, {
+        items: cleanedItems,
+        zonal_office_no: zonalOfficeNo,
+        je_remarks: jeRemarks
+      });
       if (saveRes.data?.success) {
         setSuccess('Estimate draft saved successfully.');
         setTimeout(() => navigate(`/estimates/${currentId}`), 1500);
@@ -355,8 +374,30 @@ const EstimateForm = () => {
         setCreatedEstimateId(currentId);
       }
 
-      // 1. Save current items draft
-      await authApi.put(`/estimates/${currentId}/items`, { items });
+      // Clean up items for backend validation
+      const cleanedItems = items.map(item => {
+        const cleaned = {
+          material_main_head: item.material_main_head,
+          material_sub_head: item.material_sub_head,
+          material_details: item.material_details,
+          unit: item.unit,
+          qty: item.qty,
+          rate: item.rate,
+          rate_reference: item.rate_reference || null,
+          source_of_purchase: (item.source_of_purchase && item.source_of_purchase !== '') ? item.source_of_purchase : null
+        };
+        if (item.item_id && item.item_id !== '') {
+          cleaned.item_id = item.item_id;
+        }
+        return cleaned;
+      });
+
+      // 1. Save current items draft & header details
+      await authApi.put(`/estimates/${currentId}/items`, {
+        items: cleanedItems,
+        zonal_office_no: zonalOfficeNo,
+        je_remarks: jeRemarks
+      });
 
       // 2. Submit estimate
       const submitRes = await authApi.post(`/estimates/${currentId}/submit`);

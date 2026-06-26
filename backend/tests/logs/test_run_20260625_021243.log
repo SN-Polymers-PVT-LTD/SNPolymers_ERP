@@ -1,6 +1,6 @@
 ======================================================
 SN POLYMERS BACKEND TEST RUNNER
-Started: Wednesday 24 June 2026 07:50:29 PM IST
+Started: Thu Jun 25 02:12:43 IST 2026
 ======================================================
 
 ------------------------------------------------------
@@ -20,7 +20,7 @@ Test 4: Testing amount CHECK constraint...
 Test 5: Testing delete prevention trigger on project_cost_estimates...
   [FAIL] Estimate deletion was not blocked. Error: {
   code: '23503',
-  details: 'Key (estimate_id)=(769faddb-ae51-41cf-b2dc-708859505e66) is still referenced from table "project_cost_estimate_items".',
+  details: 'Key (estimate_id)=(594f37be-5eb4-4769-8951-12f10be96899) is still referenced from table "project_cost_estimate_items".',
   hint: null,
   message: 'update or delete on table "project_cost_estimates" violates foreign key constraint "project_cost_estimate_items_estimate_id_fkey" on table "project_cost_estimate_items"'
 }
@@ -40,7 +40,8 @@ Passed: 8
 Failed: 1
 
 >>> SOME VERIFICATION TESTS FAILED. <<<
-⚠️  PASS WITH WARNINGS (3 sec)
+⚠️  PASS WITH WARNINGS (4 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone2.js
@@ -86,7 +87,8 @@ Passed: 10
 Failed: 0
 
 >>> ALL MILESTONE 2 INTEGRATION TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (2 sec)
+✅ PASS (3 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone3.js
@@ -106,7 +108,7 @@ RUNNING: milestones/test_milestone3.js
    [PASS] createEstimate rejected blank zonal_office_no correctly.
 
 3. Testing createEstimate with valid active project (asserting auto-populated fields)...
-   [PASS] createEstimate created estimate correctly with auto-populated fields. ID: 1367838c-13c4-491a-8ca4-65753ca27f90
+   [PASS] createEstimate created estimate correctly with auto-populated fields. ID: 26e35e6e-e7f4-4b78-88d0-a44c1d9eeca0
 
 4. Testing createEstimate duplicate gate for active work order...
    [PASS] createEstimate duplicate gate blocked second active estimate correctly.
@@ -149,7 +151,8 @@ Passed: 15
 Failed: 0
 
 >>> ALL MILESTONE 3 TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (6 sec)
+✅ PASS (12 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone4.js
@@ -157,7 +160,7 @@ RUNNING: milestones/test_milestone4.js
 === RUNNING MILESTONE 4 BACKEND TESTS ===
 
 0. Setting up isolated test records...
-   Test records set up successfully. Estimate ID: e99e0d5e-b391-4930-8e78-3f3cd73cf8f4
+   Test records set up successfully. Estimate ID: 1138cd3a-d1d3-4db4-85a4-d3bad587bcc1
 
 1. Testing submitEstimate on non-existent estimate ID...
    [PASS] submitEstimate rejected non-existent estimate.
@@ -216,7 +219,8 @@ Passed: 16
 Failed: 0
 
 >>> ALL MILESTONE 4 TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (9 sec)
+✅ PASS (23 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone5.js
@@ -224,7 +228,7 @@ RUNNING: milestones/test_milestone5.js
 === RUNNING MILESTONE 5 BACKEND TESTS ===
 
 0. Setting up isolated test records...
-   Test records set up successfully. Estimate ID: e7490482-8164-4423-ad4d-c08332f14977
+   Test records set up successfully. Estimate ID: 641dbfd5-8d77-4323-96e8-86160d4f5f0c
 
 1. Testing start review (ZO)...
    [PASS] Estimate transitioned to Under ZO Review successfully.
@@ -280,7 +284,8 @@ Failed: 0
 
 >>> ALL MILESTONE 5 TESTS PASSED SUCCESSFULLY! <<<
 
-✅ PASS (12 sec)
+✅ PASS (29 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone6.js
@@ -298,7 +303,7 @@ Test 3: Testing decimal and boundary validation for deadline_hours...
   [PASS] Successfully rejected decimal, zero, negative, and out-of-bounds hours with 400 Bad Request.
 
 Test 3b: Testing default deadline_hours and modified_item_ids defaults...
-  [PASS] Successfully defaulted deadline to 24 hours (diff: 0.26s) and modified_item_ids to empty array.
+  [PASS] Successfully defaulted deadline to 24 hours (diff: 0.65s) and modified_item_ids to empty array.
 
 Test 4: Verifying stage-specific cycle numbering and Admin actions...
   [PASS] Admin successfully requested ZO revision (cycle incremented to 2).
@@ -312,7 +317,7 @@ Test 5b: Verifying PostgreSQL error code 23505 unique constraint check...
   [PASS] Database constraint uniq_active_revision successfully threw 23505 error.
 
 Test 6: Testing concurrency safety under multiple simultaneous requests...
-      Concurrent responses: [ 200, 409 ]
+      Concurrent responses: [ 409, 200 ]
   [PASS] Concurrency safeguard verified: 1 request succeeded, 1 request returned 409 Conflict, and exactly 1 active log exists.
 
 Test 7: Verifying expanded role authorization matrix for getRevisionLog...
@@ -326,7 +331,8 @@ Passed: 11
 Failed: 0
 
 >>> ALL MILESTONE 6 INTEGRATION TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (7 sec)
+✅ PASS (15 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone7.js
@@ -362,6 +368,7 @@ Test 9: Verifying Admin support for HO workflows...
   [PASS] Admin successfully executed open review, row approvals, and final review submission.
 
 Test 10: Testing concurrency safety under multiple simultaneous review submissions...
+submitReview transition conflict: Expected Under HO Review, found Final Approved
       Concurrent review responses: [ 200, 409 ]
   [PASS] Concurrency verified: exactly one submission succeeded, the other returned 409 Conflict.
   [PASS] Concurrency persisted state verified (status: Final Approved, ho_approved_by and date set, amount is 150000).
@@ -374,7 +381,8 @@ Passed: 11
 Failed: 0
 
 >>> ALL MILESTONE 7 INTEGRATION TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (5 sec)
+✅ PASS (10 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone8.js
@@ -424,7 +432,8 @@ Passed: 7
 Failed: 0
 
 >>> ALL MILESTONE 8 INTEGRATION TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (4 sec)
+✅ PASS (10 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone_p3_m1.js
@@ -452,7 +461,8 @@ Passed: 6
 Failed: 0
 
 >>> ALL DATABASE VERIFICATION TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (2 sec)
+✅ PASS (3 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone_p3_m2.js
@@ -488,7 +498,8 @@ Passed: 8
 Failed: 0
 
 >>> ALL MILESTONE P3-M2 CRUD TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (2 sec)
+✅ PASS (1 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone_p3_m3.js
@@ -524,7 +535,8 @@ Passed: 8
 Failed: 0
 
 >>> ALL MILESTONE P3-M3 WORKFLOW TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (5 sec)
+✅ PASS (6 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone_p3_m4.js
@@ -539,11 +551,11 @@ Test 1: Dispatching live Telegram notification (switching environment)...
   [PASS] Real Telegram notification sent successfully.
 
 Test 2: Verifying behavior with missing telegram_chat_id...
-[FUND REQUEST] ZO user +918000000002 has no Telegram chat ID configured. Fund Request: test-fr-uuid-m4-12345, FR No: TEST_M4_FR_750215
+[FUND REQUEST] ZO user +918000000002 has no Telegram chat ID configured. Fund Request: test-fr-uuid-m4-12345, FR No: TEST_M4_FR_218973
   [PASS] Gracefully skipped notification for user without chat ID.
 
 Test 3: Verifying behavior when TELEGRAM_BOT_TOKEN is not set...
-[FUND REQUEST] TELEGRAM_BOT_TOKEN not set. Cannot notify ZO for FR: TEST_M4_FR_750215
+[FUND REQUEST] TELEGRAM_BOT_TOKEN not set. Cannot notify ZO for FR: TEST_M4_FR_218973
   [PASS] Gracefully logged warning for missing token.
 
 Test 4: Verifying exception safety & non-blocking execution...
@@ -555,7 +567,8 @@ Passed: 4
 Failed: 0
 
 >>> ALL MILESTONE P3-M4 TESTS PASSED SUCCESSFULLY! <<<
-⚠️  PASS WITH WARNINGS (2 sec)
+⚠️  PASS WITH WARNINGS (1 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: milestones/test_milestone_p3_m5.js
@@ -575,7 +588,7 @@ Test 4: Verifying admin updateUser role whitelist validation...
   [PASS] Blocked invalid role update.
 
 Test 5: Verifying verifyJwt clears stale cookie on TokenExpiredError...
-JWT Validation Error: jwt expired
+JWT Validation Error: TokenExpiredError — jwt expired
   [PASS] Stale accessToken cookie was cleared on TokenExpiredError.
 
 Test 6: Verifying user deletion guards on active resources...
@@ -586,7 +599,106 @@ Passed: 6
 Failed: 0
 
 >>> ALL MILESTONE P3-M5 CODE QUALITY & SECURITY TESTS PASSED! <<<
-⚠️  PASS WITH WARNINGS (1 sec)
+⚠️  PASS WITH WARNINGS (2 sec)
+Sleeping 5 seconds...
+
+------------------------------------------------------
+RUNNING: milestones/test_milestone_p4_m1.js
+------------------------------------------------------
+=== RUNNING MILESTONE P4-M1 DATABASE FOUNDATION VERIFICATION TESTS ===
+
+Test 1: Inserting valid Pending requisition...
+  [PASS] Successfully inserted Pending requisition.
+Test 2: Inserting duplicate requisition_no...
+  [PASS] Correctly blocked duplicate requisition_no.
+Test 3: Attempting hard delete...
+  [PASS] Hard delete prevention trigger blocked deletion.
+Test 4: Verifying status change audit trigger...
+  [PASS] Audit log captured status change correctly.
+Test 5: Verifying set_requisition_updated_at trigger...
+  [PASS] updated_at was auto-updated.
+Test 6: Testing chk_gst_bill_pdf constraint...
+  [PASS] Correctly blocked missing GST URL with CHECK constraint.
+Test 7: Testing chk_balance_amount constraint...
+  [PASS] Correctly blocked invalid balance with CHECK constraint.
+
+Cleaning up / soft-cancelling verification test data...
+
+=== SUMMARY ===
+Passed: 7
+Failed: 0
+
+>>> ALL MILESTONE P4-M1 DATABASE TESTS PASSED SUCCESSFULLY! <<<
+✅ PASS (3 sec)
+Sleeping 5 seconds...
+
+------------------------------------------------------
+RUNNING: milestones/test_milestone_p4_m2.js
+------------------------------------------------------
+=== RUNNING MILESTONE P4-M2 CORE CRUD INTEGRATION TESTS ===
+
+Test 1: Creating a valid requisition as JE...
+  [PASS] Requisition created successfully with Pending status.
+
+Test 2: Creating duplicate requisition...
+  [PASS] Correctly blocked duplicate requisition_no with 409.
+
+Test 3: Creating requisition with invalid material head...
+  [PASS] Correctly blocked invalid material_main_head.
+
+Test 4: Retrieving requisitions as JE (visibility filters)...
+  [PASS] Successfully retrieved own requisitions only.
+
+Test 5: Retrieving requisitions as ZO (sees all)...
+  [PASS] ZO successfully retrieved all requisitions including JE's.
+
+Test 6: Retrieving single requisition by ID (signed URLs & ownership)...
+  [PASS] Successfully verified signed URLs generation and non-owner access blockage.
+
+=== SUMMARY ===
+Passed: 6
+Failed: 0
+
+>>> ALL MILESTONE P4-M2 CRUD TESTS PASSED SUCCESSFULLY! <<<
+✅ PASS (7 sec)
+Sleeping 5 seconds...
+
+------------------------------------------------------
+RUNNING: milestones/test_milestone_p4_m3.js
+------------------------------------------------------
+=== RUNNING MILESTONE P4-M3 WORKFLOW INTEGRATION TESTS ===
+
+Test 1: Approving Pending requisition...
+  [PASS] Requisition approved successfully with correct balance calculations.
+
+Test 2: Placing Pending requisition on Hold...
+  [PASS] Requisition placed on Hold successfully with remarks.
+
+Test 3: Hold action fails if approved_amount is supplied...
+  [PASS] Correctly blocked passing approved_amount during Hold action.
+
+Test 4: Approve action fails if approved_amount exceeds request...
+  [PASS] Correctly blocked exceeding approved amount.
+
+Test 5: Act on non-Pending requisition...
+  [PASS] Blocked workflow action on non-Pending requisition.
+
+Test 6: Cancelling Pending requisition as owner JE...
+  [PASS] Owner JE successfully cancelled Pending requisition.
+
+Test 7: Cancelling Pending requisition as Admin (bypass)...
+  [PASS] Admin successfully bypassed ownership to cancel Pending requisition.
+
+Test 8: Block cancel by non-owner JE...
+  [PASS] Blocked non-owner JE from cancelling.
+
+=== SUMMARY ===
+Passed: 8
+Failed: 0
+
+>>> ALL MILESTONE P4-M3 WORKFLOW TESTS PASSED SUCCESSFULLY! <<<
+✅ PASS (8 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: phase2/test_phase2.js
@@ -597,13 +709,13 @@ Cleaning up leftovers and inserting temporary test projects...
 Temporary test projects inserted successfully.
 
 1. Testing getProjects controller...
-  [PASS] Successfully retrieved 23 projects.
+  [PASS] Successfully retrieved 26 projects.
 
 2. Testing createProject validation (missing fields)...
   [PASS] Rejected request with missing, negative, and non-numeric work_order_value.
 
 3. Testing report creation on Running project (TEST_WO_PHASE2_A)...
-  [PASS] Created report successfully. ID: 7360e56a-11a6-4ec5-93c7-e1cbf4195bc4
+  [PASS] Created report successfully. ID: 7eb5c20d-8635-4de6-ab80-57494a408397
 
 4. Testing report creation on Closed project (TEST_WO_PHASE2_B)...
   [PASS] Mutability gate blocked report creation on Closed project.
@@ -670,7 +782,8 @@ Passed: 21/21
 Failed: 0/21
 
 >>> ALL AUTOMATED TESTS PASSED SUCCESSFULLY! <<<
-✅ PASS (3 sec)
+✅ PASS (9 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: phase2/test_phase2a.js
@@ -679,10 +792,10 @@ RUNNING: phase2/test_phase2a.js
 
 1. Testing getMaterials for Project Manager / Staff (Non-Admin) and verifying pagination...
   [PASS] Successfully retrieved 5 active materials.
-         Page: 1, Limit: 5, Total Items: 1639
+         Page: 1, Limit: 5, Total Items: 4639
 
 2. Testing createMaterial for Admin...
-  [PASS] Created material successfully. ID: 4c27c741-4de6-4d83-a956-c669282b0e1e
+  [PASS] Created material successfully. ID: 27ad2018-fd4c-41a6-a8d1-4dd4cdc730a3
 
 3. Testing createMaterial validation (missing fields)...
   [PASS] Successfully rejected missing fields.
@@ -727,6 +840,7 @@ Failed: 0/13
 
 >>> ALL MATERIAL MASTER BACKEND TESTS PASSED SUCCESSFULLY! <<<
 ✅ PASS (2 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: hardening/test_concurrency.js
@@ -748,7 +862,7 @@ C6 — JE Submit While Saving Draft...
 C7 — ZO Review While JE Resubmits...
   [PASS] C7: Safe workflow state resolved. Status: Submitted
 C8 — HO Review Collision...
-  [PASS] C8: Workflow locking handled HO row approvals collision cleanly. Unified Decision: Approve
+  [PASS] C8: Workflow locking handled HO row approvals collision cleanly. Unified Decision: Not Approve
 C9 — Revision Request Collision...
 submitReview transition conflict: Expected Under ZO Review, found Rejected by ZO
   [PASS] C9: Exactly one review submission succeeded concurrently.
@@ -760,7 +874,8 @@ Passed: 10
 Failed: 0
 
 >>> ALL CONCURRENCY TESTS PASSED!
-✅ PASS (22 sec)
+✅ PASS (61 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: hardening/test_security_definer.js
@@ -810,7 +925,8 @@ Passed: 18
 Failed: 0
 
 >>> ALL SECURITY TESTS PASSED!
-✅ PASS (8 sec)
+✅ PASS (14 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: hardening/test_estimate_amount_matrix.js
@@ -855,7 +971,8 @@ Passed: 16
 Failed: 0
 
 >>> ALL MATRIX TESTS PASSED!
-✅ PASS (27 sec)
+✅ PASS (72 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: hardening/test_failure_injection.js
@@ -889,7 +1006,8 @@ Passed: 10
 Failed: 0
 
 >>> ALL FAILURE INJECTION TESTS PASSED!
-✅ PASS (16 sec)
+✅ PASS (38 sec)
+Sleeping 5 seconds...
 
 ------------------------------------------------------
 RUNNING: hardening/test_performance.js
@@ -897,33 +1015,34 @@ RUNNING: hardening/test_performance.js
 === RUNNING PERFORMANCE TESTS ===
 
 P1 — 500 Row Approvals Execution...
-  [PASS] P1: 500 approvals executed in 123 ms (< 2000 ms).
+  [PASS] P1: 500 approvals executed in 286 ms (< 2000 ms).
 P2 — 1000 Row Approvals Execution...
-  [PASS] P2: 1000 approvals executed in 168 ms (< 5000 ms).
+  [PASS] P2: 1000 approvals executed in 717 ms (< 5000 ms).
 P3 — getMaterials Pagination Performance...
-  [PASS] P3: getMaterials returned 200 in 95 ms (< 1000 ms).
+  [PASS] P3: getMaterials returned 200 in 164 ms (< 1000 ms).
 P4 — getReports Pagination Performance...
-  [PASS] P4: getReports returned 200 in 112 ms (< 1000 ms).
+  [PASS] P4: getReports returned 200 in 239 ms (< 1000 ms).
 
 === SUMMARY ===
 Passed: 4
 Failed: 0
 
 >>> ALL PERFORMANCE TESTS PASSED!
-✅ PASS (6 sec)
+✅ PASS (12 sec)
+Sleeping 5 seconds...
 
 ======================================================
 FINAL SUMMARY
 ======================================================
-Passed Suites: 17
+Passed Suites: 20
 Warning Suites: 3
 Failed Suites: 0
-Total Runtime: 144 sec
+Total Runtime: 460 sec
 
 Slowest Suites:
- 1. hardening/test_estimate_amount_matrix.js (27 sec)
- 2. hardening/test_concurrency.js (22 sec)
- 3. hardening/test_failure_injection.js (16 sec)
+ 1. hardening/test_estimate_amount_matrix.js (72 sec)
+ 2. hardening/test_concurrency.js (61 sec)
+ 3. hardening/test_failure_injection.js (38 sec)
 
 PASSED:
  ✅ milestones/test_milestone2.js
@@ -936,6 +1055,9 @@ PASSED:
  ✅ milestones/test_milestone_p3_m1.js
  ✅ milestones/test_milestone_p3_m2.js
  ✅ milestones/test_milestone_p3_m3.js
+ ✅ milestones/test_milestone_p4_m1.js
+ ✅ milestones/test_milestone_p4_m2.js
+ ✅ milestones/test_milestone_p4_m3.js
  ✅ phase2/test_phase2.js
  ✅ phase2/test_phase2a.js
  ✅ hardening/test_concurrency.js
@@ -949,4 +1071,4 @@ PASSED WITH WARNINGS:
  ⚠️  milestones/test_milestone_p3_m4.js
  ⚠️  milestones/test_milestone_p3_m5.js
 
-/home/zenoguy/Desktop/projects/SNPolymers/backend/tests/logs/test_run_20260624_195029.log
+/Users/aswint/Documents/GitHub/SNPolymers/backend/tests/logs/test_run_20260625_021243.log

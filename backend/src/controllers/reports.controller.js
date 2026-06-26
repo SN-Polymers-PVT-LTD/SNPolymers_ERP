@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const { logError } = require('../utils/logger');
 
 /**
  * Helper: Check if project status is 'Closed'
@@ -96,7 +97,7 @@ async function getReports(req, res) {
       }
     });
   } catch (error) {
-    console.error(`getReports failed: ${error.message}`);
+    logError('getReports', error);
     return res.status(500).json({ success: false, message: 'Failed to retrieve fund reports.' });
   }
 }
@@ -180,8 +181,8 @@ async function getSoftDeletedReports(req, res) {
       }
     });
   } catch (error) {
-    console.error(`getSoftDeletedReports failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve deleted reports.' });
+    logError('getSoftDeletedReports', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve soft-deleted fund reports.' });
   }
 }
 
@@ -220,7 +221,7 @@ async function getReportById(req, res) {
 
     return res.status(200).json({ success: true, report });
   } catch (error) {
-    console.error(`getReportById failed: ${error.message}`);
+    logError('getReportById', error);
     return res.status(500).json({ success: false, message: 'Failed to retrieve report details.' });
   }
 }
@@ -232,15 +233,15 @@ async function getReportById(req, res) {
 async function createReport(req, res) {
   const { work_order_no, amount, remarks } = req.body;
 
-  if (!work_order_no || amount === undefined) {
+  if (!work_order_no || amount === undefined || amount === null) {
     return res.status(400).json({ success: false, message: 'work_order_no and amount are required.' });
   }
 
   const amountNum = Number(amount);
-  if (amount === null || isNaN(amountNum) || amountNum < 0) {
+  if (isNaN(amountNum) || !Number.isFinite(amountNum) || amountNum < 0) {
     return res.status(400).json({
       success: false,
-      message: 'amount must be a non-negative number.'
+      message: 'amount must be a valid finite non-negative number.'
     });
   }
 
@@ -283,7 +284,7 @@ async function createReport(req, res) {
       message: 'Fund report created successfully.'
     });
   } catch (error) {
-    console.error(`createReport failed: ${error.message}`);
+    logError('createReport', error);
     return res.status(500).json({ success: false, message: 'Failed to create fund report.' });
   }
 }
@@ -296,15 +297,15 @@ async function updateReport(req, res) {
   const { fund_report_id } = req.params;
   const { work_order_no, amount, remarks } = req.body;
 
-  if (amount === undefined) {
+  if (amount === undefined || amount === null) {
     return res.status(400).json({ success: false, message: 'amount is required.' });
   }
 
   const amountNum = Number(amount);
-  if (amount === null || isNaN(amountNum) || amountNum < 0) {
+  if (isNaN(amountNum) || !Number.isFinite(amountNum) || amountNum < 0) {
     return res.status(400).json({
       success: false,
-      message: 'amount must be a non-negative number.'
+      message: 'amount must be a valid finite non-negative number.'
     });
   }
 
@@ -362,7 +363,7 @@ async function updateReport(req, res) {
       message: 'Fund report updated successfully.'
     });
   } catch (error) {
-    console.error(`updateReport failed: ${error.message}`);
+    logError('updateReport', error);
     return res.status(500).json({ success: false, message: 'Failed to update fund report.' });
   }
 }
@@ -416,7 +417,7 @@ async function deleteReport(req, res) {
       message: 'Fund report soft-deleted successfully.'
     });
   } catch (error) {
-    console.error(`deleteReport failed: ${error.message}`);
+    logError('deleteReport', error);
     return res.status(500).json({ success: false, message: 'Failed to delete fund report.' });
   }
 }
@@ -470,7 +471,7 @@ async function restoreReport(req, res) {
       message: 'Fund report restored successfully.'
     });
   } catch (error) {
-    console.error(`restoreReport failed: ${error.message}`);
+    logError('restoreReport', error);
     return res.status(500).json({ success: false, message: 'Failed to restore fund report.' });
   }
 }

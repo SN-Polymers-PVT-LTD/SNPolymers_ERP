@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../db/supabase');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
+const { JWT_SECRET } = require('../services/session.service');
 
 const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {
@@ -68,7 +67,7 @@ async function verifyJwt(req, res, next) {
 
     next();
   } catch (error) {
-    console.error(`JWT Validation Error: ${error.message}`);
+    console.error(`JWT Validation Error: ${error.name} — ${error.message}`);
     if (error.name === 'TokenExpiredError') {
       // Clear stale cookies so the client stops sending the expired token
       res.clearCookie('accessToken', cookieOptions);
@@ -78,7 +77,11 @@ async function verifyJwt(req, res, next) {
         message: 'Authentication failed. Access token expired.'
       });
     }
-    return res.status(401).json({ success: false, message: 'Authentication failed. Invalid or expired token.' });
+    return res.status(401).json({
+      success: false,
+      code: 'INVALID_TOKEN',
+      message: 'Authentication failed. Token is invalid.'
+    });
   }
 }
 

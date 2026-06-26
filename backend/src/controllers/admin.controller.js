@@ -37,6 +37,14 @@ async function addUser(req, res) {
     return res.status(400).json({ success: false, message: 'Invalid mobile number format.' });
   }
 
+  const ALLOWED_ROLES = ['staff', 'admin', 'je', 'zo', 'ho'];
+  if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid role. Allowed values: ${ALLOWED_ROLES.join(', ')}.`
+    });
+  }
+
   try {
     const { data, error } = await supabase
       .from('authorised_users')
@@ -159,6 +167,54 @@ async function removeUser(req, res) {
         return res.status(409).json({
           success: false,
           message: `Cannot delete user: they have ${frCount} pending fund request(s). Cancel them first.`
+        });
+      }
+
+      // Check for active pending requisitions (SEC-5)
+      const { count: reqCount, error: reqErr } = await supabase
+        .from('requisitions')
+        .select('requisition_id', { count: 'exact', head: true })
+        .eq('requester_user_id', userRecord.mobile_number)
+        .eq('requisition_status', 'Pending');
+
+      if (reqErr) throw reqErr;
+      if (reqCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have ${reqCount} pending requisition(s). Cancel them first.`
+        });
+      }
+
+      // Check for daily progress reports (TD-P5-A & TD-P5-B)
+      const { count: dpCreatedCount, error: dpCreatedErr } = await supabase
+        .from('daily_progress_reports')
+        .select('report_id', { count: 'exact', head: true })
+        .eq('created_by', userRecord.mobile_number);
+
+      if (dpCreatedErr) {
+        if (dpCreatedErr.code !== '42P01') { // Catch postgres undefined_table error code
+          throw dpCreatedErr;
+        }
+      } else if (dpCreatedCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have submitted ${dpCreatedCount} daily progress report(s). Deactivate the user instead.`
+        });
+      }
+
+      const { count: dpApprovedCount, error: dpApprovedErr } = await supabase
+        .from('daily_progress_reports')
+        .select('report_id', { count: 'exact', head: true })
+        .eq('approved_user_id', userRecord.mobile_number);
+
+      if (dpApprovedErr) {
+        if (dpApprovedErr.code !== '42P01') {
+          throw dpApprovedErr;
+        }
+      } else if (dpApprovedCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have approved/signed remarks on ${dpApprovedCount} daily progress report(s). Deactivate the user instead.`
         });
       }
     }

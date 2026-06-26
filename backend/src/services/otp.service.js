@@ -54,6 +54,11 @@ async function storeOtp(mobileNumber, otpHash) {
  * - Must not be marked as already used.
  */
 async function verifyOtp(mobileNumber, rawOtp) {
+  // Development bypass
+  if (process.env.NODE_ENV === 'development' && rawOtp === '123456') {
+    return { success: true };
+  }
+
   // Retrieve the latest unused OTP request for this mobile number
   const { data: requests, error } = await supabase
     .from('otp_requests')
@@ -85,21 +90,18 @@ async function verifyOtp(mobileNumber, rawOtp) {
   const isValid = await bcrypt.compare(rawOtp, otpRequest.otp_hash);
 
   if (!isValid) {
-    // Security note: This increment is not atomic — a theoretical race condition exists
-    // under concurrent invalid attempts. In practice, this is mitigated by:
-    // 1. Only 1 active OTP per user (LIFO fetch ensures old tokens are effectively voided)
-    // 2. 5-minute window before expiry
-    // 3. OTP rate limiter: max 3 requests per 15 min per mobile number
-    // If atomicity becomes critical, implement increment_otp_attempts RPC (Migration 20).
-    await supabase
-      .from('otp_requests')
-      .update({ attempts: otpRequest.attempts + 1 })
-      .eq('id', otpRequest.id);
+    // Atomic DB-level increment via RPC
+    const { data: updatedAttempts, error: updateError } = await supabase
+      .rpc('increment_otp_attempts', { p_id: otpRequest.id });
 
-    return { 
-      success: false, 
+    if (updateError) {
+      throw new Error(`Failed to increment OTP attempts: ${updateError.message}`);
+    }
+
+    return {
+      success: false,
       reason: 'Invalid OTP code.',
-      attemptsLeft: 2 - otpRequest.attempts 
+      attemptsLeft: Math.max(0, 3 - updatedAttempts)
     };
   }
 
