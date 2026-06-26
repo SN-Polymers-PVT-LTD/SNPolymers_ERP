@@ -184,6 +184,39 @@ async function removeUser(req, res) {
           message: `Cannot delete user: they have ${reqCount} pending requisition(s). Cancel them first.`
         });
       }
+
+      // Check for daily progress reports (TD-P5-A & TD-P5-B)
+      const { count: dpCreatedCount, error: dpCreatedErr } = await supabase
+        .from('daily_progress_reports')
+        .select('report_id', { count: 'exact', head: true })
+        .eq('created_by', userRecord.mobile_number);
+
+      if (dpCreatedErr) {
+        if (dpCreatedErr.code !== '42P01') { // Catch postgres undefined_table error code
+          throw dpCreatedErr;
+        }
+      } else if (dpCreatedCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have submitted ${dpCreatedCount} daily progress report(s). Deactivate the user instead.`
+        });
+      }
+
+      const { count: dpApprovedCount, error: dpApprovedErr } = await supabase
+        .from('daily_progress_reports')
+        .select('report_id', { count: 'exact', head: true })
+        .eq('approved_user_id', userRecord.mobile_number);
+
+      if (dpApprovedErr) {
+        if (dpApprovedErr.code !== '42P01') {
+          throw dpApprovedErr;
+        }
+      } else if (dpApprovedCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: `Cannot delete user: they have approved/signed remarks on ${dpApprovedCount} daily progress report(s). Deactivate the user instead.`
+        });
+      }
     }
 
     // 1. Invalidate active sessions first

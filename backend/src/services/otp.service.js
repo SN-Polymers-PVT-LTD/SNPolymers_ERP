@@ -90,19 +90,18 @@ async function verifyOtp(mobileNumber, rawOtp) {
   const isValid = await bcrypt.compare(rawOtp, otpRequest.otp_hash);
 
   if (!isValid) {
-    // Security note: This increment uses an optimistic lock on 'attempts' to make it atomic
-    // under concurrent invalid attempts.
-    await supabase
-      .from('otp_requests')
-      .update({ attempts: otpRequest.attempts + 1 })
-      .eq('id', otpRequest.id)
-      .eq('attempts', otpRequest.attempts) // Optimistic lock
-      .select();
+    // Atomic DB-level increment via RPC
+    const { data: updatedAttempts, error: updateError } = await supabase
+      .rpc('increment_otp_attempts', { p_id: otpRequest.id });
 
-    return { 
-      success: false, 
+    if (updateError) {
+      throw new Error(`Failed to increment OTP attempts: ${updateError.message}`);
+    }
+
+    return {
+      success: false,
       reason: 'Invalid OTP code.',
-      attemptsLeft: 2 - otpRequest.attempts 
+      attemptsLeft: Math.max(0, 3 - updatedAttempts)
     };
   }
 

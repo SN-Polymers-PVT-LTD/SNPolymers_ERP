@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { supabase } = require('../db/supabase');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
+const { JWT_SECRET } = require('../services/session.service');
 
 const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {

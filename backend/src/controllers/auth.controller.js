@@ -4,7 +4,7 @@ const { supabase } = require('../db/supabase');
 const { logError } = require('../utils/logger');
 const { generateOtp, hashOtp, storeOtp, verifyOtp } = require('../services/otp.service');
 const { sendOtp } = require('../services/telegram.service');
-const { generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
+const { JWT_SECRET, generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
 const validate = require('../validation/validate');
 const { requestOtpSchema, linkTelegramSchema, verifyOtpSchema } = require('../validation/auth.schema');
@@ -249,7 +249,6 @@ async function refreshTokens(req, res) {
   }
 
   try {
-    const JWT_SECRET = process.env.JWT_SECRET || 'fallback_development_jwt_secret_key_minimum_256_bit';
     const decoded = jwt.verify(refreshToken, JWT_SECRET);
 
     // 1. Fetch active session

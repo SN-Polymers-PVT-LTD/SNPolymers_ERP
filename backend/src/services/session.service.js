@@ -119,6 +119,7 @@ function formatDuration(seconds) {
 }
 
 module.exports = {
+  JWT_SECRET,
   generateTokens,
   createSession,
   closeSession,
