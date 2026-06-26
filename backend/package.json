@@ -31,7 +31,11 @@
     "test:p4:m3": "node tests/milestones/test_milestone_p4_m3.js",
     "test:p4:m4": "node tests/milestones/test_milestone_p4_m4.js",
     "test:p4:m5": "node tests/milestones/test_milestone_p4_m5.js",
-    "test:p4:all": "node tests/milestones/test_milestone_p4_m1.js && node tests/milestones/test_milestone_p4_m2.js && node tests/milestones/test_milestone_p4_m3.js && node tests/milestones/test_milestone_p4_m4.js && node tests/milestones/test_milestone_p4_m5.js"
+    "test:p4:all": "node tests/milestones/test_milestone_p4_m1.js && node tests/milestones/test_milestone_p4_m2.js && node tests/milestones/test_milestone_p4_m3.js && node tests/milestones/test_milestone_p4_m4.js && node tests/milestones/test_milestone_p4_m5.js",
+    "test:p5:m1": "node tests/milestones/test_milestone_p5_m1.js",
+    "test:p5:m2_m3": "node tests/milestones/test_milestone_p5_m2_m3.js",
+    "test:p5:m4": "node tests/milestones/test_milestone_p5_m4.js",
+    "test:p5:all": "node tests/milestones/test_milestone_p5_m1.js && node tests/milestones/test_milestone_p5_m2_m3.js && node tests/milestones/test_milestone_p5_m4.js"
   },
   "dependencies": {
     "@mapbox/node-pre-gyp": "^2.0.3",
