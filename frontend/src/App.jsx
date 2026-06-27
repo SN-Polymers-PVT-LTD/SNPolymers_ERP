@@ -22,6 +22,7 @@ import EstimateForm from './pages/EstimateForm';
 import EstimateView from './pages/EstimateView';
 import Requisitions from './pages/Requisitions';
 import DailyProgress from './pages/DailyProgress';
+import RAFinalBill from './pages/RAFinalBill';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,11 @@ function App() {
           {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
           <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
             <Route path="/fund-requests" element={<FundRequests />} />
+          </Route>
+
+          {/* RA/Final Bills Protected Routes (ZO, HO, Admin) */}
+          <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
+            <Route path="/ra-final-bills" element={<RAFinalBill />} />
           </Route>
 
           {/* Admin Protected Routes */}

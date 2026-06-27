@@ -19,8 +19,8 @@ The project is split into two primary folders:
 SNPolymers/
 ├── backend/            # Express.js REST API with Supabase integration
 │   ├── src/
-│   │   ├── controllers/ # Route handler logic (Auth & Admin actions)
-│   │   ├── db/          # Supabase client and query layer
+│   │   ├── controllers/ # Route handler logic (Auth, Admin, & RA/Final Bills)
+│   │   ├── db/          # Supabase client, query layer, and SQL migrations
 │   │   ├── middleware/  # Rate limiting, validation, & JWT Auth guards
 │   │   ├── routes/      # Express route definitions
 │   │   └── services/    # Telegram Bot, Email (Nodemailer), & audit services
@@ -30,7 +30,7 @@ SNPolymers/
 │   ├── src/
 │   │   ├── api/         # Axios instance & API client endpoints
 │   │   ├── components/  # Reusable UI controls, auth wrappers, & contexts
-│   │   ├── pages/       # Portal pages (Home, Login, Admin Panel, Audit Logs, OTP)
+│   │   ├── pages/       # Portal pages (Home, Dashboard, Requisitions, RA/Final Bills)
 │   │   └── index.css    # Tailwind CSS imports & global styles
 │   └── package.json
 ```
@@ -52,7 +52,21 @@ SNPolymers/
 - **Integrations:**
   - **Telegram Bot API:** Secure Multi-Factor / OTP Verification via @snpolymers_bot
   - **Nodemailer (SMTP):** Secure corporate notifications
+  - **Supabase Storage:** Private bucket file storage (`ra-bill-copies`) with timed signed URL generation (TTL: 1 hour) for secure document retrieval.
 - **Resilience:** Rate limiter middleware (`express-rate-limit`) to prevent abuse
+
+---
+
+## System Modules (Phases 1–6)
+
+The IDBP features a comprehensive set of enterprise resource planning modules implemented across several rollout phases:
+
+* **Phase 1 — Auth & Access Controls:** Multi-factor authentication via Telegram OTP bot, custom role-based privileges (`admin`, `ho`, `zo`, `je`, `staff`), and corporate fund reports.
+* **Phase 2 — Project Cost Estimation:** Creation of project cost estimates by JEs, review by Zonal Offices (ZO), and final approval by the Head Office (HO) with detailed revision history tracking.
+* **Phase 3 — Fund Requests:** ZO fund request generation and HO workflow approvals mapping disbursements to Credit Control (CC), Overdraft (OD), or Cash Credit (CR) accounts.
+* **Phase 4 — Payment Requisition Management:** Procurement requisition logging against active projects, ensuring amount allocations stay within remaining estimate bounds. Supports GST declarations and invoice attachment uploads.
+* **Phase 5 — Daily Work Progress:** Daily site visit logging for JEs, including photo uploads, cumulative work percentage updates, and authority review comment capabilities.
+* **Phase 6 — RA / Final Bill Entry:** Run-time billing management for projects. Enforces sequential RA billing ($N-1$ must exist before $N$), prevents edits/deletions on financial records via database constraints, and computes live billing summary calculations (Previous Bill Amount, Current Bill Amount, Total Billed, Balance Amount).
 
 ---
 
@@ -103,6 +117,31 @@ npm run dev
 The client UI will run on `http://localhost:5173`.
 
 ---
+
+## Running Verification Tests
+
+The monorepo contains comprehensive test suites to verify database constraints, security controls, and endpoint logic.
+
+### Run All System Tests
+To run the entire suite of system tests:
+```bash
+cd backend
+npm run test:all
+```
+
+### Run Phase 6 Specific Tests
+To test the Database Foundation, Core CRUD APIs, and Storage upload controls for the RA / Final Bill Entry module:
+```bash
+cd backend
+# Run DB, CRUD, and Upload tests
+npm run test:p6:all
+
+# Or run individual milestones:
+npm run test:p6:m1 # Database schema, checks & constraints
+npm run test:p6:m2 # Core CRUD and billing summary statistics
+npm run test:p6:m3 # File uploading and bucket security controls
+```
+
 ---
 
 ## Live Deployment
@@ -131,10 +170,8 @@ Vercel Frontend
 Render Backend API
   ↓
 Supabase PostgreSQL
-
-       ↓
-
-Telegram Bot OTP
+ ├─ Private Storage (ra-bill-copies)
+ └─ Telegram Bot OTP
 ```
 
 > **Note:** The frontend communicates with the backend through the `VITE_API_URL` environment variable. For production deployments this is configured as:
@@ -149,3 +186,5 @@ VITE_API_URL=https://snpolymers.onrender.com/api/v1/auth
 - **Zero Client-Side Secret Leak:** The client never directly calls Supabase. All security operations, user management, and DB mutations are mediated securely by the Express.js Backend API.
 - **Secure Sessions:** Sessions are reinforced using JWT authorization cookies and secure token verification.
 - **Audit Logging:** Every critical administrative action is recorded systematically to provide trace logs for corporate compliance.
+- **MIME type verification:** Storage uploads restrict incoming files to strict PDF/JPG/PNG structures using server-side inspection instead of trusting extensions.
+- **Immutability Protection:** Running account and final bill documents are protected against unauthorized updates or deletions at the database schema level via triggers.

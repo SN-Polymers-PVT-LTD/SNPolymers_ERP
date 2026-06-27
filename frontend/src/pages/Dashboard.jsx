@@ -96,24 +96,6 @@ const Dashboard = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
-              {/* Module 1: Production (Future Module Placeholder) */}
-              <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px]">
-                <div className="absolute top-0 right-0 p-5 opacity-[0.09]">
-                  <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Formulation Control</span>
-                  <h3 className="text-lg font-extrabold mt-1 text-slate-200">Manufacturing Module</h3>
-                  <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">Contains formulation queues, chemical blending status logs, raw batch certifications, and warehouse inventory control.</p>
-                </div>
-                <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
-                  <span className="text-[9px] uppercase tracking-widest font-extrabold text-amber-600 bg-amber-950/20 border border-amber-900/30 px-2 py-0.5 rounded-lg">Phase 2+ Rollout</span>
-                  <span className="text-slate-500 text-xs font-bold select-none">Access Restricted</span>
-                </div>
-              </div>
-
               {/* Module 2: Projects – Now Live */}
               <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
                 <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
@@ -188,6 +170,35 @@ const Dashboard = () => {
                       className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
                     >
                       Open Reports &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Module 2d: RA / Final Bill Entry — Now Live */}
+              {['zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(99,102,241,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400">Finance · Billing</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">RA / Final Bill Entry</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Enter and track Running Account (RA) bills and Final Bill submissions against work orders.
+                      Upload bill copies and monitor billing progress with auto-calculated summaries.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-between border-t border-white/5 pt-4">
+                    <span className="text-[9px] uppercase tracking-widest font-extrabold text-indigo-400 bg-indigo-950/20 border border-indigo-900/30 px-2 py-0.5 rounded-lg">Active System</span>
+                    <Link
+                      to="/ra-final-bills"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Bills &rarr;
                     </Link>
                   </div>
                 </div>
