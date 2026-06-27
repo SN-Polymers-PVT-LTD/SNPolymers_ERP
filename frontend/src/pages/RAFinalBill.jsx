@@ -41,9 +41,22 @@ const formatDateTime = (dateStr) => {
 const RAFinalBill = () => {
   const { user } = useAuth();
   
-  // Navigation / View State
-  const [bills, setBills] = useState([]);
-  const [projects, setProjects] = useState([]);
+  // Tab control states: 'dashboard' or 'directory'
+  const [currentTab, setCurrentTab] = useState('dashboard');
+  
+  // Active Project (Work Order Bill Sheet View)
+  const [activeWO, setActiveWO] = useState(null); // Selected project metadata object
+  const [projectBills, setProjectBills] = useState([]); // Bills list for the selected project
+  const [loadingProjectBills, setLoadingProjectBills] = useState(false);
+  const [projectSummaryData, setProjectSummaryData] = useState({
+    work_order_value: 0,
+    previous_bill_amount: 0,
+    dropdown_options: []
+  });
+
+  // Master lists
+  const [bills, setBills] = useState([]); // Global bills for overview dashboard
+  const [projects, setProjects] = useState([]); // Directory projects list
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -54,7 +67,7 @@ const RAFinalBill = () => {
   const [detailBill, setDetailBill] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
-  // Search/Filter states
+  // Search/Filter states for Global Overview Feed
   const [filterWO, setFilterWO] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -62,6 +75,11 @@ const RAFinalBill = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalBillsCount, setTotalBillsCount] = useState(0);
+
+  // Directory Search Filters
+  const [dirSearchWO, setDirSearchWO] = useState('');
+  const [dirSearchDept, setDirSearchDept] = useState('');
+  const [dirSearchZone, setDirSearchZone] = useState('');
 
   // Create Form State
   const [formState, setFormState] = useState({
@@ -77,8 +95,8 @@ const RAFinalBill = () => {
     remarks: ''
   });
 
-  // Project auto-fetched states
-  const [projectDetails, setProjectDetails] = useState({
+  // Project auto-fetched states for the form
+  const [formProjectDetails, setFormProjectDetails] = useState({
     state: 'Auto',
     district: 'Auto',
     area_code: 'Auto',
@@ -86,8 +104,8 @@ const RAFinalBill = () => {
     site_details: 'Auto'
   });
 
-  // Summary and dropdown options from API
-  const [summaryData, setSummaryData] = useState({
+  // Summary options specifically for the active form instance
+  const [formSummaryData, setFormSummaryData] = useState({
     work_order_value: 0,
     previous_bill_amount: 0,
     dropdown_options: []
@@ -99,7 +117,7 @@ const RAFinalBill = () => {
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef(null);
 
-  // Stats
+  // Overall Stats
   const [stats, setStats] = useState({
     totalBills: 0,
     totalBilledAmount: 0,
@@ -133,7 +151,7 @@ const RAFinalBill = () => {
     }
   }, [page, filterWO, filterType, filterDateFrom, filterDateTo]);
 
-  // Fetch projects and compute overview metrics
+  // Fetch projects directory and global summary stats
   const fetchInitialData = useCallback(async () => {
     try {
       const projRes = await getProjects();
@@ -158,6 +176,35 @@ const RAFinalBill = () => {
     }
   }, []);
 
+  // Fetch reports specifically for an active project timeline (spreadsheet representation)
+  const fetchProjectBillSheet = useCallback(async (workOrderNo) => {
+    setLoadingProjectBills(true);
+    try {
+      // 1. Fetch bills filtered for this work order
+      const billsRes = await getBills({ work_order_no: workOrderNo, limit: 200 });
+      if (billsRes.data?.success) {
+        // Sort chronologically ascending (earliest first, latest at bottom)
+        const sortedAsc = (billsRes.data.bills ?? []).slice().reverse();
+        setProjectBills(sortedAsc);
+      }
+
+      // 2. Fetch live metrics
+      const summaryRes = await getBillSummary(workOrderNo);
+      if (summaryRes.data?.success) {
+        setProjectSummaryData({
+          work_order_value: summaryRes.data.work_order_value,
+          previous_bill_amount: summaryRes.data.previous_bill_amount,
+          dropdown_options: summaryRes.data.dropdown_options
+        });
+      }
+    } catch (err) {
+      console.error('Failed to retrieve project bill sheet:', err);
+      setError('Failed to retrieve project bill ledger.');
+    } finally {
+      setLoadingProjectBills(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchBillsList();
   }, [fetchBillsList]);
@@ -166,11 +213,17 @@ const RAFinalBill = () => {
     fetchInitialData();
   }, [fetchInitialData]);
 
-  // Handle Work Order selection change
+  useEffect(() => {
+    if (activeWO) {
+      fetchProjectBillSheet(activeWO.work_order_no);
+    }
+  }, [activeWO, fetchProjectBillSheet]);
+
+  // Handle Work Order selection change (Within Create Panel)
   const handleWorkOrderChange = async (e) => {
     const wo = e.target.value;
     
-    // Reset dependant form fields
+    // Reset form fields dependent on WO selection
     setFormState(prev => ({
       ...prev,
       work_order_no: wo,
@@ -183,14 +236,14 @@ const RAFinalBill = () => {
     }));
 
     if (!wo) {
-      setProjectDetails({
+      setFormProjectDetails({
         state: 'Auto',
         district: 'Auto',
         area_code: 'Auto',
         department: 'Auto',
         site_details: 'Auto'
       });
-      setSummaryData({
+      setFormSummaryData({
         work_order_value: 0,
         previous_bill_amount: 0,
         dropdown_options: []
@@ -199,7 +252,7 @@ const RAFinalBill = () => {
     }
 
     // Set temporary loading states
-    setProjectDetails({
+    setFormProjectDetails({
       state: 'Loading...',
       district: 'Loading...',
       area_code: 'Loading...',
@@ -211,7 +264,7 @@ const RAFinalBill = () => {
       // Find matching project in local list
       const proj = projects.find(p => p.work_order_no === wo);
       if (proj) {
-        setProjectDetails({
+        setFormProjectDetails({
           state: proj.state,
           district: proj.district,
           area_code: proj.zone || 'N/A',
@@ -223,7 +276,7 @@ const RAFinalBill = () => {
       // Fetch summary stats & options
       const summaryRes = await getBillSummary(wo);
       if (summaryRes.data?.success) {
-        setSummaryData({
+        setFormSummaryData({
           work_order_value: summaryRes.data.work_order_value,
           previous_bill_amount: summaryRes.data.previous_bill_amount,
           dropdown_options: summaryRes.data.dropdown_options
@@ -295,7 +348,7 @@ const RAFinalBill = () => {
     if (currentWO) {
       getBillSummary(currentWO).then(res => {
         if (res.data?.success) {
-          setSummaryData({
+          setFormSummaryData({
             work_order_value: res.data.work_order_value,
             previous_bill_amount: res.data.previous_bill_amount,
             dropdown_options: res.data.dropdown_options
@@ -320,14 +373,14 @@ const RAFinalBill = () => {
       original_bill_filename: '',
       remarks: ''
     });
-    setProjectDetails({
+    setFormProjectDetails({
       state: 'Auto',
       district: 'Auto',
       area_code: 'Auto',
       department: 'Auto',
       site_details: 'Auto'
     });
-    setSummaryData({
+    setFormSummaryData({
       work_order_value: 0,
       previous_bill_amount: 0,
       dropdown_options: []
@@ -335,7 +388,7 @@ const RAFinalBill = () => {
     setShowCreatePanel(false);
   };
 
-  // Form Submit (Save Draft)
+  // Form Submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -369,8 +422,13 @@ const RAFinalBill = () => {
       if (res.data?.success) {
         setSuccess('Bill entry saved successfully.');
         handleCancel();
+        
+        // Refresh appropriate tables
         fetchBillsList();
         fetchInitialData();
+        if (activeWO) {
+          fetchProjectBillSheet(activeWO.work_order_no);
+        }
       }
     } catch (err) {
       console.error('Failed to save bill entry:', err);
@@ -398,12 +456,34 @@ const RAFinalBill = () => {
     }
   };
 
-  // Live Calculations for Summary Panel
-  const woValue = summaryData.work_order_value || 0;
-  const prevBilled = summaryData.previous_bill_amount || 0;
-  const currentBilled = Number(formState.bill_amount_with_gst) || 0;
-  const totalBilled = prevBilled + currentBilled;
-  const balanceRemaining = woValue - totalBilled;
+  // Open the create panel pre-populated with a specific work order
+  const handleOpenCreatePanelForWO = async (workOrderNo) => {
+    setShowCreatePanel(true);
+    
+    // Simulate Work Order change programmatically to fetch and auto-fill details
+    const e = { target: { value: workOrderNo } };
+    handleWorkOrderChange(e);
+  };
+
+  // Filtering projects list for the directory
+  const filteredProjects = projects.filter(proj => {
+    const matchWO = !dirSearchWO || proj.work_order_no.toLowerCase().includes(dirSearchWO.toLowerCase());
+    const matchDept = !dirSearchDept || proj.department.toLowerCase().includes(dirSearchDept.toLowerCase());
+    const matchZone = !dirSearchZone || (proj.zone && proj.zone.toLowerCase().includes(dirSearchZone.toLowerCase()));
+    return matchWO && matchDept && matchZone;
+  });
+
+  // Live Calculations for Create Form Summary Panel
+  const createFormWOValue = formSummaryData.work_order_value || 0;
+  const createFormPrevBilled = formSummaryData.previous_bill_amount || 0;
+  const createFormCurrentBilled = Number(formState.bill_amount_with_gst) || 0;
+  const createFormTotalBilled = createFormPrevBilled + createFormCurrentBilled;
+  const createFormBalanceRemaining = createFormWOValue - createFormTotalBilled;
+
+  // Live Calculations for Active WO Bill Sheet Summary Panel
+  const projectWOValue = projectSummaryData.work_order_value || 0;
+  const projectTotalBilled = projectBills.reduce((sum, b) => sum + Number(b.bill_amount_with_gst || 0), 0);
+  const projectBalanceRemaining = projectWOValue - projectTotalBilled;
 
   // Formatting date for right footer
   const currentSystemDateTime = formatDateTime(new Date());
@@ -429,235 +509,523 @@ const RAFinalBill = () => {
           </div>
         )}
 
-        {/* Header Bar */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5 mb-6">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 font-mono">
-              Finance & Billing
-            </span>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">RA / Final Bill Entry</h1>
-            <p className="text-xs text-slate-400 font-medium mt-1.5">
-              SubmitRunning Account bills and final financial settlements for Work Orders.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowCreatePanel(true)}
-            className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow flex items-center gap-2"
-          >
-            <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Bill Entry
-          </button>
-        </div>
+        {/* SECTION A: INDIVIDUAL WORK ORDER BILL SHEET */}
+        {activeWO ? (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header Block with Back navigation */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
+              <div>
+                <button
+                  onClick={() => setActiveWO(null)}
+                  className="flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition mb-2"
+                >
+                  &larr; Back to Directory
+                </button>
+                <h1 className="text-2xl font-black tracking-tight text-slate-100">
+                  Bill Sheet: {activeWO.work_order_no}
+                </h1>
+                <p className="text-xs text-slate-400 font-medium mt-1">
+                  Chronological billing entries, deduction snapshots, and PDF copies ledger.
+                </p>
+              </div>
 
-        {/* Stats Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-          <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Total Bills Entered</span>
-              <h3 className="text-2xl font-black text-slate-100 mt-1">{stats.totalBills}</h3>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleOpenCreatePanelForWO(activeWO.work_order_no)}
+                  className="bg-white hover:bg-slate-100 text-slate-950 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  New Bill Entry
+                </button>
+              </div>
             </div>
-            <div className="p-3 bg-white/5 rounded-2xl text-slate-400">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-              </svg>
-            </div>
-          </div>
-          <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Total Billed Amount</span>
-              <h3 className="text-xl font-black text-indigo-400 mt-1">{formatCurrency(stats.totalBilledAmount)}</h3>
-            </div>
-            <div className="p-3 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 rounded-2xl">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-            <div>
-              <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Final Settlements</span>
-              <h3 className="text-2xl font-black text-emerald-400 mt-1">{stats.finalBillsCount}</h3>
-            </div>
-            <div className="p-3 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 rounded-2xl">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-        </div>
 
-        {/* Filter Bar */}
-        <div className="glass-panel p-5 rounded-3xl border border-white/5 mb-6">
-          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-3">Filters</span>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Work Order No</label>
-              <input
-                type="text"
-                placeholder="Search WO..."
-                value={filterWO}
-                onChange={(e) => setFilterWO(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
-              />
+            {/* Geographical snapshots summary */}
+            <div className="glass-panel p-5 rounded-3xl border border-white/5">
+              <span className="text-[9px] uppercase font-black tracking-widest text-indigo-400 font-mono block mb-3">Project Metadata Snapshots</span>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div>
+                  <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">State</label>
+                  <input type="text" disabled value={activeWO.state} className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">District</label>
+                  <input type="text" disabled value={activeWO.district} className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Area Code (Zone)</label>
+                  <input type="text" disabled value={activeWO.zone || 'N/A'} className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Department</label>
+                  <input type="text" disabled value={activeWO.department} className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed truncate" title={activeWO.department} />
+                </div>
+                <div className="col-span-2 md:col-span-1">
+                  <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1">Site Details</label>
+                  <input type="text" disabled value={activeWO.site_details} className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-400 cursor-not-allowed truncate" title={activeWO.site_details} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Payment Type</label>
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
-              >
-                <option value="">All Types</option>
-                <option value="RA Bill">RA Bills</option>
-                <option value="Final Bill">Final Bills</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Date From</label>
-              <input
-                type="date"
-                value={filterDateFrom}
-                onChange={(e) => setFilterDateFrom(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
-              />
-            </div>
-            <div>
-              <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Date To</label>
-              <input
-                type="date"
-                value={filterDateTo}
-                onChange={(e) => setFilterDateTo(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-white/5">
-            <button
-              onClick={() => {
-                setFilterWO('');
-                setFilterType('');
-                setFilterDateFrom('');
-                setFilterDateTo('');
-              }}
-              className="text-[10px] uppercase font-bold text-slate-400 hover:text-slate-200 px-3 py-1.5"
-            >
-              Reset Filters
-            </button>
-            <button
-              onClick={fetchBillsList}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] uppercase font-bold px-4 py-1.5 rounded-xl transition shadow"
-            >
-              Apply Filter
-            </button>
-          </div>
-        </div>
 
-        {/* Bills Table List */}
-        <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
-          <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Bill Entries Ledger</span>
-            <span className="text-[10px] font-mono font-bold text-indigo-400">Total: {totalBillsCount} records</span>
-          </div>
+            {/* Bill Sheet Table Ledger */}
+            <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
+              <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Bill Entries Ledger</span>
+                <span className="text-[10px] font-mono font-bold text-indigo-400">Total: {projectBills.length} records</span>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/[0.02]">
-                  <th className="p-3 text-center w-12 border-r border-white/5">Sl No.</th>
-                  <th className="p-3 border-r border-white/5">Work Order No</th>
-                  <th className="p-3 border-r border-white/5">Payment Type</th>
-                  <th className="p-3 border-r border-white/5">Bill Date</th>
-                  <th className="p-3 border-r border-white/5">Bill No</th>
-                  <th className="p-3 text-right border-r border-white/5">Bill Amount (GST)</th>
-                  <th className="p-3 border-r border-white/5">Uploaded By</th>
-                  <th className="p-3">Created At</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {loading ? (
-                  <tr>
-                    <td colSpan="8" className="p-8 text-center text-slate-500 font-medium">
-                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-500 inline-block mb-2" />
-                      <p className="text-xs uppercase tracking-widest">Loading entries...</p>
-                    </td>
-                  </tr>
-                ) : bills.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" className="p-8 text-center text-slate-500 font-medium italic">
-                      No bill entries found matching the filter criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  bills.map((bill, idx) => (
-                    <tr
-                      key={bill.bill_id}
-                      onClick={() => handleViewBill(bill.bill_id)}
-                      className="hover:bg-white/[0.02] cursor-pointer transition duration-150 text-slate-300"
-                    >
-                      <td className="p-3 text-center font-mono font-semibold border-r border-white/5 text-slate-500">
-                        {idx + 1 + (page - 1) * 10}
-                      </td>
-                      <td className="p-3 font-semibold border-r border-white/5 text-slate-200">
-                        {bill.work_order_no}
-                      </td>
-                      <td className="p-3 border-r border-white/5">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
-                          bill.payment_type.startsWith('RA')
-                            ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
-                            : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
-                        }`}>
-                          <span className={`w-1 h-1 rounded-full ${bill.payment_type.startsWith('RA') ? 'bg-amber-400' : 'bg-emerald-400'}`} />
-                          {bill.payment_type}
-                        </span>
-                      </td>
-                      <td className="p-3 font-mono border-r border-white/5">
-                        {formatDate(bill.bill_date)}
-                      </td>
-                      <td className="p-3 border-r border-white/5 truncate max-w-[120px]" title={bill.bill_no}>
-                        {bill.bill_no}
-                      </td>
-                      <td className="p-3 text-right font-mono font-bold text-slate-200 border-r border-white/5">
-                        {formatCurrency(bill.bill_amount_with_gst)}
-                      </td>
-                      <td className="p-3 border-r border-white/5 truncate max-w-[120px]" title={bill.created_by_name}>
-                        {bill.created_by_name}
-                      </td>
-                      <td className="p-3 font-mono text-slate-500">
-                        {formatDateTime(bill.created_at)}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/[0.02]">
+                      <th className="p-3 text-center w-12 border-r border-white/5">Sl No.</th>
+                      <th className="p-3 border-r border-white/5">Payment Type</th>
+                      <th className="p-3 border-r border-white/5">Bill Date</th>
+                      <th className="p-3 border-r border-white/5">Bill No</th>
+                      <th className="p-3 text-right border-r border-white/5">Bill Amount (GST)</th>
+                      <th className="p-3 text-right border-r border-white/5">EMD Amount</th>
+                      <th className="p-3 text-right border-r border-white/5">SD Amount</th>
+                      <th className="p-3 border-r border-white/5">Remarks</th>
+                      <th className="p-3">Created At</th>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {loadingProjectBills ? (
+                      <tr>
+                        <td colSpan="9" className="p-8 text-center text-slate-500 font-medium">
+                          <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-500 inline-block mb-2" />
+                          <p className="text-xs uppercase tracking-widest">Loading bill entries...</p>
+                        </td>
+                      </tr>
+                    ) : projectBills.length === 0 ? (
+                      <tr>
+                        <td colSpan="9" className="p-8 text-center text-slate-500 font-medium italic">
+                          No bills have been submitted yet for this project.
+                        </td>
+                      </tr>
+                    ) : (
+                      projectBills.map((bill, idx) => (
+                        <tr
+                          key={bill.bill_id}
+                          onClick={() => handleViewBill(bill.bill_id)}
+                          className="hover:bg-white/[0.02] cursor-pointer transition duration-150 text-slate-300"
+                        >
+                          <td className="p-3 text-center font-mono font-semibold border-r border-white/5 text-slate-500">
+                            {idx + 1}
+                          </td>
+                          <td className="p-3 border-r border-white/5">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
+                              bill.payment_type.startsWith('RA')
+                                ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                                : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                            }`}>
+                              <span className={`w-1 h-1 rounded-full ${bill.payment_type.startsWith('RA') ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                              {bill.payment_type}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono border-r border-white/5">
+                            {formatDate(bill.bill_date)}
+                          </td>
+                          <td className="p-3 border-r border-white/5 truncate max-w-[120px]" title={bill.bill_no}>
+                            {bill.bill_no}
+                          </td>
+                          <td className="p-3 text-right font-mono font-bold text-slate-200 border-r border-white/5">
+                            {formatCurrency(bill.bill_amount_with_gst)}
+                          </td>
+                          <td className="p-3 text-right font-mono text-slate-400 border-r border-white/5">
+                            {formatCurrency(bill.earnest_money_deposit)}
+                          </td>
+                          <td className="p-3 text-right font-mono text-slate-400 border-r border-white/5">
+                            {formatCurrency(bill.security_deposit_amount)}
+                          </td>
+                          <td className="p-3 border-r border-white/5 truncate max-w-[150px]" title={bill.remarks || ''}>
+                            {bill.remarks || <span className="text-slate-600 italic">None</span>}
+                          </td>
+                          <td className="p-3 font-mono text-slate-500">
+                            {formatDateTime(bill.created_at)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="p-4 border-t border-white/5 bg-white/[0.01] flex justify-between items-center">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage(p => Math.max(p - 1, 1))}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 transition"
-              >
-                Previous
-              </button>
-              <span className="text-xs text-slate-400">Page {page} of {totalPages}</span>
-              <button
-                disabled={page >= totalPages}
-                onClick={() => setPage(p => Math.min(p + 1, totalPages))}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 transition"
-              >
-                Next
-              </button>
+              {/* Aggregated spreadsheet summary metrics */}
+              <div className="p-4 border-t border-white/5 bg-emerald-950/5 border-l border-r border-b rounded-b-3xl">
+                <span className="text-[9px] uppercase font-black tracking-widest text-emerald-400 font-mono">Ledger Aggregated Summary Metrics</span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Work Order Value</p>
+                    <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(projectWOValue)}</p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cumulative Billed Amount</p>
+                    <p className="text-sm font-mono font-extrabold text-indigo-400 mt-2">{formatCurrency(projectTotalBilled)}</p>
+                  </div>
+                  <div className={`p-3 rounded-2xl border text-center ${
+                    projectBalanceRemaining < 0 
+                      ? 'bg-red-950/20 border-red-900/30' 
+                      : 'bg-emerald-950/20 border-emerald-900/30'
+                  }`}>
+                    <p className={`text-[8px] font-bold uppercase tracking-widest ${projectBalanceRemaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                      Balance Amount Remaining
+                    </p>
+                    <p className={`text-sm font-mono font-extrabold mt-2 ${projectBalanceRemaining < 0 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                      {formatCurrency(projectBalanceRemaining)}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          /* SECTION B: PRIMARY DASHBOARD CONTROLLER (Overview & Directory Tabs) */
+          <div className="space-y-6 animate-fadeIn">
+            {/* Header section with Tab selector */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5">
+              <div>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 font-mono">
+                  Finance & Billing Console
+                </span>
+                <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">RA / Final Bill Entry</h1>
+                <p className="text-xs text-slate-400 font-medium mt-1.5">
+                  Record running accounts, submit final settlement audits, and track balances.
+                </p>
+              </div>
+
+              {/* Navigation Tab Switcher */}
+              <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 shrink-0 self-stretch md:self-auto">
+                <button
+                  onClick={() => setCurrentTab('dashboard')}
+                  className={`flex-grow md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+                    currentTab === 'dashboard'
+                      ? 'bg-white text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Overview Dashboard
+                </button>
+                <button
+                  onClick={() => setCurrentTab('directory')}
+                  className={`flex-grow md:flex-none px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+                    currentTab === 'directory'
+                      ? 'bg-white text-slate-950 shadow-md'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Projects Directory
+                </button>
+              </div>
+            </div>
+
+            {/* TAB 1: OVERVIEW DASHBOARD */}
+            {currentTab === 'dashboard' && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Stats Cards Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Total Bills Entered</span>
+                      <h3 className="text-2xl font-black text-slate-100 mt-1">{stats.totalBills}</h3>
+                    </div>
+                    <div className="p-3 bg-white/5 rounded-2xl text-slate-400">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Total Billed Amount</span>
+                      <h3 className="text-xl font-black text-indigo-400 mt-1">{formatCurrency(stats.totalBilledAmount)}</h3>
+                    </div>
+                    <div className="p-3 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 rounded-2xl">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                    <div>
+                      <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Final Settlements</span>
+                      <h3 className="text-2xl font-black text-emerald-400 mt-1">{stats.finalBillsCount}</h3>
+                    </div>
+                    <div className="p-3 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 rounded-2xl">
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Filter Bar */}
+                <div className="glass-panel p-5 rounded-3xl border border-white/5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-3">Filters</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Work Order No</label>
+                      <input
+                        type="text"
+                        placeholder="Search WO..."
+                        value={filterWO}
+                        onChange={(e) => setFilterWO(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Payment Type</label>
+                      <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      >
+                        <option value="">All Types</option>
+                        <option value="RA Bill">RA Bills</option>
+                        <option value="Final Bill">Final Bills</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Date From</label>
+                      <input
+                        type="date"
+                        value={filterDateFrom}
+                        onChange={(e) => setFilterDateFrom(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Date To</label>
+                      <input
+                        type="date"
+                        value={filterDateTo}
+                        onChange={(e) => setFilterDateTo(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-white/5">
+                    <button
+                      onClick={() => {
+                        setFilterWO('');
+                        setFilterType('');
+                        setFilterDateFrom('');
+                        setFilterDateTo('');
+                      }}
+                      className="text-[10px] uppercase font-bold text-slate-400 hover:text-slate-200 px-3 py-1.5"
+                    >
+                      Reset Filters
+                    </button>
+                    <button
+                      onClick={fetchBillsList}
+                      className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] uppercase font-bold px-4 py-1.5 rounded-xl transition shadow"
+                    >
+                      Apply Filter
+                    </button>
+                  </div>
+                </div>
+
+                {/* Global Ledger Table */}
+                <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
+                  <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Ledger Ledger Ledger Feed (Global)</span>
+                    <span className="text-[10px] font-mono font-bold text-indigo-400">Total: {totalBillsCount} records</span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/[0.02]">
+                          <th className="p-3 text-center w-12 border-r border-white/5">Sl No.</th>
+                          <th className="p-3 border-r border-white/5">Work Order No</th>
+                          <th className="p-3 border-r border-white/5">Payment Type</th>
+                          <th className="p-3 border-r border-white/5">Bill Date</th>
+                          <th className="p-3 border-r border-white/5">Bill No</th>
+                          <th className="p-3 text-right border-r border-white/5">Bill Amount (GST)</th>
+                          <th className="p-3 border-r border-white/5">Uploaded By</th>
+                          <th className="p-3">Created At</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5">
+                        {loading ? (
+                          <tr>
+                            <td colSpan="8" className="p-8 text-center text-slate-500 font-medium">
+                              <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-indigo-500 inline-block mb-2" />
+                              <p className="text-xs uppercase tracking-widest">Loading entries...</p>
+                            </td>
+                          </tr>
+                        ) : bills.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" className="p-8 text-center text-slate-500 font-medium italic">
+                              No bill entries found matching the filter criteria.
+                            </td>
+                          </tr>
+                        ) : (
+                          bills.map((bill, idx) => (
+                            <tr
+                              key={bill.bill_id}
+                              onClick={() => handleViewBill(bill.bill_id)}
+                              className="hover:bg-white/[0.02] cursor-pointer transition duration-150 text-slate-300"
+                            >
+                              <td className="p-3 text-center font-mono font-semibold border-r border-white/5 text-slate-500">
+                                {idx + 1 + (page - 1) * 10}
+                              </td>
+                              <td className="p-3 font-semibold border-r border-white/5 text-slate-200">
+                                {bill.work_order_no}
+                              </td>
+                              <td className="p-3 border-r border-white/5">
+                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
+                                  bill.payment_type.startsWith('RA')
+                                    ? 'bg-amber-500/10 border-amber-500/25 text-amber-400'
+                                    : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400'
+                                }`}>
+                                  <span className={`w-1 h-1 rounded-full ${bill.payment_type.startsWith('RA') ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                                  {bill.payment_type}
+                                </span>
+                              </td>
+                              <td className="p-3 font-mono border-r border-white/5">
+                                {formatDate(bill.bill_date)}
+                              </td>
+                              <td className="p-3 border-r border-white/5 truncate max-w-[120px]" title={bill.bill_no}>
+                                {bill.bill_no}
+                              </td>
+                              <td className="p-3 text-right font-mono font-bold text-slate-200 border-r border-white/5">
+                                {formatCurrency(bill.bill_amount_with_gst)}
+                              </td>
+                              <td className="p-3 border-r border-white/5 truncate max-w-[120px]" title={bill.created_by_name}>
+                                {bill.created_by_name}
+                              </td>
+                              <td className="p-3 font-mono text-slate-500">
+                                {formatDateTime(bill.created_at)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <div className="p-4 border-t border-white/5 bg-white/[0.01] flex justify-between items-center">
+                      <button
+                        disabled={page <= 1}
+                        onClick={() => setPage(p => Math.max(p - 1, 1))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 transition"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-xs text-slate-400">Page {page} of {totalPages}</span>
+                      <button
+                        disabled={page >= totalPages}
+                        onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase bg-white/5 border border-white/5 hover:bg-white/10 disabled:opacity-40 disabled:hover:bg-white/5 transition"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: PROJECTS DIRECTORY */}
+            {currentTab === 'directory' && (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Search Bar for Directory */}
+                <div className="glass-panel p-5 rounded-3xl border border-white/5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block mb-3">Filter Directory Projects</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Work Order No</label>
+                      <input
+                        type="text"
+                        placeholder="Search Work Order..."
+                        value={dirSearchWO}
+                        onChange={(e) => setDirSearchWO(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Department</label>
+                      <input
+                        type="text"
+                        placeholder="Search Department..."
+                        value={dirSearchDept}
+                        onChange={(e) => setDirSearchDept(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mb-1.5">Zone / Area</label>
+                      <input
+                        type="text"
+                        placeholder="Search Zone..."
+                        value={dirSearchZone}
+                        onChange={(e) => setDirSearchZone(e.target.value)}
+                        className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 outline-none focus:border-indigo-500 transition"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Projects Grid List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProjects.length === 0 ? (
+                    <div className="col-span-full p-10 text-center text-slate-500 font-medium italic glass-panel rounded-3xl">
+                      No projects matched your search criteria.
+                    </div>
+                  ) : (
+                    filteredProjects.map((proj) => (
+                      <div
+                        key={proj.work_order_no}
+                        onClick={() => setActiveWO(proj)}
+                        className="glass-panel glass-card-hover p-6 rounded-3xl border border-white/5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[200px]"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-400 font-mono">
+                              WO ID: {proj.work_order_no}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${
+                              proj.status === 'Running' 
+                                ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400' 
+                                : 'bg-slate-500/10 border border-slate-500/20 text-slate-400'
+                            }`}>
+                              {proj.status}
+                            </span>
+                          </div>
+                          
+                          <h3 className="text-sm font-extrabold text-slate-200 truncate" title={proj.department}>
+                            {proj.department}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-2 truncate-2-lines min-h-[32px]">
+                            {proj.site_details}
+                          </p>
+                        </div>
+
+                        <div className="border-t border-white/5 pt-4 mt-4 flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span className="text-[8px] uppercase tracking-widest text-slate-500">Geography</span>
+                            <span className="text-xs text-slate-300 font-semibold mt-0.5">{proj.state} / {proj.district}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest group-hover:translate-x-1 transition duration-200">
+                            Open Sheet &rarr;
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
-      {/* CREATE FORM OVERLAY SLIDE PANEL (Mirrors the exact design inspiration layout) */}
+      {/* CREATE FORM OVERLAY SLIDE PANEL (No changes requested here) */}
       {showCreatePanel && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex justify-end z-50 animate-fadeIn">
           <div className="w-full max-w-4xl bg-slate-950 border-l border-white/10 h-full flex flex-col justify-between shadow-[-10px_0_40px_rgba(0,0,0,0.8)] overflow-y-auto relative animate-slideLeft">
@@ -724,7 +1092,7 @@ const RAFinalBill = () => {
                     <input
                       type="text"
                       disabled
-                      value={projectDetails.state}
+                      value={formProjectDetails.state}
                       className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
                     />
                   </div>
@@ -733,7 +1101,7 @@ const RAFinalBill = () => {
                     <input
                       type="text"
                       disabled
-                      value={projectDetails.district}
+                      value={formProjectDetails.district}
                       className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
                     />
                   </div>
@@ -742,7 +1110,7 @@ const RAFinalBill = () => {
                     <input
                       type="text"
                       disabled
-                      value={projectDetails.area_code}
+                      value={formProjectDetails.area_code}
                       className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
                     />
                   </div>
@@ -751,7 +1119,7 @@ const RAFinalBill = () => {
                     <input
                       type="text"
                       disabled
-                      value={projectDetails.department}
+                      value={formProjectDetails.department}
                       className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed"
                     />
                   </div>
@@ -761,7 +1129,7 @@ const RAFinalBill = () => {
                   <label className="block text-[9px] font-extrabold text-slate-400 uppercase tracking-widest mb-1.5">Site Details</label>
                   <textarea
                     disabled
-                    value={projectDetails.site_details}
+                    value={formProjectDetails.site_details}
                     rows={2}
                     className="w-full bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 cursor-not-allowed resize-none"
                   />
@@ -794,7 +1162,7 @@ const RAFinalBill = () => {
                       <option value="">
                         {!formState.work_order_no ? '-- Select Work Order First --' : '-- Select Type of Payment --'}
                       </option>
-                      {summaryData.dropdown_options.map((opt) => (
+                      {formSummaryData.dropdown_options.map((opt) => (
                         <option key={opt.value} value={opt.value} disabled={!opt.available}>
                           {opt.label}
                         </option>
@@ -961,30 +1329,30 @@ const RAFinalBill = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
                   <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Work Order Value</p>
-                    <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(woValue)}</p>
+                    <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(createFormWOValue)}</p>
                   </div>
                   <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Previous Bill Amount</p>
-                    <p className="text-sm font-mono font-extrabold text-slate-300 mt-2">{formatCurrency(prevBilled)}</p>
+                    <p className="text-sm font-mono font-extrabold text-slate-300 mt-2">{formatCurrency(createFormPrevBilled)}</p>
                   </div>
                   <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Current Bill Amount</p>
-                    <p className="text-sm font-mono font-extrabold text-indigo-400 mt-2">{formatCurrency(currentBilled)}</p>
+                    <p className="text-sm font-mono font-extrabold text-indigo-400 mt-2">{formatCurrency(createFormCurrentBilled)}</p>
                   </div>
                   <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Billed Till Date</p>
-                    <p className="text-sm font-mono font-extrabold text-purple-400 mt-2">{formatCurrency(totalBilled)}</p>
+                    <p className="text-sm font-mono font-extrabold text-purple-400 mt-2">{formatCurrency(createFormTotalBilled)}</p>
                   </div>
                   <div className={`p-3 border rounded-2xl col-span-2 sm:col-span-1 ${
-                    balanceRemaining < 0 
+                    createFormBalanceRemaining < 0 
                       ? 'bg-red-950/20 border-red-900/30' 
                       : 'bg-emerald-950/20 border-emerald-900/30'
                   }`}>
-                    <p className={`text-[8px] font-bold uppercase tracking-widest ${balanceRemaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                    <p className={`text-[8px] font-bold uppercase tracking-widest ${createFormBalanceRemaining < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                       Balance Amount
                     </p>
-                    <p className={`text-sm font-mono font-extrabold mt-2 ${balanceRemaining < 0 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
-                      {formatCurrency(balanceRemaining)}
+                    <p className={`text-sm font-mono font-extrabold mt-2 ${createFormBalanceRemaining < 0 ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                      {formatCurrency(createFormBalanceRemaining)}
                     </p>
                   </div>
                 </div>
