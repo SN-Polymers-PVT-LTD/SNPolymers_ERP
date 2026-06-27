@@ -15,9 +15,9 @@
 | Role | Submit Report | Add Authority Remarks | View Own Reports | View All Reports |
 |---|---|---|---|---|
 | **JE** | Yes | No | Yes | No |
-| **ZO** | No | Yes (if WO not Closed) | — | Yes |
-| **HO** | No | Yes (if WO not Closed) | — | Yes |
-| **Admin** | No | Yes (if WO not Closed) | — | Yes |
+| **ZO** | No | Yes (if WO is Active) | — | Yes |
+| **HO** | No | Yes (if WO is Active) | — | Yes |
+| **Admin** | No | Yes (if WO is Active) | — | Yes |
 | **Staff** | No | No | No | No |
 
 > [!IMPORTANT]
@@ -25,7 +25,13 @@
 > - Only `je` can submit (create) a daily progress report.
 > - Only `zo`, `ho`, and `admin` can write authority remarks.
 > - No role can delete or edit a submitted report's JE-entered fields.
-> - Reports are permanently immutable once submitted — a DB trigger blocks all hard DELETEs.
+> - JE-submitted fields become immutable immediately after creation. Only Authority Remarks may be modified by authorized users. — a DB trigger blocks all hard DELETEs.
+
+---
+
+## Known Design Decisions & Constraints
+
+1. **Photo Upload Orphaning**: If a JE uploads a site photo but their browser crashes or they fail to submit the daily progress report, the file will remain in Supabase Storage. Since this is an internal ERP for ~30 users, the volume of orphaned files is negligible. A periodic batch cleanup script can be run if storage volume ever becomes a concern.
 
 ---
 
@@ -120,6 +126,7 @@ CREATE TABLE IF NOT EXISTS daily_progress_reports (
   remarks_after_site_visit     TEXT,                     -- Optional JE remarks
 
   -- Authority remark fields (post-creation, written by ZO/HO/Admin only)
+  -- Note: approved_user_id, approval_date, and remarks_approved_authority must always be updated together. Never allow partial population.
   remarks_approved_authority   TEXT,
   approved_user_id             VARCHAR REFERENCES authorised_users(mobile_number) ON DELETE RESTRICT,
   approval_date                TIMESTAMPTZ,
@@ -128,9 +135,16 @@ CREATE TABLE IF NOT EXISTS daily_progress_reports (
   CONSTRAINT chk_physical_work_progress
     CHECK (physical_work_progress >= 0 AND physical_work_progress <= 100),
 
-  -- Integrity: approved_user_id only set when authority remarks exist
+  -- Integrity: either all authority fields are NULL or all are NOT NULL
   CONSTRAINT chk_authority_remarks_consistency
-    CHECK (approved_user_id IS NULL OR remarks_approved_authority IS NOT NULL),
+    CHECK (
+      (approved_user_id IS NULL AND approval_date IS NULL AND remarks_approved_authority IS NULL)
+      OR
+      (approved_user_id IS NOT NULL AND approval_date IS NOT NULL AND remarks_approved_authority IS NOT NULL)
+    ),
+
+  -- Integrity: enforce one daily progress report per work order per day
+  CONSTRAINT uq_daily_progress_work_order_date UNIQUE (work_order_no, site_visit_date),
 
   -- Audit fields
   created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -251,12 +265,15 @@ Expected: CHECK constraint violation (`chk_physical_work_progress`).
 **Test 5:** Insert a row with `physical_work_progress = -1`.
 Expected: CHECK constraint violation (`chk_physical_work_progress`).
 
-**Test 6:** Insert a row with `approved_user_id` set but `remarks_approved_authority = NULL`.
+**Test 6:** Insert a row with partial authority fields (e.g., approved_user_id set, but remarks_approved_authority or approval_date NULL).
 Expected: CHECK constraint violation (`chk_authority_remarks_consistency`).
+
+**Test 7:** Insert a row with the same `work_order_no` and `site_visit_date` as an existing row.
+Expected: UNIQUE constraint violation (`uq_daily_progress_work_order_date`).
 
 ### Exit Criteria
 ```
-✓ All 6 test cases pass
+✓ All 7 test cases pass
 ✓ No migration errors in Supabase dashboard
 ✓ Schema inspector confirms table, indexes, triggers, and constraints
 ✓ Storage bucket created and confirmed private
@@ -296,7 +313,13 @@ const createProgressReportSchema = {
       .trim().min(1, 'work_order_no is required.'),
 
     site_visit_date: z.string({ required_error: 'site_visit_date is required.' })
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'site_visit_date must be a valid date in YYYY-MM-DD format.'),
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'site_visit_date must be a valid date in YYYY-MM-DD format.')
+      .refine(val => {
+        const inputDate = new Date(val);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        return inputDate <= today;
+      }, 'site_visit_date cannot be in the future.'),
 
     work_progress_details: z.string({ required_error: 'work_progress_details is required.' })
       .trim().min(1, 'work_progress_details is required.'),
@@ -306,7 +329,8 @@ const createProgressReportSchema = {
     })
       .transform(val => Number(val))
       .refine(val => !isNaN(val) && val >= 0 && val <= 100 && isFinite(val),
-        'physical_work_progress must be a number between 0 and 100.'),
+        'physical_work_progress must be a number between 0 and 100.')
+      .transform(val => Math.round(val * 100) / 100),
 
     daily_site_photo_url: z.string({ required_error: 'daily_site_photo_url is required. Upload the photo first.' })
       .trim().min(1, 'daily_site_photo_url is required. Upload the photo first.'),
@@ -366,11 +390,8 @@ async function resolveDisplayNames(mobiles) {
 ```
 1. Input validation: handled at route level by validateRequest(createProgressReportSchema).
 
-2. Validate work_order_no exists in projects_master:
-   SELECT status, state, district, zone AS area_code, department, site_details
-   FROM projects_master WHERE work_order_no = $1
-   → 404 if not found: "Work order not found."
-   → 403 if status = 'Closed': "Daily progress reports cannot be submitted for Closed work orders."
+   → 409 Conflict if status is not 'Active' (e.g. 'Closed', 'Complete Under Maintenance'): "Daily progress reports can only be created for Active projects."
+   Verify the project status is Active before allowing report creation. Reject Closed and Complete Under Maintenance with HTTP 409.
 
 3. Build insert payload (geo-fields frozen from fetched project row):
    {
@@ -489,6 +510,9 @@ const creatorRoles = ['je'];
 const viewerRoles  = ['je', 'zo', 'ho', 'admin'];
 const remarksRoles = ['zo', 'ho', 'admin'];
 
+// Photo upload — JE only
+router.post('/upload/photo', requireRole(creatorRoles), upload.single('file'), uploadSitePhoto);
+
 // Core CRUD
 router.post('/',     requireRole(creatorRoles), validateRequest(createProgressReportSchema), createProgressReport);
 router.get('/',      requireRole(viewerRoles),  getProgressReports);
@@ -497,20 +521,14 @@ router.get('/:id',   requireRole(viewerRoles),  validateRequest(getReportByIdSch
 // Authority remarks
 router.patch('/:id/remarks', requireRole(remarksRoles), validateRequest(addRemarksSchema), addAuthorityRemarks);
 
-// Photo upload — JE only
-// NOTE: Registered AFTER /:id routes — 'upload' is not a valid UUID so no route shadowing
-router.post('/upload/photo', requireRole(creatorRoles), upload.single('file'), uploadSitePhoto);
-
 module.exports = router;
 ```
 
 ### Acceptance Criteria
 ```
-✓ POST /daily-progress by 'je' with valid parameters → 201, geo-fields auto-populated
-✓ POST /daily-progress by 'zo' → 403 (JE-only creation)
-✓ POST /daily-progress by 'ho' → 403 (JE-only creation)
-✓ POST /daily-progress by 'admin' → 403 (JE-only creation)
-✓ POST /daily-progress for a Closed work order → 403
+✓ POST /daily-progress for an Active work order → 201
+✓ POST /daily-progress for a non-Active work order → 409 Conflict
+✓ POST /daily-progress for a Complete Under Maintenance work order → 409 Conflict
 ✓ POST /daily-progress with invalid work_order_no → 404
 ✓ POST /daily-progress with missing daily_site_photo_url → 400
 ✓ POST /daily-progress with physical_work_progress = 150 → 400
@@ -527,14 +545,17 @@ module.exports = router;
 
 ### Test Cases
 
-**Test 1:** `POST /daily-progress` as `je` with all valid fields.
+**Test 1:** `POST /daily-progress` as `je` with all valid fields (Active work order).
 Expected: 201, all geo-fields auto-populated from `projects_master`.
 
 **Test 2:** `POST /daily-progress` as `zo`.
 Expected: 403 — JE-only creation.
 
-**Test 3:** `POST /daily-progress` as `je` with a Closed work order.
-Expected: 403 — "Daily progress reports cannot be submitted for Closed work orders."
+**Test 3:** `POST /daily-progress` as `je` with a non-Active work order.
+Expected: 409 — Conflict.
+
+**Test 3b:** `POST /daily-progress` as `je` with a Complete Under Maintenance work order.
+Expected: 409 — Conflict.
 
 **Test 4:** `POST /daily-progress` with missing `daily_site_photo_url`.
 Expected: 400.
@@ -579,7 +600,7 @@ Expected: 200, `pagination.limit = 5`, `pagination.total >= 0`.
 ## M3 — Daily Progress API: Authority Remarks
 
 ### Objective
-Implement the `addAuthorityRemarks` endpoint (`PATCH /:id/remarks`). Only `zo`, `ho`, and `admin` roles can use this. Remarks are blocked if the parent work order's status in `projects_master` is `'Closed'`.
+Implement the `addAuthorityRemarks` endpoint (`PATCH /:id/remarks`). Only `zo`, `ho`, and `admin` roles can use this. Remarks are blocked if the parent work order's status in `projects_master` is not `'Active'`.
 
 ### Files Created or Modified
 | File | Action |
@@ -620,11 +641,12 @@ async function addAuthorityRemarks(req, res) {
 
     if (projectErr) throw projectErr;
 
-    // 3. Work order status guard — Closed blocks all remark edits
-    if (project && project.status === 'Closed') {
-      return res.status(403).json({
+    // 3. Work order status guard — Only 'Active' projects allow remarks.
+    const ALLOWED_PROJECT_STATUSES = ['Active'];
+    if (project && !ALLOWED_PROJECT_STATUSES.includes(project.status)) {
+      return res.status(409).json({
         success: false,
-        message: 'Authority remarks cannot be added or modified for Closed work orders.'
+        message: `Authority remarks cannot be added or modified for projects in ${project.status} status.`
       });
     }
 
@@ -675,7 +697,7 @@ async function addAuthorityRemarks(req, res) {
 ✓ PATCH /:id/remarks as 'admin' → 200
 ✓ PATCH /:id/remarks as 'je' → 403 (requireRole blocks)
 ✓ PATCH /:id/remarks as 'staff' → 403 (requireRole blocks)
-✓ PATCH /:id/remarks for report on a Closed work order → 403
+✓ PATCH /:id/remarks for report on a non-Active work order → 409 Conflict
 ✓ PATCH /:id/remarks with blank remarks → 400
 ✓ PATCH /:id/remarks on non-existent report UUID → 404
 ✓ Second PATCH overwrites first remarks; approved_user_id and approval_date updated
@@ -689,8 +711,8 @@ Expected: 200, `approved_user_id = zo_mobile`, `approval_date` set.
 **Test 2:** `PATCH /:id/remarks` as `je`.
 Expected: 403.
 
-**Test 3:** `PATCH /:id/remarks` as `ho` for a Closed WO report.
-Expected: 403 — "Authority remarks cannot be added or modified for Closed work orders."
+**Test 3:** `PATCH /:id/remarks` as `ho` for a non-Active WO report.
+Expected: 409 — Conflict.
 
 **Test 4:** `PATCH /:id/remarks` with blank `remarks_approved_authority`.
 Expected: 400 — "remarks_approved_authority cannot be blank."
@@ -704,7 +726,7 @@ Expected: 200, `approved_user_id` updated to admin's mobile.
 ### Exit Criteria
 ```
 ✓ All 6 test cases pass
-✓ Closed WO guard confirmed working
+✓ Non-Active WO guard confirmed working
 ✓ Overwrite behaviour confirmed
 ✓ No P1 defects
 ✓ Ready to begin M4
@@ -943,7 +965,7 @@ Submit Button: "Save Report"
       original_photo_filename, remarks_after_site_visit
     })
   → On 201: success toast, close panel, refresh list
-  → On 403 (Closed WO): show error — "Cannot submit for Closed work orders."
+  → On 409 Conflict (non-Active WO): show error — "Daily progress reports can only be created for Active projects."
 ```
 
 **JE List View:**
@@ -964,7 +986,7 @@ Row click → Detail Drawer: full data + full-res photo (from signed URL) + read
 ✓ Client-side validation rejects files > 10MB before upload
 ✓ Client-side validation rejects non-JPEG/PNG files
 ✓ Form submits → 201 → list refreshes
-✓ 403 (Closed WO) error displayed clearly
+✓ 409 Conflict (non-Active WO) error displayed clearly
 ✓ Detail drawer shows full-size photo from signed URL
 ✓ JE can only see their own reports
 ✓ "New Daily Report" button hidden for ZO/HO/Admin
@@ -1006,12 +1028,12 @@ Row click → Detail Panel:
   Authority Remarks Section:
     → <textarea> pre-filled with existing remarks_approved_authority
     → Placeholder: "Enter your authority remarks here..."
-    Closed WO guard:
-    → textarea disabled + lock icon + tooltip if work order is Closed
-    "Save Remarks" button → addAuthorityRemarks(id, { remarks_approved_authority })
+    Non-Active WO guard:
+    → textarea disabled + lock icon + tooltip if work order is not Active
+    → On 409 Conflict (non-Active): show error
+    → Save Remarks button → addAuthorityRemarks(id, { remarks_approved_authority })
     → On 200: success toast, remarks badge updated
-    → On 403 (Closed): show error
-    → Disabled if WO is Closed or textarea is empty
+    → Disabled if WO is not Active or textarea is empty
 ```
 
 ### Acceptance Criteria
@@ -1022,7 +1044,7 @@ Row click → Detail Panel:
 ✓ "New Daily Report" button completely hidden for ZO/HO/Admin
 ✓ Remarks textarea pre-filled with existing remarks if already set
 ✓ Save Remarks → PATCH /:id/remarks → 200 → remarks updated
-✓ Closed WO → textarea disabled, visual indicator shown, API returns 403 on any attempt
+✓ Non-Active WO → textarea disabled, visual indicator shown, API returns 409 on any attempt
 ✓ Second authority can overwrite first authority's remarks
 ```
 
@@ -1133,9 +1155,10 @@ Create comprehensive automated tests for all milestones following the Phase 4 pa
 
 ```javascript
 // All tests use mockRes() pattern, call controller functions directly
-// T1:  POST — valid payload as 'je' → 201, geo-fields match projects_master
+// T1:  POST — valid payload as 'je' (Active project) → 201, geo-fields match projects_master
 // T2:  POST — as 'zo' → 403
-// T3:  POST — as 'je' for Closed work order → 403
+// T3:  POST — as 'je' for Closed work order → 409 Conflict
+// T3b: POST — as 'je' for Complete Under Maintenance work order → 409 Conflict
 // T4:  POST — missing daily_site_photo_url → 400
 // T5:  POST — physical_work_progress = 150 → 400
 // T6:  POST — physical_work_progress = -5 → 400
@@ -1153,7 +1176,7 @@ Create comprehensive automated tests for all milestones following the Phase 4 pa
 ```javascript
 // T1:  PATCH /:id/remarks as 'zo' → 200, approved_user_id = zo_mobile, approval_date set
 // T2:  PATCH /:id/remarks as 'je' → 403
-// T3:  PATCH /:id/remarks as 'ho' for Closed WO → 403
+// T3:  PATCH /:id/remarks as 'ho' for Closed WO → 409 Conflict
 // T4:  PATCH /:id/remarks with blank remarks → 400
 // T5:  PATCH /:id/remarks on non-existent UUID → 404
 // T6:  Second PATCH by 'admin' overwrites first 'zo' remarks → new approved_user_id
@@ -1220,9 +1243,9 @@ End-to-end manual verification by a real JE (reporter) and ZO/Admin (authority) 
 2. Client shows error: "Only image files are accepted (JPEG, JPG, PNG)."
 3. File not uploaded; form cannot be submitted
 
-**Scenario 1c — JE submits for a Closed work order:**
-1. JE selects a Closed work order
-2. On submission, server returns 403: "Cannot submit for Closed work orders."
+**Scenario 1c — JE submits for a non-Active work order:**
+1. JE selects a non-Active work order
+2. On submission, server returns 409 Conflict: "Daily progress reports can only be created for Active projects."
 
 **Scenario 2 — JE views their own past report:**
 1. JE clicks a row in their report list
@@ -1240,10 +1263,10 @@ End-to-end manual verification by a real JE (reporter) and ZO/Admin (authority) 
 4. Enters remarks → Save Remarks → 200 → badge shows "Yes"
 5. Opens report again → textarea pre-filled with saved remarks
 
-**Scenario 5 — Authority remarks blocked on Closed WO:**
-1. Authority opens a report on a Closed WO
+**Scenario 5 — Authority remarks blocked on non-Active WO:**
+1. Authority opens a report on a non-Active WO
 2. Remarks textarea is disabled; lock icon and tooltip visible
-3. Direct API call → 403
+3. Direct API call → 409 Conflict
 
 **Scenario 6 — Second authority overwrites first authority's remarks:**
 1. ZO adds remarks → saved
@@ -1263,6 +1286,9 @@ End-to-end manual verification by a real JE (reporter) and ZO/Admin (authority) 
 ### Release Checklist
 ```
 ✓ All 8 UAT scenarios (including 1b, 1c) pass
+✓ Verify report creation succeeds for Active projects
+✓ Verify report creation is blocked with 409 for Closed projects
+✓ Verify report creation is blocked with 409 for Complete Under Maintenance projects
 ✓ No P1 or P2 defects open
 ✓ Migration 21 applied to production DB
 ✓ Supabase Storage bucket 'daily-progress-photos' created and private in production
