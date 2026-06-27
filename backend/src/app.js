@@ -25,6 +25,7 @@ const masterDataRoutes = require('./routes/masterData.routes');
 const fundRequestsRoutes = require('./routes/fundRequests.routes');
 const requisitionsRoutes = require('./routes/requisitions.routes');
 const dailyProgressRoutes = require('./routes/dailyProgress.routes');
+const raFinalBillRoutes = require('./routes/raFinalBill.routes');
 
 const { startPolling } = require('./services/telegram.service');
 
@@ -65,6 +66,7 @@ app.use('/api/v1/auth/master-data', masterDataRoutes);
 app.use('/api/v1/auth/fund-requests', fundRequestsRoutes);
 app.use('/api/v1/auth/requisitions', requisitionsRoutes);
 app.use('/api/v1/auth/daily-progress', dailyProgressRoutes);
+app.use('/api/v1/auth/ra-final-bills', raFinalBillRoutes);
 
 // Basic sanity route
 app.get('/health', (req, res) => {
