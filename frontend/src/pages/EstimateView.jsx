@@ -42,6 +42,10 @@ const EstimateView = () => {
   // Tab control: 'items' | 'revisions'
   const [activeViewTab, setActiveViewTab] = useState('items');
 
+  // Filter state for line items
+  const [zoFilter, setZoFilter] = useState('all'); // 'all' | 'Approve' | 'Not Approve' | 'Pending'
+  const [hoFilter, setHoFilter] = useState('all');
+
   // Review & Decisions States (ZO & HO)
   const [rowDecisions, setRowDecisions] = useState({}); // item_id -> { approve_status: 'Approve'|'Not Approve', remarks: '' }
   const [runningApprovedTotal, setRunningApprovedTotal] = useState(0);
@@ -534,6 +538,83 @@ const EstimateView = () => {
 
         {activeViewTab === 'items' ? (
           <>
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center gap-3 mb-4 p-4 glass-panel rounded-2xl border border-white/5">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mr-2">Filter by Approval</span>
+              
+              {/* ZO Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">ZO:</span>
+                {['all', 'Approve', 'Not Approve', 'Pending'].map((opt) => (
+                  <button
+                    key={`zo-${opt}`}
+                    onClick={() => setZoFilter(opt)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                      zoFilter === opt
+                        ? opt === 'Approve'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : opt === 'Not Approve'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : opt === 'Pending'
+                          ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-white/5 text-slate-500 border border-white/5 hover:border-white/10 hover:text-slate-300'
+                    }`}
+                  >
+                    {opt === 'all' ? 'All' : opt}
+                  </button>
+                ))}
+              </div>
+
+              <div className="w-px h-5 bg-white/10 mx-1" />
+
+              {/* HO Filter */}
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">HO:</span>
+                {['all', 'Approve', 'Not Approve', 'Pending'].map((opt) => (
+                  <button
+                    key={`ho-${opt}`}
+                    onClick={() => setHoFilter(opt)}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                      hoFilter === opt
+                        ? opt === 'Approve'
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : opt === 'Not Approve'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : opt === 'Pending'
+                          ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                          : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                        : 'bg-white/5 text-slate-500 border border-white/5 hover:border-white/10 hover:text-slate-300'
+                    }`}
+                  >
+                    {opt === 'all' ? 'All' : opt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Reset + count */}
+              {(zoFilter !== 'all' || hoFilter !== 'all') && (
+                <>
+                  <div className="w-px h-5 bg-white/10 mx-1" />
+                  <button
+                    onClick={() => { setZoFilter('all'); setHoFilter('all'); }}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20 transition-all duration-200"
+                  >
+                    ✕ Reset
+                  </button>
+                  <span className="text-[10px] text-slate-500 font-mono ml-auto">
+                    Showing {items.filter(item => {
+                      const zoVal = item.zo_office_approve || 'Pending';
+                      const hoVal = item.ho_office_approve || 'Pending';
+                      const zoMatch = zoFilter === 'all' || zoVal === zoFilter;
+                      const hoMatch = hoFilter === 'all' || hoVal === hoFilter;
+                      return zoMatch && hoMatch;
+                    }).length} of {items.length} items
+                  </span>
+                </>
+              )}
+            </div>
+
             {/* 2. MATERIAL ENTRY / COST ESTIMATE LINE ITEMS */}
             <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden mb-8">
               <div className="overflow-x-auto">
@@ -564,7 +645,13 @@ const EstimateView = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-xs text-slate-300">
-                    {items.map((item, idx) => {
+                    {items.filter(item => {
+                        const zoVal = item.zo_office_approve || 'Pending';
+                        const hoVal = item.ho_office_approve || 'Pending';
+                        const zoMatch = zoFilter === 'all' || zoVal === zoFilter;
+                        const hoMatch = hoFilter === 'all' || hoVal === hoFilter;
+                        return zoMatch && hoMatch;
+                      }).map((item, idx) => {
                       const dec = rowDecisions[item.item_id];
                       const isRejected = dec?.approve_status === 'Not Approve';
 
@@ -658,7 +745,11 @@ const EstimateView = () => {
               </div>
               
               <div className="flex justify-between items-center p-4 bg-white/[0.02] border-t border-white/5 text-xs text-slate-400 font-mono">
-                <span>Total Items: <strong className="text-slate-200">{items.length}</strong></span>
+                <span>Total Items: <strong className="text-slate-200">{items.filter(item => {
+                  const zoVal = item.zo_office_approve || 'Pending';
+                  const hoVal = item.ho_office_approve || 'Pending';
+                  return (zoFilter === 'all' || zoVal === zoFilter) && (hoFilter === 'all' || hoVal === hoFilter);
+                }).length}</strong>{(zoFilter !== 'all' || hoFilter !== 'all') && <span className="text-slate-600 ml-1">(of {items.length})</span>}</span>
                 <span>Total Materials Cost: <strong className="text-amber-500 font-bold">{formatINR(getCategoryTotal('Materials'))}</strong></span>
               </div>
             </div>
