@@ -11,7 +11,7 @@ const TELEGRAM_API_BASE = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
  * @param {string} otp - The OTP code to send
  */
 async function sendOtp(telegramChatId, otp) {
-  const messageText = `Your SN Polymers IDBP login code is: ${otp}. Valid for 5 minutes. Do not share this code with anyone.`;
+  const messageText = `Your SN Polymers IDBP login code is: \`${otp}\`.\n\n*(Tap/Click the code above to copy it automatically)*\n\nValid for 5 minutes. Do not share this code with anyone.`;
 
   // Log OTP to terminal in non-production environments only.
   // Never log in production — OTP codes must not appear in cloud logging services.
@@ -36,7 +36,7 @@ async function sendOtp(telegramChatId, otp) {
     // encodeURIComponent is correctly applied to both telegramChatId and messageText.
     // This prevents injection if either contains special URL characters (+, &, =, etc.).
     // Verified: no raw string concatenation without encoding in this URL construction (CQ-10).
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(telegramChatId)}&text=${encodeURIComponent(messageText)}`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(telegramChatId)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -60,7 +60,7 @@ async function sendOtp(telegramChatId, otp) {
 async function sendBotMessage(chatId, text) {
   if (!TELEGRAM_BOT_TOKEN) return;
   try {
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(text)}`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(text)}&parse_mode=Markdown`;
     const response = await fetch(url);
     const data = await response.json();
     if (!data.ok) {
@@ -131,7 +131,8 @@ async function startPolling() {
           const replyText =
             `👋 Hi ${firstName}!\n\n` +
             `Your SN Polymers Chat ID is:\n\n` +
-            `🔢 ${chatId}\n\n` +
+            `🔢 \`${chatId}\`\n\n` +
+            `*(Tap/Click the number above to copy it automatically)*\n\n` +
             `Enter this number on the IDBP login screen to link your Telegram account and receive your login code.`;
 
           await sendBotMessage(chatId, replyText);

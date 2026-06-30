@@ -44,6 +44,13 @@ const OtpVerify = () => {
     }
   }, [mobileNumber, navigate]);
 
+  // Auto-focus the first OTP input box on mount
+  useEffect(() => {
+    if (inputRefs.current[0]) {
+      inputRefs.current[0].focus();
+    }
+  }, []);
+
   useEffect(() => {
     if (countdown <= 0) return;
     const timer = setInterval(() => {
@@ -60,6 +67,31 @@ const OtpVerify = () => {
     return () => clearInterval(timer);
   }, [resendTimer]);
 
+  const verifyAndSubmit = async (code) => {
+    if (loading) return;
+    setError('');
+    setSuccess('');
+    setLoading(true);
+    try {
+      const response = await authApi.post('/verify-otp', {
+        mobileNumber,
+        otp: code,
+      });
+
+      if (response.data?.success) {
+        setSuccess('Identity authorized. Initializing environment...');
+        login(response.data.user);
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1200);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Verification rejected. Check code or expiry.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleChange = (index, value) => {
     if (isNaN(value)) return;
     const newOtp = [...otp];
@@ -68,6 +100,11 @@ const OtpVerify = () => {
 
     if (value && index < 5) {
       inputRefs.current[index + 1].focus();
+    } else if (value && index === 5) {
+      const fullOtp = newOtp.join('');
+      if (fullOtp.length === 6) {
+        verifyAndSubmit(fullOtp);
+      }
     }
   };
 
@@ -84,39 +121,18 @@ const OtpVerify = () => {
       const newOtp = pastedData.split('');
       setOtp(newOtp);
       inputRefs.current[5].focus();
+      verifyAndSubmit(pastedData);
     }
   };
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
-    setError('');
-    setSuccess('');
-    
     const fullOtp = otp.join('');
     if (fullOtp.length !== 6) {
       setError('Complete 6-digit passcode required.');
       return;
     }
-
-    setLoading(true);
-    try {
-      const response = await authApi.post('/verify-otp', {
-        mobileNumber,
-        otp: fullOtp,
-      });
-
-      if (response.data?.success) {
-        setSuccess('Identity authorized. Initializing environment...');
-        login(response.data.user);
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 1200);
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Verification rejected. Check code or expiry.');
-    } finally {
-      setLoading(false);
-    }
+    verifyAndSubmit(fullOtp);
   };
 
   const handleResend = async () => {

@@ -29,32 +29,18 @@ const TelegramIcon = ({ size = 48 }) => (
 const STEPS = [
   {
     number: 1,
-    emoji: '📱',
-    label: 'Open Telegram on your phone',
+    emoji: '🤖',
+    label: 'Tap the blue "Open Telegram Bot" button below',
   },
   {
     number: 2,
-    emoji: '💬',
-    label: (
-      <>
-        Search{' '}
-        <a
-          href="https://t.me/snpolymers_bot"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: '#2AABEE' }}
-          className="font-bold underline underline-offset-2"
-        >
-          @snpolymers_bot
-        </a>{' '}
-        and send any message — the bot will instantly reply with your Chat ID
-      </>
-    ),
+    emoji: '🚀',
+    label: 'Tap "Start" (or send a message) to receive your Chat ID',
   },
   {
     number: 3,
-    emoji: '🔢',
-    label: 'Enter that Chat ID below and tap Link Account',
+    emoji: '📋',
+    label: 'Tap the Chat ID in Telegram to copy it, then paste it below',
   },
 ];
 
@@ -66,6 +52,15 @@ const TelegramSetup = () => {
   const [chatId, setChatId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const inputRef = React.useRef(null);
+
+  // Auto-focus input on mount
+  React.useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
 
   // Redirect back if no mobile number in state
   React.useEffect(() => {
@@ -151,6 +146,34 @@ const TelegramSetup = () => {
           <div className="h-[1px] w-16 bg-gradient-to-r from-transparent via-white/20 to-transparent mx-auto mt-5" />
         </div>
 
+        {/* Prominent Telegram Action Button */}
+        <div className="mb-6">
+          <a
+            href="https://t.me/snpolymers_bot?start=link"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-4 px-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-300 flex justify-center items-center gap-3 transform hover:-translate-y-0.5 hover:brightness-110 active:scale-[0.98]"
+            style={{
+              background: 'linear-gradient(135deg, #2AABEE 0%, #229ED9 100%)',
+              color: '#fff',
+              boxShadow: '0 4px 20px rgba(42,171,238,0.25)',
+              textDecoration: 'none',
+              display: 'flex'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 6px 28px rgba(42,171,238,0.45)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(42,171,238,0.25)';
+            }}
+          >
+            <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.27-.02-.11.02-1.93 1.23-5.46 3.62-.51.35-.98.53-1.4.52-.46-.01-1.35-.26-2.01-.48-.81-.27-1.46-.42-1.4-.88.03-.24.36-.49.99-.75 3.88-1.69 6.46-2.8 7.74-3.32 3.68-1.5 4.44-1.76 4.94-1.77.11 0 .36.03.52.16.14.11.18.27.2.42.02.16.01.32-.01.48z"/>
+            </svg>
+            Open Telegram Bot
+          </a>
+        </div>
+
         {/* Three Steps */}
         <div className="space-y-3 mb-7">
           {STEPS.map((step) => (
@@ -193,6 +216,7 @@ const TelegramSetup = () => {
             </label>
             <input
               id="telegram-chat-id"
+              ref={inputRef}
               type="text"
               inputMode="numeric"
               pattern="-?[0-9]*"
