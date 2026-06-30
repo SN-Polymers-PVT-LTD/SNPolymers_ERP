@@ -73,8 +73,9 @@ async function sendBotMessage(chatId, text) {
 
 /**
  * Starts a long-polling loop using Telegram getUpdates (timeout=30).
- * For every incoming message, auto-replies with the sender's Chat ID
- * so the user can enter it on the IDBP login screen.
+ * Controlled by the TELEGRAM_MODE env variable:
+ *   - 'polling'  → runs the long-poll loop (default in development)
+ *   - 'webhook'  → does nothing; Telegram delivers updates via HTTP POST instead
  *
  * This function runs indefinitely in the background — call it once on
  * server startup. It uses offset tracking to avoid processing the same
@@ -86,14 +87,12 @@ async function startPolling() {
     return;
   }
 
-  // Webhook is preferred in production. Long polling is disabled unless explicitly forced.
-  if (process.env.NODE_ENV === 'production' && process.env.DISABLE_TELEGRAM_POLLING !== 'false') {
-    console.log('[BOT] Telegram long polling disabled in production (webhook mode is active).');
-    return;
-  }
+  // Determine effective mode: default to 'webhook' in production, 'polling' in development
+  const telegramMode = process.env.TELEGRAM_MODE ||
+    (process.env.NODE_ENV === 'production' ? 'webhook' : 'polling');
 
-  if (process.env.DISABLE_TELEGRAM_POLLING === 'true') {
-    console.log('[BOT] Telegram long polling is disabled via DISABLE_TELEGRAM_POLLING env variable.');
+  if (telegramMode === 'webhook') {
+    console.log('[BOT] TELEGRAM_MODE=webhook — long polling skipped. Updates delivered via webhook.');
     return;
   }
 
@@ -126,23 +125,8 @@ async function startPolling() {
           // Advance offset so this update is not processed again
           offset = update.update_id + 1;
 
-          const message = update.message;
-          if (!message) continue;
-
-          const chatId = message.chat?.id;
-          const firstName = message.from?.first_name || 'there';
-
-          if (!chatId) continue;
-
-          const replyText =
-            `👋 Hi ${firstName}!\n\n` +
-            `Your SN Polymers Chat ID is:\n\n` +
-            `🔢 \`${chatId}\`\n\n` +
-            `*(Tap/Click the number above to copy it automatically)*\n\n` +
-            `Enter this number on the IDBP login screen to link your Telegram account and receive your login code.`;
-
-          await sendBotMessage(chatId, replyText);
-          console.log(`[BOT] Replied with Chat ID ${chatId} to ${firstName} (${message.from?.username || 'no username'})`);
+          // Call the unified update processor directly to handle start commands and contacts
+          await processWebhookUpdate(update);
         }
       }
     } catch (err) {
@@ -165,16 +149,24 @@ async function startPolling() {
 async function sendContactRequestKeyboard(chatId, firstName) {
   if (!TELEGRAM_BOT_TOKEN) return;
   try {
-    const text = `👋 Hi ${firstName}!\n\nTo securely link your IDBP account, please tap the button below to share your whitelisted phone number.`;
+    // Use a visually prominent message with arrows pointing to the keyboard button
+    const text =
+      `👋 Hi *${firstName}*! Welcome to *SN Polymers IDBP*.\n\n` +
+      `To securely link your account and receive your login code, tap the button below to share your registered phone number.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━\n` +
+      `              👇  *TAP THE BUTTON BELOW*  👇`;
+
     const replyMarkup = {
       keyboard: [[{
-        text: "📱 Share Contact to Link Account",
+        // Emoji-rich button label to catch the eye
+        text: "📲  SHARE MY NUMBER  →  Link Account",
         request_contact: true
       }]],
-      resize_keyboard: true,
+      // resize_keyboard: false renders a taller, more prominent button
+      resize_keyboard: false,
       one_time_keyboard: true
     };
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(text)}&reply_markup=${encodeURIComponent(JSON.stringify(replyMarkup))}`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(text)}&parse_mode=Markdown&reply_markup=${encodeURIComponent(JSON.stringify(replyMarkup))}`;
     const response = await fetch(url);
     const data = await response.json();
     if (!data.ok) {
@@ -234,12 +226,14 @@ async function processWebhookUpdate(update) {
       }
 
       // Link account
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('authorised_users')
         .update({ telegram_chat_id: String(chatId) })
-        .eq('mobile_number', normalizedPhone);
+        .eq('id', user.id)
+        .select();
 
       if (updateError) throw updateError;
+      console.log(`[BOT] Database update result:`, updateData);
 
       const successMsg = `✅ *Account Linked Successfully!*\n\nHello *${user.display_name || firstName}*,\n\nYour Telegram account is now securely linked to the Integrated Digital Business Platform.\n\nYou can close Telegram and return to your web browser to continue logging in.`;
       
@@ -263,13 +257,21 @@ async function processWebhookUpdate(update) {
 }
 
 /**
- * Automatically registers the webhook endpoint with Telegram.
- * Runs in production on server startup.
+ * Automatically registers the webhook endpoint with Telegram on server startup.
+ * Controlled by the TELEGRAM_MODE env variable:
+ *   - 'webhook'  → registers the webhook URL with Telegram (default in production)
+ *   - 'polling'  → skips registration; long polling is used instead
  */
 async function registerWebhook() {
-  if (process.env.NODE_ENV !== 'production') {
+  // Determine effective mode: default to 'webhook' in production, 'polling' in development
+  const telegramMode = process.env.TELEGRAM_MODE ||
+    (process.env.NODE_ENV === 'production' ? 'webhook' : 'polling');
+
+  if (telegramMode !== 'webhook') {
+    console.log('[BOT] TELEGRAM_MODE=polling — skipping webhook registration.');
     return;
   }
+
   const WEBHOOK_URL = process.env.WEBHOOK_URL;
   const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 
@@ -288,7 +290,7 @@ async function registerWebhook() {
     if (WEBHOOK_SECRET) {
       setupUrl += `&secret_token=${encodeURIComponent(WEBHOOK_SECRET)}`;
     }
-    
+
     const response = await fetch(setupUrl);
     const data = await response.json();
     if (data.ok) {

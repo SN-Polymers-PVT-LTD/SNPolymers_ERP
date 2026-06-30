@@ -35,12 +35,12 @@ const STEPS = [
   {
     number: 2,
     emoji: '🚀',
-    label: 'Tap "Start" (or send a message) to receive your Chat ID',
+    label: 'Tap the "Start" button at the bottom of the chat',
   },
   {
     number: 3,
-    emoji: '📋',
-    label: 'Tap the Chat ID in Telegram to copy it, then paste it below',
+    emoji: '📱',
+    label: 'Tap the "Share Contact" button in the bot to link automatically',
   },
 ];
 
