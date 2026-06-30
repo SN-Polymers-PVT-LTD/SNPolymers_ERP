@@ -1028,6 +1028,13 @@ const Requisitions = () => {
   const [currentTab, setCurrentTab] = useState(user?.role === 'je' ? 'all' : 'pending');
   const [actionTargetReq, setActionTargetReq] = useState(null);
 
+  // Projects Directory States
+  const [activeWO, setActiveWO] = useState(null);
+  const [dirSearchWO, setDirSearchWO] = useState('');
+  const [dirSearchDept, setDirSearchDept] = useState('');
+  const [dirSearchZone, setDirSearchZone] = useState('');
+  const [dirFilterStatus, setDirFilterStatus] = useState('');
+
   // Fetch all core datasets using React Query
   const { data: requisitionsData, isLoading: loadingRequisitions, error: requisitionsError } = useQuery({
     queryKey: ['requisitions'],
@@ -1066,6 +1073,35 @@ const Requisitions = () => {
   const estimates = estimatesData || [];
   const mainHeads = categoriesData || [];
   const loading = loadingRequisitions;
+
+  // Filter projects list for the directory tab
+  const getFilteredProjects = () => {
+    let list = [...projects];
+
+    const wo = dirSearchWO.toLowerCase().trim();
+    if (wo) {
+      list = list.filter(p => p.work_order_no?.toLowerCase().includes(wo));
+    }
+
+    const dept = dirSearchDept.toLowerCase().trim();
+    if (dept) {
+      list = list.filter(p => p.department?.toLowerCase().includes(dept));
+    }
+
+    const zone = dirSearchZone.toLowerCase().trim();
+    if (zone) {
+      list = list.filter(p => p.area_code?.toLowerCase().includes(zone) || p.zone?.toLowerCase().includes(zone));
+    }
+
+    const status = dirFilterStatus;
+    if (status) {
+      list = list.filter(p => p.status === status);
+    }
+
+    return list;
+  };
+
+  const filteredProjects = getFilteredProjects();
 
   const displayError = error || requisitionsError?.response?.data?.message || requisitionsError?.message || '';
 
@@ -1214,148 +1250,424 @@ const Requisitions = () => {
           </div>
         )}
 
-        {/* Search Bar, Tabs & Refresh */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
-          {['zo', 'ho', 'admin'].includes(user?.role) ? (
-            <div className="flex items-center gap-1 glass-panel p-1 rounded-xl border border-white/5">
-              {[
-                { id: 'pending', label: 'Pending Queue' },
-                { id: 'all', label: 'All Requisitions' }
-              ].map((t) => (
+        {/* Active Project specific ledger or Main dashboard views */}
+        {activeWO ? (
+          <div className="space-y-6 animate-fadeIn text-left">
+            {/* Header / Back button */}
+            <div className="flex justify-between items-center">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setActiveWO(null)}
+              >
+                &larr; Back to Projects Directory
+              </Button>
+              <Badge variant={activeWO.status === 'Running' ? 'emerald' : activeWO.status === 'Closed' ? 'red' : 'amber'}>
+                Status: {activeWO.status}
+              </Badge>
+            </div>
+
+            {/* Project Metadata Snapshots */}
+            <div className="glass-panel p-5 rounded-3xl border border-white/5 space-y-4">
+              <span className="text-[9px] uppercase font-black tracking-widest text-amber-500 font-mono block">Project Snapshot Metadata</span>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Input label="State / District" disabled value={`${activeWO.state} / ${activeWO.district}`} size="sm" />
+                <Input label="Area Code (Zone)" disabled value={activeWO.area_code || 'N/A'} size="sm" />
+                <Input label="Department" disabled value={activeWO.department} size="sm" />
+                <Input label="Work Order No." disabled value={activeWO.work_order_no} size="sm" className="font-mono" />
+              </div>
+              <TextArea
+                label="Site Details"
+                disabled
+                value={activeWO.site_details}
+                rows={2}
+                size="sm"
+              />
+            </div>
+
+            {/* Requisitions for this WO */}
+            <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5 bg-gradient-to-br from-white/[0.01] to-transparent">
+              <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Requisitions Ledger for {activeWO.work_order_no}</span>
+                <span className="text-[10px] font-mono font-bold text-amber-500">
+                  Total: {requisitions.filter(r => r.work_order_no === activeWO.work_order_no).length} records
+                </span>
+              </div>
+              
+              {requisitions.filter(r => r.work_order_no === activeWO.work_order_no).length === 0 ? (
+                <div className="text-center p-20 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
+                  No requisitions submitted for this work order yet.
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      {['Requisition No.', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                        <TableCell key={h} isHeader={true}>
+                          {h}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {requisitions.filter(r => r.work_order_no === activeWO.work_order_no).map((req) => {
+                      const isPending = req.requisition_status === 'Pending';
+                      const isOwner = req.requester_user_id === user?.mobile_number;
+                      const isAdmin = user?.role === 'admin';
+                      const canCancel = isPending && (isOwner || isAdmin);
+                      return (
+                        <TableRow key={req.requisition_id}>
+                          <TableCell className="font-mono font-semibold text-slate-100">
+                            {req.requisition_no}
+                          </TableCell>
+                          <TableCell className="text-slate-300 font-semibold">
+                            {req.material_main_head}
+                          </TableCell>
+                          <TableCell className="font-mono font-bold text-amber-500">
+                            {formatCurrency(req.requisition_amount)}
+                          </TableCell>
+                          <TableCell>
+                            <StatusBadge status={req.requisition_status} />
+                          </TableCell>
+                          <TableCell className="text-[11px] text-slate-500">
+                            {formatDate(req.created_at)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                              <Button
+                                variant="glass"
+                                size="xs"
+                                onClick={() => setActiveReqId(req.requisition_id)}
+                              >
+                                View Details
+                              </Button>
+                              {isPending && ['zo', 'ho', 'admin'].includes(user?.role) && (
+                                <Button
+                                  variant="glass"
+                                  size="xs"
+                                  className="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20"
+                                  onClick={() => setActionTargetReq(req)}
+                                >
+                                  Take Action
+                                </Button>
+                              )}
+                              {canCancel && (
+                                <Button
+                                  variant="danger"
+                                  size="xs"
+                                  onClick={() => setCancelTarget({ id: req.requisition_id, no: req.requisition_no })}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+
+              {/* Aggregated ledger summary metrics for this WO */}
+              <div className="p-4 border-t border-white/5 bg-amber-950/5 border-l border-r border-b rounded-b-3xl">
+                <span className="text-[9px] uppercase font-black tracking-widest text-amber-400 font-mono">Ledger Aggregated Summary Metrics</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2 text-center">
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Requested</p>
+                    <p className="text-xs font-mono font-extrabold text-slate-100 mt-2">
+                      {formatCurrency(
+                        requisitions
+                          .filter(r => r.work_order_no === activeWO.work_order_no && r.requisition_status !== 'Cancelled')
+                          .reduce((sum, r) => sum + Number(r.requisition_amount), 0)
+                      )}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Pending Approval</p>
+                    <p className="text-xs font-mono font-extrabold text-amber-500 mt-2">
+                      {formatCurrency(
+                        requisitions
+                          .filter(r => r.work_order_no === activeWO.work_order_no && r.requisition_status === 'Pending')
+                          .reduce((sum, r) => sum + Number(r.requisition_amount), 0)
+                      )}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Approved Value</p>
+                    <p className="text-xs font-mono font-extrabold text-emerald-400 mt-2">
+                      {formatCurrency(
+                        requisitions
+                          .filter(r => r.work_order_no === activeWO.work_order_no && r.requisition_status === 'Approved')
+                          .reduce((sum, r) => sum + Number(r.approved_amount ?? r.requisition_amount), 0)
+                      )}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-2xl bg-black/40 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Hold / Cancelled</p>
+                    <p className="text-xs font-mono font-extrabold text-red-400 mt-2">
+                      {formatCurrency(
+                        requisitions
+                          .filter(r => r.work_order_no === activeWO.work_order_no && ['Hold', 'Cancelled'].includes(r.requisition_status))
+                          .reduce((sum, r) => sum + Number(r.requisition_amount), 0)
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6 animate-fadeIn">
+            {/* Search Bar, Tabs & Refresh */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-5">
+              <div className="flex items-center gap-1 glass-panel p-1 rounded-xl border border-white/5">
+                {['zo', 'ho', 'admin'].includes(user?.role) && (
+                  <button
+                    onClick={() => setCurrentTab('pending')}
+                    className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                      currentTab === 'pending'
+                        ? 'bg-white/10 text-slate-100 border border-white/10'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Pending Queue ({requisitions.filter(r => r.requisition_status === 'Pending').length})
+                  </button>
+                )}
                 <button
-                  key={t.id}
-                  onClick={() => setCurrentTab(t.id)}
+                  onClick={() => setCurrentTab('all')}
                   className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
-                    currentTab === t.id
+                    currentTab === 'all'
                       ? 'bg-white/10 text-slate-100 border border-white/10'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {t.label} ({t.id === 'pending' ? requisitions.filter(r => r.requisition_status === 'Pending').length : requisitions.length})
+                  All Requisitions ({requisitions.length})
                 </button>
-              ))}
-            </div>
-          ) : (
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Requisitions List</span>
-          )}
-          <div className="flex items-center gap-3">
-            <Input
-              type="text"
-              placeholder="Search requisitions…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              size="sm"
-              iconLeft={
-                <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              }
-              containerClassName="w-48 sm:w-60"
-            />
-            <Button
-              variant="glass"
-              size="sm"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['requisitions'] })}
-              title="Refresh"
-              icon={
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              }
-            />
-          </div>
-        </div>
+                <button
+                  onClick={() => setCurrentTab('directory')}
+                  className={`px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${
+                    currentTab === 'directory'
+                      ? 'bg-white/10 text-slate-100 border border-white/10'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  Projects Directory ({projects.length})
+                </button>
+              </div>
 
-        {/* Requisitions List Table */}
-        <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
-          {loading ? (
-            <div className="flex items-center justify-center p-24">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
+              {currentTab !== 'directory' && (
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="text"
+                    placeholder="Search requisitions…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    size="sm"
+                    iconLeft={
+                      <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    }
+                    containerClassName="w-48 sm:w-60"
+                  />
+                  <Button
+                    variant="glass"
+                    size="sm"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ['requisitions'] })}
+                    title="Refresh"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    }
+                  />
+                </div>
+              )}
             </div>
-          ) : filteredRequisitions.length === 0 ? (
-            <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
-              No requisitions matching parameters.
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow hover={false}>
-                  {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
-                    <TableCell key={h} isHeader={true}>
-                      {h}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredRequisitions.map((req) => {
-                  const isPending = req.requisition_status === 'Pending';
-                  const isOwner = req.requester_user_id === user?.mobile_number;
-                  const isAdmin = user?.role === 'admin';
-                  const canCancel = isPending && (isOwner || isAdmin);
-                  return (
-                    <TableRow key={req.requisition_id}>
-                      <TableCell className="font-mono font-semibold text-slate-100">
-                        {req.requisition_no}
-                      </TableCell>
-                      <TableCell className="font-mono text-slate-400">
-                        {req.work_order_no}
-                      </TableCell>
-                      <TableCell className="text-slate-300 font-semibold">
-                        {req.material_main_head}
-                      </TableCell>
-                      <TableCell className="font-mono font-bold text-amber-500">
-                        {formatCurrency(req.requisition_amount)}
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={req.requisition_status} />
-                      </TableCell>
-                      <TableCell className="text-[11px] text-slate-500">
-                        {formatDate(req.created_at)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-                          {/* View details */}
-                          <Button
-                            variant="glass"
-                            size="xs"
-                            onClick={() => setActiveReqId(req.requisition_id)}
-                          >
-                            View Details
-                          </Button>
 
-                          {/* Take Action Button (ZO/HO/Admin for Pending rows only) */}
-                          {isPending && ['zo', 'ho', 'admin'].includes(user?.role) && (
-                            <Button
-                              variant="glass"
-                              size="xs"
-                              className="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20"
-                              onClick={() => setActionTargetReq(req)}
-                            >
-                              Take Action
-                            </Button>
-                          )}
+            {currentTab === 'directory' ? (
+              <div className="space-y-6 animate-fadeIn">
+                {/* Search filters */}
+                <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 text-left">
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Filter Work Orders Directory</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                    <Input
+                      type="text"
+                      value={dirSearchWO}
+                      onChange={(e) => setDirSearchWO(e.target.value)}
+                      placeholder="Search Work Order..."
+                      size="sm"
+                      label="Work Order No"
+                    />
+                    <Input
+                      type="text"
+                      value={dirSearchDept}
+                      onChange={(e) => setDirSearchDept(e.target.value)}
+                      placeholder="Filter by Department..."
+                      size="sm"
+                      label="Department"
+                    />
+                    <Input
+                      type="text"
+                      value={dirSearchZone}
+                      onChange={(e) => setDirSearchZone(e.target.value)}
+                      placeholder="Filter by Zone/Area..."
+                      size="sm"
+                      label="Zone / Area"
+                    />
+                    <Select
+                      value={dirFilterStatus}
+                      onChange={(e) => setDirFilterStatus(e.target.value)}
+                      size="sm"
+                      label="Project Status"
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="Running">Running</option>
+                      <option value="Closed">Closed</option>
+                      <option value="Complete Under Maintenance">Complete Under Maintenance</option>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Grid layout list */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredProjects.length === 0 ? (
+                    <div className="col-span-full p-10 text-center text-slate-500 font-medium italic glass-panel rounded-3xl">
+                      No projects matched directory filters.
+                    </div>
+                  ) : (
+                    filteredProjects.map((proj) => (
+                      <div
+                        key={proj.work_order_no}
+                        onClick={() => setActiveWO(proj)}
+                        className="glass-panel glass-card-hover p-6 rounded-3xl border border-white/5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[200px] text-left font-sans text-slate-100"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start mb-3">
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500 font-mono truncate max-w-[200px]" title={proj.department}>
+                              {proj.department}
+                            </span>
+                            <Badge variant={proj.status === 'Running' ? 'emerald' : proj.status === 'Closed' ? 'red' : 'amber'} showDot={false}>
+                              {proj.status}
+                            </Badge>
+                          </div>
                           
-                          {/* Cancel Button */}
-                          {canCancel && (
-                            <Button
-                              variant="danger"
-                              size="xs"
-                              onClick={() => setCancelTarget({ id: req.requisition_id, no: req.requisition_no })}
-                            >
-                              Cancel
-                            </Button>
-                          )}
+                          <h3 className="text-sm font-extrabold text-slate-200 font-mono" title={proj.work_order_no}>
+                            {proj.work_order_no}
+                          </h3>
+                          <p className="text-xs text-slate-400 mt-2 truncate-2-lines min-h-[32px]">
+                            {proj.site_details}
+                          </p>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </div>
 
+                        <div className="border-t border-white/5 pt-4 mt-4 flex items-center justify-between">
+                          <div className="flex flex-col">
+                            <span className="text-[8px] uppercase tracking-widest text-slate-500">Geography</span>
+                            <span className="text-xs text-slate-300 font-semibold mt-0.5">{proj.state} / {proj.district}</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-500 uppercase tracking-widest group-hover:translate-x-1 transition duration-200">
+                            Open Requisitions &rarr;
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Requisitions List Table */
+              <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
+                {loading ? (
+                  <div className="flex items-center justify-center p-24">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
+                  </div>
+                ) : filteredRequisitions.length === 0 ? (
+                  <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
+                    No requisitions matching parameters.
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow hover={false}>
+                        {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                          <TableCell key={h} isHeader={true}>
+                            {h}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRequisitions.map((req) => {
+                        const isPending = req.requisition_status === 'Pending';
+                        const isOwner = req.requester_user_id === user?.mobile_number;
+                        const isAdmin = user?.role === 'admin';
+                        const canCancel = isPending && (isOwner || isAdmin);
+                        return (
+                          <TableRow key={req.requisition_id}>
+                            <TableCell className="font-mono font-semibold text-slate-100">
+                              {req.requisition_no}
+                            </TableCell>
+                            <TableCell className="font-mono text-slate-400">
+                              {req.work_order_no}
+                            </TableCell>
+                            <TableCell className="text-slate-300 font-semibold">
+                              {req.material_main_head}
+                            </TableCell>
+                            <TableCell className="font-mono font-bold text-amber-500">
+                              {formatCurrency(req.requisition_amount)}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={req.requisition_status} />
+                            </TableCell>
+                            <TableCell className="text-[11px] text-slate-500">
+                              {formatDate(req.created_at)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                                {/* View details */}
+                                <Button
+                                  variant="glass"
+                                  size="xs"
+                                  onClick={() => setActiveReqId(req.requisition_id)}
+                                >
+                                  View Details
+                                </Button>
+
+                                {/* Take Action Button (ZO/HO/Admin for Pending rows only) */}
+                                {isPending && ['zo', 'ho', 'admin'].includes(user?.role) && (
+                                  <Button
+                                    variant="glass"
+                                    size="xs"
+                                    className="text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/20"
+                                    onClick={() => setActionTargetReq(req)}
+                                  >
+                                    Take Action
+                                  </Button>
+                                )}
+                                
+                                {/* Cancel Button */}
+                                {canCancel && (
+                                  <Button
+                                    variant="danger"
+                                    size="xs"
+                                    onClick={() => setCancelTarget({ id: req.requisition_id, no: req.requisition_no })}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Creation Modal */}
