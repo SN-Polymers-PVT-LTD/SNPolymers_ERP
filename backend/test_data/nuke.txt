@@ -1,0 +1,17 @@
+-- 1. Nuke all database tables
+TRUNCATE TABLE 
+  requisitions,
+  ra_final_bills,
+  daily_progress_reports,
+  project_cost_estimate_items, 
+  project_cost_estimates, 
+  estimate_revision_log, 
+  fund_requests, 
+  fund_reports, 
+  audit_log,
+  purchase_data,
+  material_master,
+  projects_master
+CASCADE;
+
+-- This is FOR DEVELOPEMENT DB ONLY . DO NOT USE THIS IN PROD L NOOBS 

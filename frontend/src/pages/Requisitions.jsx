@@ -1076,11 +1076,26 @@ const Requisitions = () => {
 
   // Filter projects list for the directory tab
   const getFilteredProjects = () => {
-    let list = [...projects];
+    // 1. Map and link approved estimate to each project
+    let list = projects.map(p => {
+      const approvedEst = estimates.find(e => e.work_order_no === p.work_order_no && e.estimate_status === 'Final Approved');
+      return {
+        ...p,
+        approvedEst
+      };
+    });
 
+    // 2. Only show projects with a 'Final Approved' estimate
+    list = list.filter(p => p.approvedEst);
+
+    // 3. Apply search filters
     const wo = dirSearchWO.toLowerCase().trim();
     if (wo) {
-      list = list.filter(p => p.work_order_no?.toLowerCase().includes(wo));
+      list = list.filter(
+        p =>
+          p.work_order_no?.toLowerCase().includes(wo) ||
+          p.approvedEst.estimate_no?.toLowerCase().includes(wo)
+      );
     }
 
     const dept = dirSearchDept.toLowerCase().trim();
@@ -1490,15 +1505,15 @@ const Requisitions = () => {
               <div className="space-y-6 animate-fadeIn">
                 {/* Search filters */}
                 <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col gap-4 text-left">
-                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Filter Work Orders Directory</span>
+                  <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Filter Projects Directory</span>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <Input
                       type="text"
                       value={dirSearchWO}
                       onChange={(e) => setDirSearchWO(e.target.value)}
-                      placeholder="Search Work Order..."
+                      placeholder="Search Estimate or WO..."
                       size="sm"
-                      label="Work Order No"
+                      label="Estimate / Work Order No"
                     />
                     <Input
                       type="text"
@@ -1553,9 +1568,12 @@ const Requisitions = () => {
                             </Badge>
                           </div>
                           
-                          <h3 className="text-sm font-extrabold text-slate-200 font-mono" title={proj.work_order_no}>
-                            {proj.work_order_no}
+                          <h3 className="text-sm font-extrabold text-slate-200 font-mono" title={proj.approvedEst?.estimate_no}>
+                            {proj.approvedEst?.estimate_no || 'No Approved Estimate'}
                           </h3>
+                          <p className="text-[10px] text-slate-400 font-mono mt-1">
+                            WO: {proj.work_order_no}
+                          </p>
                           <p className="text-xs text-slate-400 mt-2 truncate-2-lines min-h-[32px]">
                             {proj.site_details}
                           </p>
