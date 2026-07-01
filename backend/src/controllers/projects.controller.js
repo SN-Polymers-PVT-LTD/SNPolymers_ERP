@@ -96,7 +96,12 @@ async function createProject(req, res) {
     district,
     zone,
     department,
-    status
+    status,
+    earnest_money_deposit,
+    site_latitude,
+    site_longitude,
+    project_start_date,
+    project_end_date
   } = req.body;
 
   const valNum = work_order_value;
@@ -116,6 +121,11 @@ async function createProject(req, res) {
           zone,
           department,
           status: projectStatus,
+          earnest_money_deposit: Number(earnest_money_deposit || 0),
+          site_latitude: site_latitude !== undefined && site_latitude !== '' ? Number(site_latitude) : null,
+          site_longitude: site_longitude !== undefined && site_longitude !== '' ? Number(site_longitude) : null,
+          project_start_date: project_start_date || null,
+          project_end_date: project_end_date || null,
           created_by: req.user.mobile_number,
           edited_by: req.user.mobile_number
         }
@@ -155,7 +165,20 @@ async function updateProject(req, res) {
   if (!validate(req, res, updateProjectSchema)) return;
 
   const { work_order_no } = req.params;
-  const { estimate_no, work_order_value, site_details, state, district, zone, department } = req.body;
+  const {
+    estimate_no,
+    work_order_value,
+    site_details,
+    state,
+    district,
+    zone,
+    department,
+    earnest_money_deposit,
+    site_latitude,
+    site_longitude,
+    project_start_date,
+    project_end_date
+  } = req.body;
 
   const valNum = work_order_value;
 
@@ -183,6 +206,11 @@ async function updateProject(req, res) {
         district,
         zone,
         department,
+        earnest_money_deposit: earnest_money_deposit !== undefined ? Number(earnest_money_deposit || 0) : undefined,
+        site_latitude: site_latitude !== undefined ? (site_latitude === '' || site_latitude === null ? null : Number(site_latitude)) : undefined,
+        site_longitude: site_longitude !== undefined ? (site_longitude === '' || site_longitude === null ? null : Number(site_longitude)) : undefined,
+        project_start_date: project_start_date !== undefined ? (project_start_date || null) : undefined,
+        project_end_date: project_end_date !== undefined ? (project_end_date || null) : undefined,
         edited_by: req.user.mobile_number
       })
       .eq('work_order_no', work_order_no)

@@ -30,8 +30,8 @@ const createBillSchema = {
       .refine(val => !isNaN(val) && val > 0 && isFinite(val),
         'bill_amount_with_gst must be a positive number greater than zero.'),
 
-    earnest_money_deposit: z.union([z.number(), z.string()])
-      .transform(val => Number(val))
+    earnest_money_deposit: z.union([z.number(), z.string(), z.null()])
+      .transform(val => val === null || val === '' ? 0 : Number(val))
       .refine(val => !isNaN(val) && val >= 0 && isFinite(val),
         'earnest_money_deposit must be zero or a positive number.')
       .optional()

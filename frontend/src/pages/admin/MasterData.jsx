@@ -22,6 +22,11 @@ const EMPTY_FORM = {
   zone: '',
   department: '',
   status: 'Running',
+  earnest_money_deposit: '',
+  site_latitude: '',
+  site_longitude: '',
+  project_start_date: '',
+  project_end_date: '',
 };
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -86,11 +91,16 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
     { name: 'work_order_no', label: 'Work Order No.', placeholder: 'e.g. WB_APD_101', disabled: isEdit },
     { name: 'estimate_no', label: 'Estimate No.', placeholder: 'e.g. APD_1' },
     { name: 'work_order_value', label: 'Work Order Value', placeholder: 'e.g. 2500000', type: 'number', min: '0', step: '0.01' },
-    { name: 'site_details', label: 'Site Details', placeholder: 'Site location / description' },
+    { name: 'earnest_money_deposit', label: 'Earnest Money Deposit (EMD)', placeholder: 'e.g. 50000', type: 'number', min: '0', step: '0.01' },
     { name: 'state', label: 'State', placeholder: 'e.g. West Bengal' },
     { name: 'district', label: 'District', placeholder: 'e.g. Bankura' },
     { name: 'zone', label: 'Zone', placeholder: 'e.g. North' },
     { name: 'department', label: 'Department', placeholder: 'e.g. PWD' },
+    { name: 'site_latitude', label: 'Site Latitude', placeholder: 'e.g. 22.5726', type: 'number', step: '0.0000001' },
+    { name: 'site_longitude', label: 'Site Longitude', placeholder: 'e.g. 88.3639', type: 'number', step: '0.0000001' },
+    { name: 'project_start_date', label: 'Project Start Date', type: 'date' },
+    { name: 'project_end_date', label: 'Project End Date', type: 'date' },
+    { name: 'site_details', label: 'Site Details', placeholder: 'Site location / description' },
   ];
 
   return (
@@ -489,7 +499,7 @@ const MasterData = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-500">
-                    {['Work Order No.', 'Estimate No.', 'Work Order Value', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Actions'].map((h) => (
+                    {['Work Order No.', 'Estimate No.', 'Work Order Value', 'EMD Amount', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Info', 'Actions'].map((h) => (
                       <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -508,6 +518,9 @@ const MasterData = () => {
                       </td>
                       <td className="py-4 px-5 font-semibold text-amber-500 whitespace-nowrap">
                         {formatCurrency(project.work_order_value)}
+                      </td>
+                      <td className="py-4 px-5 font-mono text-indigo-400 whitespace-nowrap">
+                        {formatCurrency(project.earnest_money_deposit || 0)}
                       </td>
                       <td className="py-4 px-5 max-w-[180px] text-slate-400">
                         <span className="block truncate" title={project.site_details}>
@@ -528,6 +541,15 @@ const MasterData = () => {
                       </td>
                       <td className="py-4 px-5 whitespace-nowrap">
                         <StatusBadge status={project.status} />
+                      </td>
+                      <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                        {(project.site_latitude || project.site_longitude || project.project_start_date || project.project_end_date) ? (
+                          <span className="cursor-help underline decoration-dotted decoration-indigo-400 hover:text-indigo-300" title={`Lat: ${project.site_latitude || '—'} | Lon: ${project.site_longitude || '—'}\nStart: ${project.project_start_date || '—'} | End: ${project.project_end_date || '—'}`}>
+                            Hover Details
+                          </span>
+                        ) : (
+                          <span className="text-slate-600 italic">none</span>
+                        )}
                       </td>
                       <td className="py-4 px-5 whitespace-nowrap">
                         <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">

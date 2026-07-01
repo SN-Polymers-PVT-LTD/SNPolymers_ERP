@@ -22,13 +22,19 @@ async function testMilestoneP6M1() {
     }
     mobile = users[0].mobile_number;
 
-    const { data: projects, error: projectError } = await supabase.from('projects_master').select('work_order_no, state, district, zone, department, site_details').limit(1);
+    // Find a valid user and project (work order) that has no entries in ra_final_bills to avoid unique constraint issues
+    const { data: bills, error: billsErr } = await supabase.from('ra_final_bills').select('work_order_no');
+    const existingWOs = new Set((bills || []).map(b => b.work_order_no));
+
+    const { data: projects, error: projectError } = await supabase.from('projects_master').select('work_order_no, state, district, zone, department, site_details');
     if (projectError || !projects || !projects.length) {
       console.log('  [FAIL] Failed to find a project:', projectError);
       fails++;
       process.exit(1);
     }
-    project = projects[0];
+    
+    // Select a project that doesn't have any bills yet
+    project = projects.find(p => !existingWOs.has(p.work_order_no)) || projects[0];
 
     // Clean up any old test bills for this work order to avoid unique constraint issues
     const { error: cleanupError } = await supabase

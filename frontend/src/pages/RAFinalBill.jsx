@@ -90,7 +90,8 @@ const RAFinalBill = () => {
     district: 'Auto',
     area_code: 'Auto',
     department: 'Auto',
-    site_details: 'Auto'
+    site_details: 'Auto',
+    earnest_money_deposit: 0
   });
 
   // Summary options specifically for the active form instance
@@ -220,7 +221,8 @@ const RAFinalBill = () => {
         district: 'Auto',
         area_code: 'Auto',
         department: 'Auto',
-        site_details: 'Auto'
+        site_details: 'Auto',
+        earnest_money_deposit: 0
       });
       setFormSummaryData({
         work_order_value: 0,
@@ -236,7 +238,8 @@ const RAFinalBill = () => {
       district: 'Loading...',
       area_code: 'Loading...',
       department: 'Loading...',
-      site_details: 'Loading...'
+      site_details: 'Loading...',
+      earnest_money_deposit: 0
     });
 
     try {
@@ -248,7 +251,8 @@ const RAFinalBill = () => {
           district: proj.district,
           area_code: proj.zone || 'N/A',
           department: proj.department,
-          site_details: proj.site_details
+          site_details: proj.site_details,
+          earnest_money_deposit: proj.earnest_money_deposit || 0
         });
       }
 
@@ -260,6 +264,12 @@ const RAFinalBill = () => {
           previous_bill_amount: summaryRes.data.previous_bill_amount,
           dropdown_options: summaryRes.data.dropdown_options
         });
+        
+        // Also ensure formProjectDetails has EMD from live summary if not in local proj object
+        setFormProjectDetails(prev => ({
+          ...prev,
+          earnest_money_deposit: summaryRes.data.earnest_money_deposit || 0
+        }));
       }
     } catch (err) {
       console.error('Error fetching work order metadata:', err);
@@ -305,6 +315,7 @@ const RAFinalBill = () => {
   };
 
   // Form Reset
+  const [_, forceUpdate] = useState(0); // Dummy for triggers
   const handleReset = () => {
     const currentWO = formState.work_order_no;
     setFormState({
@@ -332,6 +343,10 @@ const RAFinalBill = () => {
             previous_bill_amount: res.data.previous_bill_amount,
             dropdown_options: res.data.dropdown_options
           });
+          setFormProjectDetails(prev => ({
+            ...prev,
+            earnest_money_deposit: res.data.earnest_money_deposit || 0
+          }));
         }
       });
     }
@@ -357,7 +372,8 @@ const RAFinalBill = () => {
       district: 'Auto',
       area_code: 'Auto',
       department: 'Auto',
-      site_details: 'Auto'
+      site_details: 'Auto',
+      earnest_money_deposit: 0
     });
     setFormSummaryData({
       work_order_value: 0,
@@ -1052,6 +1068,13 @@ const RAFinalBill = () => {
                 <Input label="District" disabled value={formProjectDetails.district} size="sm" />
                 <Input label="Area Code" disabled value={formProjectDetails.area_code} size="sm" />
                 <Input label="Department" disabled value={formProjectDetails.department} size="sm" />
+                <Input
+                  label="Earnest Money Deposit (from WO)"
+                  disabled
+                  value={formatCurrency(formProjectDetails.earnest_money_deposit)}
+                  size="sm"
+                  className="font-mono font-bold text-slate-400"
+                />
               </div>
 
               <TextArea
@@ -1124,18 +1147,6 @@ const RAFinalBill = () => {
                   size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono font-bold"
-                />
-                <Input
-                  label="Earnest Money Deposit"
-                  type="number"
-                  placeholder="Enter Amount"
-                  step="0.01"
-                  value={formState.earnest_money_deposit}
-                  onChange={(e) => setFormState(prev => ({ ...prev, earnest_money_deposit: e.target.value }))}
-                  disabled={submitting}
-                  size="sm"
-                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
-                  className="font-mono"
                 />
                 <Input
                   label="Security Deposit Amount"
