@@ -19,8 +19,8 @@ const router = express.Router();
 
 router.use(verifyJwt);
 
-const readerRoles = ['zo', 'staff', 'ho', 'admin'];
-const zoRoles = ['zo', 'staff', 'admin'];
+const readerRoles = ['zo', 'ho', 'admin'];
+const zoRoles = ['zo', 'admin'];
 const hoRoles = ['ho', 'admin'];
 
 // Read endpoints

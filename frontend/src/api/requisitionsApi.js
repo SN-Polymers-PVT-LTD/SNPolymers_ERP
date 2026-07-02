@@ -53,3 +53,15 @@ export const uploadGstBillPdf = (file, requisitionNo) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
 };
+
+/** Delete Requisition PDF
+ * @param {string} requisitionNo
+ */
+export const deleteRequisitionPdf = (requisitionNo) =>
+  authApi.delete('/requisitions/upload/requisition-pdf', { params: { requisition_no: requisitionNo } });
+
+/** Delete GST Bill PDF
+ * @param {string} requisitionNo
+ */
+export const deleteGstBillPdf = (requisitionNo) =>
+  authApi.delete('/requisitions/upload/gst-bill', { params: { requisition_no: requisitionNo } });

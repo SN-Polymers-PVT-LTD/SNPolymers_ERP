@@ -9,9 +9,8 @@ const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-
 const VALID_STATUSES = ['Pending', 'Approved', 'Hold', 'Cancelled'];
 const VALID_TRANSFER_ACCOUNTS = ['CC', 'OD', 'CR'];
 
-// Role normalization (staff treated as zo for fund request purposes)
 function getEffectiveFrRole(role) {
-  return role === 'staff' ? 'zo' : role;
+  return role;
 }
 
 // Display name helper

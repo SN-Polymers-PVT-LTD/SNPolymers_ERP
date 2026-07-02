@@ -32,8 +32,8 @@ router.get('/init', getEstimateInitData);
 router.get('/:id', getEstimateById);
 router.get('/:id/revisions', getRevisionLog);
 
-// Write endpoints for JE / Staff / Admin
-const jeRoles = ['je', 'staff', 'admin'];
+// Write endpoints for JE / Admin
+const jeRoles = ['je', 'admin'];
 router.post('/', requireRole(jeRoles), validateRequest(createEstimateSchema), createEstimate);
 router.put('/:id/items', requireRole(jeRoles), validateRequest(saveDraftItemsSchema), saveDraftItems);
 router.post('/:id/submit', requireRole(jeRoles), submitEstimate);

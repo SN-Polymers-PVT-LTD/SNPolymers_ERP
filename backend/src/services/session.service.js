@@ -17,7 +17,7 @@ function generateTokens(user, sessionId, refreshJti) {
   const accessTokenPayload = {
     user_id: user.id,
     mobile_number: user.mobile_number,
-    role: user.role || 'staff',
+    role: user.role || 'je',
     permissions: user.permissions || {},
     session_id: sessionId
   };

@@ -39,7 +39,7 @@ async function runSecurityDefinerTests() {
       { mobile_number: mobileZO, display_name: 'ZO User', role: 'zo', is_active: true },
       { mobile_number: mobileHO, display_name: 'HO User', role: 'ho', is_active: true },
       { mobile_number: mobileAdmin, display_name: 'Admin User', role: 'admin', is_active: true },
-      { mobile_number: mobileStaff, display_name: 'Staff User', role: 'staff', is_active: true }
+      { mobile_number: mobileStaff, display_name: 'Staff User', role: 'je', is_active: true }
     ]);
 
     // Create unique work orders to prevent collisions
@@ -152,7 +152,7 @@ async function runSecurityDefinerTests() {
     });
 
     if (errorS3 && errorS3.message.includes('User does not have ZO or Admin role')) {
-      console.log('  [PASS] S3: RPC rejected Staff from spoofing Admin/ZO roles.');
+      console.log('  [PASS] S3: RPC rejected unauthorized JE from spoofing Admin/ZO roles.');
       passes++;
     } else {
       console.log(`  [FAIL] S3: Spoofing not blocked. Error:`, errorS3);
@@ -235,7 +235,7 @@ async function runSecurityDefinerTests() {
     // S7 — User Role Downgraded Mid Session
     // -------------------------------------------------------------------------
     console.log('S7 — User Role Downgraded Mid Session...');
-    await supabase.from('authorised_users').update({ role: 'staff' }).eq('mobile_number', mobileZO);
+    await supabase.from('authorised_users').update({ role: 'je' }).eq('mobile_number', mobileZO);
 
     const resS7 = mockRes();
     await submitRowApprovals({
@@ -262,7 +262,7 @@ async function runSecurityDefinerTests() {
     const resS8 = mockRes();
     await submitRowApprovals({
       params: { id: estId },
-      user: { mobile_number: mobileStaff, role: 'staff' },
+      user: { mobile_number: mobileStaff, role: 'je' },
       body: { approvals: [{ item_id: itemIdValid, approve_status: 'Approve' }] }
     }, resS8);
 

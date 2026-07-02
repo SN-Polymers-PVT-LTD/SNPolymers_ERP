@@ -21,14 +21,14 @@ const AdminPanel = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMobile, setNewMobile] = useState('');
   const [newName, setNewName] = useState('');
-  const [newRole, setNewRole] = useState('staff');
+  const [newRole, setNewRole] = useState('je');
   const [submitting, setSubmitting] = useState(false);
 
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [editName, setEditName] = useState('');
-  const [editRole, setEditRole] = useState('staff');
+  const [editRole, setEditRole] = useState('je');
   const [editActive, setEditActive] = useState(true);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [clearingTelegram, setClearingTelegram] = useState(false);
@@ -76,7 +76,7 @@ const AdminPanel = () => {
         setShowAddModal(false);
         setNewMobile('');
         setNewName('');
-        setNewRole('staff');
+        setNewRole('je');
         fetchUsers();
       }
     } catch (err) {
@@ -89,7 +89,7 @@ const AdminPanel = () => {
   const openEditModal = (user) => {
     setEditingUser(user);
     setEditName(user.display_name || '');
-    setEditRole(user.role || 'staff');
+    setEditRole(user.role || 'je');
     setEditActive(user.is_active);
     setError('');
     setSuccess('');
@@ -381,7 +381,6 @@ const AdminPanel = () => {
                     className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
                     disabled={submitting}
                   >
-                    <option value="staff" className="bg-slate-900 text-slate-100">Staff Operator (Standard Access)</option>
                     <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                     <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                     <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
@@ -482,7 +481,6 @@ const AdminPanel = () => {
                     className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
                     disabled={editSubmitting}
                   >
-                    <option value="staff" className="bg-slate-900 text-slate-100">Staff Operator (Standard Access)</option>
                     <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                     <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                     <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>

@@ -37,7 +37,7 @@ async function addUser(req, res) {
     return res.status(400).json({ success: false, message: 'Invalid mobile number format.' });
   }
 
-  const ALLOWED_ROLES = ['staff', 'admin', 'je', 'zo', 'ho'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -52,7 +52,7 @@ async function addUser(req, res) {
         {
           mobile_number: mobileNumber,
           display_name: displayName || null,
-          role: role || 'staff',
+          role: role || 'je',
           permissions: permissions || {},
           is_active: true,
           telegram_chat_id: telegramChatId || null
@@ -83,7 +83,7 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
-  const ALLOWED_ROLES = ['staff', 'admin', 'je', 'zo', 'ho'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,

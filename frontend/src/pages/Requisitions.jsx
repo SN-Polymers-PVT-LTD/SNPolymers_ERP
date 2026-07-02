@@ -12,7 +12,9 @@ import {
   actOnRequisition,
   cancelRequisition,
   uploadRequisitionPdf,
-  uploadGstBillPdf
+  uploadGstBillPdf,
+  deleteRequisitionPdf,
+  deleteGstBillPdf
 } from '../api/requisitionsApi';
 import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -549,7 +551,14 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
   };
 
   // Clear PDF handler to reset upload state and unlock requisition number
-  const handleClearRequisitionPdf = () => {
+  const handleClearRequisitionPdf = async () => {
+    if (requisitionPdfUrl) {
+      try {
+        await deleteRequisitionPdf(requisitionNo);
+      } catch (err) {
+        console.error('Failed to delete cleared requisition PDF:', err);
+      }
+    }
     setRequisitionPdf(null);
     setRequisitionPdfUrl('');
     setRequisitionPdfPreview('');
@@ -593,11 +602,36 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
     }
   };
 
-  const handleClearGstPdf = () => {
+  const handleClearGstPdf = async () => {
+    if (gstPdfUrl) {
+      try {
+        await deleteGstBillPdf(requisitionNo);
+      } catch (err) {
+        console.error('Failed to delete cleared GST PDF:', err);
+      }
+    }
     setGstPdf(null);
     setGstPdfUrl('');
     setGstPdfPreview('');
     setGstUploadProgress(0);
+  };
+
+  const handleCancelOrClose = async () => {
+    if (requisitionPdfUrl) {
+      try {
+        await deleteRequisitionPdf(requisitionNo);
+      } catch (err) {
+        console.error('Failed to cleanup requisition PDF on close:', err);
+      }
+    }
+    if (gstPdfUrl) {
+      try {
+        await deleteGstBillPdf(requisitionNo);
+      } catch (err) {
+        console.error('Failed to cleanup GST PDF on close:', err);
+      }
+    }
+    onClose();
   };
 
   // Final submit save
@@ -727,7 +761,7 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
   return (
     <Modal
       isOpen={true}
-      onClose={onClose}
+      onClose={handleCancelOrClose}
       title="Create Requisition"
       subtitle={`Step ${step} of 3`}
       footer={getFooterButtons()}

@@ -46,11 +46,8 @@ async function getEstimateById(id, selectStr = '*') {
   return estimate || null;
 }
 
-/**
- * Maps staff role to je, or returns original.
- */
 function getEffectiveRole(role) {
-  return role === 'staff' ? 'je' : role;
+  return role;
 }
 
 /**

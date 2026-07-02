@@ -13,10 +13,7 @@ function requireRole(allowedRoles) {
       });
     }
 
-    // Normalize 'staff' to 'je'
-    const effectiveRole = req.user.role === 'staff' ? 'je' : req.user.role;
-
-    if (!allowedRoles.includes(effectiveRole)) {
+    if (!allowedRoles.includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: `Access denied. Required role: ${allowedRoles.join(' or ')}.`
