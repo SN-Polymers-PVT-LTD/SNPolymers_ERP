@@ -13,11 +13,11 @@
 |---|:---:|:---:|:---:|:---:|
 | **CRITICAL** | 1 | 1 | 0 | 0 |
 | **HIGH** | 5 | 3 | 1 | 1 |
-| **MEDIUM** | 8 | 4 | 1 | 3 |
-| **LOW / INFO** | 8 | 3 | 1 | 4 |
-| **TOTAL** | **22** | **11** | **3** | **8** |
+| **MEDIUM** | 8 | 5 | 1 | 2 |
+| **LOW / INFO** | 8 | 4 | 1 | 3 |
+| **TOTAL** | **22** | **13** | **3** | **6** |
 
-> **8 issues remain open. 3 are partially resolved.**
+> **6 issues remain open. 3 are partially resolved.**
 
 ---
 
@@ -97,16 +97,6 @@
 
 ---
 
-### TD-06 — `linkTelegram` endpoint uses `otpRequestLimiter` (mobile-keyed) but chatId is not validated as a real Telegram ID
-- **Severity:** MEDIUM
-- **Origin:** Phase 1 (new observation — not in any prior plan)
-- **Status:** ❌ OPEN
-- **Verified location:** `backend/src/routes/auth.routes.js` L12, `backend/src/controllers/auth.controller.js` L79–118
-- **Issue 1:** `linkTelegram` allows any string to be stored as `telegram_chat_id`. A numeric range check (Telegram chat IDs are large positive integers, e.g. `123456789`) is missing. A user could link a garbage string, breaking OTP delivery silently.
-- **Issue 2:** There is no verification that the supplied `chatId` actually belongs to the supplied `mobileNumber` on Telegram's side — any user knowing another user's mobile number could potentially overwrite their `telegram_chat_id`. The only safeguard is the whitelist check (must be an active whitelisted number). For an internal ERP with known users this is acceptable, but should be documented as a known accepted risk.
-- **Fix for Issue 1:** Validate `chatId` is a positive integer string (e.g. `/^\d+$/`) in the Zod schema.
-
----
 
 ### TD-07 — `verifyJwt.js` JWT_SECRET fallback has no production guard at point of use
 - **Severity:** MEDIUM
@@ -122,18 +112,6 @@
 
 ---
 
-### TD-08 — Console log of Chat ID linkage leaks PII in server logs
-- **Severity:** LOW
-- **Origin:** Phase 1 (new observation)
-- **Status:** ❌ OPEN
-- **Verified location:** `backend/src/controllers/auth.controller.js` L108
-  ```javascript
-  console.log(`[TELEGRAM] Chat ID ${chatIdStr} linked to ${mobileNumber}`);
-  ```
-- **Issue:** Both the Telegram Chat ID and the mobile number are logged to stdout in plaintext. In a production environment with log aggregation (e.g. Render logs, Datadog), this creates a PII exposure risk.
-- **Fix:** Replace with `logError`-style conditional logging, or remove the mobile number from the log message and keep only a redacted identifier.
-
----
 
 ## ✅ FIXED Issues (Resolved in Prior Phases)
 
@@ -151,6 +129,8 @@
 | SEC-3 | `user_agent` stored without length truncation | Phase 4 M5 | `session.service.js` L53: `String(userAgent).substring(0, 500)` ✅ |
 | SEC-4 | `TokenExpiredError` path did not clear the expired cookie | Phase 4 M5 | `verifyJwt.js` L74–76: `res.clearCookie('accessToken', ...)` on token expiry ✅ |
 | SEC-5 | `removeUser` hard-deleted without checking FK references | Phase 4 M5 | `admin.controller.js` L143–186: checks estimates, fund_requests, and requisitions ✅ |
+| TD-06 | `linkTelegram` endpoint bypasses chat ID validation and ownership checks | Phase 6 | `linkTelegram` route and function deleted completely; linking strictly handled by bot contacts sharing ✅ |
+| TD-08 | Console.log leaks Telegram Chat ID + mobile number as PII | Phase 6 | `linkTelegram` endpoint and log statement removed completely ✅ |
 
 ---
 
@@ -169,8 +149,8 @@
 | ID | Issue | File | Severity |
 |---|---|---|---|
 | TD-05 | `refreshTokens` duplicates JWT_SECRET inline without production guard | `auth.controller.js` L252 | MEDIUM |
-| TD-06 | `linkTelegram` chatId not validated as a numeric Telegram ID | `auth.controller.js` / `auth.schema.js` | MEDIUM |
-| TD-08 | Console.log leaks Telegram Chat ID + mobile number as PII in plaintext | `auth.controller.js` L108 | LOW |
+| TD-06 | `linkTelegram` chatId not validated as a numeric Telegram ID | `auth.controller.js` / `auth.schema.js` | **Resolved in Phase 6** |
+| TD-08 | Console.log leaks Telegram Chat ID + mobile number as PII in plaintext | `auth.controller.js` L108 | **Resolved in Phase 6** |
 
 ---
 
@@ -193,6 +173,4 @@ When Phase 5 is executed, these new items will open:
 | 🔴 **Now** | **TD-03** — `removeUser` missing `daily_progress_reports` check | Will break or silently corrupt data the moment Phase 5 migration is applied |
 | 🟠 **Soon** | **TD-02** — OTP non-atomic increment | Low probability concurrency bug, but auth bypass is catastrophic if it fires |
 | 🟠 **Soon** | **TD-07** — `verifyJwt.js` standalone JWT_SECRET | Defence-in-depth gap in the most critical middleware |
-| 🟡 **Next sprint** | **TD-06** — `linkTelegram` chatId not validated as integer | Prevents silent OTP delivery failures from garbage chatId values |
 | 🟡 **Next sprint** | **TD-01 / TD-04** — Stack traces dropped in 6+ controllers | Production debugging blindness |
-| 🟢 **Cleanup** | **TD-08** — PII in console.log | Low risk in internal ERP, but good hygiene |
