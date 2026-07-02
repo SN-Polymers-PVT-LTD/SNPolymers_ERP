@@ -139,7 +139,7 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
     if (testEstIds.length > 0) {
       await supabase.from('estimate_revision_log').delete().in('estimate_id', testEstIds);
       await supabase.from('project_cost_estimate_items').delete().in('estimate_id', testEstIds);
-      
+
       // Dissociate estimate headers
       await supabase.from('project_cost_estimates').update({
         work_order_no: 'WB_BAN_102',
@@ -359,7 +359,7 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
     test('Test 11: Transitions to Rejected by ZO when at least one row is Not Approve', async () => {
       const suffix2 = crypto.randomUUID().substring(0, 8);
       const activeWorkOrder2 = `TEST_WO_M5_REJ_${suffix2}`;
-      
+
       await supabase.from('projects_master').insert([
         {
           work_order_no: activeWorkOrder2,
@@ -512,7 +512,17 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       expect(res.jsonData.estimate.estimate_status).toBe('Submitted');
       expect(res.jsonData.estimate.estimate_revision).toBe(2);
 
-      const { data: itemsAfter } = await supabase.from('project_cost_estimate_items').select('*').eq('estimate_id', zarEstimateId).order('created_at', { ascending: true });
+      const { data: itemsAfter, error } = await supabase
+        .from('project_cost_estimate_items')
+        .select('*')
+        .eq('estimate_id', zarEstimateId)
+        .order('created_at', { ascending: true });
+
+      console.log("\n===== AFTER AUTO RESUBMIT =====");
+      console.log(JSON.stringify(itemsAfter, null, 2));
+      console.log("===============================\n");
+
+      expect(error).toBeNull();
       expect(itemsAfter[0].zo_office_approve).toBe('Approve');
       expect(itemsAfter[1].zo_office_approve).toBeNull();
 
