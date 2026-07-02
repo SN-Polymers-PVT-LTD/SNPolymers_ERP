@@ -9,7 +9,9 @@ const {
 } = require('../controllers/requisitions.controller');
 const {
   uploadRequisitionPdf,
-  uploadGstBillPdf
+  uploadGstBillPdf,
+  deleteRequisitionPdf,
+  deleteGstBillPdf
 } = require('../controllers/requisitions.uploads.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -50,5 +52,7 @@ router.patch('/:id/cancel', requireRole(requesterRoles), validateRequest(cancelR
 // Upload endpoints (JE only)
 router.post('/upload/requisition-pdf', requireRole(uploadRoles), upload.single('file'), uploadRequisitionPdf);
 router.post('/upload/gst-bill', requireRole(uploadRoles), upload.single('file'), uploadGstBillPdf);
+router.delete('/upload/requisition-pdf', requireRole(uploadRoles), deleteRequisitionPdf);
+router.delete('/upload/gst-bill', requireRole(uploadRoles), deleteGstBillPdf);
 
 module.exports = router;

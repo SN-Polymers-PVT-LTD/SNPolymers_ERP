@@ -44,6 +44,25 @@ async function createRequisition(req, res) {
     expen_head_remarks
   } = req.body;
 
+  const cleanupUploadedFiles = async () => {
+    try {
+      if (requisition_pdf_url) {
+        await supabase.storage
+          .from('requisition-pdfs')
+          .remove([requisition_pdf_url]);
+      }
+      if (gst_bill === 'Yes' && gst_bill_pdf_url) {
+        await supabase.storage
+          .from('gst-bills')
+          .remove([gst_bill_pdf_url]);
+      }
+    } catch (err) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.error('Failed to clean up files:', err);
+      }
+    }
+  };
+
   try {
     // 1. Unique check
     const { count, error: countError } = await supabase
@@ -53,6 +72,7 @@ async function createRequisition(req, res) {
 
     if (countError) throw countError;
     if (count && count > 0) {
+      await cleanupUploadedFiles();
       return res.status(409).json({
         success: false,
         message: `A requisition with number ${requisition_no.trim()} already exists.`
@@ -68,6 +88,7 @@ async function createRequisition(req, res) {
 
     if (projectErr) throw projectErr;
     if (!project) {
+      await cleanupUploadedFiles();
       return res.status(404).json({ success: false, message: 'Work order not found.' });
     }
 
@@ -94,6 +115,7 @@ async function createRequisition(req, res) {
 
     if (materialErr) throw materialErr;
     if (!materialExists) {
+      await cleanupUploadedFiles();
       return res.status(400).json({
         success: false,
         message: `material_main_head '${material_main_head}' does not exist in Material Master.`
@@ -125,6 +147,7 @@ async function createRequisition(req, res) {
     });
 
     if (rpcError) {
+      await cleanupUploadedFiles();
       if (rpcError.code === '23505') {
         return res.status(409).json({
           success: false,
@@ -174,6 +197,7 @@ async function createRequisition(req, res) {
     });
 
   } catch (error) {
+    await cleanupUploadedFiles();
     if (process.env.NODE_ENV !== 'production') {
       console.error('createRequisition failed:', error);
     } else {

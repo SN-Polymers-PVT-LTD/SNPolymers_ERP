@@ -47,7 +47,7 @@ async function createBill(req, res) {
     // 1. Fetch work order & freeze geo-snapshot
     const { data: project, error: projError } = await supabase
       .from('projects_master')
-      .select('work_order_value, status, state, district, zone, department, site_details')
+      .select('work_order_value, status, state, district, zone, department, site_details, earnest_money_deposit')
       .eq('work_order_no', work_order_no)
       .maybeSingle();
 
@@ -112,7 +112,7 @@ async function createBill(req, res) {
       bill_date,
       bill_no: bill_no.trim(),
       bill_amount_with_gst: Number(bill_amount_with_gst),
-      earnest_money_deposit: Number(earnest_money_deposit || 0),
+      earnest_money_deposit: Number(project.earnest_money_deposit || 0), // Source from projects_master
       security_deposit_amount: Number(security_deposit_amount || 0),
       bill_copy_url: bill_copy_url.trim(),
       original_bill_filename: original_bill_filename || null,
@@ -287,7 +287,7 @@ async function getBillSummaryByWorkOrder(req, res) {
     // Fetch project
     const { data: project, error: projError } = await supabase
       .from('projects_master')
-      .select('work_order_value, status')
+      .select('work_order_value, status, earnest_money_deposit')
       .eq('work_order_no', work_order_no)
       .maybeSingle();
 
@@ -350,6 +350,7 @@ async function getBillSummaryByWorkOrder(req, res) {
       success: true,
       work_order_value: project.work_order_value || 0,
       work_order_status: project.status,
+      earnest_money_deposit: project.earnest_money_deposit || 0,
       previous_bill_amount: previousBillAmount,
       existing_payment_types: existingPaymentTypes,
       next_ra_bill_number: nextRaBillNumber,

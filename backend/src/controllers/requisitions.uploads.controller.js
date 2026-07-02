@@ -143,8 +143,70 @@ async function uploadGstBillPdf(req, res) {
   }
 }
 
+async function deleteRequisitionPdf(req, res) {
+  const requisition_no = req.body.requisition_no || req.query.requisition_no;
+  if (!requisition_no || !requisition_no.trim()) {
+    return res.status(400).json({ success: false, message: 'requisition_no is required.' });
+  }
+
+  const sanitizedReqNo = sanitizeFilename(requisition_no.trim());
+  const storagePath = `${sanitizedReqNo}.pdf`;
+
+  try {
+    const { error } = await supabase.storage
+      .from('requisition-pdfs')
+      .remove([storagePath]);
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      message: 'Requisition PDF deleted successfully.'
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('deleteRequisitionPdf failed:', error);
+    } else {
+      console.error(`deleteRequisitionPdf failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to delete requisition PDF.' });
+  }
+}
+
+async function deleteGstBillPdf(req, res) {
+  const requisition_no = req.body.requisition_no || req.query.requisition_no;
+  if (!requisition_no || !requisition_no.trim()) {
+    return res.status(400).json({ success: false, message: 'requisition_no is required.' });
+  }
+
+  const sanitizedReqNo = sanitizeFilename(requisition_no.trim());
+  const storagePath = `${sanitizedReqNo}_gst.pdf`;
+
+  try {
+    const { error } = await supabase.storage
+      .from('gst-bills')
+      .remove([storagePath]);
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      message: 'GST Bill PDF deleted successfully.'
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('deleteGstBillPdf failed:', error);
+    } else {
+      console.error(`deleteGstBillPdf failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to delete GST bill PDF.' });
+  }
+}
+
 module.exports = {
   uploadRequisitionPdf,
   uploadGstBillPdf,
+  deleteRequisitionPdf,
+  deleteGstBillPdf,
   sanitizeFilename
 };
