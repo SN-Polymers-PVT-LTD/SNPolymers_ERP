@@ -8,6 +8,14 @@ const uuidSchema = z.string().regex(uuidRegex, 'Invalid bill ID.');
 // Matches "RA Bill N" (N = 1, 2, ...) or "Final Bill"
 const paymentTypeRegex = /^(RA Bill [1-9][0-9]*|Final Bill)$/;
 
+// Helper: optional non-negative number field (accepts number, string, null, undefined → coerces to number)
+const optionalAmount = z.preprocess(
+  (val) => (val === null || val === undefined || val === '' ? 0 : Number(val)),
+  z.number({ invalid_type_error: 'Amount must be a valid number.' })
+    .nonnegative('Amount must be zero or a positive number.')
+    .finite('Amount must be a finite number.')
+);
+
 const createBillSchema = {
   body: z.object({
     work_order_no: z.string({ required_error: 'work_order_no is required.' })
@@ -23,26 +31,15 @@ const createBillSchema = {
     bill_no: z.string({ required_error: 'bill_no is required.' })
       .trim().min(1, 'bill_no is required.'),
 
-    bill_amount_with_gst: z.union([z.number(), z.string()], {
-      required_error: 'bill_amount_with_gst must be a positive number.'
-    })
-      .transform(val => Number(val))
-      .refine(val => !isNaN(val) && val > 0 && isFinite(val),
-        'bill_amount_with_gst must be a positive number greater than zero.'),
-
-    earnest_money_deposit: z.union([z.number(), z.string(), z.null()])
-      .transform(val => val === null || val === '' ? 0 : Number(val))
-      .refine(val => !isNaN(val) && val >= 0 && isFinite(val),
-        'earnest_money_deposit must be zero or a positive number.')
-      .optional()
-      .default(0),
-
-    security_deposit_amount: z.union([z.number(), z.string()])
-      .transform(val => Number(val))
-      .refine(val => !isNaN(val) && val >= 0 && isFinite(val),
-        'security_deposit_amount must be zero or a positive number.')
-      .optional()
-      .default(0),
+    gross_bill:              optionalAmount,
+    security_deposit_amount: optionalAmount,
+    agency_payment:          optionalAmount,
+    special_security_amount: optionalAmount,
+    other_retention:         optionalAmount,
+    it_tds:                  optionalAmount,
+    sgst:                    optionalAmount,
+    cgst:                    optionalAmount,
+    sd:                      optionalAmount,
 
     bill_copy_url: z.string({ required_error: 'bill_copy_url is required. Upload the bill copy first.' })
       .trim().min(1, 'bill_copy_url is required. Upload the bill copy first.'),

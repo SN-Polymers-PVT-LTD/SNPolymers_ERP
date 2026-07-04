@@ -76,9 +76,15 @@ const RAFinalBill = () => {
     payment_type: '',
     bill_date: '',
     bill_no: '',
-    bill_amount_with_gst: '',
-    earnest_money_deposit: '',
+    gross_bill: '',
     security_deposit_amount: '',
+    agency_payment: '',
+    special_security_amount: '',
+    other_retention: '',
+    it_tds: '',
+    sgst: '',
+    cgst: '',
+    sd: '',
     bill_copy_url: '',
     original_bill_filename: '',
     remarks: ''
@@ -169,7 +175,7 @@ const RAFinalBill = () => {
 
   const stats = useMemo(() => {
     const all = statsBillsData || [];
-    const totalAmt = all.reduce((sum, b) => sum + Number(b.bill_amount_with_gst || 0), 0);
+    const totalAmt = all.reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
     const finalCount = all.filter(b => b.payment_type === 'Final Bill').length;
     return {
       totalBills: all.length,
@@ -208,9 +214,15 @@ const RAFinalBill = () => {
       ...prev,
       work_order_no: wo,
       payment_type: '',
-      bill_amount_with_gst: '',
-      earnest_money_deposit: '',
+      gross_bill: '',
       security_deposit_amount: '',
+      agency_payment: '',
+      special_security_amount: '',
+      other_retention: '',
+      it_tds: '',
+      sgst: '',
+      cgst: '',
+      sd: '',
       bill_copy_url: '',
       original_bill_filename: ''
     }));
@@ -323,9 +335,15 @@ const RAFinalBill = () => {
       payment_type: '',
       bill_date: '',
       bill_no: '',
-      bill_amount_with_gst: '',
-      earnest_money_deposit: '',
+      gross_bill: '',
       security_deposit_amount: '',
+      agency_payment: '',
+      special_security_amount: '',
+      other_retention: '',
+      it_tds: '',
+      sgst: '',
+      cgst: '',
+      sd: '',
       bill_copy_url: '',
       original_bill_filename: '',
       remarks: ''
@@ -360,9 +378,15 @@ const RAFinalBill = () => {
       payment_type: '',
       bill_date: '',
       bill_no: '',
-      bill_amount_with_gst: '',
-      earnest_money_deposit: '',
+      gross_bill: '',
       security_deposit_amount: '',
+      agency_payment: '',
+      special_security_amount: '',
+      other_retention: '',
+      it_tds: '',
+      sgst: '',
+      cgst: '',
+      sd: '',
       bill_copy_url: '',
       original_bill_filename: '',
       remarks: ''
@@ -390,7 +414,7 @@ const RAFinalBill = () => {
     setSuccess('');
 
     // Check all required inputs
-    const required = ['work_order_no', 'payment_type', 'bill_date', 'bill_no', 'bill_amount_with_gst', 'bill_copy_url'];
+    const required = ['work_order_no', 'payment_type', 'bill_date', 'bill_no', 'bill_copy_url'];
     for (const f of required) {
       if (!formState[f]) {
         setError(`Please check all fields. ${f.replace(/_/g, ' ')} is required.`);
@@ -405,9 +429,15 @@ const RAFinalBill = () => {
         payment_type: formState.payment_type,
         bill_date: formState.bill_date,
         bill_no: formState.bill_no,
-        bill_amount_with_gst: Number(formState.bill_amount_with_gst),
-        earnest_money_deposit: Number(formState.earnest_money_deposit || 0),
+        gross_bill: Number(formState.gross_bill || 0),
         security_deposit_amount: Number(formState.security_deposit_amount || 0),
+        agency_payment: Number(formState.agency_payment || 0),
+        special_security_amount: Number(formState.special_security_amount || 0),
+        other_retention: Number(formState.other_retention || 0),
+        it_tds: Number(formState.it_tds || 0),
+        sgst: Number(formState.sgst || 0),
+        cgst: Number(formState.cgst || 0),
+        sd: Number(formState.sd || 0),
         bill_copy_url: formState.bill_copy_url,
         original_bill_filename: formState.original_bill_filename || null,
         remarks: formState.remarks || null
@@ -466,13 +496,27 @@ const RAFinalBill = () => {
   // Live Calculations for Create Form Summary Panel
   const createFormWOValue = formSummaryData.work_order_value || 0;
   const createFormPrevBilled = formSummaryData.previous_bill_amount || 0;
-  const createFormCurrentBilled = Number(formState.bill_amount_with_gst) || 0;
+  const createFormCurrentBilled = Number(formState.gross_bill) || 0;
   const createFormTotalBilled = createFormPrevBilled + createFormCurrentBilled;
   const createFormBalanceRemaining = createFormWOValue - createFormTotalBilled;
 
+  // Live Validation: Gross Bill = sum of all deduction/payment fields
+  const grossBillBreakdownSum =
+    (Number(formState.agency_payment) || 0) +
+    (Number(formState.security_deposit_amount) || 0) +
+    (Number(formState.special_security_amount) || 0) +
+    (Number(formState.other_retention) || 0) +
+    (Number(formState.it_tds) || 0) +
+    (Number(formState.sgst) || 0) +
+    (Number(formState.cgst) || 0) +
+    (Number(formState.sd) || 0);
+  const grossBillEntered = Number(formState.gross_bill) || 0;
+  const grossBillIsValid = grossBillEntered === grossBillBreakdownSum;
+  const hasBreakdownData = grossBillEntered > 0 || grossBillBreakdownSum > 0;
+
   // Live Calculations for Active WO Bill Sheet Summary Panel
   const projectWOValue = projectSummaryData.work_order_value || 0;
-  const projectTotalBilled = projectBills.reduce((sum, b) => sum + Number(b.bill_amount_with_gst || 0), 0);
+  const projectTotalBilled = projectBills.reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
   const projectBalanceRemaining = projectWOValue - projectTotalBilled;
 
   // Formatting date for right footer
@@ -558,9 +602,9 @@ const RAFinalBill = () => {
                   <TableCell isHeader={true} className="border-r border-white/5" size="sm">Payment Type</TableCell>
                   <TableCell isHeader={true} className="border-r border-white/5" size="sm">Bill Date</TableCell>
                   <TableCell isHeader={true} className="border-r border-white/5" size="sm">Bill No</TableCell>
-                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">Bill Amount (GST)</TableCell>
-                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">EMD Amount</TableCell>
-                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">SD Amount</TableCell>
+                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">Gross Bill</TableCell>
+                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">Agency Payment</TableCell>
+                  <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">SD Amt</TableCell>
                   <TableCell isHeader={true} className="border-r border-white/5" size="sm">Remarks</TableCell>
                   <TableCell isHeader={true} size="sm">Created At</TableCell>
                 </TableRow>
@@ -602,10 +646,10 @@ const RAFinalBill = () => {
                         {bill.bill_no}
                       </TableCell>
                       <TableCell align="right" className="font-mono font-bold text-slate-200 border-r border-white/5" size="sm">
-                        {formatCurrency(bill.bill_amount_with_gst)}
+                        {formatCurrency(bill.gross_bill)}
                       </TableCell>
                       <TableCell align="right" className="font-mono text-slate-400 border-r border-white/5" size="sm">
-                        {formatCurrency(bill.earnest_money_deposit)}
+                        {formatCurrency(bill.agency_payment)}
                       </TableCell>
                       <TableCell align="right" className="font-mono text-slate-400 border-r border-white/5" size="sm">
                         {formatCurrency(bill.security_deposit_amount)}
@@ -816,7 +860,7 @@ const RAFinalBill = () => {
                         <TableCell isHeader={true} className="border-r border-white/5" size="sm">Payment Type</TableCell>
                         <TableCell isHeader={true} className="border-r border-white/5" size="sm">Bill Date</TableCell>
                         <TableCell isHeader={true} className="border-r border-white/5" size="sm">Bill No</TableCell>
-                        <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">Bill Amount (GST)</TableCell>
+                        <TableCell isHeader={true} align="right" className="border-r border-white/5" size="sm">Gross Bill</TableCell>
                         <TableCell isHeader={true} className="border-r border-white/5" size="sm">Uploaded By</TableCell>
                         <TableCell isHeader={true} size="sm">Created At</TableCell>
                       </TableRow>
@@ -861,7 +905,7 @@ const RAFinalBill = () => {
                               {bill.bill_no}
                             </TableCell>
                             <TableCell align="right" className="font-mono font-bold text-slate-200 border-r border-white/5" size="sm">
-                              {formatCurrency(bill.bill_amount_with_gst)}
+                              {formatCurrency(bill.gross_bill)}
                             </TableCell>
                             <TableCell className="border-r border-white/5 truncate max-w-[120px]" title={bill.created_by_name} size="sm">
                               {bill.created_by_name}
@@ -1135,32 +1179,7 @@ const RAFinalBill = () => {
                   disabled={submitting}
                   size="sm"
                 />
-                <Input
-                  label="Bill Amount With GST"
-                  type="number"
-                  placeholder="Enter Amount"
-                  step="0.01"
-                  value={formState.bill_amount_with_gst}
-                  onChange={(e) => setFormState(prev => ({ ...prev, bill_amount_with_gst: e.target.value }))}
-                  required
-                  disabled={submitting}
-                  size="sm"
-                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
-                  className="font-mono font-bold"
-                />
-                <Input
-                  label="Security Deposit Amount"
-                  type="number"
-                  placeholder="Enter Amount"
-                  step="0.01"
-                  value={formState.security_deposit_amount}
-                  onChange={(e) => setFormState(prev => ({ ...prev, security_deposit_amount: e.target.value }))}
-                  disabled={submitting}
-                  size="sm"
-                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
-                  className="font-mono"
-                />
-                
+
                 {/* File Upload Component */}
                 <div className="flex flex-col">
                   <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
@@ -1187,7 +1206,7 @@ const RAFinalBill = () => {
                         {formState.original_bill_filename || 'No file chosen'}
                       </span>
                     </div>
-                    
+
                     {uploading ? (
                       <div className="flex items-center gap-2 mt-1">
                         <span className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-b-2 border-indigo-500" />
@@ -1212,8 +1231,141 @@ const RAFinalBill = () => {
                   onChange={(e) => setFormState(prev => ({ ...prev, remarks: e.target.value }))}
                   disabled={submitting}
                   size="sm"
+                  className="col-span-1"
                 />
               </div>
+            </div>
+
+            {/* SECTION 2b: PAYMENT BREAKDOWN */}
+            <div className="border border-white/5 bg-slate-900/20 rounded-2xl p-5 space-y-4 shadow-sm">
+              <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 font-mono">
+                  PAYMENT BREAKDOWN <span className="text-slate-500 font-medium">(All fields optional — blank = 0)</span>
+                </span>
+              </div>
+
+              {/* Field 1: Gross Bill — highlighted */}
+              <div className="p-3 rounded-xl bg-amber-950/10 border border-amber-900/25">
+                <Input
+                  label="Gross Bill (Field 1)"
+                  type="number"
+                  placeholder="Enter Gross Bill Amount"
+                  step="0.01"
+                  value={formState.gross_bill}
+                  onChange={(e) => setFormState(prev => ({ ...prev, gross_bill: e.target.value }))}
+                  disabled={submitting}
+                  size="sm"
+                  iconLeft={<span className="text-xs text-amber-500 font-bold">₹</span>}
+                  className="font-mono font-bold"
+                />
+              </div>
+
+              {/* Fields 2–9: Breakdown deduction/payment fields */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Input
+                  label="Agency Payment"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.agency_payment}
+                  onChange={(e) => setFormState(prev => ({ ...prev, agency_payment: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="Security Deposit Amt"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.security_deposit_amount}
+                  onChange={(e) => setFormState(prev => ({ ...prev, security_deposit_amount: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="Special Security Amt"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.special_security_amount}
+                  onChange={(e) => setFormState(prev => ({ ...prev, special_security_amount: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="Other Retention"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.other_retention}
+                  onChange={(e) => setFormState(prev => ({ ...prev, other_retention: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="IT TDS"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.it_tds}
+                  onChange={(e) => setFormState(prev => ({ ...prev, it_tds: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="SGST"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.sgst}
+                  onChange={(e) => setFormState(prev => ({ ...prev, sgst: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="CGST"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.cgst}
+                  onChange={(e) => setFormState(prev => ({ ...prev, cgst: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+                <Input
+                  label="SD"
+                  type="number" placeholder="0.00" step="0.01"
+                  value={formState.sd}
+                  onChange={(e) => setFormState(prev => ({ ...prev, sd: e.target.value }))}
+                  disabled={submitting} size="sm"
+                  iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
+                  className="font-mono"
+                />
+              </div>
+
+              {/* Live Validation Banner */}
+              {hasBreakdownData && (
+                <div className={`rounded-xl p-4 border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 transition-all ${
+                  grossBillIsValid
+                    ? 'bg-emerald-950/15 border-emerald-900/30'
+                    : 'bg-red-950/15 border-red-900/30'
+                }`}>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">Validation: Gross Bill = Sum of Breakdown Fields</span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[10px] font-mono">
+                      <span className="text-slate-400">Gross Bill Entered: <span className="font-bold text-slate-200">{formatCurrency(grossBillEntered)}</span></span>
+                      <span className="text-slate-400">Breakdown Sum: <span className="font-bold text-slate-200">{formatCurrency(grossBillBreakdownSum)}</span></span>
+                    </div>
+                  </div>
+                  <div className={`shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider ${
+                    grossBillIsValid
+                      ? 'bg-emerald-950/30 text-emerald-400'
+                      : 'bg-red-950/30 text-red-400'
+                  }`}>
+                    {grossBillIsValid ? (
+                      <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> Match</>
+                    ) : (
+                      <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /></svg> Mismatch</>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* SECTION 3: SUMMARY (Auto Calculated) */}
@@ -1326,26 +1478,27 @@ const RAFinalBill = () => {
                   <Input label="Bill Date" disabled value={formatDate(detailBill.bill_date)} size="sm" className="font-mono" />
                   <Input label="Bill No" disabled value={detailBill.bill_no} size="sm" />
                   <Input
-                    label="Bill Amount With GST"
+                    label="Gross Bill"
                     disabled
-                    value={formatCurrency(detailBill.bill_amount_with_gst)}
+                    value={formatCurrency(detailBill.gross_bill)}
                     size="sm"
-                    className="font-mono font-bold text-indigo-400"
+                    className="font-mono font-bold text-amber-400"
                   />
-                  <Input
-                    label="Earnest Money Deposit"
-                    disabled
-                    value={formatCurrency(detailBill.earnest_money_deposit)}
-                    size="sm"
-                    className="font-mono"
-                  />
-                  <Input
-                    label="Security Deposit Amount"
-                    disabled
-                    value={formatCurrency(detailBill.security_deposit_amount)}
-                    size="sm"
-                    className="font-mono"
-                  />
+                </div>
+
+                {/* Payment Breakdown — read-only */}
+                <div className="border border-amber-900/20 bg-amber-950/5 rounded-xl p-4 space-y-3 mt-2">
+                  <span className="text-[9px] font-extrabold uppercase tracking-widest text-amber-400 font-mono block">Payment Breakdown</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Input label="Agency Payment" disabled value={formatCurrency(detailBill.agency_payment)} size="sm" className="font-mono" />
+                    <Input label="Security Deposit Amt" disabled value={formatCurrency(detailBill.security_deposit_amount)} size="sm" className="font-mono" />
+                    <Input label="Special Security Amt" disabled value={formatCurrency(detailBill.special_security_amount)} size="sm" className="font-mono" />
+                    <Input label="Other Retention" disabled value={formatCurrency(detailBill.other_retention)} size="sm" className="font-mono" />
+                    <Input label="IT TDS" disabled value={formatCurrency(detailBill.it_tds)} size="sm" className="font-mono" />
+                    <Input label="SGST" disabled value={formatCurrency(detailBill.sgst)} size="sm" className="font-mono" />
+                    <Input label="CGST" disabled value={formatCurrency(detailBill.cgst)} size="sm" className="font-mono" />
+                    <Input label="SD" disabled value={formatCurrency(detailBill.sd)} size="sm" className="font-mono" />
+                  </div>
                 </div>
                 <TextArea
                   label="Remarks"

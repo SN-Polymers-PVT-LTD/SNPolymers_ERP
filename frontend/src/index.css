@@ -263,3 +263,28 @@ body.light select option {
   background-color: #ffffff !important;
   color: #0f172a !important;            /* slate-900 */
 }
+
+/* ─── Date Input Calendar Icon Visibility Fix ───────────────────────────────── */
+/* In dark mode the browser's native calendar icon is black → invisible.        */
+/* Invert it to white so it's visible on dark backgrounds.                       */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  opacity: 0.7;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Light mode: restore the native dark icon */
+body.light input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 0.6;
+}
+
+body.light input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+

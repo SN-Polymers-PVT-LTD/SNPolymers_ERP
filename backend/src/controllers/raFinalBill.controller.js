@@ -34,9 +34,15 @@ async function createBill(req, res) {
       payment_type,
       bill_date,
       bill_no,
-      bill_amount_with_gst,
-      earnest_money_deposit,
+      gross_bill,
       security_deposit_amount,
+      agency_payment,
+      special_security_amount,
+      other_retention,
+      it_tds,
+      sgst,
+      cgst,
+      sd,
       bill_copy_url,
       original_bill_filename,
       remarks
@@ -111,9 +117,16 @@ async function createBill(req, res) {
       payment_type: payment_type.trim(),
       bill_date,
       bill_no: bill_no.trim(),
-      bill_amount_with_gst: Number(bill_amount_with_gst),
+      gross_bill: Number(gross_bill || 0),
       earnest_money_deposit: Number(project.earnest_money_deposit || 0), // Source from projects_master
       security_deposit_amount: Number(security_deposit_amount || 0),
+      agency_payment: Number(agency_payment || 0),
+      special_security_amount: Number(special_security_amount || 0),
+      other_retention: Number(other_retention || 0),
+      it_tds: Number(it_tds || 0),
+      sgst: Number(sgst || 0),
+      cgst: Number(cgst || 0),
+      sd: Number(sd || 0),
       bill_copy_url: bill_copy_url.trim(),
       original_bill_filename: original_bill_filename || null,
       remarks: remarks?.trim() || null
@@ -298,14 +311,14 @@ async function getBillSummaryByWorkOrder(req, res) {
     // Fetch existing bills
     const { data: bills, error: billsError } = await supabase
       .from('ra_final_bills')
-      .select('payment_type, bill_amount_with_gst')
+      .select('payment_type, gross_bill')
       .eq('work_order_no', work_order_no)
       .order('created_at', { ascending: true });
 
     if (billsError) throw billsError;
 
     const existingPaymentTypes = bills.map(b => b.payment_type);
-    const previousBillAmount = bills.reduce((sum, b) => sum + Number(b.bill_amount_with_gst), 0);
+    const previousBillAmount = bills.reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
     const finalBillExists = existingPaymentTypes.includes('Final Bill');
 
     // Determine the highest RA bill number entered
