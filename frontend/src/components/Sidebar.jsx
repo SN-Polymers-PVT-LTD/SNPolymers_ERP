@@ -200,7 +200,7 @@ const Sidebar = () => {
               <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-10 w-auto object-contain" />
             </Link>
             <div className="flex flex-col">
-              <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">
+              <span className="font-extrabold text-[10px] tracking-wider text-slate-100 uppercase whitespace-nowrap">
                 SN Polymers Pvt LTD
               </span>
               <span className="text-[9px] text-amber-500 font-extrabold tracking-widest uppercase">
