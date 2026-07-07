@@ -109,3 +109,53 @@ export function exportProjectsToExcel(projects) {
   XLSX.writeFile(workbook, `Projects_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export function exportFundRequestsToExcel(requests, dateRange) {
+  let list = [...requests];
+
+  if (dateRange) {
+    const { start, end } = dateRange;
+    if (start) {
+      const startDate = new Date(start);
+      startDate.setHours(0, 0, 0, 0);
+      list = list.filter(r => {
+        const d = new Date(r.approve_ho_date || r.zo_date || r.created_at);
+        return d >= startDate;
+      });
+    }
+    if (end) {
+      const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
+      list = list.filter(r => {
+        const d = new Date(r.approve_ho_date || r.zo_date || r.created_at);
+        return d <= endDate;
+      });
+    }
+  }
+
+  if (list.length === 0) {
+    alert('No requests found within the selected date range.');
+    return;
+  }
+
+  const formattedRows = list.map((r, index) => ({
+    "Sl. No.": index + 1,
+    "Fund Request No.": r.zo_fr_no || '',
+    "Requested Amount (INR)": r.zo_fr_amount || 0,
+    "Approved Amount (INR)": r.approve_ho_amount || 0,
+    "Request Date": r.zo_date ? new Date(r.zo_date).toLocaleDateString('en-IN') : '',
+    "Approved Date": r.approve_ho_date ? new Date(r.approve_ho_date).toLocaleDateString('en-IN') : 'N/A',
+    "Requester": r.zo_user_id || '',
+    "Status": r.request_status || '',
+    "Requester Remarks": r.zo_remarks || '',
+    "Authority Remarks": r.remarks_approved_authority || '',
+    "Created At": r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Fund Requests");
+
+  XLSX.writeFile(workbook, `Fund_Requests_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
+
