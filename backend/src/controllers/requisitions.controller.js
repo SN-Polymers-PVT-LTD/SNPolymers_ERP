@@ -268,30 +268,14 @@ async function getRequisitions(req, res) {
           remainingEstimateAmount = Number(r.estimate_amount) - commAmt;
         }
 
-        // Generate signed URLs dynamically
-        let signedUrl = null;
-        let gstSignedUrl = null;
-        if (r.requisition_pdf_url) {
-          const { data: signData } = await supabase.storage
-            .from('requisition-pdfs')
-            .createSignedUrl(r.requisition_pdf_url, 3600);
-          signedUrl = signData?.signedUrl || null;
-        }
-        if (r.gst_bill_pdf_url) {
-          const { data: signData } = await supabase.storage
-            .from('gst-bills')
-            .createSignedUrl(r.gst_bill_pdf_url, 3600);
-          gstSignedUrl = signData?.signedUrl || null;
-        }
-
         enriched.push({
           ...r,
           requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
           approved_name: userMap[r.approved_user_id] || r.approved_user_id || null,
           cancelled_name: userMap[r.cancelled_by] || r.cancelled_by || null,
           remainingEstimateAmount,
-          requisition_pdf_signed_url: signedUrl,
-          gst_bill_pdf_signed_url: gstSignedUrl
+          requisition_pdf_signed_url: null,
+          gst_bill_pdf_signed_url: null
         });
       }
     }
