@@ -194,7 +194,7 @@ const FundRequests = () => {
           <div className="glass-panel p-6 md:p-8 rounded-3xl border border-white/5 bg-gradient-to-br from-white/[0.01] to-transparent">
             <RequestDetailPanel
               user={user}
-              request={requests.find(r => r.id === activeRequest?.id) || activeRequest}
+              request={activeRequest ? (requests.find(r => r.fund_request_id === activeRequest.fund_request_id) || activeRequest) : null}
               onClose={() => {
                 setActiveRequest(null);
                 setShowCreateFlow(false);
