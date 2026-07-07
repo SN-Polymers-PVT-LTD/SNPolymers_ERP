@@ -453,14 +453,20 @@ const RAFinalBill = () => {
       }
     }
 
-    // 2. Future date check
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const billDate = new Date(formState.bill_date);
-    if (billDate > today) {
+    // 2. Future date check — use local-date string comparison to avoid UTC timezone parsing bug
+    //    new Date("YYYY-MM-DD") is parsed as UTC midnight, which in IST (UTC+5:30) means
+    //    today's date string appears "in the future" vs local midnight. String comparison is safe.
+    const now = new Date();
+    const todayStr = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0')
+    ].join('-');
+    if (formState.bill_date > todayStr) {
       setFormError('Bill Date cannot be a future date. Please enter a valid bill date.');
       return;
     }
+
 
     // 3. Negative value check for all financial fields
     const financialFields = [
