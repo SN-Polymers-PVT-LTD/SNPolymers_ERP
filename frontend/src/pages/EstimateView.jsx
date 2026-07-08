@@ -627,7 +627,9 @@ const EstimateView = () => {
                       ) : (
                         <>
                           <th className="py-4 px-5 w-28 text-center">ZO Approve</th>
+                          <th className="py-4 px-5 w-36">ZO Remarks</th>
                           <th className="py-4 px-5 w-28 text-center">HO Approve</th>
+                          <th className="py-4 px-5 w-36">HO Remarks</th>
                         </>
                       )}
                       <th className="py-4 px-5 w-40">Source</th>
@@ -646,7 +648,7 @@ const EstimateView = () => {
 
                       return (
                         <tr key={item.item_id} className="hover:bg-white/[0.01] transition-colors duration-200">
-                          <td className="py-4 px-5 text-center font-mono text-slate-500">{idx + 1}</td>
+                           <td className="py-4 px-5 text-center font-mono text-slate-500">{idx + 1}</td>
                           <td className="py-4 px-5">
                             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-white/5 text-slate-400">
                               {item.material_main_head}
@@ -699,6 +701,9 @@ const EstimateView = () => {
                                   {item.zo_office_approve || 'Pending'}
                                 </span>
                               </td>
+                              <td className="py-4 px-5 text-slate-400 italic max-w-[150px] whitespace-pre-wrap break-words">
+                                {item.zo_remarks || '-'}
+                              </td>
                               <td className="py-4 px-5 text-center">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                                   item.ho_office_approve === 'Approve' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30' :
@@ -706,6 +711,9 @@ const EstimateView = () => {
                                 }`}>
                                   {item.ho_office_approve || 'Pending'}
                                 </span>
+                              </td>
+                              <td className="py-4 px-5 text-slate-400 italic max-w-[150px] whitespace-pre-wrap break-words">
+                                {item.ho_remarks || '-'}
                               </td>
                             </>
                           )}
