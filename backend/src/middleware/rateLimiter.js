@@ -46,12 +46,12 @@ const logOtpVerifyLimitExceeded = (req, res, options) => {
 
 /**
  * OTP Request rate limiter:
- * Production: max 3 requests per 15-minute window per mobile/IP.
+ * Production: max 7 requests per 15-minute window per mobile/IP.
  * Development: relaxed to 100 requests so testing is never blocked.
  */
 const otpRequestLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isDev ? 100 : 3,
+  max: isDev ? 100 : 7,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
