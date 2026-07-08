@@ -55,17 +55,11 @@ function getEffectiveRole(role) {
  */
 function canViewEstimate(estimate, user) {
   const effectiveRole = getEffectiveRole(user.role);
-  if (effectiveRole === 'admin') {
+  if (effectiveRole === 'admin' || effectiveRole === 'zo' || effectiveRole === 'ho') {
     return true;
   }
   if (effectiveRole === 'je') {
     return estimate.created_by === user.mobile_number;
-  }
-  if (effectiveRole === 'zo') {
-    return ZO_VISIBLE_STATUSES.includes(estimate.estimate_status);
-  }
-  if (effectiveRole === 'ho') {
-    return HO_ALL_STATUSES.includes(estimate.estimate_status);
   }
   return false;
 }

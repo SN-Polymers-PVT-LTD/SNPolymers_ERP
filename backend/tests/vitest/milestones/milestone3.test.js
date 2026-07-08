@@ -366,7 +366,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
 
       expect(resA.statusCode).toBe(200);
       expect(resB.statusCode).toBe(404);
-      expect(resZO.statusCode).toBe(404);
+      expect(resZO.statusCode).toBe(200);
       expect(resAdmin.statusCode).toBe(200);
     });
 
@@ -395,7 +395,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
       expect(hasA).toBe(true);
       expect(hasA2).toBe(true);
       expect(hasB).toBe(false);
-      expect(hasZO).toBe(false);
+      expect(hasZO).toBe(true);
       expect(hasAdmin).toBe(true);
 
       const idx1 = resA.jsonData.estimates.findIndex(e => e.estimate_id === createdEstimateId);
