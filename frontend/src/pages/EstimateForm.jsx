@@ -577,7 +577,7 @@ const EstimateForm = () => {
             <Button
               type="button"
               onClick={handleAddItem}
-              variant="secondary"
+              variant="amber"
               size="sm"
               disabled={isFormLockedByExpiry || submitting}
             >
