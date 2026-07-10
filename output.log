@@ -1,0 +1,35 @@
+[22:59:24] generating PDF from documentation/COMPREHENSIVE_PROJECT_REPORT.md [started]
+[22:59:24] generating PDF from documentation/COMPREHENSIVE_PROJECT_REPORT.md [failed]
+[22:59:24] → Cannot find module 'is-observable'
+Require stack:
+- /Users/aryakpal/SNPolymers/node_modules/listr/lib/utils.js
+- /Users/aryakpal/SNPolymers/node_modules/listr/lib/task.js
+- /Users/aryakpal/SNPolymers/node_modules/listr/index.js
+- /Users/aryakpal/SNPolymers/node_modules/md-to-pdf/dist/cli.js
+ListrError: Something went wrong
+    at /Users/aryakpal/SNPolymers/node_modules/listr/index.js:102:18
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async main (/Users/aryakpal/SNPolymers/node_modules/md-to-pdf/dist/cli.js:120:5) {
+  errors: [
+    Error: Cannot find module 'is-observable'
+    Require stack:
+    - /Users/aryakpal/SNPolymers/node_modules/listr/lib/utils.js
+    - /Users/aryakpal/SNPolymers/node_modules/listr/lib/task.js
+    - /Users/aryakpal/SNPolymers/node_modules/listr/index.js
+    - /Users/aryakpal/SNPolymers/node_modules/md-to-pdf/dist/cli.js
+        at Module._resolveFilename (node:internal/modules/cjs/loader:1475:15)
+        at wrapResolveFilename (node:internal/modules/cjs/loader:1048:27)
+        at defaultResolveImplForCJSLoading (node:internal/modules/cjs/loader:1072:10)
+        at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1093:12)
+        at Module._load (node:internal/modules/cjs/loader:1261:25)
+        at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)
+        at Module.require (node:internal/modules/cjs/loader:1575:12)
+        at require (node:internal/modules/helpers:191:16)
+        at isObservable (/Users/aryakpal/SNPolymers/node_modules/listr/lib/utils.js:7:105)
+        at exports.isObservable (/Users/aryakpal/SNPolymers/node_modules/listr/lib/utils.js:10:31) {
+      code: 'MODULE_NOT_FOUND',
+      requireStack: [Array]
+    }
+  ],
+  context: [Object: null prototype] {}
+}
