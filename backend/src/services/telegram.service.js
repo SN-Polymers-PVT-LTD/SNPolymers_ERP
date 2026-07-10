@@ -96,6 +96,21 @@ async function startPolling() {
     return;
   }
 
+  // Delete webhook before starting polling to resolve conflict if webhook is active on the bot
+  try {
+    console.log('[BOT] Deleting any existing webhook to enable long polling...');
+    const deleteUrl = `${TELEGRAM_API_BASE}/deleteWebhook?drop_pending_updates=true`;
+    const delRes = await fetch(deleteUrl);
+    const delData = await delRes.json();
+    if (delData.ok) {
+      console.log('[BOT] Active Telegram webhook cleared successfully for long-polling.');
+    } else {
+      console.warn(`[BOT] Failed to clear Telegram webhook: ${delData.description}`);
+    }
+  } catch (err) {
+    console.warn(`[BOT] Error clearing Telegram webhook: ${err.message}`);
+  }
+
   console.log('[BOT] Telegram long polling started. Waiting for messages from @snpolymers_bot...');
 
   let offset = 0;
