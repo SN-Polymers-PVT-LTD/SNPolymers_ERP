@@ -318,6 +318,31 @@ function escapeHtml(text) {
 }
 
 /**
+ * Resolves a mobile number to a display name.
+ * Falls back to the mobile number if not found or on error.
+ * @param {string} mobileNumber
+ * @returns {Promise<string>}
+ */
+async function getDisplayName(mobileNumber) {
+  if (!mobileNumber) return 'N/A';
+  try {
+    const { data, error } = await supabase
+      .from('authorised_users')
+      .select('display_name')
+      .eq('mobile_number', mobileNumber)
+      .maybeSingle();
+    if (error) {
+      console.warn(`[TELEGRAM ALERTS] Failed to resolve display name for ${mobileNumber}: ${error.message}`);
+      return mobileNumber;
+    }
+    return data?.display_name || mobileNumber;
+  } catch (err) {
+    console.warn(`[TELEGRAM ALERTS] Failed to resolve display name for ${mobileNumber}: ${err.message}`);
+    return mobileNumber;
+  }
+}
+
+/**
  * Sends a notification to all active ZO users when a new estimate is submitted.
  * @param {object} estimate - The submitted estimate object (enriched with projects_master data if possible)
  */
@@ -362,7 +387,8 @@ async function notifyZoEstimateSubmitted(estimate) {
     const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
     const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
-    const jeUserId = escapeHtml(estimate.je_user_id || 'N/A');
+    const jeName = await getDisplayName(estimate.je_user_id);
+    const jeUserId = escapeHtml(jeName);
 
     const messageText = 
       `📝 <b>New Estimate Submitted</b>\n\n` +
@@ -433,10 +459,11 @@ async function notifyHoEstimateApproved(estimate) {
     const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
     const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
-    const zoApprovedBy = escapeHtml(estimate.zo_approved_by || 'N/A');
+    const zoName = await getDisplayName(estimate.zo_approved_by);
+    const zoApprovedBy = escapeHtml(zoName);
 
     const messageText = 
-      `✅ <b>Estimate Approved by ZO</b>\n\n` +
+      `<b>Cost Estimate Approved by ZO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
       `<b>Site Details:</b> ${siteDetails}\n` +
@@ -1064,16 +1091,17 @@ async function notifyAllEstimateFinalApproved(estimate) {
     const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
     const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
-    const hoApprovedBy = escapeHtml(estimate.ho_approved_by || 'N/A');
+    const hoName = await getDisplayName(estimate.ho_approved_by);
+    const hoApprovedBy = escapeHtml(hoName);
 
     const messageText = 
-      `🎉 <b>Cost Estimate Finally Approved</b>\n\n` +
+      `<b>Cost Estimate Approved by HO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
       `<b>Site Details:</b> ${siteDetails}\n` +
       `<b>Final Approved Amount:</b> ₹${amount}\n` +
       `<b>Approved By HO:</b> ${hoApprovedBy}\n\n` +
-      `The cost estimate has been finalized and approved by Head Office.`;
+      `The cost estimate has been approved by Head Office.`;
 
     for (const recipient of recipients) {
       try {
@@ -1094,6 +1122,58 @@ async function notifyAllEstimateFinalApproved(estimate) {
   }
 }
 
+async function notifyJeEstimateZoApproved(estimate) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const { data: jeUser, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', estimate.created_by)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve JE user: ${error.message}`);
+      return;
+    }
+
+    if (!jeUser || !jeUser.telegram_chat_id || jeUser.telegram_chat_id.trim() === '') {
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      return;
+    }
+
+    const estimateNo = escapeHtml(estimate.estimate_no || 'N/A');
+    const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
+    const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
+    const zoName = await getDisplayName(estimate.zo_approved_by);
+    const zoApprovedBy = escapeHtml(zoName);
+
+    const messageText = 
+      `<b>Cost Estimate Approved by ZO</b>\n\n` +
+      `<b>Estimate No:</b> ${estimateNo}\n` +
+      `<b>Work Order:</b> ${workOrder}\n` +
+      `<b>Site Details:</b> ${siteDetails}\n` +
+      `<b>Approved Zonal Amount:</b> ₹${amount}\n` +
+      `<b>Approved By ZO:</b> ${zoApprovedBy}\n\n` +
+      `Your cost estimate has been approved by the Zonal Office and forwarded to Head Office.`;
+
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data.ok) {
+      console.warn(`[TELEGRAM ALERTS] Failed to send message to JE ${jeUser.display_name} (${jeUser.telegram_chat_id}): ${data.description}`);
+    }
+  } catch (error) {
+    console.error(`[TELEGRAM ALERTS] notifyJeEstimateZoApproved failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   sendOtp,
   startPolling,
@@ -1101,6 +1181,7 @@ module.exports = {
   registerWebhook,
   notifyZoEstimateSubmitted,
   notifyHoEstimateApproved,
+  notifyJeEstimateZoApproved,
   notifyZoFundRequestApproved,
   notifyJeRevisionRequested,
   notifyHoFundRequestSubmitted,

@@ -346,8 +346,11 @@ async function submitReview(req, res) {
 
     // Trigger Telegram notification if ZO Approved
     if (updatedEstimate.estimate_status === ESTIMATE_STATUS.ZO_APPROVED) {
-      const { notifyHoEstimateApproved } = require('../services/telegram.service');
+      const { notifyHoEstimateApproved, notifyJeEstimateZoApproved } = require('../services/telegram.service');
       notifyHoEstimateApproved(updatedEstimate).catch(err => {
+        console.error(`Telegram notification failed: ${err.message}`);
+      });
+      notifyJeEstimateZoApproved(updatedEstimate).catch(err => {
         console.error(`Telegram notification failed: ${err.message}`);
       });
     }
