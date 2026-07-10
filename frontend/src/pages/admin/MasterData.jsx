@@ -317,6 +317,13 @@ const MasterData = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState('running'); // 'running' | 'archive'
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, search]);
 
   const [modal, setModal] = useState(null); // null | { type: 'create'|'edit'|'status', project? }
 
@@ -385,12 +392,124 @@ const MasterData = () => {
     );
   });
 
+  const runningProjects = filtered.filter((p) => p.status === 'Running');
+  const archivedProjects = filtered.filter((p) => p.status === 'Closed' || p.status === 'Complete Under Maintenance');
+
+  const activeProjectsList = activeTab === 'running' ? runningProjects : archivedProjects;
+  const totalPages = Math.ceil(activeProjectsList.length / pageSize) || 1;
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedProjects = activeProjectsList.slice(startIndex, startIndex + pageSize);
+
   // ── Stat counts ──
   const counts = {
     total: projects.length,
     running: projects.filter((p) => p.status === 'Running').length,
     closed: projects.filter((p) => p.status === 'Closed').length,
     maintenance: projects.filter((p) => p.status === 'Complete Under Maintenance').length,
+  };
+
+  const renderProjectTable = (list, emptyMessage) => {
+    if (list.length === 0) {
+      return (
+        <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest bg-white/[0.01]">
+          {emptyMessage}
+        </div>
+      );
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-500">
+              {['Work Order No.', 'Estimate No.', 'Work Order Value', 'EMD Amount', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Latitude', 'Longitude', 'Start Date', 'End Date', 'Actions'].map((h) => (
+                <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-white/5 text-xs text-slate-300">
+            {list.map((project) => (
+              <tr
+                key={project.work_order_no}
+                className="hover:bg-white/[0.025] transition-colors duration-200 group"
+              >
+                <td className="py-4 px-5 font-mono font-semibold text-slate-100 whitespace-nowrap">
+                  {project.work_order_no}
+                </td>
+                <td className="py-4 px-5 font-medium text-slate-300 whitespace-nowrap">
+                  {project.estimate_no || <span className="text-slate-600 italic font-normal">—</span>}
+                </td>
+                <td className="py-4 px-5 font-semibold text-amber-500 whitespace-nowrap">
+                  {formatCurrency(project.work_order_value)}
+                </td>
+                <td className="py-4 px-5 font-mono text-indigo-400 whitespace-nowrap">
+                  {formatCurrency(project.earnest_money_deposit || 0)}
+                </td>
+                <td className="py-4 px-5 max-w-[180px] text-slate-400">
+                  <span className="block truncate" title={project.site_details}>
+                    {project.site_details || '—'}
+                  </span>
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap">
+                  <span className="font-semibold text-slate-200">{project.state}</span>
+                  {project.district && (
+                    <span className="text-slate-500 font-normal"> / {project.district}</span>
+                  )}
+                </td>
+                <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
+                  {project.zone || '—'}
+                </td>
+                <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
+                  {project.department || '—'}
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap">
+                  <StatusBadge status={project.status} />
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                  {project.site_latitude || '—'}
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                  {project.site_longitude || '—'}
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                  {project.project_start_date || '—'}
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
+                  {project.project_end_date || '—'}
+                </td>
+                <td className="py-4 px-5 whitespace-nowrap">
+                  <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
+                    <button
+                      id={`btn-edit-${project.work_order_no}`}
+                      onClick={() => setModal({ type: 'edit', project })}
+                      title="Edit project"
+                      className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all duration-200"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <button
+                      id={`btn-status-${project.work_order_no}`}
+                      onClick={() => setModal({ type: 'status', project })}
+                      title="Update status"
+                      className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all duration-200"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
+          Showing {list.length} records
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -459,6 +578,30 @@ const MasterData = () => {
           </div>
         )}
 
+        {/* ── View Selection Tabs ── */}
+        <div className="flex gap-2 mb-6 border-b border-white/5 pb-4">
+          <button
+            onClick={() => setActiveTab('running')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+              activeTab === 'running'
+                ? 'bg-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.25)]'
+                : 'bg-white/5 border border-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+            }`}
+          >
+            Running Projects ({counts.running})
+          </button>
+          <button
+            onClick={() => setActiveTab('archive')}
+            className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+              activeTab === 'archive'
+                ? 'bg-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.25)]'
+                : 'bg-white/5 border border-white/5 text-slate-400 hover:text-slate-200 hover:bg-white/10'
+            }`}
+          >
+            Project Archives ({counts.closed + counts.maintenance})
+          </button>
+        </div>
+
         {/* ── Search ── */}
         <div className="flex items-center gap-3 mb-5">
           <div className="relative flex-1 max-w-sm">
@@ -496,111 +639,48 @@ const MasterData = () => {
         </div>
 
         {/* ── Table ── */}
-        <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
-          {loading ? (
-            <div className="flex items-center justify-center p-24">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
+        {loading ? (
+          <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5 flex items-center justify-center p-24">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
+          </div>
+        ) : (
+          <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
+            {renderProjectTable(
+              paginatedProjects,
+              activeTab === 'running'
+                ? (search ? 'No matching running projects found.' : 'No running projects found. Create one to get started.')
+                : (search ? 'No matching archived projects found.' : 'No archived projects found.')
+            )}
+            
+            {/* Pagination Footer */}
+            <div className="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row justify-between items-center gap-4 text-xs select-none">
+              <span className="text-slate-400 font-medium font-mono">
+                Showing <span className="font-extrabold text-slate-200">{activeProjectsList.length > 0 ? startIndex + 1 : 0}</span> to <span className="font-extrabold text-slate-200">{Math.min(startIndex + pageSize, activeProjectsList.length)}</span> of <span className="font-extrabold text-slate-200">{activeProjectsList.length}</span> records
+              </span>
+              {totalPages > 1 && (
+                <div className="flex gap-1.5 items-center">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase transition"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-slate-400 px-2 font-semibold">
+                    Page <span className="text-amber-500">{currentPage}</span> of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/5 text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed text-xs font-bold uppercase transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
-              {search ? 'No matching projects found.' : 'No projects found. Create one to get started.'}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-500">
-                    {['Work Order No.', 'Estimate No.', 'Work Order Value', 'EMD Amount', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Latitude', 'Longitude', 'Start Date', 'End Date', 'Actions'].map((h) => (
-                      <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-xs text-slate-300">
-                  {filtered.map((project) => (
-                    <tr
-                      key={project.work_order_no}
-                      className="hover:bg-white/[0.025] transition-colors duration-200 group"
-                    >
-                      <td className="py-4 px-5 font-mono font-semibold text-slate-100 whitespace-nowrap">
-                        {project.work_order_no}
-                      </td>
-                      <td className="py-4 px-5 font-medium text-slate-300 whitespace-nowrap">
-                        {project.estimate_no || <span className="text-slate-600 italic font-normal">—</span>}
-                      </td>
-                      <td className="py-4 px-5 font-semibold text-amber-500 whitespace-nowrap">
-                        {formatCurrency(project.work_order_value)}
-                      </td>
-                      <td className="py-4 px-5 font-mono text-indigo-400 whitespace-nowrap">
-                        {formatCurrency(project.earnest_money_deposit || 0)}
-                      </td>
-                      <td className="py-4 px-5 max-w-[180px] text-slate-400">
-                        <span className="block truncate" title={project.site_details}>
-                          {project.site_details || '—'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap">
-                        <span className="font-semibold text-slate-200">{project.state}</span>
-                        {project.district && (
-                          <span className="text-slate-500 font-normal"> / {project.district}</span>
-                        )}
-                      </td>
-                      <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
-                        {project.zone || '—'}
-                      </td>
-                      <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
-                        {project.department || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap">
-                        <StatusBadge status={project.status} />
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                        {project.site_latitude || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                        {project.site_longitude || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                        {project.project_start_date || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap text-[10px] text-slate-400 font-mono">
-                        {project.project_end_date || '—'}
-                      </td>
-                      <td className="py-4 px-5 whitespace-nowrap">
-                        <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
-                          {/* Edit fields */}
-                          <button
-                            id={`btn-edit-${project.work_order_no}`}
-                            onClick={() => setModal({ type: 'edit', project })}
-                            title="Edit project"
-                            className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all duration-200"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          {/* Status change */}
-                          <button
-                            id={`btn-status-${project.work_order_no}`}
-                            onClick={() => setModal({ type: 'status', project })}
-                            title="Update status"
-                            className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all duration-200"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
-                Showing {filtered.length} of {projects.length} records
-              </div>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
 
       {/* ── Modals ── */}

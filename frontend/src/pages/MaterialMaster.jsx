@@ -299,7 +299,7 @@ const MaterialMaster = () => {
       <Sidebar />
       <MobileHeader />
 
-      <main className="flex-grow p-4 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
+      <main className="flex-grow p-4 md:p-8 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
         
         {/* Module Header */}
         <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
