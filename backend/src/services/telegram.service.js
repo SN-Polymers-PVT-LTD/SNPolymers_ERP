@@ -11,18 +11,19 @@ const TELEGRAM_API_BASE = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
  * @param {string} otp - The OTP code to send
  */
 async function sendOtp(telegramChatId, otp) {
+  const cleanChatId = telegramChatId ? String(telegramChatId).trim() : null;
   const messageText = `Your SN Polymers IDBP login code is: \`${otp}\`.\n\n*(Tap/Click the code above to copy it automatically)*\n\nValid for 5 minutes. Do not share this code with anyone.`;
 
   // Log OTP to terminal in non-production environments only.
   // Never log in production — OTP codes must not appear in cloud logging services.
   if (process.env.NODE_ENV !== 'production') {
     console.log('\n======================================');
-    console.log(`[OTP DEBUG] Telegram Chat ID: ${telegramChatId || 'N/A (console fallback)'}`);
+    console.log(`[OTP DEBUG] Telegram Chat ID: ${cleanChatId || 'N/A (console fallback)'}`);
     console.log(`[OTP CODE]: ${otp}`);
     console.log('======================================\n');
   }
 
-  if (!telegramChatId) {
+  if (!cleanChatId) {
     console.log('[OTP SERVICE] No telegram_chat_id set — running in console-only fallback mode.');
     return { success: true, mode: 'console' };
   }
@@ -36,7 +37,7 @@ async function sendOtp(telegramChatId, otp) {
     // encodeURIComponent is correctly applied to both telegramChatId and messageText.
     // This prevents injection if either contains special URL characters (+, &, =, etc.).
     // Verified: no raw string concatenation without encoding in this URL construction (CQ-10).
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(telegramChatId)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(cleanChatId)}&text=${encodeURIComponent(messageText)}&parse_mode=Markdown`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -59,12 +60,13 @@ async function sendOtp(telegramChatId, otp) {
  */
 async function sendBotMessage(chatId, text) {
   if (!TELEGRAM_BOT_TOKEN) return;
+  const cleanChatId = chatId ? String(chatId).trim() : '';
   try {
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(text)}&parse_mode=Markdown`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(cleanChatId)}&text=${encodeURIComponent(text)}&parse_mode=Markdown`;
     const response = await fetch(url);
     const data = await response.json();
     if (!data.ok) {
-      console.warn(`[BOT] Failed to send reply to ${chatId}: ${data.description}`);
+      console.warn(`[BOT] Failed to send reply to ${cleanChatId}: ${data.description}`);
     }
   } catch (err) {
     console.warn(`[BOT] sendBotMessage error: ${err.message}`);
@@ -416,11 +418,11 @@ async function notifyZoEstimateSubmitted(estimate) {
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
-          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id}): ${data.description}`);
+          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id.trim()}): ${data.description}`);
         } else {
           console.log(`[TELEGRAM ALERTS] Notification sent to ${recipient.display_name}`);
         }
@@ -488,11 +490,11 @@ async function notifyHoEstimateApproved(estimate) {
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
-          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id}): ${data.description}`);
+          console.warn(`[TELEGRAM ALERTS] Failed to send message to ${recipient.display_name} (${recipient.telegram_chat_id.trim()}): ${data.description}`);
         } else {
           console.log(`[TELEGRAM ALERTS] Notification sent to ${recipient.display_name}`);
         }
@@ -686,11 +688,11 @@ async function notifyJeRevisionRequested(estimate, revisionLog) {
       `<b>Deadline:</b> ${deadlineFormatted} (IST)\n\n` +
       `Please review the remarks and resubmit the revised estimate on the IDBP dashboard.`;
 
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
     const response = await fetch(url);
     const data = await response.json();
     if (!data.ok) {
-      console.warn(`[TELEGRAM ALERTS] Failed to send message to ${jeUser.display_name} (${jeUser.telegram_chat_id}): ${data.description}`);
+      console.warn(`[TELEGRAM ALERTS] Failed to send message to JE ${jeUser.display_name} (${jeUser.telegram_chat_id.trim()}): ${data.description}`);
     } else {
       console.log(`[TELEGRAM ALERTS] Revision request notification sent to JE ${jeUser.display_name}`);
     }
@@ -751,7 +753,7 @@ async function notifyHoFundRequestSubmitted(fundRequest) {
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
@@ -805,7 +807,7 @@ async function notifyZoFundRequestHeld(originalRequest, updatedRequest) {
       `<b>HO Remarks:</b> ${remarksClean}\n\n` +
       `Your fund request has been placed on hold. Please check the dashboard for details.`;
 
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -950,7 +952,7 @@ async function notifyHoRequisitionSubmitted(requisition) {
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
@@ -1027,7 +1029,7 @@ async function notifyJeRequisitionActed(originalRequisition, updatedRequisition)
         `<b>Remarks:</b> ${remarks}`;
     }
 
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
     const response = await fetch(url);
     const data = await response.json();
 
@@ -1134,7 +1136,7 @@ async function notifyZoAndHoRequisitionActed(originalRequisition, updatedRequisi
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
@@ -1221,7 +1223,7 @@ async function notifyZoAndHoBackdatedProgressSubmitted(progressReport) {
 
     for (const recipient of recipients) {
       try {
-        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id)}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
         const response = await fetch(url);
         const data = await response.json();
         if (!data.ok) {
