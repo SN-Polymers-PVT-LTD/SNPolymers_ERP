@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
@@ -12,6 +12,34 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
   const zoUser = { role: 'zo', mobile_number: '+918000000001' };
   const zoUser2 = { role: 'zo', mobile_number: '+918000000003' };
   const hoUser = { role: 'ho', mobile_number: '+918000000004' };
+  let testWorkOrder;
+
+  beforeAll(async () => {
+    const suffix = crypto.randomUUID().substring(0, 8);
+    testWorkOrder = `TEST_WO_P3M3_${suffix}`;
+
+    // Insert a project owned by zoUser so the ZO ownership check in createFundRequest passes
+    const { error: projErr } = await supabase.from('projects_master').insert({
+      work_order_no: testWorkOrder,
+      estimate_no: `EST_P3M3_${suffix}`,
+      zo_user_id: zoUser.mobile_number,
+      site_details: 'P3-M3 Test Site',
+      state: 'West Bengal',
+      district: 'Kolkata',
+      zone: 'Kolkata Zone',
+      department: 'PWD',
+      status: 'Running',
+      work_order_value: 500000.00,
+      created_by: zoUser.mobile_number,
+      edited_by: zoUser.mobile_number
+    });
+    if (projErr) throw new Error(`P3-M3 project insert failed: ${projErr.message}`);
+  });
+
+  afterAll(async () => {
+    await supabase.from('fund_requests').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+  });
 
   async function createTestRequest(amount = 50000.00) {
     const uniqueNo = `TEST_M3_FR_${crypto.randomUUID().replace(/[^0-9]/g, '').substring(0, 6)}`;
@@ -19,6 +47,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
       user: zoUser,
       body: {
         zo_fr_no: uniqueNo,
+        work_order_no: testWorkOrder,
         zo_fr_amount: amount,
         zo_remarks: 'Workflow test'
       }

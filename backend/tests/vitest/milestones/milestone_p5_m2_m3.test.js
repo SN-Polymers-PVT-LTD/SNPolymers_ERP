@@ -18,9 +18,10 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
   let testDate2;
   let createdReportId = null;
 
-  const jeUser = { role: 'je', mobile_number: '+918276071523' };
-  const jeUser2 = { role: 'je', mobile_number: '+918000000002' };
+  const jeUser = { role: 'je', mobile_number: '+918000000002' };
+  const jeUser2 = { role: 'je', mobile_number: '+918000000003' };
   const zoUser = { role: 'zo', mobile_number: '+918000000001' };
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -38,9 +39,21 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
 
     // Setup isolated project
     await setupProject(testWorkOrder, testEstimateNo, 1000000.00, jeUser.mobile_number);
+
+    // Setup active JE-ZO mapping so createProgressReport can resolve zo_user_id
+    const { data: mappingData } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: jeUser.mobile_number,
+      zo_user_id: zoUser.mobile_number,
+      is_active: true,
+      assigned_by: zoUser.mobile_number
+    }).select('id').single();
+    jeZoMappingId = mappingData?.id || null;
   });
 
   afterAll(async () => {
+    if (jeZoMappingId) {
+      await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
+    }
     // Clean up projects_master (DB cascades or soft/hard deletion rules)
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
   });

@@ -79,6 +79,36 @@ async function createRequisition(req, res) {
       });
     }
 
+    // 1b. Verify JE is actively mapped to the work order
+    const { data: woMapping, error: woMapErr } = await supabase
+      .from('work_order_mappings')
+      .select('id')
+      .eq('work_order_no', work_order_no.trim())
+      .eq('je_user_id', req.user.mobile_number)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (woMapErr) throw woMapErr;
+    if (!woMapping) {
+      await cleanupUploadedFiles();
+      return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+    }
+
+    // 1c. Fetch JE's active Zonal Office mapping
+    const { data: jeMapping, error: jeMapErr } = await supabase
+      .from('je_zo_mappings')
+      .select('zo_user_id')
+      .eq('je_user_id', req.user.mobile_number)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (jeMapErr) throw jeMapErr;
+    if (!jeMapping) {
+      await cleanupUploadedFiles();
+      return res.status(400).json({ success: false, message: 'Junior Engineer has no active Zonal Office mapping.' });
+    }
+    const zo_user_id = jeMapping.zo_user_id;
+
     // 2. Validate work_order_no exists and fetch details
     const { data: project, error: projectErr } = await supabase
       .from('projects_master')
@@ -182,6 +212,15 @@ async function createRequisition(req, res) {
       throw rpcError;
     }
 
+    // Set zo_user_id in database
+    const { error: updateZoErr } = await supabase
+      .from('requisitions')
+      .update({ zo_user_id })
+      .eq('requisition_id', newReq.requisition_id);
+
+    if (updateZoErr) throw updateZoErr;
+    newReq.zo_user_id = zo_user_id;
+
     // 6. Calculate remaining amount for response
     const { data: committedRes } = await supabase
       .from('requisitions')
@@ -240,6 +279,10 @@ async function getRequisitions(req, res) {
 
     if (req.user.role === 'je') {
       dbQuery = dbQuery.eq('requester_user_id', req.user.mobile_number);
+    }
+
+    if (req.user.role === 'zo') {
+      dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
     }
 
     if (query.status) {
@@ -351,6 +394,10 @@ async function getRequisitionById(req, res) {
       return res.status(404).json({ success: false, message: 'Requisition not found.' });
     }
 
+    if (req.user.role === 'zo' && requisition.zo_user_id !== req.user.mobile_number) {
+      return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    }
+
     const userMap = await resolveDisplayNames([
       requisition.requester_user_id,
       requisition.approved_user_id,
@@ -436,23 +483,38 @@ async function actOnRequisition(req, res) {
       return res.status(404).json({ success: false, message: 'Requisition not found.' });
     }
 
-    // 2. Status guard: must be Pending or Hold
-    if (reqRecord.requisition_status !== 'Pending' && reqRecord.requisition_status !== 'Hold') {
-      return res.status(403).json({
-        success: false,
-        message: `Action can only be taken on Pending or Hold requisitions. Current status: ${reqRecord.requisition_status}`
-      });
+    // ZO validation guard
+    if (req.user.role === 'zo' && reqRecord.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action requisitions within your Zonal Office.' });
     }
 
-    let updatePayload = {
-      approved_user_id: req.user.mobile_number,
-      payment_date: new Date().toISOString(),
-      remarks_approved_authority: remarks_approved_authority.trim()
-    };
+    let updated;
 
     if (action === 'Hold') {
-      updatePayload.requisition_status = 'Hold';
-      updatePayload.approve_type = 'Hold';
+      let updatePayload = {
+        approved_user_id: req.user.mobile_number,
+        payment_date: new Date().toISOString(),
+        remarks_approved_authority: remarks_approved_authority.trim(),
+        requisition_status: 'Hold',
+        approve_type: 'Hold'
+      };
+
+      const { data: heldReq, error: updateError } = await supabase
+        .from('requisitions')
+        .update(updatePayload)
+        .eq('requisition_id', id)
+        .in('requisition_status', ['Pending', 'Hold'])
+        .select()
+        .maybeSingle();
+
+      if (updateError) throw updateError;
+      if (!heldReq) {
+        return res.status(409).json({
+          success: false,
+          message: 'Conflict: The requisition status was already changed by another action.'
+        });
+      }
+      updated = heldReq;
     }
 
     if (action === 'Approve') {
@@ -464,27 +526,21 @@ async function actOnRequisition(req, res) {
         });
       }
 
-      updatePayload.requisition_status = 'Approved';
-      updatePayload.approve_type = 'Approve';
-      updatePayload.approved_amount = hoAmount;
-      updatePayload.approved_balance_amount = Number(reqRecord.requisition_amount) - hoAmount;
-    }
-
-    // 3. Perform update with optimistic lock
-    const { data: updated, error: updateError } = await supabase
-      .from('requisitions')
-      .update(updatePayload)
-      .eq('requisition_id', id)
-      .in('requisition_status', ['Pending', 'Hold'])
-      .select()
-      .maybeSingle();
-
-    if (updateError) throw updateError;
-    if (!updated) {
-      return res.status(409).json({
-        success: false,
-        message: 'Conflict: The requisition status was already changed by another action.'
+      // Call transactional RPC
+      const { data: approvedReq, error: rpcErr } = await supabase.rpc('approve_requisition_transact', {
+        p_requisition_id: id,
+        p_approved_amount: hoAmount,
+        p_actioned_by: req.user.mobile_number,
+        p_remarks_approved_authority: remarks_approved_authority.trim()
       });
+
+      if (rpcErr) {
+        if (rpcErr.message && rpcErr.message.includes('Insufficient available balance')) {
+          return res.status(422).json({ success: false, message: 'Insufficient available balance.' });
+        }
+        throw rpcErr;
+      }
+      updated = approvedReq;
     }
 
     const { notifyJeRequisitionActed, notifyZoAndHoRequisitionActed } = require('../services/telegram.service');

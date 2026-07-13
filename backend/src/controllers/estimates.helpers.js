@@ -53,10 +53,20 @@ function getEffectiveRole(role) {
 /**
  * Checks if the user is authorized to view the given estimate.
  */
-function canViewEstimate(estimate, user) {
+async function canViewEstimate(estimate, user) {
   const effectiveRole = getEffectiveRole(user.role);
-  if (effectiveRole === 'admin' || effectiveRole === 'zo' || effectiveRole === 'ho') {
+  if (effectiveRole === 'admin' || effectiveRole === 'ho') {
     return true;
+  }
+  if (effectiveRole === 'zo') {
+    const { data: mapping } = await supabase
+      .from('je_zo_mappings')
+      .select('id')
+      .eq('je_user_id', estimate.created_by)
+      .eq('zo_user_id', user.mobile_number)
+      .eq('is_active', true)
+      .maybeSingle();
+    return !!mapping;
   }
   if (effectiveRole === 'je') {
     return estimate.created_by === user.mobile_number;

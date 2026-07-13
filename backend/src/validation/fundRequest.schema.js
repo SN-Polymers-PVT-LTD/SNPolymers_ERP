@@ -11,6 +11,12 @@ const createFundRequestSchema = {
     .trim()
     .min(1, 'zo_fr_no (Fund Request Number) is required.'),
     
+    work_order_no: z.string({
+      required_error: 'work_order_no is required.'
+    })
+    .trim()
+    .min(1, 'work_order_no is required.'),
+
     zo_fr_amount: z.union([z.number(), z.string()], {
       required_error: 'zo_fr_amount must be a positive number greater than zero.'
     })

@@ -40,7 +40,7 @@ async function resolveDisplayNames(mobiles) {
  */
 async function createFundRequest(req, res) {
   if (!validate(req, res, createFundRequestSchema)) return;
-  const { zo_fr_no, zo_fr_amount, zo_remarks } = req.body;
+  const { zo_fr_no, work_order_no, zo_fr_amount, zo_remarks } = req.body;
   const amount = zo_fr_amount;
 
   try {
@@ -55,11 +55,30 @@ async function createFundRequest(req, res) {
       return res.status(409).json({ success: false, message: `A fund request with number ${zo_fr_no.trim()} already exists.` });
     }
 
+    // Verify work order matches ZO
+    const { data: project, error: projErr } = await supabase
+      .from('projects_master')
+      .select('zo_user_id, status')
+      .eq('work_order_no', work_order_no.trim())
+      .maybeSingle();
+
+    if (projErr) throw projErr;
+    if (!project) {
+      return res.status(400).json({ success: false, message: 'Work Order not found.' });
+    }
+    if (project.zo_user_id !== req.user.mobile_number) {
+      return res.status(400).json({ success: false, message: 'Work Order mismatch with Zonal Office.' });
+    }
+    if (project.status === 'Closed') {
+      return res.status(400).json({ success: false, message: 'Cannot request funds for a closed Work Order.' });
+    }
+
     const { data: newFr, error: insertError } = await supabase
       .from('fund_requests')
       .insert([
         {
           zo_user_id: req.user.mobile_number,
+          work_order_no: work_order_no.trim(),
           zo_fr_no: zo_fr_no.trim(),
           zo_fr_amount: amount,
           zo_remarks: zo_remarks?.trim() || null,
@@ -257,14 +276,32 @@ async function actOnFundRequest(req, res) {
       });
     }
 
-    let updatePayload = {
-      approve_ho_user_id: req.user.mobile_number,
-      approve_ho_date: new Date().toISOString(),
-      ho_remarks: ho_remarks?.trim() || null
-    };
+    let updated;
 
     if (action === 'Hold') {
-      updatePayload.request_status = 'Hold';
+      let updatePayload = {
+        approve_ho_user_id: req.user.mobile_number,
+        approve_ho_date: new Date().toISOString(),
+        ho_remarks: ho_remarks?.trim() || null,
+        request_status: 'Hold'
+      };
+
+      const { data: heldFr, error: updateError } = await supabase
+        .from('fund_requests')
+        .update(updatePayload)
+        .eq('fund_request_id', id)
+        .in('request_status', ['Pending', 'Hold'])
+        .select()
+        .maybeSingle();
+
+      if (updateError) throw updateError;
+      if (!heldFr) {
+        return res.status(409).json({
+          success: false,
+          message: 'Conflict: The fund request status was already changed by another action.'
+        });
+      }
+      updated = heldFr;
     }
 
     if (action === 'Approve') {
@@ -289,25 +326,17 @@ async function actOnFundRequest(req, res) {
         });
       }
 
-      updatePayload.request_status = 'Approved';
-      updatePayload.approve_ho_amount = hoAmount;
-      updatePayload.transfer_from_account = transfer_from_account;
-    }
-
-    const { data: updated, error: updateError } = await supabase
-      .from('fund_requests')
-      .update(updatePayload)
-      .eq('fund_request_id', id)
-      .in('request_status', ['Pending', 'Hold']) // optimistic lock
-      .select()
-      .maybeSingle();
-
-    if (updateError) throw updateError;
-    if (!updated) {
-      return res.status(409).json({
-        success: false,
-        message: 'Conflict: The fund request status was already changed by another action.'
+      // Call database RPC to atomically increment balance, insert ledger entry, and update status
+      const { data: approvedFr, error: rpcErr } = await supabase.rpc('approve_fund_request_transact', {
+        p_fund_request_id: id,
+        p_approved_amount: hoAmount,
+        p_transfer_from_account: transfer_from_account,
+        p_actioned_by: req.user.mobile_number,
+        p_remarks: ho_remarks?.trim() || null
       });
+
+      if (rpcErr) throw rpcErr;
+      updated = approvedFr;
     }
 
     if (action === 'Approve') {

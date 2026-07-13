@@ -567,7 +567,8 @@ async function getRevisionLog(req, res) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 
-    if (!canViewEstimate(estimate, req.user)) {
+    const isAuthorized = await canViewEstimate(estimate, req.user);
+    if (!isAuthorized) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 

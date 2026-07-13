@@ -112,6 +112,16 @@ async function getEstimates(req, res) {
       dbQuery = dbQuery.eq('created_by', req.user.mobile_number);
     }
 
+    if (effectiveRole === 'zo') {
+      const { data: mappedJEs } = await supabase
+        .from('je_zo_mappings')
+        .select('je_user_id')
+        .eq('zo_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+      const jeIds = (mappedJEs || []).map(m => m.je_user_id);
+      dbQuery = dbQuery.in('created_by', jeIds.length > 0 ? jeIds : ['dummy_je_mobile_number']);
+    }
+
     if (query.status) {
       dbQuery = dbQuery.eq('estimate_status', query.status);
     }
@@ -187,7 +197,8 @@ async function getEstimateById(req, res) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 
-    if (!canViewEstimate(estimate, req.user)) {
+    const isAuthorized = await canViewEstimate(estimate, req.user);
+    if (!isAuthorized) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 

@@ -53,12 +53,17 @@ async function createBill(req, res) {
     // 1. Fetch work order & freeze geo-snapshot
     const { data: project, error: projError } = await supabase
       .from('projects_master')
-      .select('work_order_value, status, state, district, zone, department, site_details, earnest_money_deposit')
+      .select('work_order_value, status, state, district, zone, department, site_details, earnest_money_deposit, zo_user_id')
       .eq('work_order_no', work_order_no)
       .maybeSingle();
 
     if (projError || !project) {
       return res.status(404).json({ success: false, message: 'Work order not found.' });
+    }
+
+    // ZO validation guard
+    if (req.user.role === 'zo' && project.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You cannot create bills for this Work Order.' });
     }
 
     // Guard: closed work order
@@ -247,6 +252,15 @@ async function getBills(req, res) {
       .from('ra_final_bills')
       .select('*', { count: 'exact' });
 
+    if (req.user.role === 'zo') {
+      const { data: projects } = await supabase
+        .from('projects_master')
+        .select('work_order_no')
+        .eq('zo_user_id', req.user.mobile_number);
+      const wos = (projects || []).map(p => p.work_order_no);
+      query = query.in('work_order_no', wos.length > 0 ? wos : ['dummy_work_order_no']);
+    }
+
     if (work_order_no) {
       query = query.ilike('work_order_no', `%${work_order_no.trim()}%`);
     }
@@ -328,6 +342,17 @@ async function getBillById(req, res) {
       return res.status(404).json({ success: false, message: 'Bill entry not found.' });
     }
 
+    if (req.user.role === 'zo') {
+      const { data: proj } = await supabase
+        .from('projects_master')
+        .select('zo_user_id')
+        .eq('work_order_no', bill.work_order_no)
+        .maybeSingle();
+      if (!proj || proj.zo_user_id !== req.user.mobile_number) {
+        return res.status(404).json({ success: false, message: 'Bill entry not found.' });
+      }
+    }
+
     // Resolve creator display name
     const userMap = await resolveDisplayNames([bill.created_by]);
     const created_by_name = userMap[bill.created_by] || bill.created_by;
@@ -376,11 +401,15 @@ async function getBillSummaryByWorkOrder(req, res) {
     // Fetch project
     const { data: project, error: projError } = await supabase
       .from('projects_master')
-      .select('work_order_value, status, earnest_money_deposit')
+      .select('work_order_value, status, earnest_money_deposit, zo_user_id')
       .eq('work_order_no', work_order_no)
       .maybeSingle();
 
     if (projError || !project) {
+      return res.status(404).json({ success: false, message: 'Work order not found.' });
+    }
+
+    if (req.user.role === 'zo' && project.zo_user_id !== req.user.mobile_number) {
       return res.status(404).json({ success: false, message: 'Work order not found.' });
     }
 

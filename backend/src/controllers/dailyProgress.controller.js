@@ -66,6 +66,20 @@ async function createProgressReport(req, res) {
       });
     }
 
+    // Fetch JE's active Zonal Office mapping
+    const { data: jeMapping, error: jeMapErr } = await supabase
+      .from('je_zo_mappings')
+      .select('zo_user_id')
+      .eq('je_user_id', req.user.mobile_number)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (jeMapErr) throw jeMapErr;
+    if (!jeMapping) {
+      return res.status(400).json({ success: false, message: 'Junior Engineer has no active Zonal Office mapping.' });
+    }
+    const zo_user_id = jeMapping.zo_user_id;
+
     // 2. Determine if it is a back-dated submission
     const [year, month, day] = site_visit_date.split('-').map(Number);
     const inputDate = new Date(year, month - 1, day);
@@ -88,6 +102,7 @@ async function createProgressReport(req, res) {
     // 3. Build insert payload (geo-fields frozen from projects_master snapshot)
     const insertPayload = {
       created_by: req.user.mobile_number,
+      zo_user_id,
       work_order_no: work_order_no.trim(),
       state: project.state,
       district: project.district,
@@ -160,8 +175,10 @@ async function getProgressReports(req, res) {
     // Role-based record visibility
     if (req.user.role === 'je') {
       dbQuery = dbQuery.eq('created_by', req.user.mobile_number);
+    } else if (req.user.role === 'zo') {
+      dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
     } else {
-      // ZO/HO/Admin can filter by created_by
+      // HO/Admin can filter by created_by
       if (query.created_by) {
         dbQuery = dbQuery.eq('created_by', query.created_by.trim());
       }
@@ -261,8 +278,12 @@ async function getProgressReportById(req, res) {
       return res.status(404).json({ success: false, message: 'Report not found.' });
     }
 
-    // Visibility gate: JE can only view their own reports
+    // Visibility gate: JE can only view their own reports, ZO own zone
     if (req.user.role === 'je' && report.created_by !== req.user.mobile_number) {
+      return res.status(404).json({ success: false, message: 'Report not found.' });
+    }
+
+    if (req.user.role === 'zo' && report.zo_user_id !== req.user.mobile_number) {
       return res.status(404).json({ success: false, message: 'Report not found.' });
     }
 
@@ -316,7 +337,7 @@ async function addAuthorityRemarks(req, res) {
     // 1. Fetch report details
     const { data: report, error: fetchError } = await supabase
       .from('daily_progress_reports')
-      .select('report_id, work_order_no, site_visit_date, created_by')
+      .select('report_id, work_order_no, site_visit_date, created_by, zo_user_id')
       .eq('report_id', id)
       .maybeSingle();
 
@@ -340,6 +361,11 @@ async function addAuthorityRemarks(req, res) {
         success: false,
         message: `Authority remarks cannot be added or modified for projects in ${project.status} status.`
       });
+    }
+
+    // ZO authorization guard
+    if (req.user.role === 'zo' && report.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action reports within your Zonal Office.' });
     }
 
     // 3. Build update payload (overwrites previous remarks by design)

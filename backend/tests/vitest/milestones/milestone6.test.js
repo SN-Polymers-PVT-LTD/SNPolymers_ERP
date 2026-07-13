@@ -17,6 +17,7 @@ describe('Milestone 6 — Cost Estimates Revision Gating & Logs API', () => {
   let testWorkOrder;
   let testEstimateId = null;
   let testItemId = null;
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -105,9 +106,19 @@ describe('Milestone 6 — Cost Estimates Revision Gating & Logs API', () => {
 
     if (itemErr) throw itemErr;
     testItemId = item.item_id;
+
+    // Add JE-ZO mapping so canViewEstimate passes for testZoMobile viewing testJeMobile's estimate
+    const { data: jeZoData } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: testJeMobile,
+      zo_user_id: testZoMobile,
+      is_active: true,
+      assigned_by: testZoMobile
+    }).select('id').single();
+    jeZoMappingId = jeZoData?.id || null;
   });
 
   afterAll(async () => {
+    if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
     if (testEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', testEstimateId);
       await supabase.from('project_cost_estimates')

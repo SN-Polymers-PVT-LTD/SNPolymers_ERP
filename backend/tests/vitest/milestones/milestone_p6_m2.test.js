@@ -175,6 +175,7 @@ describe('Milestone P6-M2 — RA/Final Bill CRUD & Summary Controller', () => {
 
     test('Test 5: Retrieves correct bill summary and dropdown options for next bill', async () => {
       const reqSummary = {
+        user: hoUser,
         params: { work_order_no: testWorkOrder }
       };
       const resSummary = mockRes();
@@ -194,6 +195,7 @@ describe('Milestone P6-M2 — RA/Final Bill CRUD & Summary Controller', () => {
       expect(createdBillId).not.toBeNull();
 
       const reqList = {
+        user: hoUser,
         query: { work_order_no: testWorkOrder, page: 1, limit: 10 }
       };
       const resList = mockRes();
@@ -213,6 +215,7 @@ describe('Milestone P6-M2 — RA/Final Bill CRUD & Summary Controller', () => {
       expect(createdBillId).not.toBeNull();
 
       const reqGet = {
+        user: hoUser,
         params: { id: createdBillId }
       };
       const resGet = mockRes();

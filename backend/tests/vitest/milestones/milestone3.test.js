@@ -21,6 +21,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
   let createdEstimateId = null;
   let createdEstimateId2 = null;
   const insertedMaterialIds = [];
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -101,9 +102,19 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
     if (testMats) {
       testMats.forEach(m => insertedMaterialIds.push(m.id));
     }
+
+    // Add JE-ZO mapping so canViewEstimate passes for mobileZO viewing mobileJE_A's estimates
+    const { data: jeZoData } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: mobileJE_A,
+      zo_user_id: mobileZO,
+      is_active: true,
+      assigned_by: mobileAdmin
+    }).select('id').single();
+    jeZoMappingId = jeZoData?.id || null;
   });
 
   afterAll(async () => {
+    if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
     if (createdEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', createdEstimateId);
       await supabase.from('project_cost_estimates').update({

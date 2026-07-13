@@ -13,8 +13,10 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const testMobile = '+918276071523';
+  const testMobile = '+918000000002'; // Actual JE in DB
+  const testZoMobile = '+918000000001'; // ZO that testMobile JE is mapped to
   let createdReportId = null;
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -23,9 +25,21 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
 
     // Setup active project
     await setupProject(testWorkOrder, testEstimateNo, 500000.00, testMobile);
+
+    // Setup JE-ZO mapping so createProgressReport can resolve zo_user_id
+    const { data: mappingData } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: testMobile,
+      zo_user_id: testZoMobile,
+      is_active: true,
+      assigned_by: testZoMobile
+    }).select('id').single();
+    jeZoMappingId = mappingData?.id || null;
   });
 
   afterAll(async () => {
+    if (jeZoMappingId) {
+      await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
+    }
     // Cleanup
     if (createdReportId) {
       await supabase.from('daily_progress_reports').delete().eq('report_id', createdReportId);
@@ -84,7 +98,8 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
         remarks_approved_authority: 'Approved because JE explained properly.',
         action: 'Approve'
       },
-      user: { role: 'admin', mobile_number: testMobile }
+      // Test 3 needs a valid admin user for the authority action
+    user: { role: 'admin', mobile_number: testZoMobile }
     };
     const res = mockRes();
 

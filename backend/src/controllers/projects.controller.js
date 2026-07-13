@@ -11,10 +11,14 @@ async function getProjects(req, res) {
     const query = req.query || {};
     const hasPagination = query.page !== undefined || query.limit !== undefined;
 
+    let dbQuery = supabase.from('projects_master');
+
     if (!hasPagination) {
-      const { data: projects, error } = await supabase
-        .from('projects_master')
-        .select('*')
+      let queryBuilder = dbQuery.select('*');
+      if (req.user.role === 'zo') {
+        queryBuilder = queryBuilder.eq('zo_user_id', req.user.mobile_number);
+      }
+      const { data: projects, error } = await queryBuilder
         .order('work_order_no', { ascending: true });
 
       if (error) throw error;
@@ -26,9 +30,11 @@ async function getProjects(req, res) {
     const limit = Math.min(parseInt(query.limit || 50), 100);
     const offset = (page - 1) * limit;
 
-    const { data: projects, count, error } = await supabase
-      .from('projects_master')
-      .select('*', { count: 'exact' })
+    let queryBuilder = dbQuery.select('*', { count: 'exact' });
+    if (req.user.role === 'zo') {
+      queryBuilder = queryBuilder.eq('zo_user_id', req.user.mobile_number);
+    }
+    const { data: projects, count, error } = await queryBuilder
       .order('work_order_no', { ascending: true })
       .range(offset, offset + limit - 1);
 
@@ -67,6 +73,10 @@ async function getProjectByWorkOrder(req, res) {
     if (error) throw error;
 
     if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found.' });
+    }
+
+    if (req.user.role === 'zo' && project.zo_user_id !== req.user.mobile_number) {
       return res.status(404).json({ success: false, message: 'Project not found.' });
     }
 

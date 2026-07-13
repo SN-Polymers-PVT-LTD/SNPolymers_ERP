@@ -15,10 +15,12 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const jeUser = { role: 'je', mobile_number: '+918276071523' }; // Owner/creator
-  const jeUser2 = { role: 'je', mobile_number: '+918000000002' }; // Non-owner
+  const jeUser = { role: 'je', mobile_number: '+918000000002' }; // Owner/creator (actual je in DB)
+  const jeUser2 = { role: 'je', mobile_number: '+918000000003' }; // Non-owner (actual je in DB)
   const zoUser = { role: 'zo', mobile_number: '+918000000001' };
   let createdId = null;
+  let woMappingId = null;
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -26,8 +28,43 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     testWorkOrder = `TEST_WO_M2_${suffix}`;
     testEstimateNo = `EST_M2_${suffix}`;
 
-    // 1. Create a fresh project
-    await setupProject(testWorkOrder, testEstimateNo, 1000000.00, jeUser.mobile_number);
+    // 1. Create a fresh project with zo_user_id set
+    const { error: projErr } = await supabase.from('projects_master').insert({
+      work_order_no: testWorkOrder,
+      estimate_no: testEstimateNo,
+      work_order_value: 1000000.00,
+      zo_user_id: zoUser.mobile_number,
+      site_details: 'Testing Site',
+      state: 'West Bengal',
+      district: 'Kolkata',
+      zone: 'Kolkata Zone',
+      department: 'PWD',
+      status: 'Running',
+      created_by: jeUser.mobile_number,
+      edited_by: jeUser.mobile_number
+    });
+    if (projErr) throw new Error(`Failed to create project: ${projErr.message}`);
+
+    // 1b. Create je_zo_mapping FIRST (work_order_mappings trigger requires it)
+    const { data: jeZoData, error: jeZoErr } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: jeUser.mobile_number,
+      zo_user_id: zoUser.mobile_number,
+      is_active: true,
+      assigned_by: zoUser.mobile_number
+    }).select('id').single();
+    if (jeZoErr) console.error('JE-ZO Mapping insert error:', jeZoErr);
+    jeZoMappingId = jeZoData?.id || null;
+
+    // 1c. Now create the work_order_mapping for JE (trigger checks je_zo_mappings)
+    const { data: woMapData, error: woMapErr } = await supabase.from('work_order_mappings').insert({
+      work_order_no: testWorkOrder,
+      je_user_id: jeUser.mobile_number,
+      is_active: true,
+      reason: 'Assigned',
+      assigned_by: zoUser.mobile_number
+    }).select('id').single();
+    if (woMapErr) console.error('WO Mapping insert error:', woMapErr);
+    woMappingId = woMapData?.id || null;
 
     // 2. Create a Final Approved estimate header to provide a valid balance snapshot
     const { data: estData, error: estErr } = await supabase
@@ -51,6 +88,9 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
   });
 
   afterAll(async () => {
+    if (woMappingId) await supabase.from('work_order_mappings').delete().eq('id', woMappingId);
+    if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
+
     if (createdId) {
       // Soft-cancel the requisition
       await supabase

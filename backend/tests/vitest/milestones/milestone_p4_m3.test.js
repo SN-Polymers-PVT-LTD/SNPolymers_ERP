@@ -14,19 +14,63 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const jeUser = { role: 'je', mobile_number: '+918276071523' };
-  const jeUser2 = { role: 'je', mobile_number: '+918000000002' };
+  const jeUser = { role: 'je', mobile_number: '+918000000002' }; // Actual je in DB
+  const jeUser2 = { role: 'je', mobile_number: '+918000000003' }; // Non-owner je in DB
   const zoUser = { role: 'zo', mobile_number: '+918000000001' };
-  const adminUser = { role: 'admin', mobile_number: '+918276071523' };
+  const adminUser = { role: 'admin', mobile_number: '+918276071523' }; // Actual admin in DB
   let createdId = null;
+  let woMappingId = null;
+  let jeZoMappingId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_M3_${suffix}`;
     testEstimateNo = `EST_M3_${suffix}`;
 
-    // 1. Create a fresh project
-    await setupProject(testWorkOrder, testEstimateNo, 1000000.00, jeUser.mobile_number);
+    // 1. Create a fresh project with zo_user_id
+    const { error: projErr } = await supabase.from('projects_master').insert({
+      work_order_no: testWorkOrder,
+      estimate_no: testEstimateNo,
+      work_order_value: 1000000.00,
+      zo_user_id: zoUser.mobile_number,
+      site_details: 'Testing Site',
+      state: 'West Bengal',
+      district: 'Kolkata',
+      zone: 'Kolkata Zone',
+      department: 'PWD',
+      status: 'Running',
+      created_by: zoUser.mobile_number,
+      edited_by: zoUser.mobile_number
+    });
+    if (projErr) throw new Error(`P4-M3 project insert failed: ${projErr.message}`);
+
+    // 1b. JE-ZO mapping FIRST (work_order_mappings trigger requires it)
+    const { data: jeZoData, error: jeZoErr } = await supabase.from('je_zo_mappings').insert({
+      je_user_id: jeUser.mobile_number,
+      zo_user_id: zoUser.mobile_number,
+      is_active: true,
+      assigned_by: zoUser.mobile_number
+    }).select('id').single();
+    if (jeZoErr) console.error('P4-M3 JE-ZO Mapping error:', jeZoErr);
+    jeZoMappingId = jeZoData?.id || null;
+
+    // 1c. Work order mapping for JE (trigger checks je_zo_mappings)
+    const { data: woMapData, error: woMapErr } = await supabase.from('work_order_mappings').insert({
+      work_order_no: testWorkOrder,
+      je_user_id: jeUser.mobile_number,
+      is_active: true,
+      reason: 'Assigned',
+      assigned_by: zoUser.mobile_number
+    }).select('id').single();
+    if (woMapErr) console.error('P4-M3 WO Mapping error:', woMapErr);
+    woMappingId = woMapData?.id || null;
+
+    // 1d. Seed ZO balance so approve_requisition_transact can deduct
+    await supabase.from('zo_balances').upsert({
+      zo_user_id: zoUser.mobile_number,
+      available_balance: 100000.00,
+      updated_at: new Date().toISOString()
+    });
 
     // 2. Create a Final Approved estimate header to provide a valid balance snapshot
     const { data: estData, error: estErr } = await supabase
@@ -50,6 +94,9 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
   });
 
   afterAll(async () => {
+    if (woMappingId) await supabase.from('work_order_mappings').delete().eq('id', woMappingId);
+    if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
+
     if (estimateId) {
       // Restore estimate status to allow deleting project/estimate reference
       await supabase.from('project_cost_estimates').update({
@@ -170,7 +217,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
       expect(resLimit.jsonData.message).toContain('exceed requisition amount');
     });
 
-    test('Test 5: Blocks workflow action on an already Approved requisition with 403', async () => {
+    test('Test 5: Blocks workflow action on an already Approved requisition with 409', async () => {
       expect(createdId).not.toBeNull();
 
       const reqNonPending = {
@@ -184,7 +231,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
       const resNonPending = mockRes();
       await actOnRequisition(reqNonPending, resNonPending);
 
-      expect(resNonPending.statusCode).toBe(403);
+      expect(resNonPending.statusCode).toBe(409);
     });
   });
 

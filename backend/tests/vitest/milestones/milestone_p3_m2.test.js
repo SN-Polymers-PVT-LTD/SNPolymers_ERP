@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
@@ -12,6 +12,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
   let suffix;
   let testFrNo1;
   let testFrNo2;
+  let testWorkOrder;
   const zoUser = { role: 'zo', mobile_number: '+918000000001' };
   const zoUser2 = { role: 'zo', mobile_number: '+918000000003' };
   const jeUser = { role: 'je', mobile_number: '+918000000002' };
@@ -22,6 +23,29 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testFrNo1 = `TEST_M2_FR_${suffix}_1`;
     testFrNo2 = `TEST_M2_FR_${suffix}_2`;
+    testWorkOrder = `TEST_WO_P3M2_${suffix}`;
+
+    // Insert a project owned by zoUser so the ZO ownership check in createFundRequest passes
+    const { error: projErr } = await supabase.from('projects_master').insert({
+      work_order_no: testWorkOrder,
+      estimate_no: `EST_P3M2_${suffix}`,
+      zo_user_id: zoUser.mobile_number,
+      site_details: 'P3-M2 Test Site',
+      state: 'West Bengal',
+      district: 'Kolkata',
+      zone: 'Kolkata Zone',
+      department: 'PWD',
+      status: 'Running',
+      work_order_value: 500000.00,
+      created_by: zoUser.mobile_number,
+      edited_by: zoUser.mobile_number
+    });
+    if (projErr) throw new Error(`P3-M2 project insert failed: ${projErr.message}`);
+  });
+
+  afterAll(async () => {
+    await supabase.from('fund_requests').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
   });
 
   describe('Fund Request Creation', () => {
@@ -30,6 +54,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         user: zoUser,
         body: {
           zo_fr_no: testFrNo1,
+          work_order_no: testWorkOrder,
           zo_fr_amount: 45000.50,
           zo_remarks: '  Urgent Material Purchase  '
         }
@@ -50,6 +75,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         user: zoUser,
         body: {
           zo_fr_no: testFrNo1,
+          work_order_no: testWorkOrder,
           zo_fr_amount: 10000.00
         }
       };
@@ -65,6 +91,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         user: zoUser,
         body: {
           zo_fr_no: testFrNo2,
+          work_order_no: testWorkOrder,
           zo_fr_amount: 0
         }
       };
@@ -75,6 +102,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         user: zoUser,
         body: {
           zo_fr_no: testFrNo2,
+          work_order_no: testWorkOrder,
           zo_fr_amount: -500.00
         }
       };
@@ -90,6 +118,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         user: zoUser,
         body: {
           zo_fr_no: '   ',
+          work_order_no: testWorkOrder,
           zo_fr_amount: 12000.00
         }
       };
