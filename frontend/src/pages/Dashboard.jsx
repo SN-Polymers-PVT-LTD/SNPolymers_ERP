@@ -251,6 +251,60 @@ const Dashboard = () => {
                 </div>
               )}
 
+              {/* Module 5a: User Mappings — New Phase 7 */}
+              {['zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Administration · Roles</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">User Mappings</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Manage and track relationships between Junior Engineers (JEs) and Zonal Offices. HO and Admin can assign or transfer JEs, while ZOs can monitor assigned personnel.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-end border-t border-white/5 pt-4">
+                    <Link
+                      to="/user-mappings"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Mappings &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Module 5b: Work Order Mappings — New Phase 7 */}
+              {['zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4-4m-4 4l4 4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Administration · Allocation</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">Work Order Mappings</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Assign JEs to specific Work Orders. The system automatically validates mapping consistency to ensure assigned JEs match the project's owning Zonal Office.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-end border-t border-white/5 pt-4">
+                    <Link
+                      to="/work-order-mappings"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Assignments &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
 

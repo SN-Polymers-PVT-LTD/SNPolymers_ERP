@@ -1,7 +1,9 @@
 const express = require('express');
 const {
   createOrUpdateUserMapping,
-  getUserMappings
+  getUserMappings,
+  getEligibleJEs,
+  getEligibleZOs
 } = require('../controllers/userMappings.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -15,6 +17,18 @@ router.post(
   '/',
   requireRole(['admin', 'ho']),
   createOrUpdateUserMapping
+);
+
+router.get(
+  '/eligible-jes',
+  requireRole(['admin', 'ho']),
+  getEligibleJEs
+);
+
+router.get(
+  '/eligible-zos',
+  requireRole(['admin', 'ho']),
+  getEligibleZOs
 );
 
 router.get(

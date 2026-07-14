@@ -26,6 +26,9 @@ import DailyProgress from './pages/DailyProgress';
 import RAFinalBill from './pages/RAFinalBill';
 import Docs from './pages/docs/Docs';
 import SystemPolicy from './pages/SystemPolicy';
+import UserMappings from './pages/UserMappings';
+import WorkOrderMappings from './pages/WorkOrderMappings';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,9 +76,11 @@ function App() {
               <Route path="/fund-requests" element={<FundRequests />} />
             </Route>
 
-            {/* RA/Final Bills Protected Routes (ZO, HO, Admin) */}
+            {/* RA/Final Bills & User/Work Order Mappings Protected Routes (ZO, HO, Admin) */}
             <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
               <Route path="/ra-final-bills" element={<RAFinalBill />} />
+              <Route path="/user-mappings" element={<UserMappings />} />
+              <Route path="/work-order-mappings" element={<WorkOrderMappings />} />
             </Route>
 
             {/* Admin Protected Routes */}

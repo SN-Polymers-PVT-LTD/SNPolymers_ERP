@@ -203,7 +203,81 @@ async function getUserMappings(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/user-mappings/eligible-jes
+ * Returns all active JEs and their current active ZO mapping user ID (or null).
+ */
+async function getEligibleJEs(req, res) {
+  try {
+    // 1. Fetch all active JEs
+    const { data: jes, error: jesErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .eq('role', 'je')
+      .eq('is_active', true)
+      .order('display_name', { ascending: true });
+
+    if (jesErr) throw jesErr;
+
+    if (!jes || jes.length === 0) {
+      return res.status(200).json({ success: true, jes: [] });
+    }
+
+    // 2. Fetch all active mappings
+    const { data: mappings, error: mapErr } = await supabase
+      .from('je_zo_mappings')
+      .select('je_user_id, zo_user_id')
+      .eq('is_active', true);
+
+    if (mapErr) throw mapErr;
+
+    // Create a mapping map
+    const mappingMap = {};
+    if (mappings) {
+      mappings.forEach(m => {
+        mappingMap[m.je_user_id] = m.zo_user_id;
+      });
+    }
+
+    // 3. Enrich JEs with active_zo_user_id
+    const enrichedJes = jes.map(je => ({
+      mobile_number: je.mobile_number,
+      display_name: je.display_name,
+      active_zo_user_id: mappingMap[je.mobile_number] || null
+    }));
+
+    return res.status(200).json({ success: true, jes: enrichedJes });
+  } catch (error) {
+    console.error(`getEligibleJEs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve eligible Junior Engineers.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/user-mappings/eligible-zos
+ * Returns all active ZOs.
+ */
+async function getEligibleZOs(req, res) {
+  try {
+    const { data: zos, error } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .eq('role', 'zo')
+      .eq('is_active', true)
+      .order('display_name', { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, zos: zos || [] });
+  } catch (error) {
+    console.error(`getEligibleZOs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve eligible Zonal Office users.' });
+  }
+}
+
 module.exports = {
   createOrUpdateUserMapping,
-  getUserMappings
+  getUserMappings,
+  getEligibleJEs,
+  getEligibleZOs
 };
