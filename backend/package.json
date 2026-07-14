@@ -9,7 +9,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "test:milestone1": "vitest run tests/vitest/milestones/milestone1.test.js"
+    "test:milestone1": "vitest run tests/vitest/milestones/milestone1.test.js",
+    "test:p7:db": "node tests/milestones/test_milestone_p7_db.js",
+    "test:p7:api": "node tests/milestones/test_milestone_p7_api.js",
+    "test:p7:uat": "node tests/milestones/test_milestone_p7_uat.js",
+    "test:p7:all": "node tests/milestones/test_milestone_p7_db.js && node tests/milestones/test_milestone_p7_api.js && node tests/milestones/test_milestone_p7_uat.js",
+    "test:p7": "npm run test:p7:all"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

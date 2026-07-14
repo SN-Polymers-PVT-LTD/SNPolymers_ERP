@@ -33,6 +33,8 @@ const excessFundReturnsRoutes = require('./routes/fundReturns.routes');
 
 const { startPolling, registerWebhook } = require('./services/telegram.service');
 const { handleTelegramWebhook } = require('./controllers/telegram.webhook.controller');
+const { startReconciliationScheduler } = require('./services/reconciliation.service');
+
 
 const { globalLimiter } = require('./middleware/rateLimiter');
 const requestLogger = require('./middleware/requestLogger');
@@ -116,6 +118,8 @@ app.listen(PORT, () => {
   startPolling();
   // Register webhook with Telegram in production
   registerWebhook();
+  // Start nightly credit balance reconciliation scheduler
+  startReconciliationScheduler();
 });
 
 module.exports = app;
