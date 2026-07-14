@@ -37,7 +37,7 @@ const WorkOrderMappings = () => {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'inactive', 'all'
 
   const fetchMappings = async () => {
     setLoading(true);
@@ -88,6 +88,19 @@ const WorkOrderMappings = () => {
     setSelectedJE('');
     setShowMapModal(true);
   };
+
+  const handleJEChange = (jeMobileNumber) => {
+    setSelectedJE(jeMobileNumber);
+    setSelectedWO(''); // reset selected workorder when JE changes
+  };
+
+  const selectedJeObj = eligibleJEs.find(j => j.mobile_number === selectedJE);
+  const selectedJeZoId = selectedJeObj?.active_zo_user_id;
+
+  const filteredProjectsForSelect = activeProjects.filter(p => {
+    if (!selectedJE) return false;
+    return p.zo_user_id === selectedJeZoId;
+  });
 
   // Perform Client-Side Consistency Check
   const getZonalConsistencyDetails = () => {
@@ -260,7 +273,7 @@ const WorkOrderMappings = () => {
           </div>
 
           <div className="flex gap-2 w-full md:w-auto">
-            {['all', 'active', 'inactive'].map((status) => (
+            {['active', 'inactive', 'all'].map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
@@ -413,30 +426,11 @@ const WorkOrderMappings = () => {
                 <>
                   <div className="space-y-2">
                     <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                      Select Work Order
-                    </label>
-                    <select
-                      value={selectedWO}
-                      onChange={(e) => setSelectedWO(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
-                      required
-                    >
-                      <option value="" className="bg-neutral-900 text-slate-500">Select a project...</option>
-                      {activeProjects.map((p) => (
-                        <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
-                          {p.work_order_no} (ZO Owner: {p.zo_user?.display_name || p.zo_user_id || 'None'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
                       Select Junior Engineer (JE)
                     </label>
                     <select
                       value={selectedJE}
-                      onChange={(e) => setSelectedJE(e.target.value)}
+                      onChange={(e) => handleJEChange(e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
                       required
                     >
@@ -451,6 +445,32 @@ const WorkOrderMappings = () => {
                           </option>
                         );
                       })}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                      Select Work Order
+                    </label>
+                    <select
+                      value={selectedWO}
+                      onChange={(e) => setSelectedWO(e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!selectedJE}
+                      required
+                    >
+                      {!selectedJE ? (
+                        <option value="" className="bg-neutral-900 text-slate-500">Please select a JE first...</option>
+                      ) : (
+                        <>
+                          <option value="" className="bg-neutral-900 text-slate-500">Select a project...</option>
+                          {filteredProjectsForSelect.map((p) => (
+                            <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
+                              {p.work_order_no}
+                            </option>
+                          ))}
+                        </>
+                      )}
                     </select>
                   </div>
                 </>

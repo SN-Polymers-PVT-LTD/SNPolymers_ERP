@@ -28,7 +28,7 @@ const UserMappings = () => {
 
   // Table filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'active', 'inactive'
+  const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'inactive', 'all'
 
   const fetchMappings = async () => {
     setLoading(true);
@@ -188,7 +188,7 @@ const UserMappings = () => {
           </div>
           
           <div className="flex gap-2 w-full md:w-auto">
-            {['all', 'active', 'inactive'].map((status) => (
+            {['active', 'inactive', 'all'].map((status) => (
               <button
                 key={status}
                 onClick={() => setStatusFilter(status)}
