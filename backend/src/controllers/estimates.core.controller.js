@@ -39,6 +39,23 @@ async function createEstimate(req, res) {
       return res.status(403).json({ success: false, message: 'Cannot create estimates for Closed projects.' });
     }
 
+    // Restrict JE to only mapped work orders
+    const effectiveRole = getEffectiveRole(req.user.role);
+    if (effectiveRole === 'je') {
+      const { data: mappedWO, error: mapError } = await supabase
+        .from('work_order_mappings')
+        .select('id')
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('work_order_no', work_order_no)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (mapError) throw mapError;
+      if (!mappedWO) {
+        return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+      }
+    }
+
     const { data: activeEstimates, error: activeError } = await supabase
       .from('project_cost_estimates')
       .select('estimate_id')
@@ -297,9 +314,28 @@ async function getEstimateInitData(req, res) {
     if (projError) throw projError;
     if (activeError) throw activeError;
 
+    // Fetch JE mappings to restrict dropdown list if role is JE
+    let allowedWOs = null;
+    const effectiveRole = getEffectiveRole(req.user.role);
+    if (effectiveRole === 'je') {
+      const { data: mappedWOs, error: mapError } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+      if (mapError) throw mapError;
+      allowedWOs = new Set((mappedWOs || []).map(m => m.work_order_no));
+    }
+
     const blockedWorkOrders = new Set((activeEstimates || []).map(e => e.work_order_no));
 
-    const availableWorkOrders = (runningProjects || []).filter(p => !blockedWorkOrders.has(p.work_order_no));
+    const availableWorkOrders = (runningProjects || []).filter(p => {
+      if (blockedWorkOrders.has(p.work_order_no)) return false;
+      if (allowedWOs !== null) {
+        return allowedWOs.has(p.work_order_no);
+      }
+      return true;
+    });
 
     return res.status(200).json({
       success: true,

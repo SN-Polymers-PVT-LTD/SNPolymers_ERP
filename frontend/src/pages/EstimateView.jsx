@@ -390,6 +390,17 @@ const EstimateView = () => {
     ESTIMATE_STATUS.REJECTED_BY_ZO
   ].includes(estimate.estimate_status);
 
+  const woValue = estimate?.projects_master?.work_order_value || 0;
+  const grossTotal = summary?.gross_total || 0;
+  const budgetVariance = grossTotal - woValue;
+  const isOverBudget = budgetVariance > 0;
+  const variancePercent = woValue > 0 ? (Math.abs(budgetVariance) / woValue) * 100 : 0;
+
+  const totalItemsCount = items.length;
+  const approvedItemsCount = items.filter(item => item.zo_office_approve === 'Approve' || item.ho_office_approve === 'Approve').length;
+  const rejectedItemsCount = items.filter(item => item.zo_office_approve === 'Not Approve' || item.ho_office_approve === 'Not Approve').length;
+  const pendingItemsCount = items.filter(item => (!item.zo_office_approve || item.zo_office_approve === 'Pending') && (!item.ho_office_approve || item.ho_office_approve === 'Pending')).length;
+
   return (
     <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
       <BackgroundShapes />
@@ -747,7 +758,7 @@ const EstimateView = () => {
                   const hoVal = item.ho_office_approve || 'Pending';
                   return (zoFilter === 'all' || zoVal === zoFilter) && (hoFilter === 'all' || hoVal === hoFilter);
                 }).length}</strong>{(zoFilter !== 'all' || hoFilter !== 'all') && <span className="text-slate-600 ml-1">(of {items.length})</span>}</span>
-                <span>Total Materials Cost: <strong className="text-amber-500 font-bold">{formatINR(getCategoryTotal('Materials'))}</strong></span>
+                <span>Grand Total Cost: <strong className="text-amber-500 font-bold">{formatINR(summary?.gross_total)}</strong></span>
               </div>
             </div>
 
@@ -755,7 +766,7 @@ const EstimateView = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 items-start">
               
               {/* 3. ESTIMATE SUMMARY */}
-              <div className="glass-panel p-6 rounded-3xl border border-white/5 space-y-4">
+              <div className="glass-panel p-6 rounded-3xl border border-white/5 space-y-5">
                 <div className="flex items-center gap-2 text-amber-500">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
@@ -789,10 +800,61 @@ const EstimateView = () => {
                     </tr>
                     <tr className="border-t-2 border-white/10 font-bold text-slate-100 text-sm">
                       <td className="py-3 text-amber-500">Grand Total Estimate</td>
-                      <td className="py-3 text-right font-mono text-amber-500">{formatINR(summary?.gross_total)}</td>
+                      <td className="py-3 text-right font-mono text-amber-500">{formatINR(grossTotal)}</td>
                     </tr>
                   </tbody>
                 </table>
+
+                <div className="border-t border-white/5 pt-4 space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-400 font-semibold">Work Order Value</span>
+                    <span className="font-mono text-slate-200">{formatINR(woValue)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-400 font-semibold">Budget Variance</span>
+                    <span className={`font-mono font-bold ${isOverBudget ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      {isOverBudget ? '+' : ''}{formatINR(budgetVariance)}
+                      <span className="text-[10px] ml-1 font-sans">
+                        ({isOverBudget ? 'Exceeds' : 'Under'} {variancePercent.toFixed(1)}%)
+                      </span>
+                    </span>
+                  </div>
+                  <div className="pt-1">
+                    {isOverBudget ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-red-500/10 border border-red-500/20 text-red-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                        Exceeds Budget Limit
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                        Within Budget Limit
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t border-white/5 pt-4 space-y-2">
+                  <span className="text-[9px] uppercase tracking-widest font-black text-slate-500 block">Items Status Summary</span>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] font-semibold font-mono">
+                    <div className="p-2.5 bg-white/[0.01] border border-white/5 rounded-xl flex justify-between items-center">
+                      <span className="text-slate-400">Total</span>
+                      <span className="text-slate-200">{totalItemsCount}</span>
+                    </div>
+                    <div className="p-2.5 bg-white/[0.01] border border-white/5 rounded-xl flex justify-between items-center">
+                      <span className="text-emerald-400">Approved</span>
+                      <span className="text-emerald-400">{approvedItemsCount}</span>
+                    </div>
+                    <div className="p-2.5 bg-white/[0.01] border border-white/5 rounded-xl flex justify-between items-center">
+                      <span className="text-rose-400">Rejected</span>
+                      <span className="text-rose-400">{rejectedItemsCount}</span>
+                    </div>
+                    <div className="p-2.5 bg-white/[0.01] border border-white/5 rounded-xl flex justify-between items-center">
+                      <span className="text-amber-400">Pending</span>
+                      <span className="text-amber-400">{pendingItemsCount}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* 4. APPROVAL INFORMATION */}
