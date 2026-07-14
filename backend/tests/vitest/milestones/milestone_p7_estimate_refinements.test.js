@@ -185,4 +185,135 @@ describe('Estimate Refinements — JE Work Order Mapping Restrictions', () => {
     
     estimateIdCreated = res.jsonData.estimate.estimate_id;
   });
+
+  test('Test 4: Mapped work order with Final Approved estimate is blocked and hidden', async () => {
+    // 1. Update the existing estimate status to Final Approved
+    expect(estimateIdCreated).not.toBeNull();
+    const { error: updErr } = await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'Final Approved' })
+      .eq('estimate_id', estimateIdCreated);
+    expect(updErr).toBeNull();
+
+    // 2. Fetch dropdown available work orders
+    const reqInit = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      }
+    };
+    const resInit = mockRes();
+    await getEstimateInitData(reqInit, resInit);
+
+    expect(resInit.statusCode).toBe(200);
+    const wos = resInit.jsonData.availableWorkOrders.map(w => w.work_order_no);
+    // Should be blocked and hidden
+    expect(wos).not.toContain(woMapped);
+
+    // 3. Verify backend create blocks it
+    const reqCreate = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      },
+      body: {
+        work_order_no: woMapped,
+        zonal_office_no: 'ZO-Refine',
+        je_remarks: 'Attempting new estimate on final approved'
+      }
+    };
+    const resCreate = mockRes();
+    await createEstimate(reqCreate, resCreate);
+    expect(resCreate.statusCode).toBe(409);
+    expect(resCreate.jsonData.success).toBe(false);
+  });
+
+  test('Test 5: Mapped work order with ZO Revision Requested estimate is blocked and hidden', async () => {
+    // 1. Update status to ZO Revision Requested
+    const { error: updErr } = await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'ZO Revision Requested' })
+      .eq('estimate_id', estimateIdCreated);
+    expect(updErr).toBeNull();
+
+    // 2. Fetch dropdown available work orders
+    const reqInit = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      }
+    };
+    const resInit = mockRes();
+    await getEstimateInitData(reqInit, resInit);
+
+    expect(resInit.statusCode).toBe(200);
+    const wos = resInit.jsonData.availableWorkOrders.map(w => w.work_order_no);
+    // Should be blocked and hidden
+    expect(wos).not.toContain(woMapped);
+
+    // 3. Verify backend create blocks it
+    const reqCreate = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      },
+      body: {
+        work_order_no: woMapped,
+        zonal_office_no: 'ZO-Refine',
+        je_remarks: 'Attempting new estimate on revision requested'
+      }
+    };
+    const resCreate = mockRes();
+    await createEstimate(reqCreate, resCreate);
+    expect(resCreate.statusCode).toBe(409);
+  });
+
+  test('Test 6: Mapped work order with Rejected by ZO estimate is eligible and visible', async () => {
+    // 1. Update status to Rejected by ZO
+    const { error: updErr } = await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'Rejected by ZO' })
+      .eq('estimate_id', estimateIdCreated);
+    expect(updErr).toBeNull();
+
+    // 2. Fetch dropdown available work orders
+    const reqInit = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      }
+    };
+    const resInit = mockRes();
+    await getEstimateInitData(reqInit, resInit);
+
+    expect(resInit.statusCode).toBe(200);
+    const wos = resInit.jsonData.availableWorkOrders.map(w => w.work_order_no);
+    // Should show up in the dropdown since the existing estimate is terminal rejected!
+    expect(wos).toContain(woMapped);
+
+    // 3. Verify backend create allows starting a new draft
+    const reqCreate = {
+      user: {
+        mobile_number: jeMobile,
+        role: 'je'
+      },
+      body: {
+        work_order_no: woMapped,
+        zonal_office_no: 'ZO-Refine',
+        je_remarks: 'Draft 2'
+      }
+    };
+    const resCreate = mockRes();
+    await createEstimate(reqCreate, resCreate);
+    expect(resCreate.statusCode).toBe(201);
+    expect(resCreate.jsonData.success).toBe(true);
+
+    // Delete the second estimate immediately to clean up
+    if (resCreate.jsonData.estimate?.estimate_id) {
+      await supabase
+        .from('project_cost_estimates')
+        .delete()
+        .eq('estimate_id', resCreate.jsonData.estimate.estimate_id);
+    }
+  });
 });

@@ -60,7 +60,7 @@ async function createEstimate(req, res) {
       .from('project_cost_estimates')
       .select('estimate_id')
       .eq('work_order_no', work_order_no)
-      .not('estimate_status', 'in', `("${ESTIMATE_STATUS.FINAL_APPROVED}","${ESTIMATE_STATUS.REJECTED_BY_ZO}","${ESTIMATE_STATUS.REJECTED_BY_HO}")`);
+      .not('estimate_status', 'in', `("${ESTIMATE_STATUS.REJECTED_BY_ZO}","${ESTIMATE_STATUS.REJECTED_BY_HO}")`);
 
     if (activeError) throw activeError;
 
@@ -308,7 +308,7 @@ async function getEstimateInitData(req, res) {
       { data: activeEstimates, error: activeError }
     ] = await Promise.all([
       supabase.from('projects_master').select('*').neq('status', 'Closed'),
-      supabase.from('project_cost_estimates').select('work_order_no').not('estimate_status', 'in', '("Final Approved","Rejected by ZO","Rejected by HO")')
+      supabase.from('project_cost_estimates').select('work_order_no').not('estimate_status', 'in', '("Rejected by ZO","Rejected by HO")')
     ]);
 
     if (projError) throw projError;
