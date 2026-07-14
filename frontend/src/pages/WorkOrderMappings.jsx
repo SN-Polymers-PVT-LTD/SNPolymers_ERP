@@ -312,7 +312,6 @@ const WorkOrderMappings = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-100">{mapping.je_name}</div>
-                        <div className="text-[10px] text-slate-500">{mapping.je_user_id}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -330,7 +329,7 @@ const WorkOrderMappings = () => {
                           {new Date(mapping.assigned_at).toLocaleString()}
                         </div>
                         <div className="text-[10px] text-slate-500">
-                          By: {mapping.assigned_by_name || mapping.assigned_by}
+                          By: {mapping.assigned_by_name}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -343,7 +342,7 @@ const WorkOrderMappings = () => {
                               On: {new Date(mapping.deactivated_at).toLocaleString()}
                             </div>
                             <div className="text-slate-500 text-[10px]">
-                              By: {mapping.deactivated_by_name || mapping.deactivated_by}
+                              By: {mapping.deactivated_by_name}
                             </div>
                           </div>
                         ) : (
@@ -425,7 +424,7 @@ const WorkOrderMappings = () => {
                       <option value="" className="bg-neutral-900 text-slate-500">Select a project...</option>
                       {activeProjects.map((p) => (
                         <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
-                          {p.work_order_no} (ZO Owner: {p.zo_user_id || 'None'})
+                          {p.work_order_no} (ZO Owner: {p.zo_user?.display_name || p.zo_user_id || 'None'})
                         </option>
                       ))}
                     </select>
@@ -442,11 +441,16 @@ const WorkOrderMappings = () => {
                       required
                     >
                       <option value="" className="bg-neutral-900 text-slate-500">Select a JE...</option>
-                      {eligibleJEs.map((je) => (
-                        <option key={je.mobile_number} value={je.mobile_number} className="bg-neutral-900 text-slate-100">
-                          {je.display_name} ({je.mobile_number}) {je.active_zo_user_id ? `[ZO: ${je.active_zo_user_id}]` : '[Unmapped]'}
-                        </option>
-                      ))}
+                      {eligibleJEs.map((je) => {
+                        const zoName = je.active_zo_user_id 
+                          ? (activeProjects.find(p => p.zo_user_id === je.active_zo_user_id)?.zo_user?.display_name || je.active_zo_user_id)
+                          : '';
+                        return (
+                          <option key={je.mobile_number} value={je.mobile_number} className="bg-neutral-900 text-slate-100">
+                            {je.display_name} {je.active_zo_user_id ? `[ZO: ${zoName}]` : '[Unmapped]'}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </>

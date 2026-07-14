@@ -237,11 +237,9 @@ const UserMappings = () => {
                     <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-100">{mapping.je_name}</div>
-                        <div className="text-[10px] text-slate-500">{mapping.je_user_id}</div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-100">{mapping.zo_name}</div>
-                        <div className="text-[10px] text-slate-500">{mapping.zo_user_id}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -259,7 +257,6 @@ const UserMappings = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-slate-300">{mapping.assigned_by_name}</div>
-                        <div className="text-[9px] text-slate-500">{mapping.assigned_by}</div>
                       </td>
                       <td className="px-6 py-4">
                         {!mapping.is_active ? (
@@ -268,7 +265,7 @@ const UserMappings = () => {
                               Deactivated: {new Date(mapping.deactivated_at).toLocaleString()}
                             </div>
                             <div className="text-slate-500 text-[10px]">
-                              By: {mapping.deactivated_by_name || mapping.deactivated_by}
+                              By: {mapping.deactivated_by_name}
                             </div>
                           </div>
                         ) : (
@@ -330,7 +327,7 @@ const UserMappings = () => {
                         const mappedZo = mappingMapToZoName(je.active_zo_user_id);
                         return (
                           <option key={je.mobile_number} value={je.mobile_number} className="bg-neutral-900 text-slate-100">
-                            {je.display_name} ({je.mobile_number}) {mappedZo ? `[Current: ${mappedZo}]` : '[Unmapped]'}
+                            {je.display_name} {mappedZo ? `[Current: ${mappedZo}]` : '[Unmapped]'}
                           </option>
                         );
                       })}
@@ -350,7 +347,7 @@ const UserMappings = () => {
                       <option value="" className="bg-neutral-900 text-slate-500">Select a Zonal Office...</option>
                       {eligibleZOs.map((zo) => (
                         <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100">
-                          {zo.display_name} ({zo.mobile_number})
+                          {zo.display_name}
                         </option>
                       ))}
                     </select>
