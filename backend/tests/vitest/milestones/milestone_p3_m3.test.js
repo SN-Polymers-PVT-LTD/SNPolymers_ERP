@@ -15,6 +15,16 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
   let testWorkOrder;
 
   beforeAll(async () => {
+    // Safely upsert users to prevent duplicate key violations and foreign key delete failures
+    for (const u of [
+      { mobile_number: zoUser.mobile_number, display_name: 'ZO User 1', role: 'zo', is_active: true, permissions: {} },
+      { mobile_number: zoUser2.mobile_number, display_name: 'ZO User 2', role: 'zo', is_active: true, permissions: {} },
+      { mobile_number: hoUser.mobile_number, display_name: 'HO User', role: 'ho', is_active: true, permissions: {} }
+    ]) {
+      const { error: upsertErr } = await supabase.from('authorised_users').upsert(u, { onConflict: 'mobile_number' });
+      if (upsertErr) throw upsertErr;
+    }
+
     const suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_P3M3_${suffix}`;
 
@@ -39,6 +49,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
   afterAll(async () => {
     await supabase.from('fund_requests').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('authorised_users').delete().in('mobile_number', [zoUser.mobile_number, zoUser2.mobile_number, hoUser.mobile_number]);
   });
 
   async function createTestRequest(amount = 50000.00) {

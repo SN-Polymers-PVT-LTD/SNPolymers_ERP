@@ -58,6 +58,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
         zone: 'Kolkata Zone',
         department: 'PWD',
         status: 'Running',
+        zo_user_id: mobileZO,
         created_by: mobileAdmin,
         edited_by: mobileAdmin
       },
@@ -71,6 +72,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
         zone: 'Kolkata Zone',
         department: 'PWD',
         status: 'Running',
+        zo_user_id: mobileZO,
         created_by: mobileAdmin,
         edited_by: mobileAdmin
       },
@@ -84,6 +86,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
         zone: 'Kolkata Zone',
         department: 'PWD',
         status: 'Closed',
+        zo_user_id: mobileZO,
         created_by: mobileAdmin,
         edited_by: mobileAdmin
       }
@@ -104,17 +107,24 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
     }
 
     // Add JE-ZO mapping so canViewEstimate passes for mobileZO viewing mobileJE_A's estimates
-    const { data: jeZoData } = await supabase.from('je_zo_mappings').insert({
-      je_user_id: mobileJE_A,
-      zo_user_id: mobileZO,
-      is_active: true,
-      assigned_by: mobileAdmin
-    }).select('id').single();
-    jeZoMappingId = jeZoData?.id || null;
+    const { error: jeZoErr } = await supabase.from('je_zo_mappings').insert([
+      { je_user_id: mobileJE_A, zo_user_id: mobileZO, is_active: true, assigned_by: mobileAdmin },
+      { je_user_id: mobileJE_B, zo_user_id: mobileZO, is_active: true, assigned_by: mobileAdmin }
+    ]);
+    if (jeZoErr) throw jeZoErr;
+
+    // Map JE User A and JE User B to activeWorkOrder so estimate creation passes
+    const { error: mapErr } = await supabase.from('work_order_mappings').insert([
+      { work_order_no: activeWorkOrder, je_user_id: mobileJE_A, is_active: true, assigned_by: mobileAdmin, reason: 'Assigned' },
+      { work_order_no: activeWorkOrder2, je_user_id: mobileJE_A, is_active: true, assigned_by: mobileAdmin, reason: 'Assigned' },
+      { work_order_no: activeWorkOrder, je_user_id: mobileJE_B, is_active: true, assigned_by: mobileAdmin, reason: 'Assigned' }
+    ]);
+    if (mapErr) throw mapErr;
   });
 
   afterAll(async () => {
-    if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
+    await supabase.from('work_order_mappings').delete().in('work_order_no', [activeWorkOrder, activeWorkOrder2]);
+    await supabase.from('je_zo_mappings').delete().in('je_user_id', [mobileJE_A, mobileJE_B]);
     if (createdEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', createdEstimateId);
       await supabase.from('project_cost_estimates').update({
