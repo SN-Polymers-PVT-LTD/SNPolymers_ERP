@@ -28,7 +28,6 @@ const ExcessFundReturns = () => {
   const [eligibleZOs, setEligibleZOs] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
   const [zoBalance, setZoBalance] = useState(0.00); // Current ZO available balance (for ZO actions)
-  const [loadingOptions, setLoadingOptions] = useState(false);
 
   // Request Return Modal (Admin/HO only)
   const [showRequestModal, setShowRequestModal] = useState(false);
@@ -75,7 +74,6 @@ const ExcessFundReturns = () => {
   };
 
   const fetchDropdownAndBalanceData = async () => {
-    setLoadingOptions(true);
     try {
       if (isZo) {
         // Fetch own ZO balance for available limit check
@@ -93,14 +91,15 @@ const ExcessFundReturns = () => {
       }
     } catch (err) {
       console.error('Failed to load return options:', err);
-    } finally {
-      setLoadingOptions(false);
     }
   };
 
   useEffect(() => {
-    fetchReturns();
-    fetchDropdownAndBalanceData();
+    Promise.resolve().then(() => {
+      fetchReturns();
+      fetchDropdownAndBalanceData();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Filter projects owned by selected ZO in Request Modal

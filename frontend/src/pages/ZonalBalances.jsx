@@ -58,8 +58,10 @@ const ZonalBalances = () => {
   };
 
   useEffect(() => {
-    fetchBalances();
-    fetchLedger(page);
+    Promise.resolve().then(() => {
+      fetchBalances();
+      fetchLedger(page);
+    });
   }, [page]);
 
   const handleReconcile = async () => {

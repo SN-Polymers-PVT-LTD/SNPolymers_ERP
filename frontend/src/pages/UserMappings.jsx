@@ -61,8 +61,11 @@ const UserMappings = () => {
   };
 
   useEffect(() => {
-    fetchMappings();
-    fetchDropdownOptions();
+    Promise.resolve().then(() => {
+      fetchMappings();
+      fetchDropdownOptions();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleOpenModal = () => {

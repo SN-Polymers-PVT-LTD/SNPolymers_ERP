@@ -236,8 +236,17 @@ async function removeUser(req, res) {
 
     return res.status(200).json({ success: true, message: 'User removed from whitelist and sessions invalidated.' });
   } catch (error) {
-    console.error(`Admin removeUser failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to remove user.' });
+    console.error(`Admin removeUser failed: ${error.message || error}`);
+    
+    // Catch database foreign key constraint violation (e.g. references in project_master, user_mappings, etc.)
+    if (error.code === '23503' || (error.message && error.message.includes('foreign key constraint'))) {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot delete user: Active database references exist (e.g. projects, mappings, or history). Please deactivate the user instead.'
+      });
+    }
+
+    return res.status(500).json({ success: false, message: error.message || 'Failed to remove user.' });
   }
 }
 

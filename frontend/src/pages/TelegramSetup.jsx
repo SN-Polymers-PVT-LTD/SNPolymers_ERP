@@ -116,6 +116,7 @@ const TelegramSetup = () => {
       isSubscribed = false;
       if (pollInterval) clearInterval(pollInterval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mobileNumber]);
 
   // Manual fallback check
