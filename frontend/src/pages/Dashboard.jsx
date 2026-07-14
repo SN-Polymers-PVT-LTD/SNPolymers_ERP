@@ -252,7 +252,7 @@ const Dashboard = () => {
               )}
 
               {/* Module 5a: User Mappings — New Phase 7 */}
-              {['zo', 'ho', 'admin'].includes(user?.role) && (
+              {['ho', 'admin'].includes(user?.role) && (
                 <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
                   <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
                     <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -279,7 +279,7 @@ const Dashboard = () => {
               )}
 
               {/* Module 5b: Work Order Mappings — New Phase 7 */}
-              {['zo', 'ho', 'admin'].includes(user?.role) && (
+              {['ho', 'admin'].includes(user?.role) && (
                 <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
                   <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
                     <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -300,6 +300,60 @@ const Dashboard = () => {
                       className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
                     >
                       Open Assignments &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Module 6a: Zonal Balances — New Phase 7 */}
+              {['zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Finance · Credit Limits</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">Zonal Balances</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Monitor available credit balances and check ledger transaction history. Admin and HO can manually reconcile ledger aggregates.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-end border-t border-white/5 pt-4">
+                    <Link
+                      to="/zonal-balances"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Balances &rarr;
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Module 6b: Excess Fund Returns — New Phase 7 */}
+              {['zo', 'ho', 'admin'].includes(user?.role) && (
+                <div className="glass-panel glass-card-hover p-6 rounded-3xl relative overflow-hidden flex flex-col justify-between min-h-[220px] glow-border-active shadow-[0_8px_32px_rgba(245,158,11,0.04)]">
+                  <div className="absolute top-0 right-0 p-5 opacity-[0.14]">
+                    <svg className="w-24 h-24 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                        d="M16 15v-6a4 4 0 00-8 0v6M5 18h14M8 15V9a4 4 0 118 0v6M12 18v-3" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500">Government Division</span>
+                    <h3 className="text-lg font-extrabold mt-1 text-slate-200">Excess Fund Returns</h3>
+                    <p className="text-xs text-slate-400 font-normal mt-4 leading-relaxed">
+                      Process the return workflow of unused operational funds from Zonal Offices. Track requests, modifications, and acceptances.
+                    </p>
+                  </div>
+                  <div className="mt-8 flex items-center justify-end border-t border-white/5 pt-4">
+                    <Link
+                      to="/excess-fund-returns"
+                      className="px-4 py-2 rounded-xl text-xs font-bold uppercase bg-white text-slate-950 hover:bg-slate-100 hover:shadow-lg transition-all duration-300 flex items-center gap-1.5"
+                    >
+                      Open Returns &rarr;
                     </Link>
                   </div>
                 </div>
