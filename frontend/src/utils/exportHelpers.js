@@ -94,6 +94,7 @@ export function exportProjectsToExcel(projects) {
     "State": p.state || '',
     "District": p.district || '',
     "Zone": p.zone || '',
+    "Assigned ZO": p.zo_user?.display_name || p.zo_user_id || '',
     "Department": p.department || '',
     "Status": p.status || '',
     "Latitude": p.site_latitude || '',

@@ -3,6 +3,7 @@ import BackgroundShapes from '../../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../../components/Sidebar';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
 import { exportProjectsToExcel } from '../../utils/exportHelpers';
+import { getEligibleZOs } from '../../api/userMappingsApi';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['Running', 'Closed', 'Complete Under Maintenance'];
@@ -28,6 +29,7 @@ const EMPTY_FORM = {
   site_longitude: '',
   project_start_date: '',
   project_end_date: '',
+  zo_user_id: '',
 };
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
@@ -68,6 +70,17 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
   const [form, setForm] = useState(initial ?? EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [zos, setZos] = useState([]);
+
+  useEffect(() => {
+    getEligibleZOs()
+      .then((res) => {
+        setZos(res.data?.zos || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load eligible ZOs:', err);
+      });
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -96,6 +109,7 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
     { name: 'state', label: 'State', placeholder: 'e.g. West Bengal' },
     { name: 'district', label: 'District', placeholder: 'e.g. Bankura' },
     { name: 'zone', label: 'Zone', placeholder: 'e.g. North' },
+    { name: 'zo_user_id', label: 'Assigned ZO', type: 'select' },
     { name: 'department', label: 'Department', placeholder: 'e.g. PWD' },
     { name: 'site_latitude', label: 'Site Latitude', placeholder: 'e.g. 22.5726', type: 'number', step: '0.0000001' },
     { name: 'site_longitude', label: 'Site Longitude', placeholder: 'e.g. 88.3639', type: 'number', step: '0.0000001' },
@@ -144,19 +158,36 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
                   {label}
                   {(name === 'work_order_no' || name === 'work_order_value') && <span className="text-red-400 ml-1">*</span>}
                 </label>
-                <input
-                  type={type || 'text'}
-                  name={name}
-                  value={form[name]}
-                  onChange={handleChange}
-                  placeholder={placeholder}
-                  disabled={disabled || submitting}
-                  required={name === 'work_order_no' || name === 'work_order_value'}
-                  className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                    disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
-                  }`}
-                  {...rest}
-                />
+                {type === 'select' ? (
+                  <select
+                    name={name}
+                    value={form[name] || ''}
+                    onChange={handleChange}
+                    disabled={submitting}
+                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
+                  >
+                    <option value="" className="bg-slate-900 text-slate-100">Select Zonal Office...</option>
+                    {zos.map((zo) => (
+                      <option key={zo.mobile_number} value={zo.mobile_number} className="bg-slate-900 text-slate-100">
+                        {zo.display_name || zo.mobile_number}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type={type || 'text'}
+                    name={name}
+                    value={form[name]}
+                    onChange={handleChange}
+                    placeholder={placeholder}
+                    disabled={disabled || submitting}
+                    required={name === 'work_order_no' || name === 'work_order_value'}
+                    className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                      disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
+                    }`}
+                    {...rest}
+                  />
+                )}
                 {disabled && (
                   <p className="text-[9px] text-slate-500 mt-1 font-mono">
                     ⊘ Immutable after creation
@@ -418,7 +449,7 @@ const MasterData = () => {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-500">
-              {['Work Order No.', 'Estimate No.', 'Work Order Value', 'EMD Amount', 'Site Details', 'State / District', 'Zone', 'Department', 'Status', 'Latitude', 'Longitude', 'Start Date', 'End Date', 'Actions'].map((h) => (
+              {['Work Order No.', 'Estimate No.', 'Work Order Value', 'EMD Amount', 'Site Details', 'State / District', 'Zone', 'Assigned ZO', 'Department', 'Status', 'Latitude', 'Longitude', 'Start Date', 'End Date', 'Actions'].map((h) => (
                 <th key={h} className="py-4 px-5 font-extrabold whitespace-nowrap">{h}</th>
               ))}
             </tr>
@@ -454,6 +485,9 @@ const MasterData = () => {
                 </td>
                 <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
                   {project.zone || '—'}
+                </td>
+                <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
+                  {project.zo_user?.display_name || project.zo_user_id || '—'}
                 </td>
                 <td className="py-4 px-5 text-slate-400 whitespace-nowrap">
                   {project.department || '—'}
