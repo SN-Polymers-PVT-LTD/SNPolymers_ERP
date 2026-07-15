@@ -4,7 +4,7 @@ import authApi from './authApi';
  * Fetch available zonal balance(s) (Admin, HO, and ZO roles)
  * ZO users only see their own available balance (enforced on the backend)
  */
-export const getZonalBalances = () => authApi.get('/zo-balances');
+export const getZonalBalances = (params) => authApi.get('/zo-balances', { params });
 
 /**
  * Fetch transaction ledger log entries (Admin, HO, and ZO roles)

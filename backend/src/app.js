@@ -114,14 +114,16 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'An internal server error occurred.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode.`);
-  // Start Telegram bot long-polling loop for auto-reply Chat ID flow in dev
-  startPolling();
-  // Register webhook with Telegram in production
-  registerWebhook();
-  // Start nightly credit balance reconciliation scheduler
-  startReconciliationScheduler();
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode.`);
+    // Start Telegram bot long-polling loop for auto-reply Chat ID flow in dev
+    startPolling();
+    // Register webhook with Telegram in production
+    registerWebhook();
+    // Start nightly credit balance reconciliation scheduler
+    startReconciliationScheduler();
+  });
+}
 
 module.exports = app;

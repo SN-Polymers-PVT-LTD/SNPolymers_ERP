@@ -27,6 +27,39 @@ async function resolveDisplayNames(mobiles) {
  */
 async function getZonalBalances(req, res) {
   try {
+    const query = req.query || {};
+
+    if (query.work_order_no) {
+      const zoId = req.user.role === 'zo' ? req.user.mobile_number : query.zo_user_id;
+      if (!zoId) {
+        return res.status(400).json({ success: false, message: 'zo_user_id is required.' });
+      }
+
+      const { data: ledgerSum, error: ledgerErr } = await supabase
+        .from('zo_fund_ledger')
+        .select('amount')
+        .eq('zo_user_id', zoId)
+        .eq('work_order_no', query.work_order_no);
+
+      if (ledgerErr) throw ledgerErr;
+
+      const sum = (ledgerSum || []).reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
+
+      const userMap = await resolveDisplayNames([zoId]);
+
+      return res.status(200).json({
+        success: true,
+        balances: [
+          {
+            zo_user_id: zoId,
+            zo_name: userMap[zoId] || zoId,
+            available_balance: sum,
+            updated_at: new Date().toISOString()
+          }
+        ]
+      });
+    }
+
     let dbQuery = supabase
       .from('zo_balances')
       .select('*');

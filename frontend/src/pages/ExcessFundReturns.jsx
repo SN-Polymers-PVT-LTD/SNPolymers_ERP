@@ -44,6 +44,9 @@ const ExcessFundReturns = () => {
   const [remarksZo, setRemarksZo] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [zonalWoBalances, setZonalWoBalances] = useState([]);
+  const [loadingWoBalances, setLoadingWoBalances] = useState(false);
+  const [breakdownAllocations, setBreakdownAllocations] = useState({}); // { [work_order_no]: amount }
 
   // HO Action Modal (review modifications/rejections)
   const [showHoActionModal, setShowHoActionModal] = useState(false);
@@ -129,7 +132,6 @@ const ExcessFundReturns = () => {
     try {
       const response = await createReturnRequest({
         zo_user_id: selectedZO,
-        work_order_no: selectedWO,
         requested_amount: amountNum,
         remarks_ho: remarksHo
       });
@@ -147,11 +149,45 @@ const ExcessFundReturns = () => {
     }
   };
 
-  const handleOpenActionModal = (ret) => {
+  const handleOpenActionModal = async (ret) => {
     setActionError('');
     setRemarksZo('');
     setSelectedReturn(ret);
+    setBreakdownAllocations({});
     setShowActionModal(true);
+
+    setLoadingWoBalances(true);
+    try {
+      const projRes = await getProjects();
+      if (projRes.data?.success) {
+        const list = projRes.data.projects || [];
+        const filtered = list.filter(p => p.zo_user_id === user.mobile_number && p.status !== 'Closed');
+        const wosWithBals = await Promise.all(
+          filtered.map(async (p) => {
+            try {
+              const balRes = await getZonalBalances({ work_order_no: p.work_order_no });
+              const bal = balRes.data?.balances?.[0]?.available_balance || 0;
+              return {
+                work_order_no: p.work_order_no,
+                available_balance: Number(bal)
+              };
+            } catch (err) {
+              console.error('Error fetching WO balance:', err);
+              return {
+                work_order_no: p.work_order_no,
+                available_balance: 0
+              };
+            }
+          })
+        );
+        setZonalWoBalances(wosWithBals);
+      }
+    } catch (err) {
+      console.error('Failed to load ZO work order balances:', err);
+      setActionError('Failed to load available work order balances.');
+    } finally {
+      setLoadingWoBalances(false);
+    }
   };
 
   // Action: Accept Return
@@ -159,11 +195,31 @@ const ExcessFundReturns = () => {
     if (!selectedReturn) return;
     setActionError('');
     setSuccess('');
-    setSubmittingAction(true);
 
+    const breakdown = Object.entries(breakdownAllocations)
+      .filter(([_, val]) => val && Number(val) > 0)
+      .map(([wo, val]) => ({ work_order_no: wo, amount: Number(val) }));
+
+    const totalAllocated = breakdown.reduce((sum, item) => sum + item.amount, 0);
+    if (Math.abs(totalAllocated - Number(selectedReturn.requested_amount)) > 0.01) {
+      setActionError(`Total allocated (₹${totalAllocated.toLocaleString('en-IN')}) must exactly match the requested amount (₹${Number(selectedReturn.requested_amount).toLocaleString('en-IN')}).`);
+      return;
+    }
+
+    // Check individual balances
+    for (const item of breakdown) {
+      const woBalObj = zonalWoBalances.find(b => b.work_order_no === item.work_order_no);
+      const woBal = woBalObj ? woBalObj.available_balance : 0;
+      if (item.amount > woBal) {
+        setActionError(`Allocated amount for ${item.work_order_no} (₹${item.amount.toLocaleString('en-IN')}) exceeds its available balance (₹${woBal.toLocaleString('en-IN')}).`);
+        return;
+      }
+    }
+
+    setSubmittingAction(true);
     try {
       // Optimistic concurrency check: send current record's updated_at
-      const response = await acceptReturnRequest(selectedReturn.id, selectedReturn.updated_at);
+      const response = await acceptReturnRequest(selectedReturn.id, selectedReturn.updated_at, breakdown);
       if (response.data?.success) {
         setSuccess('Fund return accepted. Balance updated and logged in ledger.');
         setShowActionModal(false);
@@ -381,7 +437,7 @@ const ExcessFundReturns = () => {
                     return (
                       <tr key={ret.id} className="hover:bg-white/2 transition-colors">
                         <td className="px-6 py-4 font-semibold text-slate-100">
-                          {ret.work_order_no}
+                          {ret.work_order_no || 'Zonal Level'}
                         </td>
                         {!isZo && (
                           <td className="px-6 py-4 font-semibold text-slate-200">
@@ -409,7 +465,19 @@ const ExcessFundReturns = () => {
                               {ret.remarks_zo}
                             </div>
                           )}
-                          {!ret.remarks_ho && !ret.remarks_zo && (
+                          {ret.breakdown && ret.breakdown.length > 0 && (
+                            <div className="text-[10px] text-slate-400 mt-1">
+                              <span className="font-bold text-emerald-500 uppercase mr-1">Breakdown:</span>
+                              <div className="pl-2 font-mono text-[9px] space-y-0.5">
+                                {ret.breakdown.map((item, idx) => (
+                                  <div key={idx}>
+                                    {item.work_order_no}: ₹{Number(item.amount).toLocaleString('en-IN')}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {!ret.remarks_ho && !ret.remarks_zo && !ret.breakdown && (
                             <span className="text-slate-600">-</span>
                           )}
                         </td>
@@ -477,7 +545,6 @@ const ExcessFundReturns = () => {
                   value={selectedZO}
                   onChange={(e) => {
                     setSelectedZO(e.target.value);
-                    setSelectedWO('');
                   }}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
                   required
@@ -486,24 +553,6 @@ const ExcessFundReturns = () => {
                   {eligibleZOs.map((zo) => (
                     <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100">
                       {zo.display_name} ({zo.mobile_number})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Select Work Order (Owned by ZO)</label>
-                <select
-                  value={selectedWO}
-                  onChange={(e) => setSelectedWO(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
-                  disabled={!selectedZO}
-                  required
-                >
-                  <option value="" className="bg-neutral-900 text-slate-500">Select a Work Order...</option>
-                  {filteredProjectsForSelect.map((p) => (
-                    <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
-                      {p.work_order_no} (Estimate bound)
                     </option>
                   ))}
                 </select>
@@ -546,7 +595,7 @@ const ExcessFundReturns = () => {
                 <button
                   type="submit"
                   className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
-                  disabled={submittingRequest || !selectedWO}
+                  disabled={submittingRequest || !selectedZO}
                 >
                   {submittingRequest ? 'Submitting...' : 'Request Return'}
                 </button>
@@ -563,7 +612,7 @@ const ExcessFundReturns = () => {
             <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
               <div>
                 <h2 className="text-lg font-bold tracking-tight text-slate-100">Evaluate Return Request</h2>
-                <div className="text-[10px] text-slate-400 mt-0.5">WO: {selectedReturn.work_order_no}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Status: {selectedReturn.status}</div>
               </div>
               <button onClick={() => setShowActionModal(false)} className="text-slate-400 hover:text-slate-200 text-lg">&times;</button>
             </div>
@@ -597,6 +646,63 @@ const ExcessFundReturns = () => {
                   *Acceptance is blocked. The requested return amount exceeds your available credit balance. You must request modification or reject this request.
                 </div>
               )}
+
+              {/* Breakdown Allocations */}
+              <div className="space-y-3 bg-white/2 border border-white/5 p-4 rounded-xl">
+                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                  Return Allocation Breakdown per Work Order
+                </div>
+                {loadingWoBalances ? (
+                  <div className="text-slate-500 text-xs py-2 flex items-center">
+                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-t-2 border-amber-500 mr-2" />
+                    Loading available work order balances...
+                  </div>
+                ) : zonalWoBalances.length === 0 ? (
+                  <div className="text-red-400 text-xs py-2">
+                    No active Work Orders with available balances found.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
+                    {zonalWoBalances.map((wo) => {
+                      const allocated = breakdownAllocations[wo.work_order_no] || '';
+                      return (
+                        <div key={wo.work_order_no} className="flex items-center justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-slate-200 truncate">{wo.work_order_no}</div>
+                            <div className="text-[10px] text-slate-400">Available: ₹{wo.available_balance.toLocaleString('en-IN')}</div>
+                          </div>
+                          <div className="w-32">
+                            <input
+                              type="number"
+                              placeholder="0.00"
+                              value={allocated}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setBreakdownAllocations(prev => ({
+                                  ...prev,
+                                  [wo.work_order_no]: val
+                                }));
+                              }}
+                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 text-right"
+                              max={wo.available_balance}
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {/* Total Counter */}
+                <div className="flex justify-between items-center pt-2 border-t border-white/10 text-xs">
+                  <span className="font-bold text-slate-400">Total Allocated:</span>
+                  <span className={`font-black ${Math.abs(Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0) - Number(selectedReturn.requested_amount)) < 0.01 ? 'text-emerald-400' : 'text-amber-500'}`}>
+                    ₹{Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / ₹{Number(selectedReturn.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
 
               {selectedReturn.remarks_ho && (
                 <div className="space-y-1 bg-white/2 border border-white/5 p-4 rounded-xl">
@@ -651,7 +757,7 @@ const ExcessFundReturns = () => {
                     type="button"
                     onClick={handleAcceptReturn}
                     className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                    disabled={submittingAction || zoBalance < selectedReturn.requested_amount}
+                    disabled={submittingAction || Math.abs(Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0) - Number(selectedReturn.requested_amount)) > 0.01}
                   >
                     {submittingAction ? 'Processing...' : 'Accept Return'}
                   </button>

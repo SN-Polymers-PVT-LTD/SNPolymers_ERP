@@ -1,6 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
+const crypto = require('crypto');
 const validate = require('../validation/validate');
 const {
   createReturnSchema,
@@ -36,31 +37,25 @@ async function resolveDisplayNames(mobiles) {
 async function createReturnRequest(req, res) {
   if (!validate(req, res, createReturnSchema)) return;
 
-  const { work_order_no, zo_user_id, requested_amount, remarks_ho } = req.body;
+  const { zo_user_id, requested_amount, remarks_ho } = req.body;
 
   try {
-    // Verify work order matches ZO
-    const { data: project, error: projErr } = await supabase
-      .from('projects_master')
-      .select('work_order_no, zo_user_id, status')
-      .eq('work_order_no', work_order_no)
+    // Verify zo_user_id matches a Zonal Office user
+    const { data: zoUser, error: userErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, role')
+      .eq('mobile_number', zo_user_id)
+      .eq('role', 'zo')
       .maybeSingle();
 
-    if (projErr) throw projErr;
-    if (!project) {
-      return res.status(400).json({ success: false, message: 'Work Order not found.' });
-    }
-    if (project.zo_user_id !== zo_user_id) {
-      return res.status(400).json({ success: false, message: 'Work Order mismatch with Zonal Office.' });
-    }
-    if (project.status === 'Closed') {
-      return res.status(400).json({ success: false, message: 'Cannot request funds from a closed Work Order.' });
+    if (userErr) throw userErr;
+    if (!zoUser) {
+      return res.status(400).json({ success: false, message: 'Zonal Office user not found.' });
     }
 
     const { data: newReturn, error } = await supabase
       .from('excess_fund_returns')
       .insert({
-        work_order_no,
         zo_user_id,
         requested_amount,
         remarks_ho: remarks_ho || null,
@@ -96,7 +91,7 @@ async function acceptReturnRequest(req, res) {
 
   if (!validate(req, res, acceptReturnSchema)) return;
 
-  const { client_updated_at } = req.body;
+  const { client_updated_at, breakdown } = req.body;
 
   try {
     // 1. Retrieve the return request
@@ -116,29 +111,117 @@ async function acceptReturnRequest(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied.' });
     }
 
-    // 3. Call the database RPC
-    const { data: actioned, error: rpcErr } = await supabase.rpc('accept_excess_fund_return', {
-      p_return_id: id,
-      p_client_updated_at: client_updated_at,
-      p_actioned_by: req.user.mobile_number
-    });
-
-    if (rpcErr) {
-      if (rpcErr.message && rpcErr.message.includes('Stale acceptance request')) {
-        return res.status(409).json({ success: false, message: 'Stale acceptance request.' });
-      }
-      if (rpcErr.message && rpcErr.message.includes('Insufficient available balance')) {
-        return res.status(422).json({ success: false, message: 'Insufficient available balance.' });
-      }
-      if (rpcErr.message && rpcErr.message.includes('cannot be accepted in its current status')) {
-        return res.status(400).json({ success: false, message: rpcErr.message });
-      }
-      throw rpcErr;
+    // 3. Validate status
+    if (!['Requested', 'Awaiting HO Review'].includes(returnRequest.status)) {
+      return res.status(400).json({ success: false, message: 'Excess fund return request cannot be accepted in its current status.' });
     }
+
+    // 4. Concurrency check
+    if (new Date(returnRequest.updated_at).getTime() !== new Date(client_updated_at).getTime()) {
+      return res.status(409).json({ success: false, message: 'Stale acceptance request.' });
+    }
+
+    // 5. Verify breakdown sum matches requested_amount
+    const totalAllocated = breakdown.reduce((sum, item) => sum + Number(item.amount), 0);
+    if (Math.abs(totalAllocated - Number(returnRequest.requested_amount)) > 0.01) {
+      return res.status(400).json({
+        success: false,
+        message: `Total breakdown allocation (₹${totalAllocated.toLocaleString('en-IN')}) does not match the requested amount (₹${Number(returnRequest.requested_amount).toLocaleString('en-IN')}).`
+      });
+    }
+
+    // 6. Verify ZO has sufficient available balance for each Work Order in the breakdown
+    for (const item of breakdown) {
+      const { data: ledgerEntries, error: ledgerErr } = await supabase
+        .from('zo_fund_ledger')
+        .select('amount')
+        .eq('zo_user_id', returnRequest.zo_user_id)
+        .eq('work_order_no', item.work_order_no);
+
+      if (ledgerErr) throw ledgerErr;
+
+      const currentWoBalance = (ledgerEntries || []).reduce((sum, entry) => sum + Number(entry.amount), 0);
+      if (item.amount > currentWoBalance) {
+        return res.status(422).json({
+          success: false,
+          message: `Insufficient available balance on Work Order ${item.work_order_no}. Available: ₹${currentWoBalance.toLocaleString('en-IN')}, Requested: ₹${item.amount.toLocaleString('en-IN')}.`
+        });
+      }
+    }
+
+    // 7. Lock and check ZO total balance
+    const { data: zoBal, error: balErr } = await supabase
+      .from('zo_balances')
+      .select('available_balance')
+      .eq('zo_user_id', returnRequest.zo_user_id)
+      .maybeSingle();
+
+    if (balErr) throw balErr;
+    if (!zoBal || Number(zoBal.available_balance) < returnRequest.requested_amount) {
+      return res.status(422).json({ success: false, message: 'Insufficient total available balance.' });
+    }
+
+    // 8. Deduct from total ZO balance
+    const newTotalBalance = Number(zoBal.available_balance) - Number(returnRequest.requested_amount);
+    const { error: updateBalErr } = await supabase
+      .from('zo_balances')
+      .update({ available_balance: newTotalBalance, updated_at: new Date().toISOString() })
+      .eq('zo_user_id', returnRequest.zo_user_id);
+
+    if (updateBalErr) throw updateBalErr;
+
+    // 9. Insert ledger entries for each breakdown item
+    let ledgerInserts;
+    if (breakdown && breakdown.length > 0) {
+      ledgerInserts = breakdown.map(item => ({
+        zo_user_id: returnRequest.zo_user_id,
+        transaction_type: 'RETURN',
+        reference_type: 'RETURN',
+        reference_id: crypto.randomUUID(), // unique UUID to prevent idx_zo_fund_ledger_ref_unique violation
+        amount: -Number(item.amount),
+        work_order_no: item.work_order_no,
+        created_by: req.user.mobile_number
+      }));
+    } else {
+      // Fallback: single entry using the request's work_order_no
+      if (!returnRequest.work_order_no) {
+        return res.status(400).json({ success: false, message: 'Breakdown is required when the return request does not specify a Work Order.' });
+      }
+      ledgerInserts = [{
+        zo_user_id: returnRequest.zo_user_id,
+        transaction_type: 'RETURN',
+        reference_type: 'RETURN',
+        reference_id: id,
+        amount: -Number(returnRequest.requested_amount),
+        work_order_no: returnRequest.work_order_no,
+        created_by: req.user.mobile_number
+      }];
+    }
+
+    const { error: ledgerInsertErr } = await supabase
+      .from('zo_fund_ledger')
+      .insert(ledgerInserts);
+
+    if (ledgerInsertErr) throw ledgerInsertErr;
+
+    // 10. Update the return request
+    const { data: updatedRequest, error: updateReqErr } = await supabase
+      .from('excess_fund_returns')
+      .update({
+        status: 'Completed',
+        actioned_by: req.user.mobile_number,
+        breakdown,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateReqErr) throw updateReqErr;
 
     return res.status(200).json({
       success: true,
-      returnRequest: actioned,
+      returnRequest: updatedRequest,
       message: 'Excess fund return accepted and processed successfully.'
     });
 

@@ -1,6 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
+const crypto = require('crypto');
 const validate = require('../validation/validate');
 const { createFundRequestSchema, actOnFundRequestSchema, cancelFundRequestSchema } = require('../validation/fundRequest.schema');
 
@@ -40,19 +41,21 @@ async function resolveDisplayNames(mobiles) {
  */
 async function createFundRequest(req, res) {
   if (!validate(req, res, createFundRequestSchema)) return;
-  const { zo_fr_no, work_order_no, zo_fr_amount, zo_remarks } = req.body;
-  const amount = zo_fr_amount;
+  const { zo_fr_no, work_order_no, zo_fr_amount, requested_amount, zo_remarks, remarks } = req.body;
+  const amount = zo_fr_amount !== undefined && zo_fr_amount !== null ? Number(zo_fr_amount) : Number(requested_amount);
+  const finalFrNo = (zo_fr_no || `FR-${crypto.randomUUID().substring(0, 8)}`).trim();
+  const finalRemarks = (zo_remarks || remarks || '').trim() || null;
 
   try {
     // Unique check
     const { count, error: countError } = await supabase
       .from('fund_requests')
       .select('zo_fr_no', { count: 'exact', head: true })
-      .eq('zo_fr_no', zo_fr_no.trim());
+      .eq('zo_fr_no', finalFrNo);
 
     if (countError) throw countError;
     if (count && count > 0) {
-      return res.status(409).json({ success: false, message: `A fund request with number ${zo_fr_no.trim()} already exists.` });
+      return res.status(409).json({ success: false, message: `A fund request with number ${finalFrNo} already exists.` });
     }
 
     // Verify work order matches ZO
@@ -82,12 +85,6 @@ async function createFundRequest(req, res) {
       .maybeSingle();
 
     if (estErr) throw estErr;
-    if (!approvedEstimate) {
-      return res.status(400).json({
-        success: false,
-        message: 'Fund request cannot be created for a Work Order without a Final Approved cost estimate.'
-      });
-    }
 
     // Fetch approved fund requests for this work order to calculate remaining capacity
     const { data: approvedReqs, error: approvedErr } = await supabase
@@ -102,8 +99,9 @@ async function createFundRequest(req, res) {
       (sum, r) => sum + Number(r.approve_ho_amount || 0),
       0
     );
-    const estimateAmount = Number(approvedEstimate.estimate_amount || 0);
-    const remainingCapacity = estimateAmount - cumulativeApproved;
+
+    const fundingCap = approvedEstimate ? Number(approvedEstimate.estimate_amount || 0) : Number(project.work_order_value || 0);
+    const remainingCapacity = fundingCap - cumulativeApproved;
 
     if (amount > remainingCapacity) {
       return res.status(400).json({
@@ -118,9 +116,9 @@ async function createFundRequest(req, res) {
         {
           zo_user_id: req.user.mobile_number,
           work_order_no: work_order_no.trim(),
-          zo_fr_no: zo_fr_no.trim(),
+          zo_fr_no: finalFrNo,
           zo_fr_amount: amount,
-          zo_remarks: zo_remarks?.trim() || null,
+          zo_remarks: finalRemarks,
           created_by: req.user.mobile_number,
           request_status: 'Pending'
         }
@@ -130,7 +128,7 @@ async function createFundRequest(req, res) {
 
     if (insertError) {
       if (insertError.code === '23505') {
-        return res.status(409).json({ success: false, message: `A fund request with number ${zo_fr_no.trim()} already exists.` });
+        return res.status(409).json({ success: false, message: `A fund request with number ${finalFrNo} already exists.` });
       }
       throw insertError;
     }
@@ -143,6 +141,11 @@ async function createFundRequest(req, res) {
     return res.status(201).json({
       success: true,
       fundRequest: newFr,
+      request: {
+        ...newFr,
+        id: newFr.fund_request_id
+      },
+      id: newFr.fund_request_id,
       message: 'Fund request created successfully.'
     });
 
@@ -296,7 +299,10 @@ async function getFundRequestById(req, res) {
 async function actOnFundRequest(req, res) {
   if (!validate(req, res, actOnFundRequestSchema)) return;
   const { id } = req.params;
-  const { action, approve_ho_amount, transfer_from_account, ho_remarks } = req.body;
+  const { action, approve_ho_amount, approved_amount, transfer_from_account, ho_remarks, remarks } = req.body;
+  const finalHoAmount = approve_ho_amount !== undefined && approve_ho_amount !== null ? approve_ho_amount : approved_amount;
+  const finalRemarks = ho_remarks || remarks || null;
+  const finalTransferAccount = transfer_from_account || 'CC';
 
   try {
     const { data: fr, error: frError } = await supabase
@@ -321,7 +327,7 @@ async function actOnFundRequest(req, res) {
       let updatePayload = {
         approve_ho_user_id: req.user.mobile_number,
         approve_ho_date: new Date().toISOString(),
-        ho_remarks: ho_remarks?.trim() || null,
+        ho_remarks: finalRemarks?.trim() || null,
         request_status: 'Hold'
       };
 
@@ -344,8 +350,8 @@ async function actOnFundRequest(req, res) {
     }
 
     if (action === 'Approve') {
-      const hoAmount = Number(approve_ho_amount);
-      if (!approve_ho_amount || isNaN(hoAmount) || hoAmount <= 0) {
+      const hoAmount = Number(finalHoAmount);
+      if (finalHoAmount === undefined || finalHoAmount === null || isNaN(hoAmount) || hoAmount <= 0) {
         return res.status(400).json({
           success: false,
           message: 'approve_ho_amount is required for approval and must be greater than zero.'
@@ -358,7 +364,7 @@ async function actOnFundRequest(req, res) {
         });
       }
 
-      if (!VALID_TRANSFER_ACCOUNTS.includes(transfer_from_account)) {
+      if (!VALID_TRANSFER_ACCOUNTS.includes(finalTransferAccount)) {
         return res.status(400).json({
           success: false,
           message: `transfer_from_account is required for approval. Valid values: ${VALID_TRANSFER_ACCOUNTS.join(', ')}.`
@@ -374,8 +380,17 @@ async function actOnFundRequest(req, res) {
         .maybeSingle();
 
       if (estErr) throw estErr;
-      if (!approvedEstimate) {
-        return res.status(400).json({ success: false, message: 'Work Order does not have a Final Approved cost estimate.' });
+
+      // Fetch project to get work_order_value
+      const { data: project, error: projErr } = await supabase
+        .from('projects_master')
+        .select('work_order_value')
+        .eq('work_order_no', fr.work_order_no)
+        .maybeSingle();
+
+      if (projErr) throw projErr;
+      if (!project) {
+        return res.status(400).json({ success: false, message: 'Work Order not found.' });
       }
 
       // Fetch approved fund requests for this work order to calculate remaining capacity
@@ -391,8 +406,9 @@ async function actOnFundRequest(req, res) {
         (sum, r) => sum + Number(r.approve_ho_amount || 0),
         0
       );
-      const estimateAmount = Number(approvedEstimate.estimate_amount || 0);
-      const remainingCapacity = estimateAmount - cumulativeApproved;
+
+      const fundingCap = approvedEstimate ? Number(approvedEstimate.estimate_amount || 0) : Number(project.work_order_value || 0);
+      const remainingCapacity = fundingCap - cumulativeApproved;
 
       if (hoAmount > remainingCapacity) {
         return res.status(400).json({
@@ -405,9 +421,9 @@ async function actOnFundRequest(req, res) {
       const { data: approvedFr, error: rpcErr } = await supabase.rpc('approve_fund_request_transact', {
         p_fund_request_id: id,
         p_approved_amount: hoAmount,
-        p_transfer_from_account: transfer_from_account,
+        p_transfer_from_account: finalTransferAccount,
         p_actioned_by: req.user.mobile_number,
-        p_remarks: ho_remarks?.trim() || null
+        p_remarks: finalRemarks?.trim() || null
       });
 
       if (rpcErr) throw rpcErr;

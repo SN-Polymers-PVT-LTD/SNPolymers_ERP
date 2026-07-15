@@ -598,10 +598,10 @@ async function cancelRequisition(req, res) {
     }
 
     // Status guard
-    if (reqRecord.requisition_status !== 'Pending') {
+    if (reqRecord.requisition_status !== 'Pending' && reqRecord.requisition_status !== 'Hold') {
       return res.status(403).json({
         success: false,
-        message: `Only Pending requisitions can be cancelled. Current status: ${reqRecord.requisition_status}`
+        message: `Only Pending or Hold requisitions can be cancelled. Current status: ${reqRecord.requisition_status}`
       });
     }
 
@@ -614,7 +614,7 @@ async function cancelRequisition(req, res) {
         cancelled_at: new Date().toISOString()
       })
       .eq('requisition_id', id)
-      .eq('requisition_status', 'Pending')
+      .in('requisition_status', ['Pending', 'Hold'])
       .select()
       .maybeSingle();
 

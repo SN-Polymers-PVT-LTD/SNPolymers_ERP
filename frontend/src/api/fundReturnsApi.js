@@ -17,8 +17,8 @@ export const createReturnRequest = (data) => authApi.post('/excess-fund-returns'
  * @param {string} id
  * @param {string} client_updated_at – ISO string of latest return request updated_at timestamp (for concurrency guard)
  */
-export const acceptReturnRequest = (id, client_updated_at) =>
-  authApi.post(`/excess-fund-returns/${encodeURIComponent(id)}/accept`, { client_updated_at });
+export const acceptReturnRequest = (id, client_updated_at, breakdown) =>
+  authApi.post(`/excess-fund-returns/${encodeURIComponent(id)}/accept`, { client_updated_at, breakdown });
 
 /**
  * Reject a return request with mandatory remarks (ZO only)

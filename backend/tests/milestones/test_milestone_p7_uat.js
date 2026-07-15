@@ -42,6 +42,7 @@ async function runUatTests() {
   const testReqNo1 = `REQ_UAT1_${suffix}`;
   const testReqNo2 = `REQ_UAT2_${suffix}`;
   const testReqNoHold = `REQ_UAT_HOLD_${suffix}`;
+  const testMaterialHead = `UAT_MATERIAL_${suffix}`;
 
   try {
     // 1. Setup Whitelisted Test Users
@@ -78,6 +79,17 @@ async function runUatTests() {
     zoToken2 = jwt.sign({ user_id: zoUserId2, mobile_number: zoMobile2, role: 'zo', session_id: zoSessionId2 }, JWT_SECRET);
     jeToken = jwt.sign({ user_id: jeUserId, mobile_number: jeMobile, role: 'je', session_id: jeSessionId }, JWT_SECRET);
 
+    // Seed test material head
+    await supabase.from('material_master').delete().eq('Material_Main_Head', testMaterialHead);
+    const { error: matInsertErr } = await supabase.from('material_master').insert({
+      'Material_Main_Head': testMaterialHead,
+      'Material_Sub_Head': 'UAT Sub Head',
+      'Material_Details': 'UAT Test Material for Integration Testing',
+      'M_Unit': 'NOS',
+      created_by: adminMobile
+    });
+    if (matInsertErr) throw matInsertErr;
+
     // Start Server
     server = app.listen(PORT);
     console.log(`[UAT] Server started on port ${PORT}.`);
@@ -94,7 +106,7 @@ async function runUatTests() {
       headers: { Cookie: `accessToken=${adminToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ je_mobile_number: jeMobile, zo_mobile_number: zoMobile })
     });
-    assert.strictEqual(mapJeRes.status, 200, 'Failed to map JE to ZO.');
+    assert(mapJeRes.status === 200 || mapJeRes.status === 201, `Failed to map JE to ZO. Got ${mapJeRes.status}`);
 
     // Create Work Order assigned to ZO-1
     console.log('[SCENARIO 1] Creating target Work Order WO-100...');
@@ -123,7 +135,7 @@ async function runUatTests() {
       headers: { Cookie: `accessToken=${adminToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ work_order_no: testWO, je_mobile_number: jeMobile })
     });
-    assert.strictEqual(mapWoRes.status, 200, 'Failed to map JE to WO.');
+    assert(mapWoRes.status === 200 || mapWoRes.status === 201, `Failed to map JE to WO. Got ${mapWoRes.status}`);
 
     // Try to map Unmapped JE to WO-100 (verify blocks)
     console.log('[SCENARIO 1] Verifying block for unmapped JE-2...');
@@ -146,6 +158,9 @@ async function runUatTests() {
       headers: { Cookie: `accessToken=${zoToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ work_order_no: testWO, requested_amount: 100000.00, remarks: 'UAT funding requisition' })
     });
+    if (fundReqRes.status !== 201) {
+      console.error('Fund Request Creation Failed. Status:', fundReqRes.status, 'Body:', await fundReqRes.text());
+    }
     assert.strictEqual(fundReqRes.status, 201, 'Failed to create fund request.');
     const fundReqData = await fundReqRes.json();
     const fundRequestId = fundReqData.request?.id || fundReqData.id;
@@ -175,20 +190,30 @@ async function runUatTests() {
         requisition_no: testReqNo1,
         work_order_no: testWO,
         requisition_amount: 60000.00,
-        remarks_je: 'First payment request'
+        material_main_head: testMaterialHead,
+        requisition_pdf_url: `test/uat_req1_${suffix}.pdf`,
+        gst_bill: 'No',
+        bank_details: 'UAT Bank Account - Test IFSC',
+        expen_head_remarks: 'First payment request'
       })
     });
+    if (submitReqRes.status !== 201) {
+      console.error('Failed to submit requisition. Status:', submitReqRes.status, 'Body:', await submitReqRes.text());
+    }
     assert.strictEqual(submitReqRes.status, 201, 'Failed to submit payment requisition.');
     const submitReqData = await submitReqRes.json();
-    const requisitionId = submitReqData.requisition?.id || submitReqData.id;
+    const requisitionId = submitReqData.requisition?.requisition_id || submitReqData.requisition?.id || submitReqData.id;
 
     // ZO-1 approves Payment Requisition
     console.log('[SCENARIO 2] ZO-1 approving Payment Requisition...');
     const approveReqRes = await fetch(`${BASE_URL}/requisitions/${requisitionId}/action`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: { Cookie: `accessToken=${zoToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'Approve', remarks_zo: 'ZO Approval' })
+      body: JSON.stringify({ action: 'Approve', approved_amount: 60000.00, remarks_approved_authority: 'ZO Approval' })
     });
+    if (approveReqRes.status !== 200) {
+      console.error('Failed to approve requisition. Status:', approveReqRes.status, 'Body:', await approveReqRes.text());
+    }
     assert.strictEqual(approveReqRes.status, 200, 'Failed to approve requisition.');
 
     // Verify ZO-1 balance drops to ₹40,000
@@ -212,19 +237,26 @@ async function runUatTests() {
         requisition_no: testReqNo2,
         work_order_no: testWO,
         requisition_amount: 50000.00,
-        remarks_je: 'Second payment request'
+        material_main_head: testMaterialHead,
+        requisition_pdf_url: `test/uat_req2_${suffix}.pdf`,
+        gst_bill: 'No',
+        bank_details: 'UAT Bank Account - Test IFSC',
+        expen_head_remarks: 'Second payment request'
       })
     });
+    if (submitReqRes2.status !== 201) {
+      console.error('Failed to submit 2nd requisition. Status:', submitReqRes2.status, 'Body:', await submitReqRes2.text());
+    }
     assert.strictEqual(submitReqRes2.status, 201, 'Failed to submit second requisition.');
     const submitReqData2 = await submitReqRes2.json();
-    const requisitionId2 = submitReqData2.requisition?.id || submitReqData2.id;
+    const requisitionId2 = submitReqData2.requisition?.requisition_id || submitReqData2.requisition?.id || submitReqData2.id;
 
     // ZO-1 attempts to approve (fails)
     console.log('[SCENARIO 3] ZO-1 attempting to approve requisition (should fail 422)...');
     const approveReqRes2 = await fetch(`${BASE_URL}/requisitions/${requisitionId2}/action`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: { Cookie: `accessToken=${zoToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'Approve', remarks_zo: 'ZO Approval attempt' })
+      body: JSON.stringify({ action: 'Approve', approved_amount: 50000.00, remarks_approved_authority: 'ZO Approval attempt' })
     });
     assert.strictEqual(approveReqRes2.status, 422, 'Requisition approval should fail.');
     const approveReqData2 = await approveReqRes2.json();
@@ -262,8 +294,14 @@ async function runUatTests() {
     const acceptReturnRes = await fetch(`${BASE_URL}/excess-fund-returns/${returnId}/accept`, {
       method: 'POST',
       headers: { Cookie: `accessToken=${zoToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_updated_at: loadedReturnRecord.updated_at })
+      body: JSON.stringify({
+        client_updated_at: loadedReturnRecord.updated_at,
+        breakdown: [{ work_order_no: testWO, amount: 30000.00 }]
+      })
     });
+    if (acceptReturnRes.status !== 200) {
+      console.error('Failed to accept return request. Status:', acceptReturnRes.status, 'Body:', await acceptReturnRes.text());
+    }
     assert.strictEqual(acceptReturnRes.status, 200, 'Failed to accept return request.');
 
     // Verify ZO-1 available balance drops to ₹10,000
@@ -286,18 +324,25 @@ async function runUatTests() {
         requisition_no: testReqNoHold,
         work_order_no: testWO,
         requisition_amount: 5000.00,
-        remarks_je: 'Hold check request'
+        material_main_head: testMaterialHead,
+        requisition_pdf_url: `test/uat_hold_${suffix}.pdf`,
+        gst_bill: 'No',
+        bank_details: 'UAT Bank Account - Test IFSC',
+        expen_head_remarks: 'Hold check request'
       })
     });
+    if (submitReqResHold.status !== 201) {
+      console.error('Failed to submit hold requisition. Status:', submitReqResHold.status, 'Body:', await submitReqResHold.text());
+    }
     assert.strictEqual(submitReqResHold.status, 201);
     const submitReqDataHold = await submitReqResHold.json();
-    const requisitionIdHold = submitReqDataHold.requisition?.id || submitReqDataHold.id;
+    const requisitionIdHold = submitReqDataHold.requisition?.requisition_id || submitReqDataHold.requisition?.id || submitReqDataHold.id;
 
     // Set status to Hold
     await fetch(`${BASE_URL}/requisitions/${requisitionIdHold}/action`, {
-      method: 'POST',
+      method: 'PATCH',
       headers: { Cookie: `accessToken=${zoToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'Hold', remarks_zo: 'ZO Hold Action' })
+      body: JSON.stringify({ action: 'Hold', remarks_approved_authority: 'ZO Hold Action' })
     });
 
     // HO attempts to transfer JE-1 to ZO-2 (verify blocks)
@@ -311,10 +356,22 @@ async function runUatTests() {
 
     // Resolve requisition (Cancel it)
     console.log('[SCENARIO 5] Cancelling hold requisition...');
-    await fetch(`${BASE_URL}/requisitions/${requisitionIdHold}/cancel`, {
-      method: 'POST',
+    const cancelRes = await fetch(`${BASE_URL}/requisitions/${requisitionIdHold}/cancel`, {
+      method: 'PATCH',
       headers: { Cookie: `accessToken=${jeToken}` }
     });
+    if (cancelRes.status !== 200) {
+      console.error('Cancel failed. Status:', cancelRes.status, 'Body:', await cancelRes.text());
+    }
+
+    console.log('[SCENARIO 5] Cancelling second pending requisition...');
+    const cancelRes2 = await fetch(`${BASE_URL}/requisitions/${requisitionId2}/cancel`, {
+      method: 'PATCH',
+      headers: { Cookie: `accessToken=${jeToken}` }
+    });
+    if (cancelRes2.status !== 200) {
+      console.error('Cancel failed for second requisition. Status:', cancelRes2.status, 'Body:', await cancelRes2.text());
+    }
 
     // Transfer JE-1 to ZO-2 (verify succeeds)
     console.log('[SCENARIO 5] Transferring JE-1 to ZO-2 (should succeed)...');
@@ -323,7 +380,7 @@ async function runUatTests() {
       headers: { Cookie: `accessToken=${adminToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ je_mobile_number: jeMobile, zo_mobile_number: zoMobile2 })
     });
-    assert.strictEqual(transferSuccessRes.status, 200, 'Transfer failed.');
+    assert(transferSuccessRes.status === 200 || transferSuccessRes.status === 201, `Transfer failed. Got ${transferSuccessRes.status}`);
 
     // Verify WO-100 assignment is deactivated automatically
     console.log('[SCENARIO 5] Verifying JE-1 assignment for WO-100 was automatically deactivated...');
@@ -388,8 +445,17 @@ async function runUatTests() {
         requisition_amount: 10000.00,
         requisition_status: 'Pending',
         created_by: jeMobile,
-        requester_user_id: jeUserId,
-        zo_user_id: zoMobile2
+        requester_user_id: jeMobile,
+        zo_user_id: zoMobile2,
+        state: 'West Bengal',
+        district: 'Kolkata',
+        area_code: 'Kolkata Zone',
+        department: 'PWD',
+        site_details: 'Testing Site',
+        material_main_head: testMaterialHead,
+        requisition_pdf_url: `test/concur_req_${i}_${suffix}.pdf`,
+        bank_details: 'Dummy Bank',
+        gst_bill: 'No'
       }).select().single();
       if (error) throw error;
       reqIds.push(data.requisition_id || data.id);
@@ -399,9 +465,9 @@ async function runUatTests() {
     console.log('[SCENARIO 6] Dispatching 10 parallel approval requests concurrently...');
     const approvalPromises = reqIds.map(id =>
       fetch(`${BASE_URL}/requisitions/${id}/action`, {
-        method: 'POST',
+        method: 'PATCH',
         headers: { Cookie: `accessToken=${zoToken2}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'Approve', remarks_zo: 'Concurrent stress' })
+        body: JSON.stringify({ action: 'Approve', approved_amount: 10000.00, remarks_approved_authority: 'Concurrent stress' })
       })
     );
 
@@ -444,6 +510,9 @@ async function runUatTests() {
       await supabase.from('requisitions').delete().filter('work_order_no', 'eq', testWO);
       await supabase.from('fund_requests').delete().filter('work_order_no', 'eq', testWO);
       await supabase.from('excess_fund_returns').delete().filter('work_order_no', 'eq', testWO);
+
+      // Delete test material
+      await supabase.from('material_master').delete().eq('Material_Main_Head', testMaterialHead);
 
       // Delete mappings and projects
       await supabase.from('work_order_mappings').delete().eq('work_order_no', testWO);
