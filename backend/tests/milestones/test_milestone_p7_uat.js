@@ -403,13 +403,20 @@ async function runUatTests() {
     
     // Setup balance back to exactly ₹50,000 for ZO-2
     console.log('[SCENARIO 6] Adjusting ZO-2 available balance to exactly ₹50,000...');
-    await supabase.rpc('reconcile_zonal_balances', { p_zo_user_id: zoMobile2, p_actioned_by: 'UAT_SETUP' });
-    const { error: balanceUpdateErr } = await supabase
-      .from('zo_balances')
-      .update({ available_balance: 50000.00 })
-      .eq('zo_user_id', zoMobile2);
+    await supabase.from('zo_fund_ledger').delete().eq('zo_user_id', zoMobile2);
+    const { error: ledgerErr } = await supabase.from('zo_fund_ledger').insert({
+      zo_user_id: zoMobile2,
+      transaction_type: 'ALLOCATION',
+      reference_type: 'FUND_REQUEST',
+      reference_id: crypto.randomUUID(),
+      amount: 50000.00,
+      work_order_no: null,
+      created_by: adminMobile
+    });
+    if (ledgerErr) throw ledgerErr;
 
-    if (balanceUpdateErr) throw balanceUpdateErr;
+    const { error: reconErr } = await supabase.rpc('reconcile_zonal_balances', { p_zo_user_id: zoMobile2, p_actioned_by: 'UAT_SETUP' });
+    if (reconErr) throw reconErr;
 
     // Register WO-CONCUR owned by ZO-2 and map JE-1 to it
     const concurrentWO = `WO_CONCUR_${suffix}`;
@@ -489,6 +496,7 @@ async function runUatTests() {
     console.log('  Concurrency double spending protection verified successfully.');
 
     // Cleanup concurrent projects
+    await supabase.from('zo_fund_ledger').delete().filter('work_order_no', 'eq', concurrentWO);
     await supabase.from('requisitions').delete().filter('work_order_no', 'eq', concurrentWO);
     await supabase.from('work_order_mappings').delete().eq('work_order_no', concurrentWO);
     await supabase.from('projects_master').delete().eq('work_order_no', concurrentWO);
