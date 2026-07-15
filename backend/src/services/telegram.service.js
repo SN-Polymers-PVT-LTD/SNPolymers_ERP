@@ -1485,6 +1485,116 @@ async function notifyJeEstimateRejected(estimate) {
   }
 }
 
+async function notifyZoExcessReturnRequested(returnRequest) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const { data: zoUser, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', returnRequest.zo_user_id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn(`[EXCESS RETURN] Failed to retrieve ZO user: ${error.message}`);
+      return;
+    }
+
+    if (!zoUser || !zoUser.telegram_chat_id || zoUser.telegram_chat_id.trim() === '') {
+      console.warn(`[EXCESS RETURN] ZO user ${returnRequest.zo_user_id} has no Telegram chat ID configured.`);
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) return;
+
+    const amount = Number(returnRequest.requested_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const remarks = escapeHtml(returnRequest.remarks_ho || 'None');
+
+    const messageText =
+      `💸 <b>Excess Fund Return Requested</b>\n\n` +
+      `<b>Requested Amount:</b> ₹${amount}\n` +
+      `<b>Remarks:</b> ${remarks}\n\n` +
+      `Please accept this return request and configure the work order allocation breakdown on the IDBP console.`;
+
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(zoUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data.ok) {
+      console.warn(`[EXCESS RETURN] Failed to send return request notification to ZO: ${data.description}`);
+    }
+  } catch (error) {
+    console.error(`[EXCESS RETURN] notifyZoExcessReturnRequested failed: ${error.message}`);
+  }
+}
+
+async function notifyHoExcessReturnAccepted(returnRequest) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    // Get ZO user details
+    const { data: zoUser } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', returnRequest.zo_user_id)
+      .maybeSingle();
+    const zoName = zoUser?.display_name || returnRequest.zo_user_id || 'N/A';
+
+    // Get active HO/Admin users
+    const { data: hoUsers, error: hoErr } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('role', 'ho')
+      .eq('is_active', true)
+      .not('telegram_chat_id', 'is', null);
+
+    if (hoErr) {
+      console.warn(`[EXCESS RETURN] Failed to retrieve HO users: ${hoErr.message}`);
+      return;
+    }
+
+    const recipients = (hoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+    if (zoUser && zoUser.telegram_chat_id && zoUser.telegram_chat_id.trim() !== '') {
+      recipients.push(zoUser);
+    }
+
+    if (recipients.length === 0) return;
+    if (!TELEGRAM_BOT_TOKEN) return;
+
+    const amount = Number(returnRequest.requested_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    
+    let breakdownText = '';
+    if (returnRequest.breakdown && Array.isArray(returnRequest.breakdown)) {
+      breakdownText = `\n<b>Breakdown Allocation:</b>\n` + returnRequest.breakdown.map(item => {
+        return `• Work Order <code>${item.work_order_no}</code>: ₹${Number(item.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }).join('\n');
+    }
+
+    const messageText =
+      `✅ <b>Excess Fund Return Accepted</b>\n\n` +
+      `<b>Zonal Office:</b> ${escapeHtml(zoName)}\n` +
+      `<b>Returned Amount:</b> ₹${amount}\n` +
+      breakdownText + `\n\n` +
+      `The funds have been successfully debited from the Zonal Office available balance.`;
+
+    for (const recipient of recipients) {
+      try {
+        const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!data.ok) {
+          console.warn(`[EXCESS RETURN] Failed to send return completion notification to ${recipient.display_name}: ${data.description}`);
+        }
+      } catch (err) {
+        console.warn(`[EXCESS RETURN] Failed to send return completion notification to ${recipient.display_name}: ${err.message}`);
+      }
+    }
+  } catch (error) {
+    console.error(`[EXCESS RETURN] notifyHoExcessReturnAccepted failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   sendOtp,
   startPolling,
@@ -1505,7 +1615,7 @@ module.exports = {
   notifyZoAndHoRequisitionActed,
   notifyZoAndHoBackdatedProgressSubmitted,
   notifyJeProgressActed,
-  notifyAllEstimateFinalApproved
+  notifyAllEstimateFinalApproved,
+  notifyZoExcessReturnRequested,
+  notifyHoExcessReturnAccepted
 };
-
-

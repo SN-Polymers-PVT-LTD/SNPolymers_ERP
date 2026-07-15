@@ -67,6 +67,11 @@ async function createReturnRequest(req, res) {
 
     if (error) throw error;
 
+    const { notifyZoExcessReturnRequested } = require('../services/telegram.service');
+    notifyZoExcessReturnRequested(newReturn).catch(err => {
+      console.error(`[EXCESS RETURN] Telegram notification failed: ${err.message}`);
+    });
+
     return res.status(201).json({
       success: true,
       returnRequest: newReturn,
@@ -218,6 +223,11 @@ async function acceptReturnRequest(req, res) {
       .single();
 
     if (updateReqErr) throw updateReqErr;
+
+    const { notifyHoExcessReturnAccepted } = require('../services/telegram.service');
+    notifyHoExcessReturnAccepted(updatedRequest).catch(err => {
+      console.error(`[EXCESS RETURN] Telegram notification failed: ${err.message}`);
+    });
 
     return res.status(200).json({
       success: true,
