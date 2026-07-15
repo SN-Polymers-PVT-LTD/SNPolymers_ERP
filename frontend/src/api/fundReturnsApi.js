@@ -42,5 +42,5 @@ export const modifyReturnRequest = (id, remarks_zo) =>
  * @param {string} action – 'Cancel' | 'Reissue'
  * @param {string} remarks_ho
  */
-export const actionOnReturnRequest = (id, action, remarks_ho) =>
-  authApi.patch(`/excess-fund-returns/${encodeURIComponent(id)}/ho-action`, { action, remarks_ho });
+export const actionOnReturnRequest = (id, action, remarks_ho, requested_amount) =>
+  authApi.patch(`/excess-fund-returns/${encodeURIComponent(id)}/ho-action`, { action, remarks_ho, requested_amount });
