@@ -13,6 +13,17 @@ async function getProjects(req, res) {
 
     let dbQuery = supabase.from('projects_master');
 
+    if (query.has_approved_estimate === 'true') {
+      const { data: approvedEsts, error: estError } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no')
+        .eq('estimate_status', 'Final Approved');
+
+      if (estError) throw estError;
+      const approvedWOs = (approvedEsts || []).map(e => e.work_order_no);
+      dbQuery = dbQuery.in('work_order_no', approvedWOs.length > 0 ? approvedWOs : ['dummy_work_order_no']);
+    }
+
     if (!hasPagination) {
       let queryBuilder = dbQuery.select('*, zo_user:authorised_users!zo_user_id(display_name)');
       if (req.user.role === 'zo') {

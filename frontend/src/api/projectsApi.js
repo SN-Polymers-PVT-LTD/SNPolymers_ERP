@@ -6,7 +6,7 @@ import authApi from './authApi';
 // ──────────────────────────────────────────────
 
 /** Fetch all projects */
-export const getProjects = () => authApi.get('/projects');
+export const getProjects = (params) => authApi.get('/projects', { params });
 
 /** Create a new project (admin only)
  *  @param {Object} data – { work_order_no, estimate_no, site_details, state, district, zone, department }

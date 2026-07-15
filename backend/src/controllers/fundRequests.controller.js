@@ -73,6 +73,22 @@ async function createFundRequest(req, res) {
       return res.status(400).json({ success: false, message: 'Work Order must be Active (Running) or Under Maintenance.' });
     }
 
+    // Verify that the Work Order has a Final Approved cost estimate
+    const { data: approvedEstimate, error: estErr } = await supabase
+      .from('project_cost_estimates')
+      .select('estimate_id')
+      .eq('work_order_no', work_order_no.trim())
+      .eq('estimate_status', 'Final Approved')
+      .maybeSingle();
+
+    if (estErr) throw estErr;
+    if (!approvedEstimate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Fund request cannot be created for a Work Order without a Final Approved cost estimate.'
+      });
+    }
+
     // Fetch approved fund requests for this work order to calculate remaining capacity
     const { data: approvedReqs, error: approvedErr } = await supabase
       .from('fund_requests')

@@ -67,7 +67,7 @@ const RequestDetailPanel = ({
   useEffect(() => {
     if (isCreate && user) {
       setLoadingProjects(true);
-      getProjects()
+      getProjects({ has_approved_estimate: true })
         .then((res) => {
           const list = res.data?.projects || [];
           // Filter: Owned by ZO and status is Active (Running) or Under Maintenance (Complete Under Maintenance)

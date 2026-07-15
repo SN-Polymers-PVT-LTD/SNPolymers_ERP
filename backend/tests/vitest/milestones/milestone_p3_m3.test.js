@@ -44,10 +44,25 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
       edited_by: zoUser.mobile_number
     });
     if (projErr) throw new Error(`P3-M3 project insert failed: ${projErr.message}`);
+
+    // Insert a final approved cost estimate for the project so the new constraint passes
+    const { error: estErr } = await supabase.from('project_cost_estimates').insert({
+      estimate_id: crypto.randomUUID(),
+      work_order_no: testWorkOrder,
+      estimate_no: `EST_P3M3_${suffix}`,
+      area_code: 'Kolkata Zone',
+      zonal_office_no: 'ZO-1',
+      estimate_amount: 100000.00,
+      estimate_status: 'Final Approved',
+      created_by: zoUser.mobile_number,
+      last_modified_by: zoUser.mobile_number
+    });
+    if (estErr) throw new Error(`P3-M3 cost estimate insert failed: ${estErr.message}`);
   });
 
   afterAll(async () => {
     await supabase.from('fund_requests').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('project_cost_estimates').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('authorised_users').delete().in('mobile_number', [zoUser.mobile_number, zoUser2.mobile_number, hoUser.mobile_number]);
   });
@@ -225,6 +240,49 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
 
       expect(resCancelOther.statusCode).toBe(403);
       expect(resCancelOther.jsonData.success).toBe(false);
+    });
+  });
+
+  describe('Fund Request Constraints (Final Approved Cost Estimate)', () => {
+    test('Test 9: Blocks creating fund request for WO without a Final Approved cost estimate', async () => {
+      const suffix = crypto.randomUUID().substring(0, 8);
+      const tempWO = `TEST_WO_P3M3_NOEST_${suffix}`;
+
+      // Insert project WITHOUT cost estimate
+      await supabase.from('projects_master').insert({
+        work_order_no: tempWO,
+        estimate_no: `EST_P3M3_NOEST_${suffix}`,
+        zo_user_id: zoUser.mobile_number,
+        site_details: 'P3-M3 Temp Site',
+        state: 'West Bengal',
+        district: 'Kolkata',
+        zone: 'Kolkata Zone',
+        department: 'PWD',
+        status: 'Running',
+        work_order_value: 500000.00,
+        created_by: zoUser.mobile_number,
+        edited_by: zoUser.mobile_number
+      });
+
+      const uniqueNo = `TEST_M3_FR_NOEST_${crypto.randomUUID().replace(/[^0-9]/g, '').substring(0, 6)}`;
+      const req = {
+        user: zoUser,
+        body: {
+          zo_fr_no: uniqueNo,
+          work_order_no: tempWO,
+          zo_fr_amount: 10000.00,
+          zo_remarks: 'Should fail validation'
+        }
+      };
+      const res = mockRes();
+      await createFundRequest(req, res);
+
+      expect(res.statusCode).toBe(400);
+      expect(res.jsonData.success).toBe(false);
+      expect(res.jsonData.message).toContain('without a Final Approved cost estimate');
+
+      // Cleanup
+      await supabase.from('projects_master').delete().eq('work_order_no', tempWO);
     });
   });
 });
