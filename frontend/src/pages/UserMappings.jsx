@@ -30,6 +30,14 @@ const UserMappings = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'inactive', 'all'
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const limit = 10;
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, statusFilter]);
+
   const fetchMappings = async () => {
     setLoading(true);
     setError('');
@@ -232,56 +240,93 @@ const UserMappings = () => {
                       No user mappings found matching the criteria.
                     </td>
                   </tr>
-                ) : (
-                  filteredMappings.map((mapping) => (
-                    <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-100">{mapping.je_name}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="font-semibold text-slate-100">{mapping.zo_name}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                            mapping.is_active
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                          }`}
-                        >
-                          {mapping.is_active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-[11px] text-slate-400">
-                        {new Date(mapping.assigned_at).toLocaleString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-slate-300">{mapping.assigned_by_name}</div>
-                      </td>
-                      <td className="px-6 py-4">
-                        {!mapping.is_active ? (
-                          <div>
-                            <div className="text-slate-400 text-[11px]">
-                              Deactivated: {new Date(mapping.deactivated_at).toLocaleString()}
-                            </div>
-                            <div className="text-slate-500 text-[10px]">
-                              By:{' '}
-                              {mapping.deactivated_by_name ? (
-                                mapping.deactivated_by_name
-                              ) : (
-                                <span className="text-amber-500/80 font-semibold">Auto (Project Inactive)</span>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-slate-600">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ) : (() => {
+                  const totalPages = Math.ceil(filteredMappings.length / limit);
+                  const currentMappings = filteredMappings.slice((page - 1) * limit, page * limit);
+
+                  return (
+                    <>
+                      {currentMappings.map((mapping) => (
+                        <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-slate-100">{mapping.je_name}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-slate-100">{mapping.zo_name}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span
+                              className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                mapping.is_active
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
+                              }`}
+                            >
+                              {mapping.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-[11px] text-slate-400">
+                            {new Date(mapping.assigned_at).toLocaleString()}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="text-slate-300">{mapping.assigned_by_name}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            {!mapping.is_active ? (
+                              <div>
+                                <div className="text-slate-400 text-[11px]">
+                                  Deactivated: {new Date(mapping.deactivated_at).toLocaleString()}
+                                </div>
+                                <div className="text-slate-500 text-[10px]">
+                                  By:{' '}
+                                  {mapping.deactivated_by_name ? (
+                                    mapping.deactivated_by_name
+                                  ) : (
+                                    <span className="text-amber-500/80 font-semibold">Auto (Project Inactive)</span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-600">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  );
+                })()}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {(() => {
+              const totalPages = Math.ceil(filteredMappings.length / limit);
+              if (totalPages <= 1) return null;
+              return (
+                <div className="px-6 py-4 bg-white/2 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Page {page} of {totalPages} ({filteredMappings.length} entries)
+                  </span>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      disabled={page === 1}
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-lg border border-white/5 text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:bg-white/5 disabled:opacity-30 transition"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      disabled={page === totalPages}
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      className="px-3 py-1.5 rounded-lg border border-white/5 text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:bg-white/5 disabled:opacity-30 transition"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
       </main>

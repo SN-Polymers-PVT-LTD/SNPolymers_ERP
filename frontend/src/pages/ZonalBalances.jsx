@@ -25,6 +25,9 @@ const ZonalBalances = () => {
   const [totalCount, setTotalCount] = useState(0);
   const limit = 15;
 
+  const [balancesPage, setBalancesPage] = useState(1);
+  const balancesLimit = 10;
+
   const fetchBalances = async () => {
     setLoadingBalances(true);
     try {
@@ -180,33 +183,66 @@ const ZonalBalances = () => {
             </div>
           ) : (
             /* Admin/HO grid view */
-            <div className="glass-panel rounded-3xl overflow-hidden shadow-xl border border-white/5">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/2">
-                    <th className="px-6 py-4">Zonal Office (User)</th>
-                    <th className="px-6 py-4">Available Balance</th>
-                    <th className="px-6 py-4">Last Sync</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5 text-xs font-semibold text-slate-300">
-                  {balances.map((b) => (
-                    <tr key={b.zo_user_id} className="hover:bg-white/2 transition-all">
-                      <td className="px-6 py-4">
-                        <div className="text-slate-200">{b.zo_name || b.zo_user_id}</div>
-                        <div className="text-[10px] text-slate-500 font-normal">{b.zo_user_id}</div>
-                      </td>
-                      <td className="px-6 py-4 text-base font-extrabold text-amber-500">
-                        ₹{Number(b.available_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4 text-[10px] font-normal text-slate-500">
-                        {new Date(b.updated_at).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            (() => {
+              const totalBalancesPages = Math.ceil(balances.length / balancesLimit);
+              const currentBalances = balances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
+
+              return (
+                <div className="glass-panel rounded-3xl overflow-hidden shadow-xl border border-white/5">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/2">
+                        <th className="px-6 py-4">Zonal Office (User)</th>
+                        <th className="px-6 py-4">Available Balance</th>
+                        <th className="px-6 py-4">Last Sync</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5 text-xs font-semibold text-slate-300">
+                      {currentBalances.map((b) => (
+                        <tr key={b.zo_user_id} className="hover:bg-white/2 transition-all">
+                          <td className="px-6 py-4">
+                            <div className="text-slate-200">{b.zo_name || b.zo_user_id}</div>
+                            <div className="text-[10px] text-slate-500 font-normal">{b.zo_user_id}</div>
+                          </td>
+                          <td className="px-6 py-4 text-base font-extrabold text-amber-500">
+                            ₹{Number(b.available_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-6 py-4 text-[10px] font-normal text-slate-500">
+                            {new Date(b.updated_at).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Balances Pagination controls */}
+                  {totalBalancesPages > 1 && (
+                    <div className="px-6 py-4 bg-white/2 border-t border-white/5 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                        Page {balancesPage} of {totalBalancesPages} ({balances.length} entries)
+                      </span>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          disabled={balancesPage === 1}
+                          onClick={() => setBalancesPage(p => Math.max(1, p - 1))}
+                          className="px-3 py-1.5 rounded-lg border border-white/5 text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:bg-white/5 disabled:opacity-30 transition"
+                        >
+                          Prev
+                        </button>
+                        <button
+                          disabled={balancesPage === totalBalancesPages}
+                          onClick={() => setBalancesPage(p => Math.min(totalBalancesPages, p + 1))}
+                          className="px-3 py-1.5 rounded-lg border border-white/5 text-[10px] font-bold uppercase tracking-wider text-slate-300 hover:bg-white/5 disabled:opacity-30 transition"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           )}
         </div>
 

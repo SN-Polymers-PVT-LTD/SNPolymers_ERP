@@ -18,7 +18,7 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
           <TableCell isHeader={true} className="w-8">
             <input type="checkbox" className="rounded bg-slate-900 border-white/10 text-amber-500 focus:ring-0 cursor-pointer" readOnly />
           </TableCell>
-           {['Fund Request Order No', 'Work Order No', 'Requested Amount', 'Approved Amount', 'Request Date', 'Current Status', 'Actions'].map((h) => (
+           {['Fund Request Order No', 'Work Order No', 'Zonal Office', 'Requested Amount', 'Approved Amount', 'Request Date', 'Current Status', 'Actions'].map((h) => (
             <TableCell key={h} isHeader={true}>
               {h}
             </TableCell>
@@ -46,6 +46,9 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
               </TableCell>
               <TableCell className="font-mono text-[11px] text-slate-300">
                 {req.work_order_no || '—'}
+              </TableCell>
+              <TableCell className="text-xs font-semibold text-slate-300">
+                {req.zo_name || '—'}
               </TableCell>
               <TableCell className="font-mono font-bold text-slate-200">
                 {formatCurrency(req.zo_fr_amount)}
