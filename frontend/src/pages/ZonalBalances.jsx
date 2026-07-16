@@ -27,6 +27,11 @@ const ZonalBalances = () => {
 
   const [balancesPage, setBalancesPage] = useState(1);
   const balancesLimit = 10;
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    setBalancesPage(1);
+  }, [searchQuery]);
 
   const fetchBalances = async () => {
     setLoadingBalances(true);
@@ -150,7 +155,20 @@ const ZonalBalances = () => {
 
         {/* Zonal Balances Widget / Grid */}
         <div className="mb-10">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Available Zonal Balances</h2>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Available Zonal Balances</h2>
+            {!isZo && balances.length > 0 && (
+              <div className="relative w-full sm:w-80">
+                <input
+                  type="text"
+                  placeholder="Search Zonal Office by name/mobile..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/50 transition-all animate-in fade-in"
+                />
+              </div>
+            )}
+          </div>
           
           {loadingBalances ? (
             <div className="py-8 text-center text-xs text-slate-500">
@@ -182,12 +200,26 @@ const ZonalBalances = () => {
               </div>
             </div>
           ) : (
-            /* Admin/HO grid view */
             (() => {
-              const totalBalancesPages = Math.ceil(balances.length / balancesLimit);
-              const currentBalances = balances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
+              const filteredBalances = balances.filter(b => {
+              const matchesSearch =
+                b.zo_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                b.zo_user_id?.includes(searchQuery);
+              return matchesSearch;
+            });
 
+            if (filteredBalances.length === 0) {
               return (
+                <div className="glass-panel p-8 rounded-3xl text-center text-slate-500 text-xs shadow-lg">
+                  No matching Zonal Offices found.
+                </div>
+              );
+            }
+
+            const totalBalancesPages = Math.ceil(filteredBalances.length / balancesLimit);
+            const currentBalances = filteredBalances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
+
+            return (
                 <div className="glass-panel rounded-3xl overflow-hidden shadow-xl border border-white/5">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -219,7 +251,7 @@ const ZonalBalances = () => {
                   {totalBalancesPages > 1 && (
                     <div className="px-6 py-4 bg-white/2 border-t border-white/5 flex items-center justify-between">
                       <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                        Page {balancesPage} of {totalBalancesPages} ({balances.length} entries)
+                        Page {balancesPage} of {totalBalancesPages} ({filteredBalances.length} entries)
                       </span>
                       
                       <div className="flex gap-2">
