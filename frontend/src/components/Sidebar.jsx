@@ -27,6 +27,14 @@ export const MobileHeader = () => {
               Admin
             </Link>
           )}
+          {currentPath !== '/profile' && (
+            <Link
+              to="/profile"
+              className="text-[10px] bg-slate-900 border border-white/10 text-slate-200 font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-lg"
+            >
+              Profile
+            </Link>
+          )}
           {currentPath !== '/dashboard' && (
             <Link
               to="/dashboard"
@@ -291,12 +299,13 @@ const Sidebar = () => {
 
           {isCollapsed ? (
             <div className="flex flex-col items-center gap-4">
-              <div
-                className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md"
+              <Link
+                to="/profile"
+                className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
                 title={`${user.display_name || 'Operator'} (${user.role})`}
               >
                 {(user.display_name || 'U')[0].toUpperCase()}
-              </div>
+              </Link>
               <button
                 onClick={logout}
                 title="Sign Out"
@@ -318,15 +327,15 @@ const Sidebar = () => {
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md">
+              <Link to="/profile" className="flex items-center gap-3 mb-4 group cursor-pointer">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md group-hover:scale-105 transition-all duration-300">
                   {(user.display_name || 'U')[0].toUpperCase()}
                 </div>
                 <div className="flex flex-col truncate">
-                  <span className="text-xs font-extrabold text-slate-200 truncate">{user.display_name || 'Operator'}</span>
+                  <span className="text-xs font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{user.display_name || 'Operator'}</span>
                   <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">{user.role}</span>
                 </div>
-              </div>
+              </Link>
               <button
                 onClick={logout}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-300 mb-2"

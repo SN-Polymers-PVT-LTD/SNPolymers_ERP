@@ -340,12 +340,408 @@ async function getMe(req, res) {
   });
 }
 
+/**
+ * GET /api/v1/auth/profile
+ * Returns detailed, role-specific profile data for current user.
+ */
+async function getProfileData(req, res) {
+  const user = req.user;
+  if (!user) {
+    return res.status(401).json({ success: false, message: 'Authentication required.' });
+  }
+
+  try {
+    // 1. Fetch user's basic record to get the latest telegram chat id and active status
+    const { data: userRecord, error: userError } = await supabase
+      .from('authorised_users')
+      .select('display_name, mobile_number, role, telegram_chat_id, is_active')
+      .eq('mobile_number', user.mobile_number)
+      .maybeSingle();
+
+    if (userError || !userRecord) {
+      return res.status(404).json({ success: false, message: 'User profile not found.' });
+    }
+
+    const profile = {
+      display_name: userRecord.display_name,
+      mobile_number: userRecord.mobile_number,
+      role: userRecord.role,
+      telegram_chat_id: userRecord.telegram_chat_id,
+      is_active: userRecord.is_active
+    };
+
+    let roleData = {};
+
+    if (userRecord.role === 'je') {
+      // Find active ZO mapping
+      const { data: mapping } = await supabase
+        .from('je_zo_mappings')
+        .select('zo_user_id')
+        .eq('je_user_id', userRecord.mobile_number)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      let zoDetails = null;
+      if (mapping) {
+        const { data: zoUser } = await supabase
+          .from('authorised_users')
+          .select('display_name, mobile_number')
+          .eq('mobile_number', mapping.zo_user_id)
+          .maybeSingle();
+        if (zoUser) {
+          zoDetails = zoUser;
+        }
+      }
+
+      // Find active work orders assigned to JE
+      const { data: woMappings } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('je_user_id', userRecord.mobile_number)
+        .eq('is_active', true);
+
+      let workOrders = [];
+      if (woMappings && woMappings.length > 0) {
+        const woNos = woMappings.map(m => m.work_order_no);
+        const { data: projects } = await supabase
+          .from('projects_master')
+          .select('work_order_no, estimate_no, site_details, state, district, zone, department, status')
+          .in('work_order_no', woNos);
+        if (projects) {
+          workOrders = projects;
+        }
+      }
+
+      // Analytics: Daily progress reports & Cost Estimates
+      const { data: progressReports } = await supabase
+        .from('daily_progress_reports')
+        .select('report_id, site_visit_date, physical_work_progress, approved_user_id, work_order_no')
+        .eq('created_by', userRecord.mobile_number)
+        .order('site_visit_date', { ascending: false });
+
+      const totalReports = progressReports ? progressReports.length : 0;
+      const recentReports = progressReports ? progressReports.slice(0, 5) : [];
+
+      // Query cost estimates created by this JE
+      const { data: jeEstimates } = await supabase
+        .from('project_cost_estimates')
+        .select('estimate_status')
+        .eq('je_user_id', userRecord.mobile_number);
+
+      const approvedCount = jeEstimates ? jeEstimates.filter(e => e.estimate_status === 'Final Approved').length : 0;
+      const pendingCount = jeEstimates ? jeEstimates.filter(e => ['Submitted', 'Under ZO Review', 'ZO Approved', 'Under HO Review', 'ZO Revision Requested', 'HO Revision Requested', 'Estimate Reopened'].includes(e.estimate_status)).length : 0;
+
+      roleData = {
+        zoDetails,
+        workOrders,
+        stats: { totalReports, approvedCount, pendingCount },
+        recentReports
+      };
+    } else if (userRecord.role === 'zo') {
+      // Find Zonal Balance
+      const { data: balanceData } = await supabase
+        .from('zo_balances')
+        .select('available_balance')
+        .eq('zo_user_id', userRecord.mobile_number)
+        .maybeSingle();
+      const balance = balanceData ? parseFloat(balanceData.available_balance) : 0;
+
+      // Find JEs mapped under this ZO
+      const { data: jeMappings } = await supabase
+        .from('je_zo_mappings')
+        .select('je_user_id')
+        .eq('zo_user_id', userRecord.mobile_number)
+        .eq('is_active', true);
+
+      let jes = [];
+      if (jeMappings && jeMappings.length > 0) {
+        const jeIds = jeMappings.map(m => m.je_user_id);
+        const { data: users } = await supabase
+          .from('authorised_users')
+          .select('display_name, mobile_number, is_active')
+          .in('mobile_number', jeIds);
+        if (users) {
+          jes = users;
+        }
+      }
+
+      // Find owned Work Orders/Projects
+      const { data: ownedProjects } = await supabase
+        .from('projects_master')
+        .select('work_order_no, estimate_no, site_details, state, district, zone, department, status')
+        .eq('zo_user_id', userRecord.mobile_number);
+
+      let jeMappingsWithNames = [];
+      if (ownedProjects && ownedProjects.length > 0) {
+        const ownedWoNos = ownedProjects.map(p => p.work_order_no);
+        const { data: woMapData } = await supabase
+          .from('work_order_mappings')
+          .select('work_order_no, je_user_id')
+          .eq('is_active', true)
+          .in('work_order_no', ownedWoNos);
+
+        if (woMapData && woMapData.length > 0) {
+          const uniqueJeIds = [...new Set(woMapData.map(m => m.je_user_id))];
+          const { data: jeUsers } = await supabase
+            .from('authorised_users')
+            .select('display_name, mobile_number, is_active')
+            .in('mobile_number', uniqueJeIds);
+
+          const jeUserMap = {};
+          if (jeUsers) {
+            jeUsers.forEach(u => {
+              jeUserMap[u.mobile_number] = u;
+            });
+          }
+
+          jeMappingsWithNames = woMapData.map(m => ({
+            work_order_no: m.work_order_no,
+            je_user_id: m.je_user_id,
+            display_name: jeUserMap[m.je_user_id]?.display_name || 'Unknown JE',
+            mobile_number: jeUserMap[m.je_user_id]?.mobile_number || m.je_user_id,
+            is_active: jeUserMap[m.je_user_id]?.is_active ?? false
+          }));
+        }
+      }
+
+      // Find Fund Ledger transactions
+      const { data: transactions } = await supabase
+        .from('zo_fund_ledger')
+        .select('ledger_id, transaction_type, reference_type, amount, work_order_no, created_at')
+        .eq('zo_user_id', userRecord.mobile_number)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      roleData = {
+        balance,
+        jes,
+        workOrders: ownedProjects || [],
+        jeMappings: jeMappingsWithNames,
+        recentTransactions: transactions || []
+      };
+    } else if (userRecord.role === 'ho' || userRecord.role === 'admin') {
+      // 1. Fetch system-wide summaries
+      const { count: usersCount } = await supabase
+        .from('authorised_users')
+        .select('id', { count: 'exact', head: true });
+      const { count: projectsCount } = await supabase
+        .from('projects_master')
+        .select('work_order_no', { count: 'exact', head: true });
+      const { count: activeMappingsCount } = await supabase
+        .from('je_zo_mappings')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true);
+      const { data: zoBalances } = await supabase
+        .from('zo_balances')
+        .select('zo_user_id, available_balance');
+
+      let balancesWithNames = [];
+      let totalBalancesSum = 0;
+      if (zoBalances && zoBalances.length > 0) {
+        const zoIds = zoBalances.map(b => b.zo_user_id);
+        const { data: names } = await supabase
+          .from('authorised_users')
+          .select('mobile_number, display_name')
+          .in('mobile_number', zoIds);
+        
+        balancesWithNames = zoBalances.map(b => {
+          const u = names ? names.find(n => n.mobile_number === b.zo_user_id) : null;
+          const amt = parseFloat(b.available_balance);
+          totalBalancesSum += amt;
+          return {
+            zo_user_id: b.zo_user_id,
+            zo_name: u ? u.display_name : 'Unknown ZO',
+            available_balance: amt
+          };
+        });
+      }
+
+      // 2. Fetch Admin's own recent actions
+      const { data: recentActions } = await supabase
+        .from('audit_log')
+        .select('id, action, module_name, record_identifier, timestamp')
+        .eq('user_id', userRecord.mobile_number)
+        .order('timestamp', { ascending: false })
+        .limit(10);
+
+      // 3. Fetch all projects with their details and calculate estimate sheets count
+      const { data: projectsList } = await supabase
+        .from('projects_master')
+        .select('work_order_no, estimate_no, site_details, state, district, zone, department, status, work_order_value');
+
+      const { data: allEstimates } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no');
+
+      const estimateCounts = {};
+      if (allEstimates) {
+        allEstimates.forEach(est => {
+          estimateCounts[est.work_order_no] = (estimateCounts[est.work_order_no] || 0) + 1;
+        });
+      }
+
+      // Fetch requisitions to sum up requisition amounts and counts per work order
+      const { data: allRequisitions } = await supabase
+        .from('requisitions')
+        .select('work_order_no, requisition_amount');
+
+      const reqSum = {};
+      const reqCount = {};
+      if (allRequisitions) {
+        allRequisitions.forEach(r => {
+          const amt = parseFloat(r.requisition_amount || 0);
+          reqSum[r.work_order_no] = (reqSum[r.work_order_no] || 0) + amt;
+          reqCount[r.work_order_no] = (reqCount[r.work_order_no] || 0) + 1;
+        });
+      }
+
+      // Fetch daily progress reports to get counts and max physical progress per work order
+      const { data: allProgress } = await supabase
+        .from('daily_progress_reports')
+        .select('work_order_no, physical_work_progress');
+
+      const progressCount = {};
+      const maxProgress = {};
+      if (allProgress) {
+        allProgress.forEach(p => {
+          const val = parseFloat(p.physical_work_progress || 0);
+          progressCount[p.work_order_no] = (progressCount[p.work_order_no] || 0) + 1;
+          if (val > (maxProgress[p.work_order_no] || 0)) {
+            maxProgress[p.work_order_no] = val;
+          }
+        });
+      }
+
+      const enrichedProjects = (projectsList || []).map(p => ({
+        work_order_no: p.work_order_no,
+        estimate_no: p.estimate_no,
+        site_details: p.site_details,
+        state: p.state,
+        district: p.district,
+        zone: p.zone,
+        department: p.department,
+        status: p.status,
+        work_order_value: parseFloat(p.work_order_value || 0),
+        estimate_sheets_count: estimateCounts[p.work_order_no] || 0,
+        requisitions_total_amount: reqSum[p.work_order_no] || 0,
+        requisitions_count: reqCount[p.work_order_no] || 0,
+        progress_reports_count: progressCount[p.work_order_no] || 0,
+        max_physical_progress: maxProgress[p.work_order_no] || 0
+      }));
+
+      // 4. Fetch latest transactions (Combined Fund Requests + Requisitions)
+      const [fundRequestsRes, requisitionsRes] = await Promise.all([
+        supabase
+          .from('fund_requests')
+          .select('zo_fr_no, zo_fr_amount, request_status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('requisitions')
+          .select('requisition_no, requisition_amount, requisition_status, created_at')
+          .order('created_at', { ascending: false })
+          .limit(10)
+      ]);
+
+      const fundReqs = (fundRequestsRes.data || []).map(fr => ({
+        type: 'Fund Request',
+        identifier: fr.zo_fr_no,
+        amount: parseFloat(fr.zo_fr_amount),
+        status: fr.request_status,
+        date: fr.created_at
+      }));
+
+      const reqs = (requisitionsRes.data || []).map(r => ({
+        type: 'Requisition',
+        identifier: r.requisition_no,
+        amount: parseFloat(r.requisition_amount),
+        status: r.requisition_status,
+        date: r.created_at
+      }));
+
+      const combinedTransactions = [...fundReqs, ...reqs]
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 10);
+
+      // 5. Calculate Capital Flow Metrics
+      // A. Pending Clearance (In-Flight)
+      const { data: pendingFRs } = await supabase
+        .from('fund_requests')
+        .select('zo_fr_amount')
+        .eq('request_status', 'Pending');
+      
+      const { data: pendingReqs } = await supabase
+        .from('requisitions')
+        .select('requisition_amount')
+        .eq('requisition_status', 'Pending');
+
+      const pendingFRsSum = pendingFRs ? pendingFRs.reduce((sum, r) => sum + parseFloat(r.zo_fr_amount || 0), 0) : 0;
+      const pendingReqsSum = pendingReqs ? pendingReqs.reduce((sum, r) => sum + parseFloat(r.requisition_amount || 0), 0) : 0;
+
+      // B. Recent Movement (Last 30 Days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const thirtyDaysAgoIso = thirtyDaysAgo.toISOString();
+
+      const { data: recentApprovedFRs } = await supabase
+        .from('fund_requests')
+        .select('approve_ho_amount')
+        .eq('request_status', 'Approved')
+        .gte('created_at', thirtyDaysAgoIso);
+
+      const { data: recentApprovedReqs } = await supabase
+        .from('requisitions')
+        .select('approved_amount')
+        .eq('requisition_status', 'Approved')
+        .gte('created_at', thirtyDaysAgoIso);
+
+      const approvedFRsSum = recentApprovedFRs ? recentApprovedFRs.reduce((sum, r) => sum + parseFloat(r.approve_ho_amount || 0), 0) : 0;
+      const approvedReqsSum = recentApprovedReqs ? recentApprovedReqs.reduce((sum, r) => sum + parseFloat(r.approved_amount || 0), 0) : 0;
+
+      roleData = {
+        stats: {
+          totalUsers: usersCount || 0,
+          totalProjects: projectsCount || 0,
+          activeMappings: activeMappingsCount || 0,
+          totalZonalBalances: totalBalancesSum
+        },
+        capitalFlow: {
+          inFlight: {
+            total: pendingFRsSum + pendingReqsSum,
+            fundRequests: pendingFRsSum,
+            requisitions: pendingReqsSum
+          },
+          recentMoved: {
+            total: approvedFRsSum + approvedReqsSum,
+            zonalAllocations: approvedFRsSum,
+            requisitionsDisbursed: approvedReqsSum
+          }
+        },
+        balances: balancesWithNames,
+        recentActions: recentActions || [],
+        enrichedProjects,
+        latestTransactions: combinedTransactions
+      };
+    }
+
+    return res.status(200).json({
+      success: true,
+      profile,
+      roleData
+    });
+  } catch (error) {
+    logError('getProfileData', error);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve profile data.' });
+  }
+}
+
 module.exports = {
   requestOtp,
   checkLinkStatus,
   verifyOtpCode,
   logout,
   refreshTokens,
-  getMe
+  getMe,
+  getProfileData
 };
 

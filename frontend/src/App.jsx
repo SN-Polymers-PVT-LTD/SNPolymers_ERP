@@ -30,6 +30,7 @@ import UserMappings from './pages/UserMappings';
 import WorkOrderMappings from './pages/WorkOrderMappings';
 import ZonalBalances from './pages/ZonalBalances';
 import ExcessFundReturns from './pages/ExcessFundReturns';
+import Profile from './pages/Profile';
 
 
 
@@ -60,6 +61,7 @@ function App() {
             {/* Protected Routes (All Phase 2 Roles) */}
             <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/fund-reports" element={<FundReports />} />
               <Route path="/materials" element={<MaterialMaster />} />
               <Route path="/estimates" element={<Estimates />} />

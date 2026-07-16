@@ -1,5 +1,5 @@
 const express = require('express');
-const { requestOtp, checkLinkStatus, verifyOtpCode, logout, refreshTokens, getMe } = require('../controllers/auth.controller');
+const { requestOtp, checkLinkStatus, verifyOtpCode, logout, refreshTokens, getMe, getProfileData } = require('../controllers/auth.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const { otpRequestLimiter, otpVerifyLimiter, refreshTokenLimiter } = require('../middleware/rateLimiter');
 const validateRequest = require('../middleware/validateRequest');
@@ -16,5 +16,6 @@ router.post('/refresh', refreshTokenLimiter, refreshTokens);
 // Authenticated routes
 router.post('/logout', verifyJwt, logout);
 router.get('/me', verifyJwt, getMe);
+router.get('/profile', verifyJwt, getProfileData);
 
 module.exports = router;
