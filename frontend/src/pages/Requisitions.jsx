@@ -4,7 +4,7 @@ import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import { getProjects } from '../api/projectsApi';
-import { getEstimates } from '../api/estimatesApi';
+import { getEstimates, getEstimateById } from '../api/estimatesApi';
 import { getMaterialCategories } from '../api/materialsApi';
 import {
   getRequisitions,
@@ -15,8 +15,10 @@ import {
   uploadRequisitionPdf,
   uploadGstBillPdf,
   deleteRequisitionPdf,
-  deleteGstBillPdf
+  deleteGstBillPdf,
+  getMainHeadCapacity
 } from '../api/requisitionsApi';
+import { getZonalBalances } from '../api/zoBalancesApi';
 import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -274,10 +276,42 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [zoBalance, setZoBalance] = useState(null);
+  const [capacityMetrics, setCapacityMetrics] = useState(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(true);
+
   const requisitionAmount = Number(requisition.requisition_amount);
   const liveApprovedBalance = approveType === 'Approve' && approvedAmount !== ''
     ? requisitionAmount - Number(approvedAmount)
     : null;
+
+  useEffect(() => {
+    const loadMetrics = async () => {
+      setLoadingMetrics(true);
+      setError('');
+      try {
+        const balanceRes = await getZonalBalances();
+        const balanceList = balanceRes.data?.balances || [];
+        if (balanceList.length > 0) {
+          setZoBalance(Number(balanceList[0].available_balance));
+        }
+
+        const capacityRes = await getMainHeadCapacity(requisition.work_order_no, requisition.material_main_head);
+        if (capacityRes.data) {
+          setCapacityMetrics({
+            mainHeadEstimate: Number(capacityRes.data.mainHeadEstimate),
+            cumulativeApproved: Number(capacityRes.data.cumulativeApproved),
+            remainingCapacity: Number(capacityRes.data.remainingCapacity)
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load metrics for action validation:', err);
+      } finally {
+        setLoadingMetrics(false);
+      }
+    };
+    loadMetrics();
+  }, [requisition]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -297,6 +331,14 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
       }
       if (amt > requisitionAmount) {
         setError('Approved amount cannot exceed requisition amount.');
+        return;
+      }
+      if (zoBalance !== null && amt > zoBalance) {
+        setError(`Approved amount cannot exceed Zonal Office Available Balance (₹${zoBalance.toLocaleString('en-IN')}).`);
+        return;
+      }
+      if (capacityMetrics !== null && amt > capacityMetrics.remainingCapacity) {
+        setError(`Approved amount cannot exceed Remaining Main Head Capacity (₹${capacityMetrics.remainingCapacity.toLocaleString('en-IN')}).`);
         return;
       }
     }
@@ -331,7 +373,7 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
         type="submit"
         form="workflow-action-form"
         variant={approveType === 'Approve' ? 'primary' : 'danger'}
-        loading={submitting}
+        loading={submitting || loadingMetrics}
         size="sm"
       >
         Save Approval ({approveType})
@@ -384,9 +426,36 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
           <option value="Hold">Hold</option>
         </Select>
 
-        {/* Approved Amount (Approve Only) */}
+        {/* Financial constraints & Approved Amount (Approve Only) */}
         {approveType === 'Approve' && (
           <div className="space-y-4">
+            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
+                Approver Financial Constraints
+              </p>
+              {loadingMetrics ? (
+                <div className="flex items-center gap-2 py-2">
+                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Loading Financial Data…</span>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="text-slate-400">Zonal Office Available Balance:</div>
+                  <div className={zoBalance !== null && zoBalance <= 0 ? "text-red-400 font-mono font-bold text-right" : "text-slate-200 font-mono text-right"}>
+                    {zoBalance !== null ? formatCurrency(zoBalance) : '—'}
+                  </div>
+                  <div className="text-slate-400">Main Head Estimate:</div>
+                  <div className="text-slate-200 font-mono text-right">
+                    {capacityMetrics ? formatCurrency(capacityMetrics.mainHeadEstimate) : '—'}
+                  </div>
+                  <div className="text-slate-400">Remaining Main Head Capacity:</div>
+                  <div className="text-emerald-400 font-mono font-bold text-right">
+                    {capacityMetrics ? formatCurrency(capacityMetrics.remainingCapacity) : '—'}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Input
               label="Approved Amount (₹)"
               type="number"
@@ -468,6 +537,66 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [allowedMainHeads, setAllowedMainHeads] = useState([]);
+  const [loadingMainHeads, setLoadingMainHeads] = useState(false);
+  const [capacityMetrics, setCapacityMetrics] = useState(null);
+  const [loadingCapacity, setLoadingCapacity] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWO) {
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      return;
+    }
+    const approvedEst = estimates.find(e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved');
+    if (!approvedEst) {
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      return;
+    }
+
+    setLoadingMainHeads(true);
+    setCapacityMetrics(null);
+    getEstimateById(approvedEst.estimate_id)
+      .then(res => {
+        if (res.data?.items) {
+          const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
+          setAllowedMainHeads(distinctHeads);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch estimate items for main heads:', err);
+      })
+      .finally(() => {
+        setLoadingMainHeads(false);
+      });
+  }, [selectedWO, estimates]);
+
+  useEffect(() => {
+    if (!selectedWO || !materialHead) {
+      setCapacityMetrics(null);
+      return;
+    }
+
+    setLoadingCapacity(true);
+    getMainHeadCapacity(selectedWO, materialHead)
+      .then(res => {
+        if (res.data) {
+          setCapacityMetrics({
+            mainHeadEstimate: Number(res.data.mainHeadEstimate),
+            cumulativeApproved: Number(res.data.cumulativeApproved),
+            remainingCapacity: Number(res.data.remainingCapacity)
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to load Main Head capacity metrics:', err);
+      })
+      .finally(() => {
+        setLoadingCapacity(false);
+      });
+  }, [selectedWO, materialHead]);
 
   // Auto-lookup project geographical and estimate data during render
   const projectMetadata = (() => {
@@ -705,6 +834,10 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
       setError('Requisition Amount must be a positive number greater than zero.');
       return;
     }
+    if (capacityMetrics && Number(reqAmount) > capacityMetrics.remainingCapacity) {
+      setError(`Requisition Amount exceeds the Remaining Main Head Capacity (₹${capacityMetrics.remainingCapacity.toLocaleString('en-IN')}) for '${materialHead}'.`);
+      return;
+    }
     if (gstBill === 'Yes' && !gstPdfUrl) {
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
@@ -907,8 +1040,10 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
             required
             disabled={submitting}
           >
-            <option value="">-- Select Material Head --</option>
-            {mainHeads.map((head) => (
+            <option value="">
+              {loadingMainHeads ? '-- Loading Material Heads... --' : '-- Select Material Head --'}
+            </option>
+            {allowedMainHeads.map((head) => (
               <option key={head} value={head}>
                 {head}
               </option>
@@ -978,6 +1113,32 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
             required
             disabled={submitting}
           />
+
+          {/* Main Head Capacity Display */}
+          {materialHead && (
+            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
+                Material Main Head Capacity ({materialHead})
+              </p>
+              {loadingCapacity ? (
+                <div className="flex items-center gap-2 py-2">
+                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Loading Capacity…</span>
+                </div>
+              ) : capacityMetrics ? (
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="text-slate-400">Main Head Estimate:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(capacityMetrics.mainHeadEstimate)}</div>
+                  <div className="text-slate-400">Cumulative ZO-Approved:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(capacityMetrics.cumulativeApproved)}</div>
+                  <div className="text-slate-400">Remaining Capacity:</div>
+                  <div className="text-emerald-400 font-mono font-bold text-right">{formatCurrency(capacityMetrics.remainingCapacity)}</div>
+                </div>
+              ) : (
+                <p className="text-[9px] text-red-400">Failed to load capacity details.</p>
+              )}
+            </div>
+          )}
 
           {/* Advisory Balance Display */}
           {projectMetadata && projectMetadata.estimateAmount !== null && (

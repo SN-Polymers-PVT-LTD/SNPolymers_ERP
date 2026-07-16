@@ -5,7 +5,9 @@ const mockRes = require('../../helpers/mockRes');
 const setupUsers = require('../../helpers/setupUsers');
 const {
   getEstimateInitData,
-  createEstimate
+  createEstimate,
+  getEstimates,
+  getEstimateById
 } = require('../../../src/controllers/estimates.core.controller');
 
 describe('Estimate Refinements — JE Work Order Mapping Restrictions', () => {
@@ -314,6 +316,112 @@ describe('Estimate Refinements — JE Work Order Mapping Restrictions', () => {
         .from('project_cost_estimates')
         .delete()
         .eq('estimate_id', resCreate.jsonData.estimate.estimate_id);
+    }
+  });
+
+  test('Test 7: JE can view and list all estimates of mapped work order created by others, irrespective of status', async () => {
+    // 1. Create an estimate under woMapped by Admin (someone else)
+    const { data: adminEst, error: adminEstErr } = await supabase
+      .from('project_cost_estimates')
+      .insert([
+        {
+          work_order_no: woMapped,
+          estimate_no: `EST_ADM_${suffix}`,
+          area_code: 'Zone',
+          estimate_revision: 0,
+          zonal_office_no: 'ZO-Refine',
+          estimate_amount: 15000,
+          estimate_status: 'Under ZO Review',
+          created_by: adminMobile,
+          last_modified_by: adminMobile
+        }
+      ])
+      .select()
+      .single();
+
+    expect(adminEstErr).toBeNull();
+    expect(adminEst).toBeDefined();
+
+    // 2. Create an estimate under woUnmapped by Admin (unmapped work order)
+    const { data: unmappedEst, error: unmappedEstErr } = await supabase
+      .from('project_cost_estimates')
+      .insert([
+        {
+          work_order_no: woUnmapped,
+          estimate_no: `EST_UNM_${suffix}`,
+          area_code: 'Zone',
+          estimate_revision: 0,
+          zonal_office_no: 'ZO-Refine',
+          estimate_amount: 25000,
+          estimate_status: 'Draft',
+          created_by: adminMobile,
+          last_modified_by: adminMobile
+        }
+      ])
+      .select()
+      .single();
+
+    expect(unmappedEstErr).toBeNull();
+    expect(unmappedEst).toBeDefined();
+
+    try {
+      // 3. JE lists estimates
+      const reqList = {
+        user: {
+          mobile_number: jeMobile,
+          role: 'je'
+        },
+        query: {}
+      };
+      const resList = mockRes();
+      await getEstimates(reqList, resList);
+
+      expect(resList.statusCode).toBe(200);
+      const estimateIds = resList.jsonData.estimates.map(e => e.estimate_id);
+      
+      // JE should see the estimate on the mapped work order (even though created by admin, and status is Under ZO Review)
+      expect(estimateIds).toContain(adminEst.estimate_id);
+      
+      // JE should NOT see the estimate on the unmapped work order
+      expect(estimateIds).not.toContain(unmappedEst.estimate_id);
+
+      // 4. JE retrieves the estimate details by ID
+      const reqGetMapped = {
+        user: {
+          mobile_number: jeMobile,
+          role: 'je'
+        },
+        params: {
+          id: adminEst.estimate_id
+        }
+      };
+      const resGetMapped = mockRes();
+      await getEstimateById(reqGetMapped, resGetMapped);
+      
+      // Should succeed
+      expect(resGetMapped.statusCode).toBe(200);
+      expect(resGetMapped.jsonData.success).toBe(true);
+      expect(resGetMapped.jsonData.estimate.estimate_id).toBe(adminEst.estimate_id);
+
+      // 5. JE attempts to retrieve the unmapped estimate details by ID
+      const reqGetUnmapped = {
+        user: {
+          mobile_number: jeMobile,
+          role: 'je'
+        },
+        params: {
+          id: unmappedEst.estimate_id
+        }
+      };
+      const resGetUnmapped = mockRes();
+      await getEstimateById(reqGetUnmapped, resGetUnmapped);
+
+      // Should return 404
+      expect(resGetUnmapped.statusCode).toBe(404);
+
+    } finally {
+      // Cleanup the temporary estimates
+      await supabase.from('project_cost_estimates').delete().in('estimate_id', [adminEst.estimate_id, unmappedEst.estimate_id]);
     }
   });
 });

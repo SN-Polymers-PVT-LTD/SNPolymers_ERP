@@ -38,6 +38,24 @@ const DailyProgress = () => {
   const [physicalWorkProgress, setPhysicalWorkProgress] = useState('');
   const [remarksAfterSiteVisit, setRemarksAfterSiteVisit] = useState('');
 
+  // Back-dated entry modal states
+  const [showBackDateModal, setShowBackDateModal] = useState(false);
+  const [backDateReason, setBackDateReason] = useState('');
+  const [pendingBackDateVal, setPendingBackDateVal] = useState('');
+
+  const handleConfirmBackDate = () => {
+    if (backDateReason.trim()) {
+      setSiteVisitDate(pendingBackDateVal);
+      setRemarksAfterSiteVisit(backDateReason.trim());
+      setShowBackDateModal(false);
+    }
+  };
+
+  const handleCancelBackDate = () => {
+    setSiteVisitDate('');
+    setShowBackDateModal(false);
+  };
+
   const isSelectedDateBackdated = (() => {
     if (!siteVisitDate) return false;
     const [year, month, day] = siteVisitDate.split('-').map(Number);
@@ -51,22 +69,24 @@ const DailyProgress = () => {
   })();
 
   const handleDateChange = (dateVal) => {
-    setSiteVisitDate(dateVal);
-    if (dateVal) {
-      const [year, month, day] = dateVal.split('-').map(Number);
-      const inputDate = new Date(year, month - 1, day);
-      
-      const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' };
-      const formatter = new Intl.DateTimeFormat('en-CA', options);
-      const [tYear, tMonth, tDay] = formatter.format(new Date()).split('-').map(Number);
-      const todayDate = new Date(tYear, tMonth - 1, tDay);
+    if (!dateVal) {
+      setSiteVisitDate('');
+      return;
+    }
+    const [year, month, day] = dateVal.split('-').map(Number);
+    const inputDate = new Date(year, month - 1, day);
+    
+    const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' };
+    const formatter = new Intl.DateTimeFormat('en-CA', options);
+    const [tYear, tMonth, tDay] = formatter.format(new Date()).split('-').map(Number);
+    const todayDate = new Date(tYear, tMonth - 1, tDay);
 
-      if (inputDate < todayDate) {
-        const reason = window.prompt("⚠️ This is a back-dated entry. Please enter the reason for back-dating:");
-        if (reason) {
-          setRemarksAfterSiteVisit(reason.trim());
-        }
-      }
+    if (inputDate < todayDate) {
+      setPendingBackDateVal(dateVal);
+      setBackDateReason('');
+      setShowBackDateModal(true);
+    } else {
+      setSiteVisitDate(dateVal);
     }
   };
 
@@ -1369,6 +1389,51 @@ const DailyProgress = () => {
 
               </div>
             )}
+          </Modal>
+        )}
+        {/* ── BACKDATE REASON MODAL ── */}
+        {showBackDateModal && (
+          <Modal
+            isOpen={true}
+            onClose={handleCancelBackDate}
+            title="Back-Dated Entry Reason"
+            subtitle="Daily Progress"
+            size="sm"
+            footer={
+              <div className="flex justify-end gap-3 w-full">
+                <Button
+                  variant="secondary"
+                  onClick={handleCancelBackDate}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleConfirmBackDate}
+                  disabled={!backDateReason.trim()}
+                >
+                  Confirm Reason
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
+                <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Back-Dated Entry Detected
+                </div>
+                You have selected a date prior to today. Please provide a brief reason for recording a back-dated progress log.
+              </div>
+              <TextArea
+                label="Reason for Back-Dating"
+                value={backDateReason}
+                onChange={(e) => setBackDateReason(e.target.value)}
+                placeholder="Enter the reason here..."
+                required
+                rows={3}
+              />
+            </div>
           </Modal>
         )}
       </main>

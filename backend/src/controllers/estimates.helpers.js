@@ -70,7 +70,16 @@ async function canViewEstimate(estimate, user) {
     return !!mapping;
   }
   if (effectiveRole === 'je') {
-    return estimate.created_by === user.mobile_number;
+    const { data: mapping, error: mapError } = await supabase
+      .from('work_order_mappings')
+      .select('id')
+      .eq('je_user_id', user.mobile_number)
+      .eq('work_order_no', estimate.work_order_no)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (mapError) throw mapError;
+    return !!mapping || estimate.created_by === user.mobile_number;
   }
   return false;
 }

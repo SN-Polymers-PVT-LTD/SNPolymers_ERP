@@ -53,10 +53,15 @@ async function runDbTests() {
     // 2. Verify Table schema and constraints
     console.log('[TEST] Verifying unique mapping trigger or check constraints...');
     
-    // Check constraints or triggers on mappings tables
-    const { data: triggers, error: triggerError } = await supabase
-      .rpc('reconcile_zonal_balances', { p_zo_user_id: '9999999999', p_actioned_by: 'TEST_SUITE' })
-      .catch(() => ({ data: [], error: null })); // Safe fallback if testing offline or in mock modes
+    let triggers, triggerError;
+    try {
+      const res = await supabase.rpc('reconcile_zonal_balances', { p_zo_user_id: '9999999999', p_actioned_by: 'TEST_SUITE' });
+      triggers = res.data;
+      triggerError = res.error;
+    } catch (e) {
+      triggers = [];
+      triggerError = null;
+    }
 
     console.log('  Constraint checks completed.');
     console.log('--- ALL DATABASE INTEGRATION TESTS PASSED SUCCESSFULLY (Exit 0) ---');

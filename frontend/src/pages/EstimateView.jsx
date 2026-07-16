@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
-import { Button, Input, Modal } from '../components/ui';
+import { Button, Input, Modal, TextArea } from '../components/ui';
 import authApi from '../api/authApi';
 import { exportToExcel } from '../utils/exportHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -50,6 +50,13 @@ const EstimateView = () => {
   // Revision Modal State
   const [showRevisionModal, setShowRevisionModal] = useState(false);
   const [deadlineHours, setDeadlineHours] = useState(24);
+
+  // Submit Review Modal States
+  const [showSubmitReviewModal, setShowSubmitReviewModal] = useState(false);
+  const [reviewRemarks, setReviewRemarks] = useState('');
+
+  // Reopen Confirm Modal State
+  const [showReopenConfirmModal, setShowReopenConfirmModal] = useState(false);
 
   // General States
   const [submitting, setSubmitting] = useState(false);
@@ -198,7 +205,7 @@ const EstimateView = () => {
     }
   };
 
-  const handleSubmitReview = async () => {
+  const handleOpenSubmitReviewModal = () => {
     setError('');
     setSuccess('');
 
@@ -218,8 +225,12 @@ const EstimateView = () => {
       }
     }
 
-    if (!window.confirm('Finalize your review submission? This status transition is transactional and permanent.')) return;
+    setReviewRemarks('');
+    setShowSubmitReviewModal(true);
+  };
 
+  const handleFinalizeSubmitReview = async () => {
+    setShowSubmitReviewModal(false);
     setSubmitting(true);
     try {
       // 1. Submit Row Decisions first to ensure DB matches state
@@ -232,8 +243,7 @@ const EstimateView = () => {
       await authApi.post(`/estimates/${id}/row-approvals`, { approvals: approvalsPayload });
 
       // 2. Submit Final Review
-      const remarks = prompt('Enter review summary comments (optional):') || '';
-      const res = await authApi.post(`/estimates/${id}/submit-review`, { remarks });
+      const res = await authApi.post(`/estimates/${id}/submit-review`, { remarks: reviewRemarks });
       if (res.data?.success) {
         setSuccess('Review finalized successfully.');
         queryClient.invalidateQueries({ queryKey: ['estimate', id] });
@@ -306,10 +316,8 @@ const EstimateView = () => {
     }
   };
 
-  const handleReopenEstimate = async () => {
-    if (!window.confirm('Are you sure you want to reopen this estimate? This will reset all ZO/HO approvals and remarks, and place it in the "Estimate Reopened" status. The JE will be able to add new line items and resubmit.')) {
-      return;
-    }
+  const handleFinalizeReopenEstimate = async () => {
+    setShowReopenConfirmModal(false);
     setError('');
     setSuccess('');
     setSubmitting(true);
@@ -427,7 +435,7 @@ const EstimateView = () => {
 
             {canReopen && (
               <Button
-                onClick={handleReopenEstimate}
+                onClick={() => setShowReopenConfirmModal(true)}
                 variant="danger"
                 disabled={submitting}
               >
@@ -944,7 +952,7 @@ const EstimateView = () => {
                   </Button>
                   <Button
                     type="button"
-                    onClick={handleSubmitReview}
+                    onClick={handleOpenSubmitReviewModal}
                     variant="primary"
                     disabled={submitting}
                   >
@@ -1052,6 +1060,92 @@ const EstimateView = () => {
                 <span className="text-[10px] text-slate-500 mt-1 block">Specify integer value between 1 and 168 hours (Max 7 days). Default is 24h.</span>
               </div>
             </form>
+          </Modal>
+        )}
+
+        {/* ── SUBMIT REVIEW MODAL ── */}
+        {showSubmitReviewModal && (
+          <Modal
+            isOpen={true}
+            onClose={() => setShowSubmitReviewModal(false)}
+            title="Finalize Review Submission"
+            subtitle="Estimates Module"
+            size="md"
+            footer={
+              <div className="flex justify-end gap-3 w-full">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowSubmitReviewModal(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={handleFinalizeSubmitReview}
+                  disabled={submitting}
+                >
+                  Submit Review
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
+                <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                  Important Confirmation Required
+                </div>
+                Are you sure you want to finalize your review submission? This status transition is transactional and permanent.
+              </div>
+              <TextArea
+                label="Review Summary Comments (Optional)"
+                value={reviewRemarks}
+                onChange={(e) => setReviewRemarks(e.target.value)}
+                placeholder="Enter review comments or remarks here..."
+                disabled={submitting}
+                rows={4}
+              />
+            </div>
+          </Modal>
+        )}
+
+        {/* ── REOPEN ESTIMATE CONFIRMATION MODAL ── */}
+        {showReopenConfirmModal && (
+          <Modal
+            isOpen={true}
+            onClose={() => setShowReopenConfirmModal(false)}
+            title="Reopen Cost Estimate"
+            subtitle="Estimates Module"
+            size="sm"
+            footer={
+              <div className="flex justify-end gap-3 w-full">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowReopenConfirmModal(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={handleFinalizeReopenEstimate}
+                  disabled={submitting}
+                >
+                  Reopen Estimate
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-xs text-red-200">
+                <div className="font-bold flex items-center gap-1.5 mb-1 text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                  Warning: Status Reset
+                </div>
+                Are you sure you want to reopen this estimate? This will reset all ZO/HO approvals and remarks, and place it in the "Estimate Reopened" status. The JE will be able to add new line items and resubmit.
+              </div>
+            </div>
           </Modal>
         )}
       </main>

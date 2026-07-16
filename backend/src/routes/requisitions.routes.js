@@ -5,7 +5,8 @@ const {
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
-  cancelRequisition
+  cancelRequisition,
+  getMainHeadCapacity
 } = require('../controllers/requisitions.controller');
 const {
   uploadRequisitionPdf,
@@ -40,6 +41,7 @@ const uploadRoles = ['je', 'admin'];
 
 // Read endpoints
 router.get('/', requireRole(readerRoles), getRequisitions);
+router.get('/capacity', requireRole(readerRoles), getMainHeadCapacity);
 router.get('/:id', requireRole(readerRoles), getRequisitionById);
 
 // Create endpoint

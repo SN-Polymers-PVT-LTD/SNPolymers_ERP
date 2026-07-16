@@ -13,6 +13,10 @@ export const getRequisitions = (params = {}) =>
 export const getRequisitionById = (id) =>
   authApi.get(`/requisitions/${id}`);
 
+/** Fetch Main Head Capacity metrics */
+export const getMainHeadCapacity = (work_order_no, material_main_head) =>
+  authApi.get('/requisitions/capacity', { params: { work_order_no, material_main_head } });
+
 /** Create a new requisition */
 export const createRequisition = (data) =>
   authApi.post('/requisitions', data);

@@ -386,7 +386,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
       await getEstimateById({ params: { id: createdEstimateId }, user: { mobile_number: mobileAdmin, role: 'admin' } }, resAdmin);
 
       expect(resA.statusCode).toBe(200);
-      expect(resB.statusCode).toBe(404);
+      expect(resB.statusCode).toBe(200); // Under new rules, JE B is assigned to the work order and can view the estimate
       expect(resZO.statusCode).toBe(200); // ZO has intentional view access
       expect(resAdmin.statusCode).toBe(200);
     });
@@ -415,7 +415,7 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
 
       expect(hasA).toBe(true);
       expect(hasA2).toBe(true);
-      expect(hasB).toBe(false);
+      expect(hasB).toBe(true); // Under new rules, JE B is assigned to the work order and can view the estimate
       expect(hasZO).toBe(true); // ZO has intentional view access
       expect(hasAdmin).toBe(true);
 
