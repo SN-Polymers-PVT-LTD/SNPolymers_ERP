@@ -351,10 +351,10 @@ async function getProfileData(req, res) {
   }
 
   try {
-    // 1. Fetch user's basic record to get the latest telegram chat id and active status
+    // 1. Fetch user's basic record to get the latest telegram chat id, active status, and daily streak info
     const { data: userRecord, error: userError } = await supabase
       .from('authorised_users')
-      .select('display_name, mobile_number, role, telegram_chat_id, is_active')
+      .select('display_name, mobile_number, role, telegram_chat_id, is_active, daily_streak, last_report_date')
       .eq('mobile_number', user.mobile_number)
       .maybeSingle();
 
@@ -362,12 +362,25 @@ async function getProfileData(req, res) {
       return res.status(404).json({ success: false, message: 'User profile not found.' });
     }
 
+    let currentStreak = 0;
+    if (userRecord.daily_streak && userRecord.last_report_date) {
+      const todayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(yesterday);
+
+      if (userRecord.last_report_date === todayISTStr || userRecord.last_report_date === yesterdayISTStr) {
+        currentStreak = userRecord.daily_streak;
+      }
+    }
+
     const profile = {
       display_name: userRecord.display_name,
       mobile_number: userRecord.mobile_number,
       role: userRecord.role,
       telegram_chat_id: userRecord.telegram_chat_id,
-      is_active: userRecord.is_active
+      is_active: userRecord.is_active,
+      daily_streak: currentStreak
     };
 
     let roleData = {};

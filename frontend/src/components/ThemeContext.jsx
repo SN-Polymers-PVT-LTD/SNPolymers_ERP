@@ -3,7 +3,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
-  const [theme, setTheme] = useState('dark');
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('app-theme') || 'light';
+  });
 
   useEffect(() => {
     const body = document.body;
@@ -14,6 +16,7 @@ export const ThemeProvider = ({ children }) => {
       body.classList.add('dark');
       body.classList.remove('light');
     }
+    localStorage.setItem('app-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

@@ -170,6 +170,41 @@ async function createProgressReport(req, res) {
       });
     }
 
+    // Update daily streak
+    try {
+      const todayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      const { data: userObj } = await supabase
+        .from('authorised_users')
+        .select('daily_streak, last_report_date')
+        .eq('mobile_number', req.user.mobile_number)
+        .maybeSingle();
+
+      if (userObj) {
+        let newStreak = userObj.daily_streak || 0;
+        if (userObj.last_report_date !== todayISTStr) {
+          const yesterday = new Date();
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yesterdayISTStr = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(yesterday);
+
+          if (userObj.last_report_date === yesterdayISTStr) {
+            newStreak += 1;
+          } else {
+            newStreak = 1;
+          }
+
+          await supabase
+            .from('authorised_users')
+            .update({
+              daily_streak: newStreak,
+              last_report_date: todayISTStr
+            })
+            .eq('mobile_number', req.user.mobile_number);
+        }
+      }
+    } catch (streakErr) {
+      console.error('Failed to update daily streak:', streakErr);
+    }
+
     return res.status(201).json({
       success: true,
       report: newReport,

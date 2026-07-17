@@ -94,6 +94,13 @@ const Profile = () => {
                   <p className="text-xs text-slate-400 font-medium mt-1">Phone: {profile.mobile_number}</p>
                   
                   <div className="mt-4 flex flex-wrap gap-2 justify-center md:justify-start">
+                    {profile.role === 'je' && (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-semibold uppercase tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                        <span>🔥</span>
+                        <span>{profile.daily_streak || 0} Day Streak</span>
+                      </span>
+                    )}
+
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[10px] font-semibold uppercase tracking-wider ${
                       profile.is_active 
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 

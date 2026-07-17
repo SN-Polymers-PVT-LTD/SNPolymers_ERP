@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../components/AuthContext';
+import authApi from '../api/authApi';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
@@ -111,6 +112,20 @@ const DailyProgress = () => {
 
   const isJE = user?.role === 'je';
   const isAuthority = ['zo', 'ho', 'admin'].includes(user?.role);
+
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    if (isJE) {
+      authApi.get('/profile')
+        .then(res => {
+          if (res.data?.success && res.data.profile) {
+            setStreak(res.data.profile.daily_streak || 0);
+          }
+        })
+        .catch(err => console.error('Failed to fetch streak in dashboard:', err));
+    }
+  }, [isJE]);
 
   const getTodayDateString = () => {
     const today = new Date();
@@ -521,7 +536,7 @@ const DailyProgress = () => {
                 Back to Dashboard
               </button>
               
-              <h2 className="text-sm font-bold tracking-wider text-slate-400 font-mono">
+              <h2 className="text-sm font-bold tracking-wider text-slate-400 font-sans">
                 Daily Work Progress Entry Sheet
               </h2>
             </div>
@@ -758,7 +773,7 @@ const DailyProgress = () => {
 
               {/* Aggregated spreadsheet summary metrics */}
               <div className="p-4 border-t border-white/5 bg-emerald-950/5 border-l border-r border-b rounded-b-3xl">
-                <span className="text-[9px] uppercase font-black tracking-widest text-emerald-400 font-mono">Ledger Aggregated Summary Metrics</span>
+                <span className="text-[9px] uppercase font-black tracking-widest text-emerald-400 font-sans">Ledger Aggregated Summary Metrics</span>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
                   <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Days Logged</p>
@@ -788,10 +803,18 @@ const DailyProgress = () => {
             {/* Header section with Tab selector */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5">
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-500 font-mono">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-500 font-sans">
                   Site Operations · Daily Tracking Console
                 </span>
-                <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Daily Work Progress</h1>
+                <div className="flex items-center gap-3 mt-1">
+                  <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">Daily Work Progress</h1>
+                  {isJE && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20 animate-pulse">
+                      <span>🔥</span>
+                      <span>{streak} Day Streak</span>
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-400 font-medium mt-1.5">
                   Analyze site reports, review photographs, and log authority comments.
                 </p>
@@ -829,42 +852,53 @@ const DailyProgress = () => {
                 {/* ──────────────── A. JE ROLE DASHBOARD VIEW ──────────────── */}
                 {isJE && jeData && (
                   <div className="space-y-6">
-                    {/* JE Stats cards */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-                        <div>
-                          <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">My Reports Logged</span>
-                          <h3 className="text-2xl font-black text-slate-100 mt-1">{loading ? '...' : jeData.totalLogged}</h3>
-                        </div>
-                        <div className="p-3 bg-white/5 rounded-2xl text-slate-400">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-                        <div>
-                          <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Active Sites Visited</span>
-                          <h3 className="text-2xl font-black text-slate-100 mt-1">{loading ? '...' : jeData.activeSitesCount}</h3>
-                        </div>
-                        <div className="p-3 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 rounded-2xl">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
-                        <div>
-                          <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Last Visit Logged</span>
-                          <h3 className="text-lg font-black text-slate-200 mt-2">{loading ? '...' : jeData.lastLogged}</h3>
-                        </div>
-                        <div className="p-3 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 rounded-2xl">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
+                     {/* JE Stats cards */}
+                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-6">
+                       <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                         <div>
+                           <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">My Reports Logged</span>
+                           <h3 className="text-2xl font-black text-slate-100 mt-1">{loading ? '...' : jeData.totalLogged}</h3>
+                         </div>
+                         <div className="p-3 bg-white/5 rounded-2xl text-slate-400">
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+                           </svg>
+                         </div>
+                       </div>
+                       <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                         <div>
+                           <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Active Sites Visited</span>
+                           <h3 className="text-2xl font-black text-slate-100 mt-1">{loading ? '...' : jeData.activeSitesCount}</h3>
+                         </div>
+                         <div className="p-3 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 rounded-2xl">
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                           </svg>
+                         </div>
+                       </div>
+                       <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                         <div>
+                           <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Last Visit Logged</span>
+                           <h3 className="text-lg font-black text-slate-200 mt-2">{loading ? '...' : jeData.lastLogged}</h3>
+                         </div>
+                         <div className="p-3 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 rounded-2xl">
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                           </svg>
+                         </div>
+                       </div>
+                       <div className="glass-panel p-5 rounded-3xl border border-white/5 flex items-center justify-between">
+                         <div>
+                           <span className="text-[9px] uppercase font-extrabold tracking-widest text-slate-500">Daily Upload Streak</span>
+                           <h3 className="text-2xl font-black text-orange-400 mt-1">{streak} {streak === 1 ? 'Day' : 'Days'} 🔥</h3>
+                         </div>
+                         <div className="p-3 bg-orange-950/20 text-orange-400 border border-orange-900/30 rounded-2xl">
+                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                           </svg>
+                         </div>
+                       </div>
+                     </div>
 
                     {/* Main JE sections split */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">

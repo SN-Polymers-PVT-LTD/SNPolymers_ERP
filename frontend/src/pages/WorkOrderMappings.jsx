@@ -305,6 +305,7 @@ const WorkOrderMappings = () => {
                 <tr className="border-b border-white/5 text-[10px] uppercase font-bold tracking-widest text-slate-400 bg-white/2">
                   <th className="px-6 py-4">Work Order No</th>
                   <th className="px-6 py-4">Junior Engineer</th>
+                  <th className="px-6 py-4">Zonal Officer</th>
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Assigned At/By</th>
                   <th className="px-6 py-4">Deactivation Info</th>
@@ -314,14 +315,14 @@ const WorkOrderMappings = () => {
               <tbody className="divide-y divide-white/5 text-xs font-medium text-slate-300">
                 {loading ? (
                   <tr>
-                    <td colSpan={isReadOnly ? 5 : 6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={isReadOnly ? 6 : 7} className="px-6 py-12 text-center text-slate-500">
                       <span className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-amber-500 mr-2" />
                       Loading mappings data...
                     </td>
                   </tr>
                 ) : filteredMappings.length === 0 ? (
                   <tr>
-                    <td colSpan={isReadOnly ? 5 : 6} className="px-6 py-12 text-center text-slate-500">
+                    <td colSpan={isReadOnly ? 6 : 7} className="px-6 py-12 text-center text-slate-500">
                       No work order assignments found.
                     </td>
                   </tr>
@@ -338,6 +339,9 @@ const WorkOrderMappings = () => {
                           </td>
                           <td className="px-6 py-4">
                             <div className="font-semibold text-slate-100">{mapping.je_name}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-semibold text-slate-100">{mapping.zo_name || 'N/A'}</div>
                           </td>
                           <td className="px-6 py-4">
                             <span

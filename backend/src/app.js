@@ -35,6 +35,7 @@ const zoBalancesRoutes = require('./routes/zoBalances.routes');
 const { startPolling, registerWebhook } = require('./services/telegram.service');
 const { handleTelegramWebhook } = require('./controllers/telegram.webhook.controller');
 const { startReconciliationScheduler } = require('./services/reconciliation.service');
+const { startStreakReminderScheduler } = require('./services/streakNotification.service');
 
 
 const { globalLimiter } = require('./middleware/rateLimiter');
@@ -123,6 +124,8 @@ if (require.main === module) {
     registerWebhook();
     // Start nightly credit balance reconciliation scheduler
     startReconciliationScheduler();
+    // Start daily 1:00 PM streak reminder scheduler
+    startStreakReminderScheduler();
   });
 }
 

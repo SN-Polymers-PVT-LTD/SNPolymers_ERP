@@ -28,6 +28,8 @@ const ZonalBalances = () => {
   const [balancesPage, setBalancesPage] = useState(1);
   const balancesLimit = 10;
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortKey, setSortKey] = useState('name');
+  const [sortAsc, setSortAsc] = useState(true);
 
   useEffect(() => {
     setBalancesPage(1);
@@ -202,31 +204,78 @@ const ZonalBalances = () => {
           ) : (
             (() => {
               const filteredBalances = balances.filter(b => {
-              const matchesSearch =
-                b.zo_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                b.zo_user_id?.includes(searchQuery);
-              return matchesSearch;
-            });
+                const matchesSearch =
+                  b.zo_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  b.zo_user_id?.includes(searchQuery);
+                return matchesSearch;
+              });
 
-            if (filteredBalances.length === 0) {
+              if (filteredBalances.length === 0) {
+                return (
+                  <div className="glass-panel p-8 rounded-3xl text-center text-slate-500 text-xs shadow-lg">
+                    No matching Zonal Offices found.
+                  </div>
+                );
+              }
+
+              const sortedBalances = [...filteredBalances].sort((a, b) => {
+                let valA, valB;
+                if (sortKey === 'balance') {
+                  valA = Number(a.available_balance || 0);
+                  valB = Number(b.available_balance || 0);
+                } else if (sortKey === 'sync') {
+                  valA = new Date(a.updated_at || 0).getTime();
+                  valB = new Date(b.updated_at || 0).getTime();
+                } else {
+                  valA = (a.zo_name || a.zo_user_id || '').toLowerCase();
+                  valB = (b.zo_name || b.zo_user_id || '').toLowerCase();
+                }
+
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+              });
+
+              const totalBalancesPages = Math.ceil(sortedBalances.length / balancesLimit);
+              const currentBalances = sortedBalances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
+
+              const toggleSort = (key) => {
+                if (sortKey === key) {
+                  setSortAsc(!sortAsc);
+                } else {
+                  setSortKey(key);
+                  setSortAsc(key === 'name'); // default asc for name, desc for others
+                }
+              };
+
+               const renderSortIcon = (key) => {
+                 if (sortKey !== key) return <span className="text-slate-500 dark:text-slate-400 ml-1 opacity-70">↕</span>;
+                 return sortAsc ? <span className="text-amber-600 dark:text-amber-400 ml-1 font-bold">▲</span> : <span className="text-amber-600 dark:text-amber-400 ml-1 font-bold">▼</span>;
+               };
+
               return (
-                <div className="glass-panel p-8 rounded-3xl text-center text-slate-500 text-xs shadow-lg">
-                  No matching Zonal Offices found.
-                </div>
-              );
-            }
-
-            const totalBalancesPages = Math.ceil(filteredBalances.length / balancesLimit);
-            const currentBalances = filteredBalances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
-
-            return (
                 <div className="glass-panel rounded-3xl overflow-hidden shadow-xl border border-white/5">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/2">
-                        <th className="px-6 py-4">Zonal Office (User)</th>
-                        <th className="px-6 py-4">Available Balance</th>
-                        <th className="px-6 py-4">Last Sync</th>
+                        <th className="px-6 py-4 cursor-pointer select-none hover:text-slate-200" onClick={() => toggleSort('name')}>
+                          <div className="flex items-center">
+                            <span>Zonal Office (User)</span>
+                            {renderSortIcon('name')}
+                          </div>
+                        </th>
+                        <th className="px-6 py-4 cursor-pointer select-none hover:text-slate-200" onClick={() => toggleSort('balance')}>
+                          <div className="flex items-center">
+                            <span>Available Balance</span>
+                            {renderSortIcon('balance')}
+                          </div>
+                        </th>
+                        <th className="px-6 py-4 cursor-pointer select-none hover:text-slate-200" onClick={() => toggleSort('sync')}>
+                          <div className="flex items-center">
+                            <span>Last Sync</span>
+                            {renderSortIcon('sync')}
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-xs font-semibold text-slate-300">

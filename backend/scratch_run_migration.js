@@ -4,7 +4,7 @@ const path = require('path');
 
 async function applyMigration() {
   console.log('Reading migration file...');
-  const sqlPath = path.join(__dirname, 'src/db/migrations/31_update_approve_fund_request_rpc.sql');
+  const sqlPath = path.join(__dirname, 'src/db/migrations/34_add_daily_streak_to_users.sql');
   const sqlContent = fs.readFileSync(sqlPath, 'utf8');
 
   console.log('Sending SQL migration to Supabase via run_sql RPC...');

@@ -246,6 +246,9 @@ async function getWorkOrderMappings(req, res) {
         mobiles.push(m.je_user_id);
         mobiles.push(m.assigned_by);
         mobiles.push(m.deactivated_by);
+        if (m.projects_master && m.projects_master.zo_user_id) {
+          mobiles.push(m.projects_master.zo_user_id);
+        }
       });
 
       const userMap = await resolveDisplayNames(mobiles);
@@ -253,8 +256,11 @@ async function getWorkOrderMappings(req, res) {
       mappings.forEach(m => {
         // Strip inner projects_master select to keep output matching schema format
         const { projects_master, ...rawMapping } = m;
+        const zoUserId = projects_master?.zo_user_id || null;
         enriched.push({
           ...rawMapping,
+          zo_user_id: zoUserId,
+          zo_name: zoUserId ? (userMap[zoUserId] || zoUserId) : 'N/A',
           je_name: userMap[m.je_user_id] || m.je_user_id,
           assigned_by_name: userMap[m.assigned_by] || m.assigned_by,
           deactivated_by_name: userMap[m.deactivated_by] || m.deactivated_by || null
