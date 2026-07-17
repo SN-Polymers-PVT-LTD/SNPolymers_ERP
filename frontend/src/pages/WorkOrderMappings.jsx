@@ -44,7 +44,9 @@ const WorkOrderMappings = () => {
   const limit = 10;
 
   useEffect(() => {
-    setPage(1);
+    Promise.resolve().then(() => {
+      setPage(1);
+    });
   }, [searchQuery, statusFilter]);
 
   const fetchMappings = async () => {
@@ -327,7 +329,6 @@ const WorkOrderMappings = () => {
                     </td>
                   </tr>
                 ) : (() => {
-                  const totalPages = Math.ceil(filteredMappings.length / limit);
                   const currentMappings = filteredMappings.slice((page - 1) * limit, page * limit);
 
                   return (

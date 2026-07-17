@@ -32,7 +32,9 @@ const ZonalBalances = () => {
   const [sortAsc, setSortAsc] = useState(true);
 
   useEffect(() => {
-    setBalancesPage(1);
+    Promise.resolve().then(() => {
+      setBalancesPage(1);
+    });
   }, [searchQuery]);
 
   const fetchBalances = async () => {

@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import authApi from '../api/authApi';
 
 const Profile = () => {
-  const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [roleData, setRoleData] = useState(null);
   const [loading, setLoading] = useState(true);

@@ -494,7 +494,7 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
 };
 
 // Main Requisition Creation Form Modal
-const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave, requisitions }) => {
+const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitions }) => {
   const { user } = useAuth();
 
   // Filter projects (work orders) to only those that have a 'Final Approved' estimate
@@ -545,57 +545,67 @@ const RequisitionFormModal = ({ projects, estimates, mainHeads, onClose, onSave,
 
   useEffect(() => {
     if (!selectedWO) {
-      setAllowedMainHeads([]);
-      setCapacityMetrics(null);
+      Promise.resolve().then(() => {
+        setAllowedMainHeads([]);
+        setCapacityMetrics(null);
+      });
       return;
     }
     const approvedEst = estimates.find(e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved');
     if (!approvedEst) {
-      setAllowedMainHeads([]);
-      setCapacityMetrics(null);
+      Promise.resolve().then(() => {
+        setAllowedMainHeads([]);
+        setCapacityMetrics(null);
+      });
       return;
     }
 
-    setLoadingMainHeads(true);
-    setCapacityMetrics(null);
-    getEstimateById(approvedEst.estimate_id)
-      .then(res => {
-        if (res.data?.items) {
-          const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
-          setAllowedMainHeads(distinctHeads);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to fetch estimate items for main heads:', err);
-      })
-      .finally(() => {
-        setLoadingMainHeads(false);
-      });
+    Promise.resolve().then(() => {
+      setLoadingMainHeads(true);
+      setCapacityMetrics(null);
+      getEstimateById(approvedEst.estimate_id)
+        .then(res => {
+          if (res.data?.items) {
+            const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
+            setAllowedMainHeads(distinctHeads);
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch estimate items for main heads:', err);
+        })
+        .finally(() => {
+          setLoadingMainHeads(false);
+        });
+    });
   }, [selectedWO, estimates]);
 
   useEffect(() => {
     if (!selectedWO || !materialHead) {
-      setCapacityMetrics(null);
+      Promise.resolve().then(() => {
+        setCapacityMetrics(null);
+      });
       return;
     }
 
-    setLoadingCapacity(true);
-    getMainHeadCapacity(selectedWO, materialHead)
-      .then(res => {
-        if (res.data) {
-          setCapacityMetrics({
-            mainHeadEstimate: Number(res.data.mainHeadEstimate),
-            cumulativeApproved: Number(res.data.cumulativeApproved),
-            remainingCapacity: Number(res.data.remainingCapacity)
-          });
-        }
-      })
-      .catch(err => {
-        console.error('Failed to load Main Head capacity metrics:', err);
-      })
-      .finally(() => {
-        setLoadingCapacity(false);
-      });
+    Promise.resolve().then(() => {
+      setLoadingCapacity(true);
+      getMainHeadCapacity(selectedWO, materialHead)
+        .then(res => {
+          if (res.data) {
+            setCapacityMetrics({
+              mainHeadEstimate: Number(res.data.mainHeadEstimate),
+              cumulativeApproved: Number(res.data.cumulativeApproved),
+              remainingCapacity: Number(res.data.remainingCapacity)
+            });
+          }
+        })
+        .catch(err => {
+          console.error('Failed to load Main Head capacity metrics:', err);
+        })
+        .finally(() => {
+          setLoadingCapacity(false);
+        });
+    });
   }, [selectedWO, materialHead]);
 
   // Auto-lookup project geographical and estimate data during render

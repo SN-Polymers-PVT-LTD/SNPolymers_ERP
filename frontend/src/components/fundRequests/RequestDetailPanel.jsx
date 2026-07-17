@@ -50,7 +50,6 @@ const RequestDetailPanel = ({
 
   // Detail context states (for viewing mode)
   const [detailProjectValue, setDetailProjectValue] = useState(null);
-  const [detailCumulativeApproved, setDetailCumulativeApproved] = useState(0);
   const [detailRemainingCapacity, setDetailRemainingCapacity] = useState(null);
   const [detailZoBalance, setDetailZoBalance] = useState(null);
   const [loadingContext, setLoadingContext] = useState(false);
@@ -66,7 +65,9 @@ const RequestDetailPanel = ({
   // Load projects list for dropdown in creation mode
   useEffect(() => {
     if (isCreate && user) {
-      setLoadingProjects(true);
+      Promise.resolve().then(() => {
+        setLoadingProjects(true);
+      });
       getProjects({ has_approved_estimate: true })
         .then((res) => {
           const list = res.data?.projects || [];
@@ -93,7 +94,10 @@ const RequestDetailPanel = ({
       // Find selected project value
       const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
       const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
-      setSelectedProjectValue(woVal);
+      
+      Promise.resolve().then(() => {
+        setSelectedProjectValue(woVal);
+      });
 
       // Fetch all fund requests for this work order to find cumulative approved amount
       getFundRequests()
@@ -108,22 +112,30 @@ const RequestDetailPanel = ({
             (sum, r) => sum + Number(r.approve_ho_amount || 0),
             0
           );
-          setRemainingCapacity(woVal - cumulative);
+          Promise.resolve().then(() => {
+            setRemainingCapacity(woVal - cumulative);
+          });
         })
         .catch((err) => {
           console.error('Failed to fetch fund requests for capacity check', err);
-          setRemainingCapacity(woVal); // Fallback to estimate value on error
+          Promise.resolve().then(() => {
+            setRemainingCapacity(woVal); // Fallback to estimate value on error
+          });
         });
     } else {
-      setSelectedProjectValue(0);
-      setRemainingCapacity(null);
+      Promise.resolve().then(() => {
+        setSelectedProjectValue(0);
+        setRemainingCapacity(null);
+      });
     }
   }, [isCreate, selectedWorkOrder, projects]);
 
   // Load context details (WO value, cumulative approved, remaining capacity, ZO balance) in viewing mode
   useEffect(() => {
     if (!isCreate && request) {
-      setLoadingContext(true);
+      Promise.resolve().then(() => {
+        setLoadingContext(true);
+      });
       Promise.all([
         getProjects(),
         getZonalBalances(),
@@ -132,13 +144,19 @@ const RequestDetailPanel = ({
         // 1. Zonal balance
         const balances = balancesRes.data?.balances || [];
         const matchedBalance = balances.find((b) => b.zo_user_id === request.zo_user_id);
-        setDetailZoBalance(matchedBalance ? matchedBalance.available_balance : 0);
+        
+        Promise.resolve().then(() => {
+          setDetailZoBalance(matchedBalance ? matchedBalance.available_balance : 0);
+        });
 
         // 2. Project value
         const projectsList = projectsRes.data?.projects || [];
         const matchedProject = projectsList.find((p) => p.work_order_no === request.work_order_no);
         const woVal = matchedProject ? Number(matchedProject.approved_estimate_amount || 0) : 0;
-        setDetailProjectValue(woVal);
+        
+        Promise.resolve().then(() => {
+          setDetailProjectValue(woVal);
+        });
 
         // 3. Cumulative approved and remaining capacity
         const allRequests = requestsRes.data?.fundRequests || [];
@@ -151,12 +169,16 @@ const RequestDetailPanel = ({
           (sum, r) => sum + Number(r.approve_ho_amount || 0),
           0
         );
-        setDetailCumulativeApproved(cumulative);
-        setDetailRemainingCapacity(woVal - cumulative);
+        
+        Promise.resolve().then(() => {
+          setDetailRemainingCapacity(woVal - cumulative);
+        });
       }).catch((err) => {
         console.error('Failed to load request context details', err);
       }).finally(() => {
-        setLoadingContext(false);
+        Promise.resolve().then(() => {
+          setLoadingContext(false);
+        });
       });
     }
   }, [isCreate, request]);

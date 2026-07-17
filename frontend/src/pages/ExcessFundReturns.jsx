@@ -26,13 +26,11 @@ const ExcessFundReturns = () => {
 
   // Dropdown list options (Admin/HO only)
   const [eligibleZOs, setEligibleZOs] = useState([]);
-  const [allProjects, setAllProjects] = useState([]);
   const [zoBalance, setZoBalance] = useState(0.00); // Current ZO available balance (for ZO actions)
 
   // Request Return Modal (Admin/HO only)
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedZO, setSelectedZO] = useState('');
-  const [selectedWO, setSelectedWO] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
   const [remarksHo, setRemarksHo] = useState('');
   const [submittingRequest, setSubmittingRequest] = useState(false);
@@ -88,10 +86,9 @@ const ExcessFundReturns = () => {
           setZoBalance(ownBalObj ? Number(ownBalObj.available_balance) : 0.00);
         }
       } else {
-        // Fetch eligible ZOs and projects to assign
-        const [zoRes, projRes] = await Promise.all([getEligibleZOs(), getProjects()]);
+        // Fetch eligible ZOs
+        const zoRes = await getEligibleZOs();
         if (zoRes.data?.success) setEligibleZOs(zoRes.data.zos || []);
-        if (projRes.data?.success) setAllProjects(projRes.data.projects || []);
       }
     } catch (err) {
       console.error('Failed to load return options:', err);
@@ -106,13 +103,11 @@ const ExcessFundReturns = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Filter projects owned by selected ZO in Request Modal
-  const filteredProjectsForSelect = allProjects.filter(p => p.zo_user_id === selectedZO && p.status !== 'Closed');
+
 
   const handleOpenRequestModal = () => {
     setRequestError('');
     setSelectedZO('');
-    setSelectedWO('');
     setRequestAmount('');
     setRemarksHo('');
     setShowRequestModal(true);
