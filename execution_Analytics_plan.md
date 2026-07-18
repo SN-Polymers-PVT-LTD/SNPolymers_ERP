@@ -171,98 +171,81 @@ material_variance_calc AS (
     ) reqs ON ae.work_order_no = reqs.work_order_no
           AND items.material_main_head = reqs.material_main_head
     GROUP BY ae.work_order_no
+),
+scores_calculated AS (
+    SELECT
+        pm.work_order_no,
+        pm.site_details,
+        pm.zone,
+        pm.district,
+        pm.state,
+        pm.status,
+        pm.work_order_value,
+        pm.project_start_date,
+        pm.project_end_date,
+        pm.zo_user_id,
+        COALESCE(ae.estimate_amount, 0)          AS approved_estimate_amount,
+        COALESCE(rs.approved_amount, 0)          AS approved_requisitions_amount,
+        COALESCE(bs.total_billed, 0)             AS total_billed_amount,
+        COALESCE(lp.physical_work_progress, 0)   AS physical_progress,
+        CASE
+            WHEN lp.login_date IS NULL THEN 999
+            ELSE (NOW()::DATE - lp.login_date)
+        END AS days_since_last_progress_report,
+        COALESCE(pa.pending_count, 0)            AS pending_approvals_count,
+        COALESCE(mv.avg_variance_pct, 0)         AS material_variance_pct,
+        -- ── Score Components ──
+        CASE
+            WHEN pm.work_order_value = 0 THEN 40
+            ELSE GREATEST(0, LEAST(40,
+                CASE
+                    WHEN COALESCE(rs.approved_amount, 0) / pm.work_order_value <= 0.8 THEN 40
+                    WHEN COALESCE(rs.approved_amount, 0) / pm.work_order_value <= 1.0
+                        THEN 40 - ((COALESCE(rs.approved_amount, 0) / pm.work_order_value - 0.8) / 0.2 * 20)
+                    ELSE GREATEST(0, 20 - ((COALESCE(rs.approved_amount, 0) / pm.work_order_value - 1.0) / 0.2 * 20))
+                END))
+        END AS budget_score,
+        CASE
+            WHEN pm.project_start_date IS NULL OR pm.project_end_date IS NULL THEN 20
+            WHEN pm.project_end_date = pm.project_start_date                   THEN 20
+            ELSE GREATEST(0, LEAST(20, 20 - (
+                GREATEST(0,
+                    (GREATEST(0, LEAST(1, ((NOW()::DATE - pm.project_start_date)::numeric / NULLIF(pm.project_end_date - pm.project_start_date, 0)::numeric))) * 100)
+                    - COALESCE(lp.physical_work_progress, 0)
+                ) / 100.0 * 20.0
+            )))
+        END AS progress_score,
+        GREATEST(0, 15 - (COALESCE(pa.pending_count, 0) * 3)) AS approval_score,
+        CASE
+            WHEN lp.login_date IS NULL                              THEN 0
+            WHEN (NOW()::DATE - lp.login_date) <= 1      THEN 15
+            WHEN (NOW()::DATE - lp.login_date) <= 3      THEN 10
+            WHEN (NOW()::DATE - lp.login_date) <= 7      THEN 5
+            ELSE 0
+        END AS reporting_score,
+        CASE
+            WHEN COALESCE(mv.avg_variance_pct, 0) <= 5  THEN 10
+            WHEN COALESCE(mv.avg_variance_pct, 0) <= 15 THEN 5
+            ELSE 0
+        END AS material_score
+    FROM public.projects_master pm
+    LEFT JOIN approved_estimates ae    ON pm.work_order_no = ae.work_order_no
+    LEFT JOIN latest_progress lp       ON pm.work_order_no = lp.work_order_no
+    LEFT JOIN requisitions_summary rs  ON pm.work_order_no = rs.work_order_no
+    LEFT JOIN bills_summary bs         ON pm.work_order_no = bs.work_order_no
+    LEFT JOIN pending_approvals pa     ON pm.work_order_no = pa.work_order_no
+    LEFT JOIN material_variance_calc mv ON pm.work_order_no = mv.work_order_no
 )
 SELECT
-    pm.work_order_no,
-    pm.site_details,
-    pm.zone,
-    pm.district,
-    pm.state,
-    pm.status,
-    pm.work_order_value,
-    pm.project_start_date,
-    pm.project_end_date,
-    pm.zo_user_id,
-    COALESCE(ae.estimate_amount, 0)          AS approved_estimate_amount,
-    COALESCE(rs.approved_amount, 0)          AS approved_requisitions_amount,
-    COALESCE(bs.total_billed, 0)             AS total_billed_amount,
-    COALESCE(lp.physical_work_progress, 0)   AS physical_progress,
+    s.*,
+    (s.budget_score + s.progress_score + s.approval_score + s.reporting_score + s.material_score) AS health_score,
     CASE
-        WHEN lp.login_date IS NULL THEN 999
-        ELSE DATE_PART('day', NOW() - lp.login_date)::INTEGER
-    END AS days_since_last_progress_report,
-    COALESCE(pa.pending_count, 0)            AS pending_approvals_count,
-    COALESCE(mv.avg_variance_pct, 0)         AS material_variance_pct,
-    -- ── Score Components ──────────────────────────────────────
-    CASE
-        WHEN pm.work_order_value = 0 THEN 40
-        ELSE GREATEST(0, LEAST(40,
-            CASE
-                WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value <= 0.8 THEN 40
-                WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value <= 1.0
-                    THEN 40 - ((COALESCE(rs.approved_amount,0)/pm.work_order_value - 0.8)/0.2*20)
-                ELSE GREATEST(0, 20 - ((COALESCE(rs.approved_amount,0)/pm.work_order_value - 1.0)/0.2*20))
-            END))
-    END AS budget_score,
-    CASE
-        WHEN pm.project_start_date IS NULL OR pm.project_end_date IS NULL THEN 20
-        WHEN pm.project_end_date = pm.project_start_date                   THEN 20
-        ELSE GREATEST(0, LEAST(20, 20 - (
-            GREATEST(0,
-                GREATEST(0, LEAST(1,
-                    DATE_PART('day', NOW() - pm.project_start_date)::NUMERIC /
-                    NULLIF(DATE_PART('day', pm.project_end_date - pm.project_start_date)::NUMERIC, 0)
-                )) * 100
-                - COALESCE(lp.physical_work_progress, 0)
-            ) / 100.0 * 20.0
-        )))
-    END AS progress_score,
-    GREATEST(0, 15 - (COALESCE(pa.pending_count, 0) * 3)) AS approval_score,
-    CASE
-        WHEN lp.login_date IS NULL                              THEN 0
-        WHEN DATE_PART('day', NOW() - lp.login_date) <= 1      THEN 15
-        WHEN DATE_PART('day', NOW() - lp.login_date) <= 3      THEN 10
-        WHEN DATE_PART('day', NOW() - lp.login_date) <= 7      THEN 5
-        ELSE 0
-    END AS reporting_score,
-    CASE
-        WHEN COALESCE(mv.avg_variance_pct, 0) <= 5  THEN 10
-        WHEN COALESCE(mv.avg_variance_pct, 0) <= 15 THEN 5
-        ELSE 0
-    END AS material_score,
-    -- ── Combined Health Score (0–100) ─────────────────────────
-    (
-        CASE WHEN pm.work_order_value = 0 THEN 40 ELSE GREATEST(0,LEAST(40,CASE WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=0.8 THEN 40 WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=1.0 THEN 40-((COALESCE(rs.approved_amount,0)/pm.work_order_value-0.8)/0.2*20) ELSE GREATEST(0,20-((COALESCE(rs.approved_amount,0)/pm.work_order_value-1.0)/0.2*20))END))END +
-        CASE WHEN pm.project_start_date IS NULL OR pm.project_end_date IS NULL THEN 20 WHEN pm.project_end_date=pm.project_start_date THEN 20 ELSE GREATEST(0,LEAST(20,20-(GREATEST(0,GREATEST(0,LEAST(1,DATE_PART('day',NOW()-pm.project_start_date)::NUMERIC/NULLIF(DATE_PART('day',pm.project_end_date-pm.project_start_date)::NUMERIC,0)))*100-COALESCE(lp.physical_work_progress,0))/100.0*20.0))END +
-        GREATEST(0,15-(COALESCE(pa.pending_count,0)*3)) +
-        CASE WHEN lp.login_date IS NULL THEN 0 WHEN DATE_PART('day',NOW()-lp.login_date)<=1 THEN 15 WHEN DATE_PART('day',NOW()-lp.login_date)<=3 THEN 10 WHEN DATE_PART('day',NOW()-lp.login_date)<=7 THEN 5 ELSE 0 END +
-        CASE WHEN COALESCE(mv.avg_variance_pct,0)<=5 THEN 10 WHEN COALESCE(mv.avg_variance_pct,0)<=15 THEN 5 ELSE 0 END
-    ) AS health_score,
-    CASE
-        WHEN (
-            CASE WHEN pm.work_order_value=0 THEN 40 ELSE GREATEST(0,LEAST(40,CASE WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=0.8 THEN 40 WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=1.0 THEN 40-((COALESCE(rs.approved_amount,0)/pm.work_order_value-0.8)/0.2*20) ELSE GREATEST(0,20-((COALESCE(rs.approved_amount,0)/pm.work_order_value-1.0)/0.2*20))END))END+
-            CASE WHEN pm.project_start_date IS NULL OR pm.project_end_date IS NULL THEN 20 WHEN pm.project_end_date=pm.project_start_date THEN 20 ELSE GREATEST(0,LEAST(20,20-(GREATEST(0,GREATEST(0,LEAST(1,DATE_PART('day',NOW()-pm.project_start_date)::NUMERIC/NULLIF(DATE_PART('day',pm.project_end_date-pm.project_start_date)::NUMERIC,0)))*100-COALESCE(lp.physical_work_progress,0))/100.0*20.0))END+
-            GREATEST(0,15-(COALESCE(pa.pending_count,0)*3))+
-            CASE WHEN lp.login_date IS NULL THEN 0 WHEN DATE_PART('day',NOW()-lp.login_date)<=1 THEN 15 WHEN DATE_PART('day',NOW()-lp.login_date)<=3 THEN 10 WHEN DATE_PART('day',NOW()-lp.login_date)<=7 THEN 5 ELSE 0 END+
-            CASE WHEN COALESCE(mv.avg_variance_pct,0)<=5 THEN 10 WHEN COALESCE(mv.avg_variance_pct,0)<=15 THEN 5 ELSE 0 END
-        ) >= 80 THEN 'Healthy'
-        WHEN (
-            CASE WHEN pm.work_order_value=0 THEN 40 ELSE GREATEST(0,LEAST(40,CASE WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=0.8 THEN 40 WHEN COALESCE(rs.approved_amount,0)/pm.work_order_value<=1.0 THEN 40-((COALESCE(rs.approved_amount,0)/pm.work_order_value-0.8)/0.2*20) ELSE GREATEST(0,20-((COALESCE(rs.approved_amount,0)/pm.work_order_value-1.0)/0.2*20))END))END+
-            CASE WHEN pm.project_start_date IS NULL OR pm.project_end_date IS NULL THEN 20 WHEN pm.project_end_date=pm.project_start_date THEN 20 ELSE GREATEST(0,LEAST(20,20-(GREATEST(0,GREATEST(0,LEAST(1,DATE_PART('day',NOW()-pm.project_start_date)::NUMERIC/NULLIF(DATE_PART('day',pm.project_end_date-pm.project_start_date)::NUMERIC,0)))*100-COALESCE(lp.physical_work_progress,0))/100.0*20.0))END+
-            GREATEST(0,15-(COALESCE(pa.pending_count,0)*3))+
-            CASE WHEN lp.login_date IS NULL THEN 0 WHEN DATE_PART('day',NOW()-lp.login_date)<=1 THEN 15 WHEN DATE_PART('day',NOW()-lp.login_date)<=3 THEN 10 WHEN DATE_PART('day',NOW()-lp.login_date)<=7 THEN 5 ELSE 0 END+
-            CASE WHEN COALESCE(mv.avg_variance_pct,0)<=5 THEN 10 WHEN COALESCE(mv.avg_variance_pct,0)<=15 THEN 5 ELSE 0 END
-        ) >= 50 THEN 'Warning'
+        WHEN (s.budget_score + s.progress_score + s.approval_score + s.reporting_score + s.material_score) >= 80 THEN 'Healthy'
+        WHEN (s.budget_score + s.progress_score + s.approval_score + s.reporting_score + s.material_score) >= 50 THEN 'Warning'
         ELSE 'Critical'
     END AS health_status,
     NOW() AS last_refreshed_at
-FROM public.projects_master pm
-LEFT JOIN approved_estimates ae    ON pm.work_order_no = ae.work_order_no
-LEFT JOIN latest_progress lp       ON pm.work_order_no = lp.work_order_no
-LEFT JOIN requisitions_summary rs  ON pm.work_order_no = rs.work_order_no
-LEFT JOIN bills_summary bs         ON pm.work_order_no = bs.work_order_no
-LEFT JOIN pending_approvals pa     ON pm.work_order_no = pa.work_order_no
-LEFT JOIN material_variance_calc mv ON pm.work_order_no = mv.work_order_no;
+FROM scores_calculated s;
 
 -- ─────────────────────────────────────────────────────────────
 -- VIEW 2: zone_performance_mv (Depends on: project_health_mv)
