@@ -77,9 +77,10 @@ const Sidebar = () => {
   const currentPath = location.pathname;
   const isAdmin = user?.role === 'admin';
 
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    return localStorage.getItem('sidebar-collapsed') === 'true';
-  });
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  const [isHovered, setIsHovered] = useState(false);
+  const displayCollapsed = isCollapsed && !isHovered;
 
   useEffect(() => {
     const handleCollapseEvent = (e) => {
@@ -91,55 +92,76 @@ const Sidebar = () => {
     };
   }, []);
 
-  const toggleCollapse = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem('sidebar-collapsed', String(next));
-      return next;
-    });
-  };
+  useEffect(() => {
+    const handleResize = () => {
+      setIsCollapsed(true);
+    };
 
-  const navItems = [
-    {
-      to: '/dashboard',
-      label: 'Home',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4zM14 16a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2v-4z" />
-        </svg>
-      )
-    },
-    {
-      to: '/materials',
-      label: 'Material Master',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
-      )
-    },
-    {
-      to: '/estimates',
-      label: 'Cost Estimates',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
-    },
-    ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [
+    window.addEventListener('resize', handleResize);
+    handleResize();
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  // 1. Detect active module
+  const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
+  const isAdminModule = currentPath.startsWith('/admin');
+
+  // 2. Define sub-navigation items based on active module and role access
+  const navItems = [];
+
+  if (isProjectModule) {
+    navItems.push(
       {
+        to: '/estimates',
+        label: 'Cost Estimates',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      },
+      {
+        to: '/materials',
+        label: 'Material Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        )
+      }
+    );
+
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/daily-progress',
+        label: 'Daily Progress',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
+          </svg>
+        )
+      });
+    }
+  } else if (isFinanceModule) {
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({
         to: '/requisitions',
-        label: 'Payment Requisitions',
+        label: 'Requisitions',
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
           </svg>
         )
-      }
-    ] : []),
-    ...(['zo', 'staff', 'ho', 'admin'].includes(user?.role) ? [
-      {
+      });
+    }
+
+    if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({
         to: '/fund-requests',
         label: 'Fund Requests',
         icon: (
@@ -147,108 +169,165 @@ const Sidebar = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
-      }
-    ] : []),
-    ...(['zo', 'ho', 'admin'].includes(user?.role) ? [
-      {
-        to: '/ra-final-bills',
-        label: 'RA / Final Bills',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        )
-      }
-    ] : []),
-    ...(isAdmin ? [
-      {
-        to: '/admin/purchase-options',
-        label: 'Purchase Options',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-          </svg>
-        )
-      },
-      {
-        to: '/admin/master-data',
-        label: 'Master Data',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-        )
-      },
-      {
-        to: '/admin/sessions',
-        label: 'Audit Trail Logs',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        )
-      }
-    ] : [])
-  ];
+      });
+    }
+
+    if (['zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push(
+        {
+          to: '/ra-final-bills',
+          label: 'RA / Final Bills',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )
+        },
+        {
+          to: '/zonal-balances',
+          label: 'Zonal Balances',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )
+        },
+        {
+          to: '/excess-fund-returns',
+          label: 'Excess Returns',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-6a4 4 0 00-8 0v6M5 18h14M8 15V9a4 4 0 118 0v6M12 18v-3" />
+            </svg>
+          )
+        }
+      );
+    }
+  } else if (isMappingModule) {
+    if (['zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push(
+        {
+          to: '/work-order-mappings',
+          label: 'Work Order Mappings',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4-4m-4 4l4 4" />
+            </svg>
+          )
+        },
+        {
+          to: '/user-mappings',
+          label: 'User Mappings',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          )
+        }
+      );
+    }
+  } else if (isAdminModule) {
+    if (user?.role === 'admin') {
+      navItems.push(
+        {
+          to: '/admin',
+          label: 'Access Whitelist',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          )
+        },
+        {
+          to: '/admin/purchase-options',
+          label: 'Purchase Options',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+            </svg>
+          )
+        },
+        {
+          to: '/admin/master-data',
+          label: 'Master Data',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+          )
+        },
+        {
+          to: '/admin/sessions',
+          label: 'Audit Trail Logs',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )
+        }
+      );
+    }
+  }
 
   return (
-    <aside className={`hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 overflow-y-auto transition-all duration-300 ${isCollapsed ? 'w-20 px-3 py-6' : 'w-64 p-6'}`}>
-      <div className={`flex items-center justify-between mb-10 ${isCollapsed ? 'flex-col gap-4' : ''}`}>
-        {!isCollapsed && (
-          <div className="flex items-center gap-3.5">
-            <Link to="/dashboard">
-              <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-10 w-auto object-contain" />
-            </Link>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-[10px] tracking-wider text-slate-100 uppercase whitespace-nowrap">
-                SN Polymers Pvt LTD
-              </span>
-              <span className="text-[9px] text-amber-500 font-extrabold tracking-widest uppercase">
-                ERP Console
-              </span>
-            </div>
-          </div>
-        )}
-        {isCollapsed && (
-          <Link to="/dashboard" className="flex justify-center">
-            <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="h-8 w-auto object-contain" />
-          </Link>
-        )}
-        <button
-          onClick={toggleCollapse}
-          className={`text-slate-400 hover:text-slate-200 transition-colors p-1.5 rounded-lg bg-white/5 border border-white/5 ${isCollapsed ? 'w-8 h-8 flex items-center justify-center' : 'ml-auto'}`}
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-        >
-          {isCollapsed ? (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
-            </svg>
-          )}
-        </button>
+    <aside
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 overflow-y-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'w-20 px-3 py-6' : 'w-72 p-6'}`}
+    >
+      <div className="flex items-center gap-3 mb-10 overflow-hidden shrink-0">
+        <Link to="/dashboard" className="shrink-0 flex items-center justify-center">
+          <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className={`w-auto object-contain transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'h-8' : 'h-10'}`} />
+        </Link>
+        <div className={`flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-left ${displayCollapsed ? 'max-w-0 opacity-0 scale-95 pointer-events-none' : 'max-w-[200px] opacity-100 scale-100 ml-1'}`}>
+          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase whitespace-nowrap">
+            SN Polymers Pvt LTD
+          </span>
+          <span className="text-[10px] text-amber-500 font-extrabold tracking-widest uppercase mt-0.5">
+            ERP Console
+          </span>
+        </div>
       </div>
 
       <nav className="flex-grow space-y-2">
+        {/* Back to Console Button */}
+        {currentPath !== '/dashboard' && (
+          <Link
+            to="/dashboard"
+            className={`flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden mb-6 ${
+              displayCollapsed ? 'justify-center p-3 w-9 h-9 mx-auto bg-slate-500/10 border border-slate-500/25 text-slate-400' : 'gap-3 px-4 py-3 bg-slate-500/5 hover:bg-slate-500/10 border border-slate-500/25 text-slate-400'
+            }`}
+            title="Back to Console"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            <span className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[200px] opacity-100 ml-1'}`}>
+              Back to Console
+            </span>
+          </Link>
+        )}
+
+        {/* Dynamic Contextual Sub-Nav Items */}
         {navItems.map(({ to, label, icon }) => {
           const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
           return (
             <Link
               key={to}
               to={to}
-              className={`flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${isCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
+              className={`flex items-center rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'justify-center p-3' : 'gap-3 px-4 py-3'
                 } ${isActive
-                  ? 'bg-white/5 border border-white/10 text-slate-100'
+                  ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.02)]'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5'
                 }`}
-              title={isCollapsed ? label : undefined}
+              title={displayCollapsed ? label : undefined}
             >
-              <span className={isActive ? 'text-amber-500' : ''}>
+              <span className={isActive ? 'text-amber-400 scale-105' : 'text-slate-400'}>
                 {icon}
               </span>
-              {!isCollapsed && <span>{label}</span>}
+              <span className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[240px] opacity-100 ml-3'}`}>
+                {label}
+              </span>
             </Link>
           );
         })}
@@ -256,106 +335,75 @@ const Sidebar = () => {
 
       {/* Operator Profile and Logout */}
       {user && (
-        <div className="border-t border-white/5 pt-6 mt-auto">
+        <div className="border-t border-white/5 pt-6 mt-auto shrink-0">
           {/* Theme Toggle Button */}
-          {isCollapsed ? (
-            <button
-              onClick={toggleTheme}
-              title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-              className="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-slate-100 transition-all duration-300 mb-4 mx-auto"
-            >
-              {theme === 'light' ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                </svg>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={toggleTheme}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-slate-100 text-xs font-bold uppercase tracking-wider transition-all duration-300 mb-4"
-            >
-              {theme === 'light' ? (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                  Dark Mode
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                  </svg>
-                  Light Mode
-                </>
-              )}
-            </button>
-          )}
+          <button
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            className={`flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-slate-100 text-xs font-bold uppercase tracking-wider transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] mb-4 overflow-hidden shrink-0 ${displayCollapsed ? 'w-9 h-9 mx-auto p-0' : 'w-full px-4 py-2.5 gap-2'}`}
+          >
+            {theme === 'light' ? (
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+              </svg>
+            )}
+            <span className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[120px] opacity-100'}`}>
+              {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            </span>
+          </button>
 
-          {isCollapsed ? (
-            <div className="flex flex-col items-center gap-4">
-              <Link
-                to="/profile"
-                className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md hover:scale-105 transition-all duration-300 cursor-pointer"
-                title={`${user.display_name || 'Operator'} (${user.role})`}
-              >
+          <div className="flex flex-col gap-3">
+            {/* Operator profile card */}
+            <Link
+              to="/profile"
+              className={`flex items-center rounded-xl group cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden ${displayCollapsed ? 'justify-center w-9 h-9 mx-auto bg-gradient-to-tr from-amber-500 to-indigo-500' : 'gap-3 w-full mb-1'}`}
+              title={`${user.display_name || 'Operator'} (${user.role})`}
+            >
+              <div className={`rounded-xl flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'w-full h-full bg-transparent' : 'w-9 h-9 bg-gradient-to-tr from-amber-500 to-indigo-500 shrink-0'}`}>
                 {(user.display_name || 'U')[0].toUpperCase()}
-              </Link>
-              <button
-                onClick={logout}
-                title="Sign Out"
-                className="w-9 h-9 flex items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-              <Link
-                to="/privacy-policy"
-                title="Privacy Policy"
-                className="w-9 h-9 flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-              </Link>
-            </div>
-          ) : (
-            <>
-              <Link to="/profile" className="flex items-center gap-3 mb-4 group cursor-pointer">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-sm select-none shadow-md group-hover:scale-105 transition-all duration-300">
-                  {(user.display_name || 'U')[0].toUpperCase()}
-                </div>
-                <div className="flex flex-col truncate">
-                  <span className="text-xs font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors">{user.display_name || 'Operator'}</span>
-                  <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">{user.role}</span>
-                </div>
-              </Link>
-              <button
-                onClick={logout}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-300 mb-2"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
-                </svg>
+              </div>
+              <div className={`flex flex-col truncate transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[150px] opacity-100'}`}>
+                <span className="text-xs font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors">
+                  {user.display_name || 'Operator'}
+                </span>
+                <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
+                  {user.role}
+                </span>
+              </div>
+            </Link>
+
+            {/* Logout Button */}
+            <button
+              onClick={logout}
+              title="Sign Out"
+              className={`flex items-center justify-center rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden shrink-0 ${displayCollapsed ? 'w-9 h-9 mx-auto p-0' : 'w-full px-4 py-2.5 gap-2'}`}
+            >
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
+              </svg>
+              <span className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[100px] opacity-100'}`}>
                 Sign Out
-              </button>
-              <Link
-                to="/privacy-policy"
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 text-[10px] font-bold uppercase tracking-wider transition-all duration-300"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
+              </span>
+            </button>
+
+            {/* Privacy Policy */}
+            <Link
+              to="/privacy-policy"
+              title="Privacy Policy"
+              className={`flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden shrink-0 ${displayCollapsed ? 'w-9 h-9 mx-auto p-0' : 'w-full px-4 py-2 gap-2 text-[10px] font-bold uppercase tracking-wider'}`}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              <span className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[120px] opacity-100'}`}>
                 Privacy Policy
-              </Link>
-            </>
-          )}
+              </span>
+            </Link>
+          </div>
         </div>
       )}
     </aside>

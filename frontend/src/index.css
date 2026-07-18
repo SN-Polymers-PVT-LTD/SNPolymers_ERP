@@ -137,27 +137,28 @@ body.light ::-webkit-scrollbar-thumb:hover {
 
 /* Glassmorphism Panel overrides */
 body.light .glass-panel {
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 252, 0.75) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.12);
   box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.03),
-    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    0 10px 30px -10px rgba(99, 102, 241, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 /* Hoverable Glass Card overrides */
 body.light .glass-card-hover:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+  border-color: rgba(245, 158, 11, 0.35);
   box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.05),
-    0 0 25px rgba(99, 102, 241, 0.02),
-    inset 0 1px 2px rgba(255, 255, 255, 0.9);
+    0 20px 40px -15px rgba(245, 158, 11, 0.25),
+    0 0 25px rgba(99, 102, 241, 0.08),
+    inset 0 1px 2px rgba(255, 255, 255, 0.95);
 }
 
 /* Glassmorphic inputs overrides */
 body.light .glass-input {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(99, 102, 241, 0.15);
   color: #0f172a;
 }
 
@@ -165,28 +166,79 @@ body.light .glass-input:focus {
   background: #ffffff;
   border-color: rgba(245, 158, 11, 0.6);
   box-shadow: 
-    0 0 15px rgba(245, 158, 11, 0.1),
-    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    0 0 15px rgba(245, 158, 11, 0.15),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
 
 body.light .glass-input::placeholder {
-  color: #94a3b8;
+  color: #64748b;
 }
 
 /* Floating navigation specific glass overrides */
 body.light .glass-nav {
-  background: rgba(255, 255, 255, 0.85);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  border-right: 1px solid rgba(0, 0, 0, 0.05);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+  border-right: 1px solid rgba(99, 102, 241, 0.15);
+  box-shadow: 0 4px 20px -5px rgba(99, 102, 241, 0.08);
 }
 
 /* Dynamic Glow effects for active cards overrides */
 body.light .glow-border-active {
-  border-color: rgba(245, 158, 11, 0.4);
+  border-color: rgba(245, 158, 11, 0.5) !important;
   box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.03),
-    0 0 20px rgba(245, 158, 11, 0.05),
-    inset 0 1px 1px rgba(255, 255, 255, 0.8);
+    0 8px 32px -8px rgba(245, 158, 11, 0.25),
+    0 0 20px rgba(245, 158, 11, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+}
+
+/* Enhance contrast and color readability of role and status badges in light mode */
+body.light .bg-indigo-950\/40,
+body.light .bg-indigo-950\/20 {
+  background-color: rgba(99, 102, 241, 0.12) !important;
+}
+body.light .text-indigo-400 {
+  color: #3730a3 !important;
+  font-weight: 800 !important;
+}
+body.light .border-indigo-900\/30 {
+  border-color: rgba(99, 102, 241, 0.3) !important;
+}
+
+body.light .bg-emerald-950\/40,
+body.light .bg-emerald-950\/20 {
+  background-color: rgba(16, 185, 129, 0.12) !important;
+}
+body.light .text-emerald-400 {
+  color: #065f46 !important;
+  font-weight: 800 !important;
+}
+body.light .border-emerald-900\/30 {
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+body.light .bg-red-950\/40,
+body.light .bg-red-950\/20 {
+  background-color: rgba(239, 68, 68, 0.12) !important;
+}
+body.light .text-red-400 {
+  color: #991b1b !important;
+  font-weight: 800 !important;
+}
+body.light .border-red-900\/30 {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+body.light .bg-amber-950\/40,
+body.light .bg-amber-950\/20 {
+  background-color: rgba(245, 158, 11, 0.12) !important;
+}
+body.light .text-amber-400,
+body.light .text-amber-500 {
+  color: #92400e !important;
+  font-weight: 800 !important;
+}
+body.light .border-amber-900\/30 {
+  border-color: rgba(245, 158, 11, 0.3) !important;
 }
 
 /* Text and Background Contrast Overrides */
