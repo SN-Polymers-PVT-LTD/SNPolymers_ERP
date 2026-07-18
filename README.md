@@ -188,3 +188,5 @@ VITE_API_URL=https://snpolymers.onrender.com/api/v1/auth
 - **Audit Logging:** Every critical administrative action is recorded systematically to provide trace logs for corporate compliance.
 - **MIME type verification:** Storage uploads restrict incoming files to strict PDF/JPG/PNG structures using server-side inspection instead of trusting extensions.
 - **Immutability Protection:** Running account and final bill documents are protected against unauthorized updates or deletions at the database schema level via triggers.
+
+...
