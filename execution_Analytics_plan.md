@@ -137,7 +137,7 @@ requisitions_summary AS (
 bills_summary AS (
     SELECT
         work_order_no,
-        COALESCE(SUM(bill_amount_with_gst), 0) AS total_billed
+        COALESCE(SUM(gross_bill), 0) AS total_billed
     FROM public.ra_final_bills
     GROUP BY work_order_no
 ),
