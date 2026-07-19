@@ -137,12 +137,11 @@ body.light ::-webkit-scrollbar-thumb:hover {
 
 /* Glassmorphism Panel overrides */
 body.light .glass-panel {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(248, 250, 252, 0.75) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.12);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
   box-shadow: 
-    0 10px 30px -10px rgba(99, 102, 241, 0.15),
-    0 1px 3px rgba(0, 0, 0, 0.05),
-    inset 0 1px 1px rgba(255, 255, 255, 0.9);
+    0 10px 40px -10px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* Hoverable Glass Card overrides */
@@ -339,8 +338,12 @@ body.light .bg-white\/\[0\.025\] {
 }
 
 body.light .bg-slate-900\/40,
+body.light .bg-slate-900\/20,
+body.light .bg-slate-900\/10,
+body.light .bg-slate-900\/5,
 body.light .bg-slate-900 {
-  background-color: rgba(0, 0, 0, 0.05) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.06) !important;
 }
 
 body.light .bg-white\/2 {
@@ -351,8 +354,9 @@ body.light .bg-rose-950\/10 {
   background-color: rgba(239, 68, 68, 0.08) !important;
 }
 
-body.light .bg-amber-950\/10 {
-  background-color: rgba(245, 158, 11, 0.08) !important;
+body.light .bg-amber-950\/10,
+body.light .bg-amber-950\/20 {
+  background-color: rgba(245, 158, 11, 0.06) !important;
 }
 
 body.light .text-rose-400 {
