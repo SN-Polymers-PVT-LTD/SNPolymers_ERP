@@ -1390,22 +1390,54 @@ async function notifyAllEstimateFinalApproved(estimate) {
     return;
   }
   try {
-    const { data: allUsers, error } = await supabase
+    const jeMobile = estimate.created_by || estimate.je_user_id;
+    const recipients = [];
+    const seenChatIds = new Set();
+
+    const addRecipient = (user) => {
+      if (user && user.telegram_chat_id && user.telegram_chat_id.trim() !== '') {
+        const chat = user.telegram_chat_id.trim();
+        if (!seenChatIds.has(chat)) {
+          seenChatIds.add(chat);
+          recipients.push(user);
+        }
+      }
+    };
+
+    // 1. Fetch JE who created the estimate
+    if (jeMobile) {
+      const { data: jeUser } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('mobile_number', jeMobile)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (jeUser) addRecipient(jeUser);
+    }
+
+    // 2. Fetch mapped ZO for this JE
+    if (jeMobile) {
+      const mappedZo = await getMappedZoForJe(jeMobile);
+      if (mappedZo) addRecipient(mappedZo);
+    }
+
+    // 3. Fetch all active HO and Admin users
+    const { data: hoAndAdmins, error: hoErr } = await supabase
       .from('authorised_users')
       .select('display_name, telegram_chat_id')
+      .in('role', ['ho', 'admin'])
       .eq('is_active', true)
       .not('telegram_chat_id', 'is', null);
 
-    if (error) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active users: ${error.message}`);
-      return;
+    if (hoErr) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve HO/Admin users: ${hoErr.message}`);
+    } else if (hoAndAdmins) {
+      hoAndAdmins.forEach(addRecipient);
     }
-
-    const recipients = (allUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
 
     if (recipients.length === 0) {
       console.warn(
-        `[TELEGRAM ALERTS] No active users configured with Telegram chat IDs for final estimate approval notification. ` +
+        `[TELEGRAM ALERTS] No recipients configured with Telegram chat IDs for final estimate approval notification. ` +
         `Estimate: ${estimate?.estimate_id || 'N/A'}, Work Order: ${estimate?.work_order_no || 'N/A'}`
       );
       return;
