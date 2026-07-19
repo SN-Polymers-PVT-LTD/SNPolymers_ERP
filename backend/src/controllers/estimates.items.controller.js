@@ -96,28 +96,45 @@ async function saveDraftItems(req, res) {
         return res.status(400).json({ success: false, message: `Unit mismatch for item: ${item.material_details}. Expected: ${masterMat ? masterMat.M_Unit : 'N/A'}` });
       }
 
+      // 1. New items guard during revision
       if (!isAdmin && (isZoRevision || isHoRevision)) {
         if (!item.item_id || !existingMap[item.item_id]) {
           return res.status(403).json({ success: false, message: 'New items cannot be added during revision.' });
         }
-
-        const prevItem = existingMap[item.item_id];
-        if (isZoRevision && prevItem.zo_office_approve === APPROVAL_STATUS.APPROVED) {
-          if (hasItemFieldChanged(prevItem, item)) {
-            return res.status(403).json({ success: false, message: 'Approved items cannot be modified during revision.' });
-          }
-        }
-
-        if (isHoRevision && prevItem.ho_office_approve === APPROVAL_STATUS.APPROVED) {
-          if (hasItemFieldChanged(prevItem, item)) {
-            return res.status(403).json({ success: false, message: 'Approved items cannot be modified during revision.' });
-          }
-        }
       }
 
-      if (!isAdmin && isReopened) {
-        if (item.item_id && existingMap[item.item_id]) {
-          if (hasItemFieldChanged(existingMap[item.item_id], item)) {
+      // 2. Immutability Level checks for existing items
+      if (item.item_id && existingMap[item.item_id]) {
+        const prevItem = existingMap[item.item_id];
+
+        // A. Permanent lock for HO-approved rows (all roles, including HOs & admins)
+        if (prevItem.ho_office_approve === APPROVAL_STATUS.APPROVED) {
+          if (hasItemFieldChanged(prevItem, item)) {
+            return res.status(403).json({ success: false, message: 'Final approved rows are locked and cannot be modified by anyone.' });
+          }
+        }
+
+        // B. HO decision immutability (ZOs & JEs)
+        if (prevItem.ho_office_approve === APPROVAL_STATUS.APPROVED || prevItem.ho_office_approve === APPROVAL_STATUS.REJECTED) {
+          if (!['ho', 'admin'].includes(effectiveRole)) {
+            if (hasItemFieldChanged(prevItem, item)) {
+              return res.status(403).json({ success: false, message: 'Rows with HO-level decisions are locked to Zonal and Junior levels.' });
+            }
+          }
+        }
+
+        // C. ZO approval immutability (JEs)
+        if (prevItem.zo_office_approve === APPROVAL_STATUS.APPROVED) {
+          if (['je', 'staff'].includes(req.user.role)) {
+            if (hasItemFieldChanged(prevItem, item)) {
+              return res.status(403).json({ success: false, message: 'Approved rows are locked and cannot be modified by JEs.' });
+            }
+          }
+        }
+
+        // D. Reopened status modifications constraint (non-admins)
+        if (!isAdmin && isReopened) {
+          if (hasItemFieldChanged(prevItem, item)) {
             return res.status(403).json({ success: false, message: 'Existing items cannot be modified in Estimate Reopened status. Only new rows can be added.' });
           }
         }
@@ -168,13 +185,32 @@ async function saveDraftItems(req, res) {
         .delete()
         .in('item_id', toDeleteIds);
 
-      if (!isAdmin) {
-        if (isZoRevision) {
-          deleteQuery = deleteQuery.or(`zo_office_approve.is.null,zo_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
-        } else if (isHoRevision) {
-          deleteQuery = deleteQuery.or(`ho_office_approve.is.null,ho_office_approve.eq."${APPROVAL_STATUS.REJECTED}"`);
-        } else if (isReopened) {
-          return res.status(403).json({ success: false, message: 'Existing items cannot be deleted in Estimate Reopened status.' });
+      for (const deleteId of toDeleteIds) {
+        const prevItem = existingMap[deleteId];
+        if (prevItem) {
+          // A. Permanent lock for HO-approved rows (anyone)
+          if (prevItem.ho_office_approve === APPROVAL_STATUS.APPROVED) {
+            return res.status(403).json({ success: false, message: 'Final approved rows cannot be deleted.' });
+          }
+
+          // B. HO decision lock (ZOs & JEs)
+          if (prevItem.ho_office_approve === APPROVAL_STATUS.APPROVED || prevItem.ho_office_approve === APPROVAL_STATUS.REJECTED) {
+            if (!['ho', 'admin'].includes(effectiveRole)) {
+              return res.status(403).json({ success: false, message: 'Rows with HO-level decisions cannot be deleted by Zonal or Junior levels.' });
+            }
+          }
+
+          // C. ZO approval lock (JEs)
+          if (prevItem.zo_office_approve === APPROVAL_STATUS.APPROVED) {
+            if (['je', 'staff'].includes(req.user.role)) {
+              return res.status(403).json({ success: false, message: 'ZO-approved rows cannot be deleted by JEs.' });
+            }
+          }
+
+          // D. Reopened status delete constraint (non-admins)
+          if (!isAdmin && isReopened) {
+            return res.status(403).json({ success: false, message: 'Existing items cannot be deleted in Estimate Reopened status.' });
+          }
         }
       }
 
@@ -272,7 +308,7 @@ async function submitRowApprovals(req, res) {
     // Verify all items exist and belong to this estimate
     const { data: dbItems, error: itemsFetchError } = await supabase
       .from('project_cost_estimate_items')
-      .select('item_id')
+      .select('item_id, zo_office_approve, ho_office_approve')
       .eq('estimate_id', id)
       .in('item_id', itemIds);
 
@@ -282,6 +318,28 @@ async function submitRowApprovals(req, res) {
     const missingIds = itemIds.filter(id => !dbItemIds.includes(id));
     if (missingIds.length > 0) {
       return res.status(404).json({ success: false, message: `Item IDs not found or do not belong to this estimate: ${missingIds.join(', ')}` });
+    }
+
+    const dbItemMap = {};
+    (dbItems || []).forEach(item => {
+      dbItemMap[item.item_id] = item;
+    });
+
+    for (const app of approvals) {
+      const dbItem = dbItemMap[app.item_id];
+      if (dbItem) {
+        // A. Permanent lock for HO-approved rows (anyone)
+        if (dbItem.ho_office_approve === APPROVAL_STATUS.APPROVED) {
+          return res.status(403).json({ success: false, message: 'Final approved rows are locked and cannot be modified.' });
+        }
+
+        // B. HO decision lock (ZO/JE cannot modify)
+        if (dbItem.ho_office_approve === APPROVAL_STATUS.APPROVED || dbItem.ho_office_approve === APPROVAL_STATUS.REJECTED) {
+          if (!['ho', 'admin'].includes(effectiveRole)) {
+            return res.status(403).json({ success: false, message: 'Rows with HO decisions cannot be approved/rejected at ZO level.' });
+          }
+        }
+      }
     }
 
     // Update source_of_purchase for each approval if provided and authorized (HO/Admin)
