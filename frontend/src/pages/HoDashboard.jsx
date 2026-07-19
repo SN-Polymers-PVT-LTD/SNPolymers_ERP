@@ -25,6 +25,7 @@ const HoDashboard = () => {
   const queryClient = useQueryClient();
   const [alertMsg, setAlertMsg] = useState(null);
   const [alertType, setAlertType] = useState('success'); // 'success' or 'error'
+  const [exploreWo, setExploreWo] = useState('');
 
   // 1. Fetch HO KPIs
   const { data: kpiRes, isLoading: kpiLoading, isError: kpiErr } = useQuery({
@@ -81,6 +82,11 @@ const HoDashboard = () => {
   const zones = zoneRes?.data || [];
   const leakages = leakageRes?.data || [];
 
+  const [zonePage, setZonePage] = useState(1);
+  const ZONES_PER_PAGE = 5;
+  const totalZonePages = Math.ceil(zones.length / ZONES_PER_PAGE);
+  const paginatedZones = zones.slice((zonePage - 1) * ZONES_PER_PAGE, zonePage * ZONES_PER_PAGE);
+
   const handleRefresh = () => {
     refreshMutation.mutate();
   };
@@ -125,7 +131,7 @@ const HoDashboard = () => {
               className={`px-5 py-2.5 rounded-xl border border-white/10 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all duration-300 ${
                 refreshMutation.isPending 
                   ? 'bg-white/5 text-slate-400 cursor-not-allowed' 
-                  : 'bg-slate-900 hover:bg-white/5 text-slate-200'
+                  : 'bg-white hover:bg-white/90 text-slate-950'
               }`}
             >
               <svg className={`w-3.5 h-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -240,61 +246,139 @@ const HoDashboard = () => {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* Zonal Benchmarking (2/3 width) */}
-                <div className="lg:col-span-2 glass-panel p-6 rounded-3xl">
-                  <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Zonal Benchmarking</h2>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ranked by Health</span>
+                {/* Column wrapper for Zonal Benchmarking & Twin Explorer (2/3 width) */}
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Zonal Benchmarking */}
+                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center mb-6">
+                        <div>
+                          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Zonal Benchmarking</h2>
+                          <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-wider">Performance metrics aggregated by zone</p>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ranked by Health</span>
+                      </div>
+
+                      {zones.length === 0 ? (
+                        <div className="text-slate-500 text-xs py-16 text-center uppercase tracking-widest">No active zones logged</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-white/5 pb-3">
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3">Rank</th>
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3">Zone</th>
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Active Projects</th>
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Avg Slack Days</th>
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Health Score</th>
+                                <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-right">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                              {paginatedZones.map((row, idx) => {
+                                const score = Number(row.average_health_score || 0);
+                                const rating = score >= 85 ? 'Excellent' : score >= 70 ? 'Good' : 'Warning';
+                                const rank = (zonePage - 1) * ZONES_PER_PAGE + idx + 1;
+
+                                return (
+                                  <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                    <td className="py-4 text-xs font-extrabold text-amber-500">#{rank}</td>
+                                    <td className="py-4 text-xs font-bold text-slate-200">{row.zone}</td>
+                                    <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.active_projects || 0}</td>
+                                    <td className={`py-4 text-xs font-bold text-center ${row.average_timeline_slack_days > 15 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                      {row.average_timeline_slack_days || 0}d
+                                    </td>
+                                    <td className="py-4 text-xs font-bold text-slate-200 text-center">{Math.round(score)}%</td>
+                                    <td className="py-4 text-right">
+                                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                        rating === 'Excellent' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                                        rating === 'Good' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
+                                        'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                      }`}>
+                                        {rating}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Pagination Controls */}
+                    {totalZonePages > 1 && (
+                      <div className="flex justify-between items-center bg-white/[0.01] border border-white/5 rounded-2xl p-4 mt-6">
+                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                          Page {zonePage} of {totalZonePages} <span className="text-slate-600">({zones.length} zones total)</span>
+                        </span>
+                        
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setZonePage(prev => Math.max(1, prev - 1))}
+                            disabled={zonePage === 1}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                              zonePage === 1 
+                                ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                                : 'border-white/10 hover:bg-white/5 text-slate-300'
+                            }`}
+                          >
+                            Prev
+                          </button>
+                          <button
+                            onClick={() => setZonePage(prev => Math.min(totalZonePages, prev + 1))}
+                            disabled={zonePage === totalZonePages}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                              zonePage === totalZonePages 
+                                ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                                : 'border-white/10 hover:bg-white/5 text-slate-300'
+                            }`}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {zones.length === 0 ? (
-                    <div className="text-slate-500 text-xs py-16 text-center uppercase tracking-widest">No active zones logged</div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-white/5 pb-3">
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3">Rank</th>
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3">Zone</th>
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Active Projects</th>
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Avg Slack Days</th>
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-center">Health Score</th>
-                            <th className="text-[10px] font-bold uppercase tracking-wider text-slate-400 py-3 text-right">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                          {zones.map((row, idx) => {
-                            const score = Number(row.average_health_score || 0);
-                            const rating = score >= 85 ? 'Excellent' : score >= 70 ? 'Good' : 'Warning';
-
-                            return (
-                              <tr key={idx} className="hover:bg-white/5 transition-colors">
-                                <td className="py-4 text-xs font-extrabold text-amber-500">#{idx + 1}</td>
-                                <td className="py-4 text-xs font-bold text-slate-200">{row.zone}</td>
-                                <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.active_projects || 0}</td>
-                                <td className={`py-4 text-xs font-bold text-center ${row.average_timeline_slack_days > 15 ? 'text-rose-400' : 'text-slate-400'}`}>
-                                  {row.average_timeline_slack_days || 0}d
-                                </td>
-                                <td className="py-4 text-xs font-bold text-slate-200 text-center">{Math.round(score)}%</td>
-                                <td className="py-4 text-right">
-                                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                                    rating === 'Excellent' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                    rating === 'Good' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
-                                    'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  }`}>
-                                    {rating}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  {/* Digital Twin Simulation Explorer */}
+                  <div className="glass-panel p-6 rounded-3xl">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-2">Project Digital Twin Simulator</h2>
+                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-4">Enter any active Work Order number to simulate details</p>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (exploreWo.trim()) {
+                          navigate(`/projects/${exploreWo.trim()}/digital-twin`);
+                        }
+                      }}
+                      className="flex gap-4 items-center"
+                    >
+                      <input
+                        type="text"
+                        placeholder="Enter Work Order No. (e.g. WO-01)"
+                        value={exploreWo}
+                        onChange={(e) => setExploreWo(e.target.value)}
+                        className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 flex-grow"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!exploreWo.trim()}
+                        className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                          exploreWo.trim()
+                            ? 'bg-white hover:bg-white/90 text-slate-950'
+                            : 'bg-white/5 border border-transparent text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        Launch Twin
+                      </button>
+                    </form>
+                  </div>
                 </div>
 
                 {/* Budget Leakage Anomalies (1/3 width) */}
-                <div className="glass-panel p-6 rounded-3xl flex flex-col">
+                <div className="glass-panel p-6 rounded-3xl flex flex-col h-fit">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Budget Leakages</h2>
                     <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse">
@@ -316,11 +400,13 @@ const HoDashboard = () => {
                           ? 'border-amber-500/20 bg-amber-950/10 text-amber-400 hover:border-amber-500/40'
                           : 'border-white/5 bg-slate-900/40 text-slate-400 hover:border-white/15';
 
+                        const overrunPct = Math.max(0, Number(item.budget_variance_pct || 0) - 100);
+
                         return (
                           <div
                             key={idx}
                             onClick={() => navigate(`/projects/${item.work_order_no}/digital-twin`)}
-                            className={`p-4 rounded-2xl border transition-all duration-300 cursor-pointer flex flex-col gap-2 ${severityColor}`}
+                            className={`p-4 rounded-2xl border transition-all duration-300 cursor-pointer hover:scale-[1.02] flex flex-col gap-2 ${severityColor}`}
                           >
                             <div className="flex justify-between items-start">
                               <div className="truncate pr-2">
@@ -336,13 +422,25 @@ const HoDashboard = () => {
                               </span>
                             </div>
 
-                            <div className="flex justify-between items-center text-[10px] font-semibold pt-1 border-t border-white/5">
+                            {/* Mini horizontal bar representing anomaly score */}
+                            <div className="space-y-1 mt-1">
+                              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden border border-white/5 relative">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-1000 ${
+                                    score >= 6 ? 'bg-rose-500' : 'bg-amber-500'
+                                  }`}
+                                  style={{ width: `${(score / 8) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] font-semibold pt-1.5 border-t border-white/5 mt-1">
                               <div>
                                 <span className="text-slate-500">Overrun: </span>
-                                <span className="font-extrabold text-rose-400">+{Number(item.overrun_pct).toFixed(1)}%</span>
+                                <span className="font-extrabold text-rose-400">+{Number(overrunPct).toFixed(1)}%</span>
                               </div>
                               <div className="text-slate-500">
-                                Revisions: <span className="text-slate-300 font-extrabold">{item.revision_count || 0}</span>
+                                Revisions: <span className="text-slate-300 font-extrabold">{item.estimate_revisions_count || 0}</span>
                               </div>
                             </div>
                           </div>

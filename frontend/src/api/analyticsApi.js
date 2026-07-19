@@ -10,3 +10,4 @@ export const getRecentActivity      = ()       => authApi.get('/analytics/recent
 export const getAuditLog            = (params) => authApi.get('/analytics/audit-log', { params });
 export const getProjectDigitalTwin  = (wo)     => authApi.get(`/analytics/project/${wo}/digital-twin`);
 export const refreshAnalyticsViews  = ()       => authApi.post('/analytics/refresh');
+export const getProjectsHealth      = ()       => authApi.get('/analytics/projects');

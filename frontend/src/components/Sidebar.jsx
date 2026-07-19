@@ -82,6 +82,31 @@ const Sidebar = () => {
   const [isHovered, setIsHovered] = useState(false);
   const displayCollapsed = isCollapsed && !isHovered;
 
+  const [pinnedProjects, setPinnedProjects] = useState([]);
+
+  const loadPinnedProjects = () => {
+    try {
+      const stored = localStorage.getItem('pinnedProjects');
+      if (stored) {
+        setPinnedProjects(JSON.parse(stored));
+      } else {
+        const defaults = ['WO-OVR-8F0DDDAB', 'WO-OVR-A6313AA6', 'WO-OVR-FBE2B471'];
+        localStorage.setItem('pinnedProjects', JSON.stringify(defaults));
+        setPinnedProjects(defaults);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    loadPinnedProjects();
+    window.addEventListener('pinned-projects-updated', loadPinnedProjects);
+    return () => {
+      window.removeEventListener('pinned-projects-updated', loadPinnedProjects);
+    };
+  }, []);
+
   useEffect(() => {
     const handleCollapseEvent = (e) => {
       setIsCollapsed(e.detail);
@@ -303,6 +328,18 @@ const Sidebar = () => {
         )
       });
     }
+
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/analytics/digital-twin',
+        label: 'Digital Twin Hub',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
+        )
+      });
+    }
   }
 
   return (
@@ -369,9 +406,41 @@ const Sidebar = () => {
         })}
       </nav>
 
+      {/* Pinned/Recent Project Shortcuts */}
+      {/* Pinned Project Shortcuts */}
+      {pinnedProjects.length > 0 && (
+        <div className="border-t border-white/5 pt-4 mb-4 mt-auto shrink-0 flex flex-col gap-2">
+          <span className={`text-[9px] font-bold text-slate-500 uppercase tracking-widest transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${displayCollapsed ? 'opacity-0 h-0 overflow-hidden' : 'px-2 mb-1 opacity-100'}`}>
+            Pinned Twins
+          </span>
+          <div className="flex flex-col gap-1.5">
+            {pinnedProjects.map((workOrderNo) => {
+              const shortLabel = workOrderNo.replace('WO-', '');
+              return (
+                <Link
+                  key={workOrderNo}
+                  to={`/projects/${workOrderNo}/digital-twin`}
+                  className={`flex items-center rounded-xl transition-all duration-300 ${
+                    displayCollapsed ? 'justify-center p-2.5 w-9 h-9 mx-auto bg-sky-500/5 hover:bg-sky-500/15 border border-sky-500/10 text-sky-400' : 'gap-3 px-4 py-2 bg-sky-500/5 hover:bg-sky-500/10 border border-sky-500/10 text-slate-300 hover:text-sky-400'
+                  }`}
+                  title={workOrderNo}
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0 text-sky-400 fill-current transform rotate-[30deg]" viewBox="0 0 24 24">
+                    <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+                  </svg>
+                  <span className={`text-xs font-mono font-bold transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] overflow-hidden whitespace-nowrap ${displayCollapsed ? 'max-w-0 opacity-0' : 'max-w-[150px] opacity-100'}`}>
+                    {shortLabel}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Operator Profile and Logout */}
       {user && (
-        <div className="border-t border-white/5 pt-6 mt-auto shrink-0">
+        <div className="border-t border-white/5 pt-6 shrink-0">
           {/* Theme Toggle Button */}
           <button
             onClick={toggleTheme}

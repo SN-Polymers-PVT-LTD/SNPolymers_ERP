@@ -308,6 +308,39 @@ body.light .bg-white\/\[0\.025\] {
   background-color: rgba(0, 0, 0, 0.015) !important;
 }
 
+/* Light mode overrides for analytics grid/severity card overlays */
+body.light .bg-slate-900\/40 {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+body.light .bg-rose-950\/10 {
+  background-color: rgba(239, 68, 68, 0.08) !important;
+}
+
+body.light .bg-amber-950\/10 {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+}
+
+body.light .text-rose-400 {
+  color: #b91c1c !important;
+  font-weight: 800 !important;
+}
+
+body.light .text-amber-400 {
+  color: #b45309 !important;
+  font-weight: 800 !important;
+}
+
+body.light .bg-emerald-950\/80 {
+  background-color: rgba(209, 250, 229, 0.95) !important;
+  border-color: rgba(16, 185, 129, 0.4) !important;
+}
+
+body.light .bg-rose-950\/80 {
+  background-color: rgba(254, 226, 226, 0.95) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+}
+
 /* Styling for option elements in select dropdowns to ensure visibility in both themes */
 select option {
   background-color: #0f172a !important; /* slate-900 */

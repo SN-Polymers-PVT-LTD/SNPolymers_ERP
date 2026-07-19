@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import authApi from '../../api/authApi';
@@ -42,7 +42,7 @@ const HoDashboardView = () => {
 
   // 3. Fetch payment requisitions
   const { data: requisitionsRes } = useQuery({
-    queryKey: ['requisitions'],
+    queryKey: ['dashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;
@@ -135,6 +135,11 @@ const HoDashboardView = () => {
       .sort((a, b) => parseInt(b.health) - parseInt(a.health));
   }, [projects]);
 
+  const [page, setPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+  const totalPages = Math.ceil(zoneRankings.length / ITEMS_PER_PAGE);
+  const paginatedRankings = zoneRankings.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
   const kpis = [
     { label: 'Active Projects', value: overview.running, change: `Total: ${overview.totalProjects}`, color: 'text-amber-500', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.05)]' },
     { label: 'Estimates Under Review', value: pendingEstimatesCount, change: 'Pending approval action', color: 'text-sky-500', glow: 'shadow-[0_0_15px_rgba(14,165,233,0.05)]' },
@@ -177,26 +182,63 @@ const HoDashboardView = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {zoneRankings.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-white/5 transition-colors">
-                        <td className="py-4 text-xs font-extrabold text-amber-500">#{idx + 1}</td>
-                        <td className="py-4 text-xs font-bold text-slate-200">{row.zone}</td>
-                        <td className="py-4 text-xs font-bold text-slate-200 text-center">{row.health}</td>
-                        <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.progress}</td>
-                        <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.activeProjects}</td>
-                        <td className="py-4 text-right">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                            row.rating === 'Excellent' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                            row.rating === 'Good' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
-                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {row.rating}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {paginatedRankings.map((row, idx) => {
+                      const rank = (page - 1) * ITEMS_PER_PAGE + idx + 1;
+                      return (
+                        <tr key={idx} className="hover:bg-white/5 transition-colors">
+                          <td className="py-4 text-xs font-extrabold text-amber-500">#{rank}</td>
+                          <td className="py-4 text-xs font-bold text-slate-200">{row.zone}</td>
+                          <td className="py-4 text-xs font-bold text-slate-200 text-center">{row.health}</td>
+                          <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.progress}</td>
+                          <td className="py-4 text-xs font-bold text-slate-400 text-center">{row.activeProjects}</td>
+                          <td className="py-4 text-right">
+                            <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                              row.rating === 'Excellent' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                              row.rating === 'Good' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
+                              'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            }`}>
+                              {row.rating}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex justify-between items-center bg-white/[0.01] border border-white/5 rounded-2xl p-4 mt-6">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                  Page {page} of {totalPages} <span className="text-slate-600">({zoneRankings.length} zones total)</span>
+                </span>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                    disabled={page === 1}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                      page === 1 
+                        ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                        : 'border-white/10 hover:bg-white/5 text-slate-300'
+                    }`}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={page === totalPages}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                      page === totalPages 
+                        ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                        : 'border-white/10 hover:bg-white/5 text-slate-300'
+                    }`}
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -242,7 +284,7 @@ const HoDashboardView = () => {
         <div className="space-y-8">
           {/* HO Quick Controls Panel */}
           <div className="glass-panel p-6 rounded-3xl relative overflow-hidden">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">HO Control Center</h2>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Modules</h2>
             <div className="grid grid-cols-1 gap-3">
               <Link to="/estimates" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 hover:bg-amber-500/5 text-slate-300 hover:text-amber-400 transition-all duration-300">
                 <span className="text-xs font-bold uppercase tracking-wider">Review Cost Estimates</span>
@@ -263,23 +305,27 @@ const HoDashboardView = () => {
             </div>
           </div>
 
-          {/* Portfolio Health Index */}
-          <div className="glass-panel p-6 rounded-3xl flex flex-col items-center justify-center min-h-[220px]">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-6 self-start">Portfolio Health Index</span>
-            <div className="relative w-32 h-32 flex items-center justify-center">
-              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
-                <circle cx="50" cy="50" r="40" fill="transparent" stroke="url(#healthGradient)" strokeWidth="8" strokeDasharray={251.2} strokeDashoffset={251.2 - (251.2 * 82) / 100} strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="healthGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#fbbf24" />
-                    <stop offset="100%" stopColor="#10b981" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute text-center">
-                <span className="text-3xl font-black text-slate-200">82%</span>
-                <span className="text-[8px] uppercase tracking-widest text-slate-400 block font-extrabold mt-0.5">On Schedule</span>
+          {/* User Count Breakdown */}
+          <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between min-h-[220px]">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-6">User Count Breakdown</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Junior Eng (JE)</span>
+                  <span className="text-xl font-mono font-black text-amber-500 mt-1">{overview?.userCounts?.je || 0}</span>
+                </div>
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Zonal Offices (ZO)</span>
+                  <span className="text-xl font-mono font-black text-sky-500 mt-1">{overview?.userCounts?.zo || 0}</span>
+                </div>
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Head Office (HO)</span>
+                  <span className="text-xl font-mono font-black text-emerald-500 mt-1">{overview?.userCounts?.ho || 0}</span>
+                </div>
+                <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
+                  <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Admin Staff</span>
+                  <span className="text-xl font-mono font-black text-rose-500 mt-1">{overview?.userCounts?.admin || 0}</span>
+                </div>
               </div>
             </div>
           </div>

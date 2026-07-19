@@ -35,6 +35,7 @@ import HoDashboard from './pages/HoDashboard';
 import ZoDashboard from './pages/ZoDashboard';
 import AuditComplianceCenter from './pages/AuditComplianceCenter';
 import ProjectDigitalTwin from './pages/ProjectDigitalTwin';
+import DigitalTwinHub from './pages/DigitalTwinHub';
 
 
 
@@ -116,6 +117,7 @@ function App() {
             {/* JE/ZO/HO/Admin Digital Twin Route */}
             <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
               <Route path="/projects/:work_order_no/digital-twin" element={<ProjectDigitalTwin />} />
+              <Route path="/analytics/digital-twin" element={<DigitalTwinHub />} />
             </Route>
 
             {/* Fallback Catch All */}

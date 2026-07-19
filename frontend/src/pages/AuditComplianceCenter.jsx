@@ -109,10 +109,10 @@ const AuditComplianceCenter = () => {
               className={`px-5 py-2.5 rounded-xl border border-white/10 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all duration-300 ${
                 logs.length === 0 
                   ? 'bg-white/5 text-slate-500 cursor-not-allowed border-transparent' 
-                  : 'bg-slate-900 hover:bg-white/5 text-slate-200'
+                  : 'bg-white hover:bg-white/90 text-slate-950'
               }`}
             >
-              <svg className="w-4.5 h-4.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Export Page to Excel
@@ -132,7 +132,7 @@ const AuditComplianceCenter = () => {
                   placeholder="e.g. +91XXXXXXXXXX"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 w-full"
+                  className="glass-input w-full px-4 py-2.5 text-xs"
                 />
               </div>
 
@@ -142,7 +142,7 @@ const AuditComplianceCenter = () => {
                 <select
                   value={moduleName}
                   onChange={(e) => setModuleName(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 w-full"
+                  className="glass-input w-full px-4 py-2.5 text-xs"
                 >
                   <option value="">All Modules</option>
                   {MODULES.map((mod) => (
@@ -159,7 +159,7 @@ const AuditComplianceCenter = () => {
                   placeholder="e.g. WO-X, EST-Y, REQ-Z"
                   value={recordId}
                   onChange={(e) => setRecordId(e.target.value)}
-                  className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 w-full"
+                  className="glass-input w-full px-4 py-2.5 text-xs"
                 />
               </div>
 

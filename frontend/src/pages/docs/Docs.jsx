@@ -191,7 +191,7 @@ const Docs = () => {
       </div>
 
       {/* Docs Footer */}
-      <footer className="border-t border-white/5 bg-black/80 py-6 text-center text-[10px] text-slate-500 font-semibold mt-auto">
+      <footer className="border-t border-white/5 bg-black/80 py-6 text-center text-[10px] text-zinc-500 font-semibold mt-auto">
         <p>&copy; {new Date().getFullYear()} SN Polymers Pvt LTD. Internal System Technical Documentation.</p>
       </footer>
       </div>

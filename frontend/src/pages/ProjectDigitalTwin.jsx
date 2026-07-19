@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
@@ -31,6 +31,8 @@ const ProjectDigitalTwin = () => {
   });
 
   const isForbidden = error?.response?.status === 403;
+
+
 
   const overview = twinData?.overview || {};
   const materials = twinData?.materials || [];
@@ -105,18 +107,7 @@ const ProjectDigitalTwin = () => {
               <p className="text-xs text-slate-400 mt-1.5 font-mono">Work Order: {work_order_no}</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
-                overview.health_status === 'Healthy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                overview.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                'bg-rose-500/10 text-rose-400 border-rose-500/20'
-              }`}>
-                {overview.health_status || 'Offline'}
-              </span>
-              <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-white/5 text-slate-400 border-white/5">
-                {overview.status || 'Unknown'}
-              </span>
-            </div>
+
           </div>
 
           {isLoading ? (
@@ -160,7 +151,20 @@ const ProjectDigitalTwin = () => {
                         <p><span className="text-slate-500 block">Zonal Region</span> <span className="text-slate-200 font-bold">{overview.zone || 'N/A'}</span></p>
                         <p><span className="text-slate-500 block">Department Branch</span> <span className="text-slate-200 font-bold">{overview.department}</span></p>
                         <p><span className="text-slate-500 block">Site Details</span> <span className="text-slate-200 leading-relaxed font-bold block mt-1">{overview.site_details}</span></p>
-                        <p><span className="text-slate-500 block">Coordinates/Map Link</span> <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(overview.site_details)}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">Google Maps Search ↗</a></p>
+                        <p>
+                          <span className="text-slate-500 block">Coordinates/Map Link</span> 
+                          <a 
+                            href={overview.site_latitude && overview.site_longitude
+                              ? `https://www.google.com/maps/search/?api=1&query=${overview.site_latitude},${overview.site_longitude}`
+                              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(overview.site_details || '')}`
+                            } 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-sky-400 font-bold hover:underline"
+                          >
+                            Google Maps Search ↗
+                          </a>
+                        </p>
                       </div>
                     </div>
                   </div>

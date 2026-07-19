@@ -523,6 +523,21 @@ async function getDashboardOverview(req, res) {
       console.error('Error fetching audit logs:', logsErr.message);
     }
 
+    // 3. Fetch user counts by role
+    const { data: users, error: usersErr } = await supabase
+      .from('authorised_users')
+      .select('role')
+      .eq('is_active', true);
+
+    const userCounts = { je: 0, zo: 0, ho: 0, admin: 0 };
+    if (!usersErr && users) {
+      users.forEach(u => {
+        if (userCounts[u.role] !== undefined) {
+          userCounts[u.role]++;
+        }
+      });
+    }
+
     return res.status(200).json({
       success: true,
       overview: {
@@ -531,7 +546,8 @@ async function getDashboardOverview(req, res) {
         closed,
         maintenance,
         lastUpdatedProject,
-        lastUpdatedAt
+        lastUpdatedAt,
+        userCounts
       },
       recentActivity
     });

@@ -93,6 +93,8 @@ scores_calculated AS (
         pm.project_start_date,
         pm.project_end_date,
         pm.zo_user_id,
+        pm.site_latitude,
+        pm.site_longitude,
         COALESCE(ae.estimate_amount, 0)          AS approved_estimate_amount,
         COALESCE(rs.approved_amount, 0)          AS approved_requisitions_amount,
         COALESCE(bs.total_billed, 0)             AS total_billed_amount,

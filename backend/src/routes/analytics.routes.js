@@ -9,7 +9,8 @@ const {
   getRecentActivity,
   getAuditLog,
   getProjectDigitalTwin,
-  triggerRefresh
+  triggerRefresh,
+  getProjectsHealth
 } = require('../controllers/analytics.controller');
 const verifyJwt  = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -36,6 +37,7 @@ router.get('/audit-log',               requireRole(hoRoles), getAuditLog);
 
 // Project digital twin (controller enforces custom mapping checks based on role/WO)
 router.get('/project/:work_order_no/digital-twin', getProjectDigitalTwin);
+router.get('/projects', requireRole(['je', 'zo', 'ho', 'admin']), getProjectsHealth);
 
 // Admin/HO trigger for manual refresh
 router.post('/refresh',                requireRole(hoRoles), triggerRefresh);

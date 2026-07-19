@@ -366,12 +366,13 @@ async function getProjectDigitalTwin(req, res) {
     ];
 
     // 3. Perform component fetches in parallel
-    const [overviewRes, materialsRes, approvalsRes, budgetRes, auditsRes] = await Promise.all([
+    const [overviewRes, materialsRes, approvalsRes, budgetRes, auditsRes, coordsRes] = await Promise.all([
       supabase.from('project_health_mv').select('*').eq('work_order_no', work_order_no).maybeSingle(),
       supabase.from('material_variance_mv').select('*').eq('work_order_no', work_order_no),
       supabase.from('approval_sla_mv').select('*').eq('work_order_no', work_order_no).order('submitted_at', { ascending: false }),
       supabase.from('budget_leakage_mv').select('*').eq('work_order_no', work_order_no).maybeSingle(),
-      supabase.from('audit_log').select('*').in('record_identifier', allowedIdentifiers).order('timestamp', { ascending: false }).limit(50)
+      supabase.from('audit_log').select('*').in('record_identifier', allowedIdentifiers).order('timestamp', { ascending: false }).limit(50),
+      supabase.from('projects_master').select('site_latitude, site_longitude').eq('work_order_no', work_order_no).maybeSingle()
     ]);
 
     if (overviewRes.error) throw overviewRes.error;
@@ -381,10 +382,15 @@ async function getProjectDigitalTwin(req, res) {
     if (auditsRes.error) throw auditsRes.error;
 
     const enrichedAudits = await enrichAuditsWithUserNames(auditsRes.data || []);
+    const overviewData = overviewRes.data ? {
+      ...overviewRes.data,
+      site_latitude: coordsRes.data?.site_latitude || null,
+      site_longitude: coordsRes.data?.site_longitude || null
+    } : null;
 
     return res.status(200).json({
       success: true,
-      overview: overviewRes.data || null,
+      overview: overviewData,
       materials: materialsRes.data || [],
       approvals: approvalsRes.data || [],
       budget: budgetRes.data || null,
@@ -393,6 +399,44 @@ async function getProjectDigitalTwin(req, res) {
   } catch (error) {
     console.error('[ANALYTICS] Error in getProjectDigitalTwin:', error.message || error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching project digital twin.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/analytics/projects
+ * Returns list of projects from project_health_mv with role-based visibility filtering
+ */
+async function getProjectsHealth(req, res) {
+  try {
+    let query = supabase.from('project_health_mv').select('*');
+
+    if (req.user.role === 'zo') {
+      query = query.eq('zo_user_id', req.user.mobile_number);
+    } else if (req.user.role === 'je') {
+      const { data: mappings, error: mapErr } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+
+      if (mapErr) throw mapErr;
+      const woList = (mappings || []).map(m => m.work_order_no);
+      if (woList.length === 0) {
+        return res.status(200).json({ success: true, data: [] });
+      }
+      query = query.in('work_order_no', woList);
+    }
+
+    const { data, error } = await query.order('health_score', { ascending: false });
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error in getProjectsHealth:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Internal server error fetching project health list.' });
   }
 }
 
@@ -425,5 +469,6 @@ module.exports = {
   getRecentActivity,
   getAuditLog,
   getProjectDigitalTwin,
-  triggerRefresh
+  triggerRefresh,
+  getProjectsHealth
 };

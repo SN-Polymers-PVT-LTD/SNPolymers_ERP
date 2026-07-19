@@ -18,6 +18,12 @@ const AdminPanel = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [page, setPage] = useState(1);
+  const USERS_PER_PAGE = 10;
+  const totalPages = Math.ceil(users.length / USERS_PER_PAGE);
+  const activePage = Math.min(page, totalPages || 1);
+  const paginatedUsers = users.slice((activePage - 1) * USERS_PER_PAGE, activePage * USERS_PER_PAGE);
+
   // Add modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [newMobile, setNewMobile] = useState('');
@@ -260,7 +266,7 @@ const AdminPanel = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5 text-xs text-slate-300">
-                  {users.map((user) => (
+                  {paginatedUsers.map((user) => (
                     <tr key={user.id} className="hover:bg-white/[0.02] transition-colors duration-200">
                       <td className="py-4 px-6 font-bold text-slate-100">
                         {user.display_name || <span className="text-slate-500 italic font-normal">No Display Name</span>}
@@ -327,6 +333,40 @@ const AdminPanel = () => {
                   ))}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-between items-center bg-white/[0.01] border-t border-white/5 p-6">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                    Page {activePage} of {totalPages} <span className="text-slate-600">({users.length} credentials total)</span>
+                  </span>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                      disabled={activePage === 1}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                        activePage === 1 
+                          ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                          : 'border-white/10 hover:bg-white/5 text-slate-300'
+                      }`}
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={activePage === totalPages}
+                      className={`px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider border transition-all duration-300 ${
+                        activePage === totalPages 
+                          ? 'border-transparent text-slate-600 cursor-not-allowed' 
+                          : 'border-white/10 hover:bg-white/5 text-slate-300'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

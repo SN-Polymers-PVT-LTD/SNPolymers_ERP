@@ -108,7 +108,7 @@ const Home = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/5 bg-black/80 py-8 text-center text-xs text-slate-400 font-medium z-10">
+      <footer className="border-t border-white/5 bg-black/80 py-8 text-center text-xs text-zinc-400 font-medium z-10">
         <p>&copy; {new Date().getFullYear()} SN Polymers Pvt LTD. All access logged and audited. Authorized internal personnel only.</p>
       </footer>
     </div>
