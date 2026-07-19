@@ -22,6 +22,10 @@ const NewFundRequestModal = ({ user, onClose, onSave }) => {
       setError('Amount must be a positive number greater than zero.');
       return;
     }
+    if (!form.zo_remarks.trim()) {
+      setError('ZO Remarks are required.');
+      return;
+    }
 
     setError('');
     setSubmitting(true);
@@ -29,7 +33,7 @@ const NewFundRequestModal = ({ user, onClose, onSave }) => {
       await onSave({
         zo_fr_no: form.zo_fr_no.trim(),
         zo_fr_amount: amount,
-        zo_remarks: form.zo_remarks.trim() || null
+        zo_remarks: form.zo_remarks.trim()
       });
       onClose();
     } catch (err) {
@@ -136,6 +140,7 @@ const NewFundRequestModal = ({ user, onClose, onSave }) => {
           onChange={handleChange}
           placeholder="Provide context or explanation for the request..."
           rows={3}
+          required
           disabled={submitting}
         />
       </form>

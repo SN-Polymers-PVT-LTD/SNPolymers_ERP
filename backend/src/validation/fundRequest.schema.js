@@ -19,7 +19,9 @@ const createFundRequestSchema = {
     requested_amount: z.union([z.number(), z.string()]).optional()
       .transform((val) => val === undefined || val === null ? val : Number(val)),
     
-    zo_remarks: z.string().optional(),
+    zo_remarks: z.string({
+      required_error: 'ZO remarks are required.'
+    }).trim().min(1, 'ZO remarks are required.'),
     remarks: z.string().optional()
   }).refine(data => data.zo_fr_amount !== undefined || data.requested_amount !== undefined, {
     message: 'Either zo_fr_amount or requested_amount must be provided.',
