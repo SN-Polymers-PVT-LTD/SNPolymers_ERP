@@ -22,25 +22,20 @@ const formatINR = (value) => {
 
 const InfoTooltip = ({ content, position = 'center' }) => {
   const positionClasses = {
-    center: 'left-1/2 -translate-x-1/2 origin-bottom',
-    left: 'left-0 origin-bottom-left',
-    right: 'right-0 origin-bottom-right'
-  };
-
-  const arrowClasses = {
-    center: 'left-1/2 -translate-x-1/2',
-    left: 'left-4',
-    right: 'right-4'
+    center: 'right-0 origin-top-right',
+    left: 'right-0 origin-top-right',
+    right: 'right-0 origin-top-right'
   };
 
   return (
-    <div className="relative group ml-1.5 inline-block align-middle cursor-pointer">
-      <svg className="w-3.5 h-3.5 text-slate-400 hover:text-amber-500 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-      <div className={`absolute bottom-full mb-2 w-56 p-2.5 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-md text-[10px] text-slate-300 font-semibold tracking-wide leading-relaxed shadow-2xl opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 z-50 ${positionClasses[position]}`}>
+    <div className="absolute top-4 right-4 group cursor-pointer z-40">
+      <div className="p-1.5 rounded-full bg-slate-800/30 hover:bg-slate-700/50 transition-colors">
+        <svg className="w-5 h-5 text-amber-400/80 group-hover:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <div className={`absolute top-full mt-2 w-64 p-3.5 rounded-xl border border-white/20 bg-slate-900 shadow-[0_10px_40px_rgba(0,0,0,0.8)] text-xs text-slate-200 font-medium tracking-wide leading-relaxed opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 z-[100] ${positionClasses[position]}`}>
         {content}
-        <div className={`absolute top-full border-4 border-transparent border-t-slate-950 ${arrowClasses[position]}`} />
       </div>
     </div>
   );
@@ -196,7 +191,7 @@ const HoDashboard = () => {
               {/* KPI Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Active Projects KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)] hover:z-50">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Project Portfolio
                     <InfoTooltip content="Active projects relative to the total portfolio, categorized by health status." position="left" />
@@ -212,7 +207,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Budget Utilization KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)] hover:z-50">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Budget Utilization
                     <InfoTooltip content="Percentage of total budget spent relative to total allocated budget." position="center" />
@@ -226,7 +221,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Warnings / Risks KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.02)] hover:z-50">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Critical Anomaly Risk
                     <InfoTooltip content="Number of projects currently marked as Critical risk or carrying warnings." position="center" />
@@ -241,7 +236,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Radial Gauge / Portfolio Health */}
-                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 flex items-center justify-between shadow-[0_0_15px_rgba(99,102,241,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 flex items-center justify-between shadow-[0_0_15px_rgba(99,102,241,0.02)] hover:z-50">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                       Portfolio Health
@@ -287,7 +282,7 @@ const HoDashboard = () => {
                 {/* Column wrapper for Zonal Benchmarking & Twin Explorer (2/3 width) */}
                 <div className="lg:col-span-2 space-y-8">
                   {/* Zonal Benchmarking */}
-                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between relative hover:z-50">
                     <div>
                       <div className="flex justify-between items-center mb-6">
                         <div>
@@ -384,7 +379,7 @@ const HoDashboard = () => {
                   </div>
 
                   {/* Digital Twin Simulation Explorer */}
-                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between relative hover:z-50">
                     <div>
                       <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-1">
                         Digital Twin Explorer
@@ -426,7 +421,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Budget Leakage Anomalies (1/3 width) */}
-                <div className="glass-panel p-6 rounded-3xl flex flex-col h-fit">
+                <div className="glass-panel p-6 rounded-3xl flex flex-col h-fit relative hover:z-50">
                   <div className="flex justify-between items-center mb-6">
                     <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                       Budget Leakages
