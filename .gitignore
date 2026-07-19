@@ -13,3 +13,4 @@ Thumbs.db
 # Test logs
 /tests/logs
 
+backend/html/html.meta.json.gz

@@ -360,6 +360,50 @@ async function getDisplayName(mobileNumber) {
 }
 
 /**
+ * Retrieves the active mapped ZO user details (display_name, telegram_chat_id) for a given JE user ID.
+ * @param {string} jeUserId - The JE's mobile number
+ * @returns {Promise<object|null>}
+ */
+async function getMappedZoForJe(jeUserId) {
+  if (!jeUserId) return null;
+  try {
+    const { data: mapping, error: mapErr } = await supabase
+      .from('je_zo_mappings')
+      .select('zo_user_id')
+      .eq('je_user_id', jeUserId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (mapErr) {
+      console.warn(`[TELEGRAM ALERTS] Error fetching JE-ZO mapping for ${jeUserId}: ${mapErr.message}`);
+      return null;
+    }
+
+    if (!mapping || !mapping.zo_user_id) {
+      console.warn(`[TELEGRAM ALERTS] No active ZO mapping found for JE ${jeUserId}`);
+      return null;
+    }
+
+    const { data: zoUser, error: zoErr } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', mapping.zo_user_id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (zoErr) {
+      console.warn(`[TELEGRAM ALERTS] Error fetching ZO user details for ${mapping.zo_user_id}: ${zoErr.message}`);
+      return null;
+    }
+
+    return zoUser;
+  } catch (err) {
+    console.error(`[TELEGRAM ALERTS] getMappedZoForJe failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * Sends a notification to all active ZO users when a new estimate is submitted.
  * @param {object} estimate - The submitted estimate object (enriched with projects_master data if possible)
  */
@@ -368,21 +412,26 @@ async function notifyZoEstimateSubmitted(estimate) {
     return;
   }
   try {
-    // 1. Fetch active ZO users with non-null chat IDs:
-    const { data: zoUsers, error } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .not('telegram_chat_id', 'is', null);
+    // Fetch mapped ZO or fallback to all active ZO users
+    let recipients = [];
+    const mappedZo = await getMappedZoForJe(estimate.je_user_id);
+    if (mappedZo && mappedZo.telegram_chat_id && mappedZo.telegram_chat_id.trim() !== '') {
+      recipients = [mappedZo];
+    } else {
+      console.warn(`[TELEGRAM ALERTS] Mapped ZO not found or lacks chat ID for JE ${estimate.je_user_id}. Falling back to all ZOs.`);
+      const { data: zoUsers, error } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('role', 'zo')
+        .eq('is_active', true)
+        .not('telegram_chat_id', 'is', null);
 
-    if (error) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users: ${error.message}`);
-      return;
+      if (error) {
+        console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users: ${error.message}`);
+        return;
+      }
+      recipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
     }
-
-    // 2. Filter list in JS to ensure clean values (excluding empty strings and whitespace):
-    const recipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
 
     if (recipients.length === 0) {
       console.warn(
@@ -832,19 +881,27 @@ async function notifyZoRequisitionSubmitted(requisition) {
     return;
   }
   try {
-    const { data: zoUsers, error } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .not('telegram_chat_id', 'is', null);
+    // Fetch mapped ZO or fallback to all active ZO users
+    let recipients = [];
+    const mappedZo = await getMappedZoForJe(requisition.requester_user_id);
+    if (mappedZo && mappedZo.telegram_chat_id && mappedZo.telegram_chat_id.trim() !== '') {
+      recipients = [mappedZo];
+    } else {
+      console.warn(`[TELEGRAM ALERTS] Mapped ZO not found or lacks chat ID for JE ${requisition.requester_user_id}. Falling back to all ZOs.`);
+      const { data: zoUsers, error } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('role', 'zo')
+        .eq('is_active', true)
+        .not('telegram_chat_id', 'is', null);
 
-    if (error) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users for requisition: ${error.message}`);
-      return;
+      if (error) {
+        console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users for requisition: ${error.message}`);
+        return;
+      }
+      recipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
     }
 
-    const recipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
     if (recipients.length === 0) {
       console.warn(
         `[TELEGRAM ALERTS] No active ZO users configured with Telegram chat IDs for requisition submission. ` +
@@ -1054,12 +1111,25 @@ async function notifyZoAndHoRequisitionActed(originalRequisition, updatedRequisi
     return;
   }
   try {
-    const { data: zoUsers, error: zoErr } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .not('telegram_chat_id', 'is', null);
+    // Fetch mapped ZO or fallback to all active ZO users
+    let zoRecipients = [];
+    const mappedZo = await getMappedZoForJe(originalRequisition.requester_user_id);
+    if (mappedZo && mappedZo.telegram_chat_id && mappedZo.telegram_chat_id.trim() !== '') {
+      zoRecipients = [mappedZo];
+    } else {
+      console.warn(`[TELEGRAM ALERTS] Mapped ZO not found or lacks chat ID for JE ${originalRequisition.requester_user_id}. Falling back to all ZOs.`);
+      const { data: zoUsers, error: zoErr } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('role', 'zo')
+        .eq('is_active', true)
+        .not('telegram_chat_id', 'is', null);
+      if (zoErr) {
+        console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users: ${zoErr.message}`);
+      } else {
+        zoRecipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+      }
+    }
 
     const { data: hoUsers, error: hoErr } = await supabase
       .from('authorised_users')
@@ -1068,12 +1138,11 @@ async function notifyZoAndHoRequisitionActed(originalRequisition, updatedRequisi
       .eq('is_active', true)
       .not('telegram_chat_id', 'is', null);
 
-    if (zoErr || hoErr) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve recipients for requisition action:`, zoErr || hoErr);
-      return;
+    if (hoErr) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve HO users for requisition action:`, hoErr);
     }
 
-    const combined = [...(zoUsers || []), ...(hoUsers || [])];
+    const combined = [...zoRecipients, ...(hoUsers || [])];
     const seen = new Set();
     const recipients = [];
     for (const r of combined) {
@@ -1163,12 +1232,25 @@ async function notifyZoAndHoBackdatedProgressSubmitted(progressReport) {
     return;
   }
   try {
-    const { data: zoUsers, error: zoErr } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .not('telegram_chat_id', 'is', null);
+    // Fetch mapped ZO or fallback to all active ZO users
+    let zoRecipients = [];
+    const mappedZo = await getMappedZoForJe(progressReport.created_by);
+    if (mappedZo && mappedZo.telegram_chat_id && mappedZo.telegram_chat_id.trim() !== '') {
+      zoRecipients = [mappedZo];
+    } else {
+      console.warn(`[TELEGRAM ALERTS] Mapped ZO not found or lacks chat ID for JE ${progressReport.created_by}. Falling back to all ZOs.`);
+      const { data: zoUsers, error: zoErr } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('role', 'zo')
+        .eq('is_active', true)
+        .not('telegram_chat_id', 'is', null);
+      if (zoErr) {
+        console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ZO users: ${zoErr.message}`);
+      } else {
+        zoRecipients = (zoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+      }
+    }
 
     const { data: hoUsers, error: hoErr } = await supabase
       .from('authorised_users')
@@ -1177,12 +1259,11 @@ async function notifyZoAndHoBackdatedProgressSubmitted(progressReport) {
       .eq('is_active', true)
       .not('telegram_chat_id', 'is', null);
 
-    if (zoErr || hoErr) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve recipients for backdated progress:`, zoErr || hoErr);
-      return;
+    if (hoErr) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve HO users for backdated progress:`, hoErr);
     }
 
-    const combined = [...(zoUsers || []), ...(hoUsers || [])];
+    const combined = [...zoRecipients, ...(hoUsers || [])];
     const seen = new Set();
     const recipients = [];
     for (const r of combined) {
@@ -1309,22 +1390,54 @@ async function notifyAllEstimateFinalApproved(estimate) {
     return;
   }
   try {
-    const { data: allUsers, error } = await supabase
+    const jeMobile = estimate.created_by || estimate.je_user_id;
+    const recipients = [];
+    const seenChatIds = new Set();
+
+    const addRecipient = (user) => {
+      if (user && user.telegram_chat_id && user.telegram_chat_id.trim() !== '') {
+        const chat = user.telegram_chat_id.trim();
+        if (!seenChatIds.has(chat)) {
+          seenChatIds.add(chat);
+          recipients.push(user);
+        }
+      }
+    };
+
+    // 1. Fetch JE who created the estimate
+    if (jeMobile) {
+      const { data: jeUser } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('mobile_number', jeMobile)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (jeUser) addRecipient(jeUser);
+    }
+
+    // 2. Fetch mapped ZO for this JE
+    if (jeMobile) {
+      const mappedZo = await getMappedZoForJe(jeMobile);
+      if (mappedZo) addRecipient(mappedZo);
+    }
+
+    // 3. Fetch all active HO and Admin users
+    const { data: hoAndAdmins, error: hoErr } = await supabase
       .from('authorised_users')
       .select('display_name, telegram_chat_id')
+      .in('role', ['ho', 'admin'])
       .eq('is_active', true)
       .not('telegram_chat_id', 'is', null);
 
-    if (error) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active users: ${error.message}`);
-      return;
+    if (hoErr) {
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve HO/Admin users: ${hoErr.message}`);
+    } else if (hoAndAdmins) {
+      hoAndAdmins.forEach(addRecipient);
     }
-
-    const recipients = (allUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
 
     if (recipients.length === 0) {
       console.warn(
-        `[TELEGRAM ALERTS] No active users configured with Telegram chat IDs for final estimate approval notification. ` +
+        `[TELEGRAM ALERTS] No recipients configured with Telegram chat IDs for final estimate approval notification. ` +
         `Estimate: ${estimate?.estimate_id || 'N/A'}, Work Order: ${estimate?.work_order_no || 'N/A'}`
       );
       return;

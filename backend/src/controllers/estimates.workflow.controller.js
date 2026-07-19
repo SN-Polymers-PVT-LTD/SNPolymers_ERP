@@ -29,7 +29,7 @@ async function submitEstimate(req, res) {
     }
 
     // Gating & Ownership check
-    if (!isOwnerOrAdmin(estimate, req.user)) {
+    if (!(await isOwnerOrAdmin(estimate, req.user))) {
       return res.status(403).json({ success: false, message: 'Access denied. You do not own this estimate.' });
     }
 

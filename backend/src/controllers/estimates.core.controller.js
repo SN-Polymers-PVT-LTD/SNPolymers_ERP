@@ -138,13 +138,28 @@ async function getEstimates(req, res) {
     }
 
     if (effectiveRole === 'zo') {
-      const { data: mappedJEs } = await supabase
+      const { data: mappedJEs, error: jeMapErr } = await supabase
         .from('je_zo_mappings')
         .select('je_user_id')
         .eq('zo_user_id', req.user.mobile_number)
         .eq('is_active', true);
+
+      if (jeMapErr) throw jeMapErr;
       const jeIds = (mappedJEs || []).map(m => m.je_user_id);
-      dbQuery = dbQuery.in('created_by', jeIds.length > 0 ? jeIds : ['dummy_je_mobile_number']);
+
+      if (jeIds.length > 0) {
+        const { data: mappedWOs, error: woMapErr } = await supabase
+          .from('work_order_mappings')
+          .select('work_order_no')
+          .in('je_user_id', jeIds)
+          .eq('is_active', true);
+
+        if (woMapErr) throw woMapErr;
+        const woNos = (mappedWOs || []).map(m => m.work_order_no);
+        dbQuery = dbQuery.in('work_order_no', woNos.length > 0 ? woNos : ['dummy_wo_no']);
+      } else {
+        dbQuery = dbQuery.in('work_order_no', ['dummy_wo_no']);
+      }
     }
 
     if (query.status) {

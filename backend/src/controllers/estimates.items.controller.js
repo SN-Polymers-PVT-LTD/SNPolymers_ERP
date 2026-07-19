@@ -29,7 +29,7 @@ async function saveDraftItems(req, res) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 
-    if (!isOwnerOrAdmin(estimate, req.user)) {
+    if (!(await isOwnerOrAdmin(estimate, req.user))) {
       return res.status(403).json({ success: false, message: 'Access denied. You do not own this estimate.' });
     }
 
