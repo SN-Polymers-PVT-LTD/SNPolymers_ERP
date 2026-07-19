@@ -1235,6 +1235,7 @@ const EstimateView = () => {
               />
             </div>
           </Modal>
+        )}
         {/* ── PREMIUM SUCCESS MODAL ── */}
         {showPremiumSuccess && (
           <Modal
