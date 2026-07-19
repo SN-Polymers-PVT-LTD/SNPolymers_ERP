@@ -159,4 +159,26 @@ export function exportFundRequestsToExcel(requests, dateRange) {
   XLSX.writeFile(workbook, `Fund_Requests_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export function exportAuditLogToExcel(logs) {
+  if (!logs || logs.length === 0) {
+    alert('No audit logs to export.');
+    return;
+  }
+  const formattedRows = logs.map((log, index) => ({
+    "Sl. No.": index + 1,
+    "Timestamp": log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN') : '',
+    "User ID (Mobile)": log.user_id || '',
+    "User Name": log.user_name || 'N/A',
+    "Action": log.action || '',
+    "Module": log.module_name || '',
+    "Record Identifier": log.record_identifier || '',
+    "Old Value": log.old_value ? JSON.stringify(log.old_value) : '',
+    "New Value": log.new_value ? JSON.stringify(log.new_value) : ''
+  }));
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Audit Logs");
+  XLSX.writeFile(workbook, `Audit_Logs_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
 

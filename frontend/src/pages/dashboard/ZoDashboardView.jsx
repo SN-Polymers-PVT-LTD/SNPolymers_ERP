@@ -30,7 +30,7 @@ const ZoDashboardView = () => {
 
   // 2. Fetch Projects assigned to this ZO
   const { data: projectsRes } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;

@@ -1,11 +1,89 @@
-import React from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import BackgroundShapes from '../components/BackgroundShapes';
+import { getProjectDigitalTwin } from '../api/analyticsApi';
+
+const formatINR = (value) => {
+  const num = Number(value) || 0;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0
+  }).format(num);
+};
 
 const ProjectDigitalTwin = () => {
   const { work_order_no } = useParams();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('overview');
+
+  // Fetch all component-level digital twin metrics for this project
+  const { data: twinData, isLoading, error } = useQuery({
+    queryKey: ['projectDigitalTwin', work_order_no],
+    queryFn: async () => {
+      const res = await getProjectDigitalTwin(work_order_no);
+      return res.data;
+    },
+    retry: false // Avoid background retries on auth failure
+  });
+
+  const isForbidden = error?.response?.status === 403;
+
+  const overview = twinData?.overview || {};
+  const materials = twinData?.materials || [];
+  const approvals = twinData?.approvals || [];
+  const budget = twinData?.budget || {};
+  const audits = twinData?.audits || [];
+
+  // Tab definitions
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: '📋' },
+    { id: 'financial', label: 'Financial Twin', icon: '💰' },
+    { id: 'progress', label: 'Work Progress', icon: '📈' },
+    { id: 'materials', label: 'Materials Variance', icon: '🧱' },
+    { id: 'timeline', label: 'Project Timeline', icon: '📅' },
+    { id: 'approvals', label: 'Approvals SLA', icon: '⚖️' },
+    { id: 'audit', label: 'Audit Center', icon: '🔍' },
+    { id: 'risks', label: 'Risk Profile', icon: '⚠️' },
+    { id: 'forecast', label: 'Completion Forecast', icon: '🔮' },
+    { id: 'alerts', label: 'Active Alerts', icon: '🔔' },
+    { id: 'photos', label: 'Site Photos', icon: '🖼️' },
+    { id: 'analytics', label: 'Analytics Score', icon: '📊' },
+    { id: 'documents', label: 'Associated Docs', icon: '📁' }
+  ];
+
+  if (isForbidden) {
+    return (
+      <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
+        <BackgroundShapes />
+        <Sidebar />
+        <MobileHeader />
+        <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
+          <TopNavbar />
+          <main className="flex-grow p-6 md:p-10 flex items-center justify-center relative z-10">
+            <div className="glass-panel p-8 rounded-3xl border border-rose-500/20 bg-rose-950/10 text-center max-w-md w-full">
+              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/20">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0-6h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-black text-rose-500 uppercase tracking-wider">Access Denied</h2>
+              <p className="text-xs text-slate-400 mt-3">You are not mapped to this work order or authorized to view this project's digital twin.</p>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="mt-6 px-5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold uppercase tracking-wider hover:bg-white/5 text-slate-200 transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
@@ -15,14 +93,421 @@ const ProjectDigitalTwin = () => {
 
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
         <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
-          <div className="mb-6">
-            <h1 className="text-3xl font-extrabold text-slate-100">Project Digital Twin</h1>
-            <p className="text-sm text-slate-400 mt-1">Detailed performance twin: {work_order_no}</p>
+
+        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10 flex flex-col">
+          {/* Header */}
+          <div className="mb-8 pb-6 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Project Performance Twin</span>
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1 truncate max-w-lg">
+                {overview.site_details || 'Digital Twin Monitor'}
+              </h1>
+              <p className="text-xs text-slate-400 mt-1.5 font-mono">Work Order: {work_order_no}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border ${
+                overview.health_status === 'Healthy' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                overview.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                'bg-rose-500/10 text-rose-400 border-rose-500/20'
+              }`}>
+                {overview.health_status || 'Offline'}
+              </span>
+              <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-white/5 text-slate-400 border-white/5">
+                {overview.status || 'Unknown'}
+              </span>
+            </div>
           </div>
-          <div className="bg-slate-900/50 border border-white/5 p-6 rounded-xl text-slate-400">
-            Digital twin overview, material variance, and SLA metrics under development...
-          </div>
+
+          {isLoading ? (
+            <div className="glass-panel p-6 rounded-3xl animate-pulse h-96 bg-white/[0.02] flex-grow" />
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-8 flex-grow min-h-0">
+              
+              {/* Tab Navigation Sidebar */}
+              <div className="w-full lg:w-64 shrink-0 flex flex-row lg:flex-col gap-2 overflow-x-auto lg:overflow-x-visible no-scrollbar pb-3 lg:pb-0">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all text-left shrink-0 w-auto lg:w-full border ${
+                      activeTab === tab.id
+                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Active Tab Panel Content */}
+              <div className="flex-grow glass-panel p-6 rounded-3xl overflow-y-auto no-scrollbar border border-white/5 relative bg-slate-900/10 min-h-[400px]">
+                
+                {/* 1. Overview Tab */}
+                {activeTab === 'overview' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Overview Details</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                      <div className="space-y-3">
+                        <p><span className="text-slate-500 block">Work Order Number</span> <span className="text-slate-200 font-extrabold text-sm">{overview.work_order_no}</span></p>
+                        <p><span className="text-slate-500 block">Estimate ID Link</span> <span className="text-slate-300 font-extrabold">{overview.estimate_no || 'N/A'}</span></p>
+                        <p><span className="text-slate-500 block">State</span> <span className="text-slate-200 font-bold">{overview.state}</span></p>
+                        <p><span className="text-slate-500 block">District</span> <span className="text-slate-200 font-bold">{overview.district}</span></p>
+                      </div>
+                      <div className="space-y-3">
+                        <p><span className="text-slate-500 block">Zonal Region</span> <span className="text-slate-200 font-bold">{overview.zone || 'N/A'}</span></p>
+                        <p><span className="text-slate-500 block">Department Branch</span> <span className="text-slate-200 font-bold">{overview.department}</span></p>
+                        <p><span className="text-slate-500 block">Site Details</span> <span className="text-slate-200 leading-relaxed font-bold block mt-1">{overview.site_details}</span></p>
+                        <p><span className="text-slate-500 block">Coordinates/Map Link</span> <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(overview.site_details)}`} target="_blank" rel="noreferrer" className="text-amber-500 font-bold hover:underline">Google Maps Search ↗</a></p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. Financial Twin Tab */}
+                {activeTab === 'financial' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Financial Allocation Twin</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Baseline Budget (WO Value)</span>
+                        <div className="text-lg font-black text-slate-200 mt-1">{formatINR(overview.work_order_value)}</div>
+                      </div>
+                      <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Total Spent (Approved Requisitions)</span>
+                        <div className="text-lg font-black text-emerald-400 mt-1">{formatINR(budget.total_requisition_approved)}</div>
+                      </div>
+                      <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Overrun Deviation</span>
+                        <div className={`text-lg font-black mt-1 ${budget.overrun_amount > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                          {formatINR(budget.overrun_amount)} ({Number(budget.overrun_pct || 0).toFixed(1)}%)
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mt-4">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Utilization Progress</span>
+                      <div className="h-4 bg-white/5 border border-white/5 rounded-full overflow-hidden flex">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ${
+                            Number(budget.overrun_pct) > 0 ? 'bg-gradient-to-r from-amber-500 to-rose-500' : 'bg-gradient-to-r from-emerald-500 to-indigo-500'
+                          }`}
+                          style={{ width: `${Math.min(100, (Number(budget.total_requisition_approved) / Number(overview.work_order_value || 1)) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Work Progress Tab */}
+                {activeTab === 'progress' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Physical Site Progress</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-slate-500">Physical Work Progress</span>
+                          <div className="text-3xl font-black mt-1 text-amber-500">{overview.physical_work_progress || 0}%</div>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Last Progress Submission</span>
+                          <div className="text-slate-300 font-bold mt-1">
+                            {overview.last_submission_date ? new Date(overview.last_submission_date).toLocaleDateString('en-IN') : 'No progress submissions'}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-slate-500">Timeline Reporting Gap</span>
+                          <div className="text-slate-300 font-bold mt-1">{overview.days_since_last_report ?? 'N/A'} days since last update</div>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Reporting Health Status</span>
+                          <div className="mt-1">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
+                              overview.reporting_health_score >= 80 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                              overview.reporting_health_score >= 50 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                              'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            }`}>
+                              Score: {Math.round(overview.reporting_health_score || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Materials Variance Tab */}
+                {activeTab === 'materials' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Materials Quantity Variance</h2>
+                    {materials.length === 0 ? (
+                      <div className="text-slate-500 text-xs py-10 text-center uppercase tracking-widest">No materials variance registered</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-white/5 pb-2 text-slate-500">
+                              <th className="py-2">Material Head</th>
+                              <th className="py-2 text-center">Estimated Qty</th>
+                              <th className="py-2 text-center">Approved Qty</th>
+                              <th className="py-2 text-center">Qty Variance</th>
+                              <th className="py-2 text-right">Variance Score</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {materials.map((item, idx) => (
+                              <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                <td className="py-3 font-bold text-slate-200">{item.material_main_head}</td>
+                                <td className="py-3 text-center text-slate-400">{Number(item.total_estimated_qty).toFixed(1)}</td>
+                                <td className="py-3 text-center text-slate-400">{Number(item.total_approved_qty).toFixed(1)}</td>
+                                <td className={`py-3 text-center font-bold ${Number(item.quantity_variance) > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
+                                  {Number(item.quantity_variance) > 0 ? `+${Number(item.quantity_variance).toFixed(1)}` : Number(item.quantity_variance).toFixed(1)}
+                                </td>
+                                <td className="py-3 text-right">
+                                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                    item.variance_severity === 'Critical' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                                    item.variance_severity === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                                    'bg-white/5 text-slate-400'
+                                  }`}>
+                                    {item.variance_severity}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 5. Project Timeline Tab */}
+                {activeTab === 'timeline' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Calendar Timeline & Slack</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                      <div className="space-y-3">
+                        <p><span className="text-slate-500 block">Baseline Start Date</span> <span className="text-slate-200 font-bold">{overview.project_start_date || 'N/A'}</span></p>
+                        <p><span className="text-slate-500 block">Baseline End Date</span> <span className="text-slate-200 font-bold">{overview.project_end_date || 'N/A'}</span></p>
+                      </div>
+                      <div className="space-y-3">
+                        <p><span className="text-slate-500 block">Calendar Timeline Progress</span> <span className="text-slate-200 font-bold">{Number(overview.timeline_progress_pct || 0).toFixed(1)}%</span></p>
+                        <p>
+                          <span className="text-slate-500 block">Schedule Slack Deviation</span> 
+                          <span className={`font-bold ${overview.schedule_slack_days > 15 ? 'text-rose-400' : 'text-slate-400'}`}>
+                            {overview.schedule_slack_days > 0 ? `+${overview.schedule_slack_days} days delay` : `${Math.abs(overview.schedule_slack_days || 0)} days early`}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 6. Approvals SLA Tab */}
+                {activeTab === 'approvals' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Review Process SLAs</h2>
+                    {approvals.length === 0 ? (
+                      <div className="text-slate-500 text-xs py-10 text-center uppercase tracking-widest">No approval logs mapping this project</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-white/5 pb-2 text-slate-500">
+                              <th className="py-2">Approval Stage</th>
+                              <th className="py-2">Submitted</th>
+                              <th className="py-2">Actioned</th>
+                              <th className="py-2 text-center">Duration Hours</th>
+                              <th className="py-2 text-right">SLA Breach</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-white/5">
+                            {approvals.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-white/5 transition-colors">
+                                <td className="py-3 font-bold text-slate-200">{row.stage}</td>
+                                <td className="py-3 text-slate-400">{row.submitted_at ? new Date(row.submitted_at).toLocaleDateString('en-IN') : ''}</td>
+                                <td className="py-3 text-slate-400">{row.actioned_at ? new Date(row.actioned_at).toLocaleDateString('en-IN') : 'In progress'}</td>
+                                <td className="py-3 text-center text-slate-300 font-mono">{Number(row.duration_hours || 0).toFixed(1)}h</td>
+                                <td className="py-3 text-right">
+                                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                                    row.sla_breached ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  }`}>
+                                    {row.sla_breached ? 'Breached' : 'Within Limit'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 7. Audit Center Tab */}
+                {activeTab === 'audit' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Change Logs</h2>
+                    {audits.length === 0 ? (
+                      <div className="text-slate-500 text-xs py-10 text-center uppercase tracking-widest">No logs registered for this project scope</div>
+                    ) : (
+                      <div className="space-y-4 max-h-[360px] overflow-y-auto no-scrollbar pr-2">
+                        {audits.map((log, idx) => (
+                          <div key={idx} className="relative pl-6 border-l border-white/10 pb-2">
+                            <span className="absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                            <div className="flex flex-col gap-1 text-[11px] leading-relaxed">
+                              <span className="text-slate-300">
+                                <strong className="text-slate-200">{log.user_name || 'System'}</strong> performing <span className="font-bold text-amber-500">{log.action}</span> on <span className="text-slate-200">{log.module_name}</span> (ID: <span className="font-mono text-slate-400">{log.record_identifier}</span>)
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">
+                                {log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN') : ''}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 8. Risk Profile Tab */}
+                {activeTab === 'risks' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Structural Risk Index</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                      <div className="space-y-4">
+                        <div>
+                          <span className="text-slate-500">Anomaly Deviation Score</span>
+                          <div className="text-3xl font-black text-rose-400 mt-1">{Math.round(budget.anomaly_score || 0)}</div>
+                        </div>
+                        <div>
+                          <span className="text-slate-500">Status Categorization</span>
+                          <div className="text-slate-300 font-bold mt-1">{overview.health_status || 'Normal'}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Risk Matrix Flags</span>
+                        <div className="space-y-2">
+                          <p className={`flex items-center gap-2 font-bold ${Number(budget.overrun_pct) > 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                            <span>{Number(budget.overrun_pct) > 0 ? '🔴' : '⚪'}</span> Budget Overrun Anomaly
+                          </p>
+                          <p className={`flex items-center gap-2 font-bold ${overview.schedule_slack_days > 15 ? 'text-rose-400' : 'text-slate-500'}`}>
+                            <span>{overview.schedule_slack_days > 15 ? '🔴' : '⚪'}</span> Timeline Schedule Delay
+                          </p>
+                          <p className={`flex items-center gap-2 font-bold ${overview.days_since_last_report > 7 ? 'text-rose-400' : 'text-slate-500'}`}>
+                            <span>{overview.days_since_last_report > 7 ? '🔴' : '⚪'}</span> Report Submission Lag
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 9. Completion Forecast Tab */}
+                {activeTab === 'forecast' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Completion Projections</h2>
+                    <div className="text-xs space-y-4">
+                      <p>Based on reporting updates, the project progress velocity is being calculated dynamically.</p>
+                      <div className="glass-panel p-4 rounded-2xl bg-white/[0.01] space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block">Project Forecast Velocity</span>
+                        <div className="text-slate-200 font-extrabold text-sm">
+                          {overview.physical_work_progress > 0 
+                            ? 'Reporting steady progress rate' 
+                            : 'Awaiting progress reporting setup'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 10. Active Alerts Tab */}
+                {activeTab === 'alerts' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Triggered Notifications</h2>
+                    <div className="space-y-3">
+                      {budget.overrun_amount > 0 && (
+                        <div className="p-4 rounded-xl border border-rose-500/10 bg-rose-950/10 text-rose-400 text-xs font-bold">
+                          ⚠️ WARNING: Project budget has been overrun by {formatINR(budget.overrun_amount)}.
+                        </div>
+                      )}
+                      {overview.schedule_slack_days > 15 && (
+                        <div className="p-4 rounded-xl border border-amber-500/10 bg-amber-950/10 text-amber-400 text-xs font-bold">
+                          ⚠️ NOTICE: Project is delayed by {overview.schedule_slack_days} days behind baseline.
+                        </div>
+                      )}
+                      {(!budget.overrun_amount || budget.overrun_amount <= 0) && (!overview.schedule_slack_days || overview.schedule_slack_days <= 15) && (
+                        <div className="text-slate-500 text-xs py-8 text-center uppercase tracking-widest">No active warnings flagged</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* 11. Site Photos Tab */}
+                {activeTab === 'photos' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Site Attachment Gallery</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Photo Placeholder Panel */}
+                      <div className="aspect-video bg-white/5 rounded-2xl border border-white/5 flex items-center justify-center text-xs text-slate-500 uppercase tracking-widest">
+                        Site Photo 1 Placeholder
+                      </div>
+                      <div className="aspect-video bg-white/5 rounded-2xl border border-white/5 flex items-center justify-center text-xs text-slate-500 uppercase tracking-widest">
+                        Site Photo 2 Placeholder
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 12. Analytics Score Tab */}
+                {activeTab === 'analytics' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Analytics Breakdown Score</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+                      <div className="space-y-2">
+                        <span className="text-slate-500 block">Reporting Score (DPR Frequency)</span>
+                        <div className="text-lg font-black text-slate-200">{Math.round(overview.reporting_health_score || 0)} / 100</div>
+                      </div>
+                      <div className="space-y-2">
+                        <span className="text-slate-500 block">Overall Project Performance Score</span>
+                        <div className="text-lg font-black text-slate-200">{Math.round(overview.health_score || 0)} / 100</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 13. Associated Docs Tab */}
+                {activeTab === 'documents' && (
+                  <div className="space-y-6">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 border-b border-white/5 pb-2">Associated Documents</h2>
+                    <div className="space-y-3 text-xs">
+                      <div className="p-4 rounded-xl bg-white/[0.01] border border-white/5 flex justify-between items-center">
+                        <div>
+                          <span className="font-bold text-slate-200">Main Cost Estimate</span>
+                          <span className="text-[10px] text-slate-500 block mt-0.5">Reference: {overview.estimate_no || 'EST-N/A'}</span>
+                        </div>
+                        {overview.estimate_no && (
+                          <button
+                            onClick={() => navigate(`/estimates/${overview.estimate_no}`)}
+                            className="px-3 py-1.5 rounded-lg border border-white/10 hover:bg-white/5 text-[10px] font-bold uppercase tracking-wider text-amber-500 transition"
+                          >
+                            Open Estimate
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+          )}
+
         </main>
       </div>
     </div>

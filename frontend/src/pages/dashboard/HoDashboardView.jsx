@@ -60,7 +60,7 @@ const HoDashboardView = () => {
 
   // 4. Fetch all projects to calculate leakage anomalies and zonal progress
   const { data: projectsRes } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;

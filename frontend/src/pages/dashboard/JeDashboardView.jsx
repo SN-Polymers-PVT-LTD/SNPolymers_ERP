@@ -9,7 +9,7 @@ const JeDashboardView = () => {
 
   // 1. Fetch Projects (automatically filtered by JE role on backend)
   const { data: projectsRes } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
