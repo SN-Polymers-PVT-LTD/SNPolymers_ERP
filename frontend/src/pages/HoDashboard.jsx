@@ -196,7 +196,7 @@ const HoDashboard = () => {
               {/* KPI Section */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Active Projects KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Project Portfolio
                     <InfoTooltip content="Active projects relative to the total portfolio, categorized by health status." position="left" />
@@ -212,7 +212,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Budget Utilization KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Budget Utilization
                     <InfoTooltip content="Percentage of total budget spent relative to total allocated budget." position="center" />
@@ -226,7 +226,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Warnings / Risks KPI */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Critical Anomaly Risk
                     <InfoTooltip content="Number of projects currently marked as Critical risk or carrying warnings." position="center" />
@@ -241,7 +241,7 @@ const HoDashboard = () => {
                 </div>
 
                 {/* Radial Gauge / Portfolio Health */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 flex items-center justify-between shadow-[0_0_15px_rgba(99,102,241,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 flex items-center justify-between shadow-[0_0_15px_rgba(99,102,241,0.02)]">
                   <div>
                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                       Portfolio Health

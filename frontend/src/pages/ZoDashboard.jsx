@@ -134,7 +134,7 @@ const ZoDashboard = () => {
               {/* Summary Cards Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Active JEs Card */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Junior Engineers
                     <InfoTooltip content="Total Junior Engineers actively assigned and logging progress reports in this zone." position="left" />
@@ -148,7 +148,7 @@ const ZoDashboard = () => {
                 </div>
 
                 {/* Submissions Card */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Progress Reports
                     <InfoTooltip content="Cumulative count of progress reports filed across all projects in the zone." position="center" />
@@ -162,7 +162,7 @@ const ZoDashboard = () => {
                 </div>
 
                 {/* Streaks Card */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(14,165,233,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(14,165,233,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Peak Reporting Streak
                     <InfoTooltip content="Highest consecutive daily report streak achieved by a JE in this zone." position="center" />
@@ -176,7 +176,7 @@ const ZoDashboard = () => {
                 </div>
 
                 {/* Active Projects counter */}
-                <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(99,102,241,0.02)]">
+                <div className="glass-panel p-6 rounded-3xl relative transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(99,102,241,0.02)]">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
                     Zonal Projects Load
                     <InfoTooltip content="Total project sites managed in this zone, with average projects per JE density." position="right" />
