@@ -20,6 +20,32 @@ const formatINR = (value) => {
   }).format(num);
 };
 
+const InfoTooltip = ({ content, position = 'center' }) => {
+  const positionClasses = {
+    center: 'left-1/2 -translate-x-1/2 origin-bottom',
+    left: 'left-0 origin-bottom-left',
+    right: 'right-0 origin-bottom-right'
+  };
+
+  const arrowClasses = {
+    center: 'left-1/2 -translate-x-1/2',
+    left: 'left-4',
+    right: 'right-4'
+  };
+
+  return (
+    <div className="relative group ml-1.5 inline-block align-middle cursor-pointer">
+      <svg className="w-3.5 h-3.5 text-slate-400 hover:text-amber-500 transition-colors duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div className={`absolute bottom-full mb-2 w-56 p-2.5 rounded-xl border border-white/10 bg-slate-950/95 backdrop-blur-md text-[10px] text-slate-300 font-semibold tracking-wide leading-relaxed shadow-2xl opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 z-50 ${positionClasses[position]}`}>
+        {content}
+        <div className={`absolute top-full border-4 border-transparent border-t-slate-950 ${arrowClasses[position]}`} />
+      </div>
+    </div>
+  );
+};
+
 const HoDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -171,7 +197,10 @@ const HoDashboard = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* Active Projects KPI */}
                 <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.02)]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Project Portfolio</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    Project Portfolio
+                    <InfoTooltip content="Active projects relative to the total portfolio, categorized by health status." position="left" />
+                  </span>
                   <div className="text-3xl font-black mt-2 tracking-tight text-amber-500">
                     {kpis?.active_projects || 0} <span className="text-xs text-slate-500 font-bold">/ {kpis?.total_projects || 0} Active</span>
                   </div>
@@ -184,7 +213,10 @@ const HoDashboard = () => {
 
                 {/* Budget Utilization KPI */}
                 <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(16,185,129,0.02)]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Budget Utilization</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    Budget Utilization
+                    <InfoTooltip content="Percentage of total budget spent relative to total allocated budget." position="center" />
+                  </span>
                   <div className="text-3xl font-black mt-2 tracking-tight text-emerald-500">
                     {kpis?.budget_utilization_pct ? `${Number(kpis.budget_utilization_pct).toFixed(1)}%` : '0%'}
                   </div>
@@ -195,7 +227,10 @@ const HoDashboard = () => {
 
                 {/* Warnings / Risks KPI */}
                 <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.02)]">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Critical Anomaly Risk</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                    Critical Anomaly Risk
+                    <InfoTooltip content="Number of projects currently marked as Critical risk or carrying warnings." position="center" />
+                  </span>
                   <div className="text-3xl font-black mt-2 tracking-tight text-rose-500 flex items-baseline gap-2">
                     {kpis?.projects_at_risk || 0}
                     <span className="text-xs text-slate-500 font-bold">at Risk</span>
@@ -208,7 +243,10 @@ const HoDashboard = () => {
                 {/* Radial Gauge / Portfolio Health */}
                 <div className="glass-panel p-6 rounded-3xl relative overflow-hidden transition-all duration-300 hover:border-white/10 flex items-center justify-between shadow-[0_0_15px_rgba(99,102,241,0.02)]">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Portfolio Health</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                      Portfolio Health
+                      <InfoTooltip content="Weighted health average based on active projects' individual health score." position="right" />
+                    </span>
                     <div className="text-3xl font-black mt-2 tracking-tight text-indigo-400">
                       {kpis?.average_project_health ? `${Math.round(kpis.average_project_health)}%` : '0%'}
                     </div>
@@ -253,7 +291,10 @@ const HoDashboard = () => {
                     <div>
                       <div className="flex justify-between items-center mb-6">
                         <div>
-                          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Zonal Benchmarking</h2>
+                          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                            Zonal Benchmarking
+                            <InfoTooltip content="Aggregated performance, slack days, and health scores compared across all Zones." position="left" />
+                          </h2>
                           <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-wider">Performance metrics aggregated by zone</p>
                         </div>
                         <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Ranked by Health</span>
@@ -343,44 +384,54 @@ const HoDashboard = () => {
                   </div>
 
                   {/* Digital Twin Simulation Explorer */}
-                  <div className="glass-panel p-6 rounded-3xl">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-2">Project Digital Twin Simulator</h2>
-                    <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider mb-4">Enter any active Work Order number to simulate details</p>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        if (exploreWo.trim()) {
-                          navigate(`/projects/${exploreWo.trim()}/digital-twin`);
-                        }
-                      }}
-                      className="flex gap-4 items-center"
-                    >
-                      <input
-                        type="text"
-                        placeholder="Enter Work Order No. (e.g. WO-01)"
-                        value={exploreWo}
-                        onChange={(e) => setExploreWo(e.target.value)}
-                        className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 flex-grow"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!exploreWo.trim()}
-                        className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
-                          exploreWo.trim()
-                            ? 'bg-white hover:bg-white/90 text-slate-950'
-                            : 'bg-white/5 border border-transparent text-slate-500 cursor-not-allowed'
-                        }`}
+                  <div className="glass-panel p-6 rounded-3xl flex flex-col justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-1">
+                        Digital Twin Explorer
+                        <InfoTooltip content="Launch the interactive digital twin view of a project using its Work Order number." position="left" />
+                      </h2>
+                      <p className="text-[10px] text-slate-500 mt-1 uppercase font-bold tracking-wider mb-6">
+                        Retrieve live digital twin performance scores
+                      </p>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          if (exploreWo.trim()) {
+                            navigate(`/projects/${exploreWo.trim()}/digital-twin`);
+                          }
+                        }}
+                        className="flex gap-4 items-center"
                       >
-                        Launch Twin
-                      </button>
-                    </form>
+                        <input
+                          type="text"
+                          placeholder="Enter Work Order No. (e.g. WO-01)"
+                          value={exploreWo}
+                          onChange={(e) => setExploreWo(e.target.value)}
+                          className="bg-black/50 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50 flex-grow"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!exploreWo.trim()}
+                          className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                            exploreWo.trim()
+                              ? 'bg-white hover:bg-white/90 text-slate-950'
+                              : 'bg-white/5 border border-transparent text-slate-500 cursor-not-allowed'
+                          }`}
+                        >
+                          Launch Twin
+                        </button>
+                      </form>
+                    </div>
                   </div>
                 </div>
 
                 {/* Budget Leakage Anomalies (1/3 width) */}
                 <div className="glass-panel p-6 rounded-3xl flex flex-col h-fit">
                   <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Budget Leakages</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1">
+                      Budget Leakages
+                      <InfoTooltip content="Projects flagging significant cost overruns or high revision counts." position="right" />
+                    </h2>
                     <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/20 animate-pulse">
                       Anomalies
                     </span>
