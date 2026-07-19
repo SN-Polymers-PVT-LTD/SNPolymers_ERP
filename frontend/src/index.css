@@ -193,51 +193,70 @@ body.light .glow-border-active {
 
 /* Enhance contrast and color readability of role and status badges in light mode */
 body.light .bg-indigo-950\/40,
-body.light .bg-indigo-950\/20 {
+body.light .bg-indigo-950\/20,
+body.light .bg-indigo-500\/10,
+body.light .bg-indigo-500\/20 {
   background-color: rgba(99, 102, 241, 0.12) !important;
 }
-body.light .text-indigo-400 {
+body.light .text-indigo-300,
+body.light .text-indigo-400,
+body.light .text-indigo-500 {
   color: #3730a3 !important;
   font-weight: 800 !important;
 }
-body.light .border-indigo-900\/30 {
+body.light .border-indigo-900\/30,
+body.light .border-indigo-500\/20 {
   border-color: rgba(99, 102, 241, 0.3) !important;
 }
 
 body.light .bg-emerald-950\/40,
-body.light .bg-emerald-950\/20 {
+body.light .bg-emerald-950\/20,
+body.light .bg-emerald-500\/10,
+body.light .bg-emerald-500\/20 {
   background-color: rgba(16, 185, 129, 0.12) !important;
 }
-body.light .text-emerald-400 {
+body.light .text-emerald-300,
+body.light .text-emerald-400,
+body.light .text-emerald-500 {
   color: #065f46 !important;
   font-weight: 800 !important;
 }
-body.light .border-emerald-900\/30 {
+body.light .border-emerald-900\/30,
+body.light .border-emerald-500\/20 {
   border-color: rgba(16, 185, 129, 0.3) !important;
 }
 
 body.light .bg-red-950\/40,
-body.light .bg-red-950\/20 {
+body.light .bg-red-950\/20,
+body.light .bg-red-500\/10,
+body.light .bg-red-500\/20 {
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
-body.light .text-red-400 {
+body.light .text-red-300,
+body.light .text-red-400,
+body.light .text-red-500 {
   color: #991b1b !important;
   font-weight: 800 !important;
 }
-body.light .border-red-900\/30 {
+body.light .border-red-900\/30,
+body.light .border-red-500\/20 {
   border-color: rgba(239, 68, 68, 0.3) !important;
 }
 
 body.light .bg-amber-950\/40,
-body.light .bg-amber-950\/20 {
+body.light .bg-amber-950\/20,
+body.light .bg-amber-500\/10,
+body.light .bg-amber-500\/20 {
   background-color: rgba(245, 158, 11, 0.12) !important;
 }
+body.light .text-amber-300,
 body.light .text-amber-400,
 body.light .text-amber-500 {
   color: #92400e !important;
   font-weight: 800 !important;
 }
-body.light .border-amber-900\/30 {
+body.light .border-amber-900\/30,
+body.light .border-amber-500\/20 {
   border-color: rgba(245, 158, 11, 0.3) !important;
 }
 
