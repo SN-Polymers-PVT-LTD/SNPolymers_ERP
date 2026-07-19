@@ -1109,9 +1109,9 @@ const EstimateView = () => {
             }
           >
             <div className="space-y-4 text-left">
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
-                <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs dark:text-amber-200 text-amber-800">
+                <div className="font-bold flex items-center gap-1.5 mb-1 dark:text-amber-400 text-amber-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   Important Confirmation Required
                 </div>
                 Are you sure you want to finalize your review submission? This status transition is transactional and permanent.
@@ -1156,9 +1156,9 @@ const EstimateView = () => {
             }
           >
             <div className="space-y-4 text-left">
-              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-xs text-red-200">
-                <div className="font-bold flex items-center gap-1.5 mb-1 text-red-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-xs dark:text-red-200 text-red-800">
+                <div className="font-bold flex items-center gap-1.5 mb-1 dark:text-red-400 text-red-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
                   Warning: Status Reset
                 </div>
                 Are you sure you want to reopen this estimate? This will reset all ZO/HO approvals and remarks, and place it in the "Estimate Reopened" status. The JE will be able to add new line items and resubmit.

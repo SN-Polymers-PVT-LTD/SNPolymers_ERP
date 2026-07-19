@@ -1452,9 +1452,9 @@ const DailyProgress = () => {
             }
           >
             <div className="space-y-4 text-left">
-              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs text-amber-200">
-                <div className="font-bold flex items-center gap-1.5 mb-1 text-amber-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs dark:text-amber-200 text-amber-800">
+                <div className="font-bold flex items-center gap-1.5 mb-1 dark:text-amber-400 text-amber-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                   Back-Dated Entry Detected
                 </div>
                 You have selected a date prior to today. Please provide a brief reason for recording a back-dated progress log.
