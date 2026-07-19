@@ -445,18 +445,28 @@ async function getProjectsHealth(req, res) {
  * Explicitly triggers view updates from backend (restriced to HO/admin)
  */
 async function triggerRefresh(req, res) {
-  try {
-    const { error } = await supabase.rpc('refresh_analytics_views');
-    if (error) throw error;
+  // Respond immediately to prevent client-side HTTP timeouts
+  res.status(202).json({
+    success: true,
+    message: 'Analytics views refresh triggered in the background.'
+  });
 
-    return res.status(200).json({
-      success: true,
-      message: 'Analytics views refreshed successfully.'
+  console.log('[ANALYTICS] Initiating background refresh of materialized views...');
+  const startTime = Date.now();
+
+  // Execute Supabase RPC call in the background
+  supabase.rpc('refresh_analytics_views')
+    .then(({ error }) => {
+      if (error) {
+        console.error('[ANALYTICS] Background views refresh failed:', error.message || error);
+      } else {
+        const duration = Date.now() - startTime;
+        console.log(`[ANALYTICS] Background views refresh completed successfully in ${duration} ms.`);
+      }
+    })
+    .catch(err => {
+      console.error('[ANALYTICS] Background views refresh encountered exception:', err.message || err);
     });
-  } catch (error) {
-    console.error('[ANALYTICS] Error in triggerRefresh:', error.message || error);
-    return res.status(500).json({ success: false, message: 'Failed to refresh analytics views.' });
-  }
 }
 
 module.exports = {

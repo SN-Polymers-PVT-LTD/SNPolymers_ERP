@@ -1291,7 +1291,8 @@ const Requisitions = () => {
     queryFn: async () => {
       const res = await getRequisitions();
       return res.data?.requisitions ?? [];
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   const { data: projectsData } = useQuery({
@@ -1299,7 +1300,8 @@ const Requisitions = () => {
     queryFn: async () => {
       const res = await getProjects();
       return res.data?.projects ?? [];
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   const { data: estimatesData } = useQuery({
@@ -1307,7 +1309,8 @@ const Requisitions = () => {
     queryFn: async () => {
       const res = await getEstimates({ status: 'Final Approved', limit: 1000 });
       return res.data?.estimates ?? [];
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const { data: categoriesData } = useQuery({
@@ -1315,7 +1318,8 @@ const Requisitions = () => {
     queryFn: async () => {
       const res = await getMaterialCategories();
       return res.data?.mainHeads ?? [];
-    }
+    },
+    staleTime: 300 * 1000
   });
 
   const requisitions = requisitionsData || [];

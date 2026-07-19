@@ -40,7 +40,8 @@ const AuditComplianceCenter = () => {
         limit: 50
       });
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const logs = auditRes?.data || [];

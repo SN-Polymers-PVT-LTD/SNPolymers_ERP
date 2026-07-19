@@ -50,7 +50,8 @@ const FundRequests = () => {
     queryFn: async () => {
       const res = await getFundRequests();
       return res.data?.fundRequests ?? [];
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   const requests = requestsData || [];

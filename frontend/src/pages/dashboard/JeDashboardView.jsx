@@ -13,7 +13,8 @@ const JeDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const projects = projectsRes?.projects || [];
@@ -24,7 +25,8 @@ const JeDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/estimates?limit=100');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const estimates = estimatesRes?.estimates || [];
@@ -35,7 +37,8 @@ const JeDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const requisitions = requisitionsRes?.requisitions || [];

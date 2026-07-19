@@ -20,7 +20,8 @@ const HoDashboardView = () => {
       const res = await authApi.get('/projects/dashboard/overview');
       return res.data;
     },
-    refetchInterval: 30000
+    refetchInterval: 30000,
+    staleTime: 30000
   });
 
   const overview = overviewRes?.overview || { totalProjects: 0, running: 0, closed: 0, maintenance: 0 };
@@ -32,7 +33,8 @@ const HoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/estimates?limit=100');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const estimates = estimatesRes?.estimates || [];
@@ -46,7 +48,8 @@ const HoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const requisitions = requisitionsRes?.requisitions || [];
@@ -64,7 +67,8 @@ const HoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   const projects = projectsRes?.projects || [];

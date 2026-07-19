@@ -19,7 +19,8 @@ const StaffDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const requisitions = requisitionsRes?.requisitions || [];

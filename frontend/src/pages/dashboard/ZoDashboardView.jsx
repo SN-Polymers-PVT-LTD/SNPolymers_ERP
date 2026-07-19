@@ -19,7 +19,8 @@ const ZoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/zo-balances');
       return res.data;
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   const balanceData = balanceRes?.balances?.[0] || {
@@ -34,7 +35,8 @@ const ZoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const projects = projectsRes?.projects || [];
@@ -45,7 +47,8 @@ const ZoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/user-mappings');
       return res.data;
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   const mappings = mappingsRes?.mappings || [];
@@ -56,7 +59,8 @@ const ZoDashboardView = () => {
     queryFn: async () => {
       const res = await authApi.get('/projects/dashboard/overview');
       return res.data;
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   const activities = overviewRes?.recentActivity || [];

@@ -77,7 +77,8 @@ const Estimates = () => {
       
       const response = await authApi.get('/estimates', { params });
       return response.data;
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   const estimates = estimatesData?.estimates || [];

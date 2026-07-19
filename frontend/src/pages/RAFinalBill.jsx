@@ -126,7 +126,8 @@ const RAFinalBill = () => {
     queryFn: async () => {
       const res = await getProjects();
       return res.data?.projects ?? [];
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   // Fetch paginated bills list using React Query
@@ -143,7 +144,8 @@ const RAFinalBill = () => {
       };
       const res = await getBills(params);
       return res.data;
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   // Fetch stats (all bills) using React Query
@@ -152,7 +154,8 @@ const RAFinalBill = () => {
     queryFn: async () => {
       const res = await getBills({ limit: 1000 });
       return res.data?.bills ?? [];
-    }
+    },
+    staleTime: 60 * 1000
   });
 
   // Fetch bills for active project timeline using React Query
@@ -162,7 +165,8 @@ const RAFinalBill = () => {
       const res = await getBills({ work_order_no: activeWO.work_order_no, limit: 200 });
       return (res.data?.bills ?? []).slice().reverse();
     },
-    enabled: !!activeWO
+    enabled: !!activeWO,
+    staleTime: 30 * 1000
   });
 
   // Fetch bill summary for active project using React Query
@@ -172,7 +176,8 @@ const RAFinalBill = () => {
       const res = await getBillSummary(activeWO.work_order_no);
       return res.data;
     },
-    enabled: !!activeWO
+    enabled: !!activeWO,
+    staleTime: 30 * 1000
   });
 
   const projects = projectsData || [];

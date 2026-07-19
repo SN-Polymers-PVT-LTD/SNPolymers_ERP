@@ -153,7 +153,8 @@ const DailyProgress = () => {
     queryFn: async () => {
       const res = await getProjects();
       return res.data?.projects ?? [];
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   // Fetch latest global progress reports using React Query
@@ -162,7 +163,8 @@ const DailyProgress = () => {
     queryFn: async () => {
       const res = await getProgressReports({ page: 1, limit: 100 });
       return res.data?.reports ?? [];
-    }
+    },
+    staleTime: 30 * 1000
   });
 
   // Fetch reports specifically for active project timeline using React Query
@@ -176,7 +178,8 @@ const DailyProgress = () => {
       });
       return (res.data?.reports ?? []).slice().reverse();
     },
-    enabled: !!activeWO
+    enabled: !!activeWO,
+    staleTime: 30 * 1000
   });
 
   const projects = projectsData || [];

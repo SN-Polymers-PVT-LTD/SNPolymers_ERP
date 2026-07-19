@@ -27,7 +27,8 @@ const DigitalTwinHub = () => {
     queryFn: async () => {
       const res = await getProjectsHealth();
       return res.data;
-    }
+    },
+    staleTime: 120 * 1000
   });
 
   const projects = projectRes?.data || [];
