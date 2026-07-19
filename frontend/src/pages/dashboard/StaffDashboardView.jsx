@@ -15,7 +15,7 @@ const formatINR = (value) => {
 const StaffDashboardView = () => {
   // Fetch payment requisitions
   const { data: requisitionsRes, isLoading } = useQuery({
-    queryKey: ['requisitions'],
+    queryKey: ['staffDashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;

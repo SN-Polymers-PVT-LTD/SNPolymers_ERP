@@ -31,7 +31,7 @@ const JeDashboardView = () => {
 
   // 3. Fetch Requisitions to count logs raised per project
   const { data: requisitionsRes } = useQuery({
-    queryKey: ['requisitions'],
+    queryKey: ['jeDashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
       return res.data;
