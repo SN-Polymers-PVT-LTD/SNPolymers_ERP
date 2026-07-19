@@ -82,8 +82,8 @@ const ZoDashboard = () => {
 
   // Summary Metrics calculations
   const totalJEs = jeList.length;
-  const activeProjectsSum = jeList.reduce((sum, item) => sum + Number(item.active_projects_count || 0), 0);
-  const totalSubmissionsSum = jeList.reduce((sum, item) => sum + Number(item.total_reports_submitted || 0), 0);
+  const activeProjectsSum = jeList.reduce((sum, item) => sum + Number(item.assigned_projects_count || 0), 0);
+  const totalSubmissionsSum = jeList.reduce((sum, item) => sum + Number(item.daily_reports_submitted_count || 0), 0);
   const longestStreak = jeList.length > 0 ? Math.max(...jeList.map(item => item.streak_days || 0)) : 0;
 
   const isPageLoading = prodLoading || actLoading;
@@ -248,7 +248,7 @@ const ZoDashboard = () => {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {paginatedJEs.map((row, idx) => {
-                          const percentage = Math.min(100, ((row.active_projects_count || 0) / 10) * 100);
+                          const percentage = Math.min(100, ((row.assigned_projects_count || 0) / 10) * 100);
                           return (
                             <div key={idx} className="glass-panel p-5 rounded-2xl relative overflow-hidden transition-all duration-300 hover:border-white/15 bg-white/[0.01] flex flex-col justify-between min-h-[190px]">
                               {/* Top row */}
@@ -272,11 +272,11 @@ const ZoDashboard = () => {
                               <div className="grid grid-cols-2 gap-4 my-4 border-y border-white/5 py-3">
                                 <div>
                                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Projects Mapped</span>
-                                  <span className="text-sm font-black text-slate-300 mt-1 block">{row.active_projects_count || 0} Sites</span>
+                                  <span className="text-sm font-black text-slate-300 mt-1 block">{row.assigned_projects_count || 0} Sites</span>
                                 </div>
                                 <div>
                                   <span className="text-[9px] font-bold uppercase tracking-widest text-slate-500 block">Reports Filed</span>
-                                  <span className="text-sm font-black text-slate-300 mt-1 block">{row.total_reports_submitted || 0} DPRs</span>
+                                  <span className="text-sm font-black text-slate-300 mt-1 block">{row.daily_reports_submitted_count || 0} DPRs</span>
                                 </div>
                               </div>
 
@@ -284,7 +284,7 @@ const ZoDashboard = () => {
                               <div className="space-y-1.5">
                                 <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-slate-500">
                                   <span>Workload Load Factor</span>
-                                  <span className="text-slate-300">{row.active_projects_count || 0}/10 projects</span>
+                                  <span className="text-slate-300">{row.assigned_projects_count || 0}/10 projects</span>
                                 </div>
                                 <div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
                                   <div
