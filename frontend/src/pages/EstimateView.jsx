@@ -67,6 +67,7 @@ const EstimateView = () => {
   const [success, setSuccess] = useState('');
   const [showPremiumSuccess, setShowPremiumSuccess] = useState(false);
   const [successDetails, setSuccessDetails] = useState({ title: '', message: '', estimateNo: '', status: '' });
+  const [showApproveAllConfirm, setShowApproveAllConfirm] = useState(false);
 
   // Fetch estimate details using React Query
   const { data: estimateData, isLoading: loading, error: queryError } = useQuery({
@@ -247,6 +248,29 @@ const EstimateView = () => {
 
     setReviewRemarks('');
     setShowSubmitReviewModal(true);
+  };
+
+  const handleApproveAllConfirm = () => {
+    const updated = { ...rowDecisions };
+    items.forEach(item => {
+      // ZO-approved or HO-decided rows will stay locked due to existing map checks on save/submit,
+      // but for draft review session, marking all as Approve is standard.
+      updated[item.item_id] = {
+        ...updated[item.item_id],
+        approve_status: 'Approve',
+        remarks: ''
+      };
+    });
+    setRowDecisions(updated);
+    setShowApproveAllConfirm(false);
+
+    setSuccessDetails({
+      title: 'Bulk Action Applied',
+      message: 'All items marked as Approved in current review session. Remember to click "Submit Final Review" or "Save Row Approvals" to save changes.',
+      estimateNo: estimate?.estimate_no || 'N/A',
+      status: 'Approve All Draft'
+    });
+    setShowPremiumSuccess(true);
   };
 
   const handleFinalizeSubmitReview = async () => {
@@ -495,18 +519,6 @@ const EstimateView = () => {
             )}
           </div>
         </div>
-
-        {displayError && (
-          <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6">
-            {displayError}
-          </div>
-        )}
-
-        {success && (
-          <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-6">
-            {success}
-          </div>
-        )}
 
         {/* PRINTABLE AREA CONTAINER */}
         <div id="printable-estimate-area" className="space-y-8 bg-black p-4 rounded-3xl">
@@ -963,6 +975,14 @@ const EstimateView = () => {
                 <div className="flex gap-3">
                   <Button
                     type="button"
+                    onClick={() => setShowApproveAllConfirm(true)}
+                    variant="success"
+                    disabled={submitting}
+                  >
+                    Approve All Rows
+                  </Button>
+                  <Button
+                    type="button"
                     onClick={handleSaveRowApprovals}
                     variant="secondary"
                     disabled={submitting}
@@ -1263,6 +1283,106 @@ const EstimateView = () => {
                     {successDetails.status}
                   </span>
                 </div>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {/* ── VALIDATION ERROR MODAL ── */}
+        {error && (
+          <Modal
+            isOpen={true}
+            onClose={() => setError('')}
+            title="Action Rejected"
+            subtitle="Validation Alert"
+            size="sm"
+            footer={
+              <Button
+                variant="primary"
+                onClick={() => setError('')}
+                className="w-full"
+              >
+                Understood
+              </Button>
+            }
+          >
+            <div className="text-center py-4 space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <p className="text-xs text-slate-300 px-4 leading-relaxed font-semibold">
+                {error}
+              </p>
+            </div>
+          </Modal>
+        )}
+
+        {/* ── SUCCESS MESSAGE MODAL ── */}
+        {success && (
+          <Modal
+            isOpen={true}
+            onClose={() => setSuccess('')}
+            title="Action Successful"
+            subtitle="Confirmation Alert"
+            size="sm"
+            footer={
+              <Button
+                variant="amber"
+                onClick={() => setSuccess('')}
+                className="w-full"
+              >
+                Continue
+              </Button>
+            }
+          >
+            <div className="text-center py-4 space-y-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-xs text-slate-300 px-4 leading-relaxed font-semibold">
+                {success}
+              </p>
+            </div>
+          </Modal>
+        )}
+
+        {/* ── APPROVE ALL CONFIRMATION MODAL ── */}
+        {showApproveAllConfirm && (
+          <Modal
+            isOpen={true}
+            onClose={() => setShowApproveAllConfirm(false)}
+            title="Approve All Line Items"
+            subtitle="Estimates Module"
+            size="sm"
+            footer={
+              <div className="flex justify-end gap-3 w-full">
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowApproveAllConfirm(false)}
+                  disabled={submitting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="success"
+                  onClick={handleApproveAllConfirm}
+                  disabled={submitting}
+                >
+                  Confirm Approve All
+                </Button>
+              </div>
+            }
+          >
+            <div className="space-y-4 text-left">
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-xs dark:text-emerald-200 text-emerald-800">
+                <div className="font-bold flex items-center gap-1.5 mb-1 dark:text-emerald-400 text-emerald-700">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Confirmation Required
+                </div>
+                Are you sure you want to mark all line items as Approved in your active draft review? This action will overwrite any other statuses.
               </div>
             </div>
           </Modal>
