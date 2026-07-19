@@ -55,7 +55,7 @@ const submitRowApprovalsSchema = {
       z.object({
         item_id: z.string().regex(uuidRegex, 'Invalid item UUID.').transform(val => val.trim()),
         approve_status: z.enum(['Approve', 'Not Approve']),
-        remarks: z.string().optional().nullable(),
+        remarks: z.string().default('').optional(),
         source_of_purchase: z.string().regex(uuidRegex, 'Invalid UUID format.').optional().nullable()
       }).superRefine((data, ctx) => {
         if (data.approve_status === 'Not Approve' && (!data.remarks || data.remarks.trim() === '')) {

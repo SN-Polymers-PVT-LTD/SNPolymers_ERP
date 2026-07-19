@@ -203,7 +203,7 @@ const EstimateView = () => {
       .map(itemId => ({
         item_id: itemId,
         approve_status: rowDecisions[itemId].approve_status,
-        remarks: rowDecisions[itemId].remarks || null,
+        remarks: rowDecisions[itemId].remarks || '',
         source_of_purchase: rowDecisions[itemId].source_of_purchase || null
       }));
 
@@ -293,7 +293,7 @@ const EstimateView = () => {
       const approvalsPayload = items.map(item => ({
         item_id: item.item_id,
         approve_status: rowDecisions[item.item_id].approve_status,
-        remarks: rowDecisions[item.item_id].remarks || null,
+        remarks: rowDecisions[item.item_id].remarks || '',
         source_of_purchase: rowDecisions[item.item_id].source_of_purchase || null
       }));
       await authApi.post(`/estimates/${id}/row-approvals`, { approvals: approvalsPayload });
@@ -356,7 +356,7 @@ const EstimateView = () => {
         .map(itemId => ({
           item_id: itemId,
           approve_status: rowDecisions[itemId].approve_status,
-          remarks: rowDecisions[itemId].remarks || null,
+          remarks: rowDecisions[itemId].remarks || '',
           source_of_purchase: rowDecisions[itemId].source_of_purchase || null
         }));
       await authApi.post(`/estimates/${id}/row-approvals`, { approvals: approvalsPayload });
