@@ -104,6 +104,154 @@
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
   }
+
+  /* ─── Chart Panel System ─────────────────────────────────────────────────── */
+  /* Base panel: dark mode */
+  .chart-panel {
+    position: relative;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    box-shadow:
+      0 4px 30px rgba(0, 0, 0, 0.35),
+      inset 0 1px 1px rgba(255, 255, 255, 0.04);
+    border-radius: 1.5rem;
+    padding: 1.5rem;
+  }
+
+  /* Chart typography — dark */
+  .chart-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(148, 163, 184, 0.9);
+  }
+  .chart-subtitle {
+    font-size: 0.57rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: rgba(100, 116, 139, 0.7);
+    margin-top: 0.2rem;
+  }
+  .chart-label {
+    color: rgba(100, 116, 139, 0.8);
+  }
+  .chart-text-primary {
+    color: rgba(248, 250, 252, 0.9);
+  }
+  .chart-text-secondary {
+    color: rgba(148, 163, 184, 0.7);
+  }
+
+  /* Chart badges — dark mode semantic colour tokens */
+  .badge-emerald {
+    background: rgba(4, 120, 87, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.25);
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+  }
+  .badge-amber {
+    background: rgba(120, 53, 15, 0.25);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+  }
+  .badge-rose {
+    background: rgba(136, 19, 55, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    padding: 0.15rem 0.6rem;
+    border-radius: 0.4rem;
+    font-size: 0.625rem;
+    font-weight: 800;
+  }
+
+  /* Chart tooltip — dark */
+  .chart-tooltip {
+    background: rgba(7, 15, 35, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .chart-tooltip-title  { color: rgba(248, 250, 252, 0.95); }
+  .chart-tooltip-mono   { color: rgba(148, 163, 184, 0.6); font-family: monospace; }
+  .chart-tooltip-label  { color: rgba(148, 163, 184, 0.75); }
+  .chart-tooltip-normal { color: rgba(203, 213, 225, 0.85); }
+  .chart-tooltip-divider { border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 0.35rem; }
+
+  /* Chart table — dark */
+  .chart-table-header {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: rgba(100, 116, 139, 0.7);
+  }
+  .chart-table-body > tr + tr {
+    border-top: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .chart-table-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .chart-table-row-selected {
+    background: rgba(255, 255, 255, 0.07) !important;
+  }
+
+  /* Chart select — dark */
+  .chart-select {
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(203, 213, 225, 0.9);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .chart-select:hover,
+  .chart-select:focus {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  /* Chart filter button — dark */
+  .chart-filter-btn {
+    padding: 0.35rem 0.85rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 0.58rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(148, 163, 184, 0.8);
+    background: transparent;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .chart-filter-btn:hover {
+    color: rgba(248, 250, 252, 0.95);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  /* Stat tile inside Portfolio Pulse panel — dark */
+  .chart-stat-cell {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.06);
+    transition: background 0.2s;
+  }
+  .chart-stat-cell:hover {
+    background: rgba(255, 255, 255, 0.05);
+  }
 }
 
 /* Print-specific layout styling for PDF snapshot exports */
@@ -543,3 +691,115 @@ body.light .tooltip-popover {
 }
 
 
+/* ─── Chart System — Light Mode Overrides ────────────────────────────────── */
+
+body.light .chart-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.07) !important;
+  box-shadow:
+    0 8px 32px -8px rgba(0, 0, 0, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.light .chart-title {
+  color: #1e293b !important;
+}
+
+body.light .chart-subtitle {
+  color: #64748b !important;
+}
+
+body.light .chart-label {
+  color: #64748b !important;
+}
+
+body.light .chart-text-primary {
+  color: #0f172a !important;
+}
+
+body.light .chart-text-secondary {
+  color: #475569 !important;
+}
+
+/* Light mode badges */
+body.light .badge-emerald {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #065f46 !important;
+  border-color: rgba(16, 185, 129, 0.3) !important;
+}
+
+body.light .badge-amber {
+  background: rgba(245, 158, 11, 0.1) !important;
+  color: #92400e !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
+}
+
+body.light .badge-rose {
+  background: rgba(239, 68, 68, 0.1) !important;
+  color: #991b1b !important;
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Light mode chart tooltip */
+body.light .chart-tooltip {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.14), 0 1px 4px rgba(0, 0, 0, 0.06) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+body.light .chart-tooltip-title  { color: #0f172a !important; }
+body.light .chart-tooltip-mono   { color: #64748b !important; }
+body.light .chart-tooltip-label  { color: #475569 !important; }
+body.light .chart-tooltip-normal { color: #334155 !important; }
+body.light .chart-tooltip-divider { border-top-color: rgba(0, 0, 0, 0.07) !important; }
+
+/* Light mode chart table */
+body.light .chart-table-header {
+  border-bottom-color: rgba(0, 0, 0, 0.08) !important;
+  color: #64748b !important;
+}
+body.light .chart-table-body > tr + tr {
+  border-top-color: rgba(0, 0, 0, 0.05) !important;
+}
+body.light .chart-table-row:hover {
+  background: rgba(99, 102, 241, 0.04) !important;
+}
+body.light .chart-table-row-selected {
+  background: rgba(99, 102, 241, 0.07) !important;
+}
+
+/* Light mode chart select */
+body.light .chart-select {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  color: #1e293b !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
+}
+body.light .chart-select:hover,
+body.light .chart-select:focus {
+  border-color: rgba(99, 102, 241, 0.35) !important;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08) !important;
+}
+
+/* Light mode chart filter button */
+body.light .chart-filter-btn {
+  color: #475569 !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  background: transparent !important;
+}
+body.light .chart-filter-btn:hover {
+  color: #0f172a !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.18) !important;
+}
+
+body.light .chart-stat-cell {
+  background: rgba(0, 0, 0, 0.02) !important;
+  border-color: rgba(0, 0, 0, 0.07) !important;
+}
+body.light .chart-stat-cell:hover {
+  background: rgba(99, 102, 241, 0.05) !important;
+}

@@ -472,6 +472,223 @@ async function triggerRefresh(req, res) {
     });
 }
 
+/**
+ * GET /api/v1/auth/analytics/ho/actionable-insights
+ * Returns runway data, stalled projects, and high-revision alerts.
+ * Restricted to HO and Admin roles.
+ */
+async function getHoActionableInsights(req, res) {
+  try {
+    // Role protection checkpoint (Security-in-Depth)
+    if (req.user.role !== 'ho' && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Authorized executive roles only.' });
+    }
+
+    // 1. Fetch all ZO balances
+    const { data: balances, error: balErr } = await supabase
+      .from('zo_balances')
+      .select('zo_user_id, available_balance');
+    if (balErr) throw balErr;
+
+    // 2. Fetch last-30-day requisition burns per ZO
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: burns, error: burnErr } = await supabase
+      .from('requisitions')
+      .select('zo_user_id, approved_amount')
+      .eq('requisition_status', 'Approved')
+      .gte('payment_date', thirtyDaysAgo);
+    if (burnErr) throw burnErr;
+
+    // 3. Aggregate burn per ZO
+    const burnMap = {};
+    (burns || []).forEach(r => {
+      burnMap[r.zo_user_id] = (burnMap[r.zo_user_id] || 0) + Number(r.approved_amount || 0);
+    });
+
+    // 4. Build runway data array
+    const runwayData = (balances || []).map(b => {
+      const monthlyBurn = burnMap[b.zo_user_id] || 0;
+      const dailyBurn = monthlyBurn / 30;
+      const runwayDays = dailyBurn > 0
+        ? Math.floor(Number(b.available_balance) / dailyBurn)
+        : null; // null = no burn, infinite runway
+      return {
+        zo_user_id: b.zo_user_id,
+        available_balance: Number(b.available_balance),
+        monthly_burn: monthlyBurn,
+        daily_burn: parseFloat(dailyBurn.toFixed(2)),
+        runway_days: runwayDays
+      };
+    });
+
+    // 5. Stalled projects from project_health_mv view
+    const { data: stalled, error: stalledErr } = await supabase
+      .from('project_health_mv')
+      .select('work_order_no, site_details, days_since_last_progress_report, physical_progress')
+      .lt('physical_progress', 100)
+      .gt('days_since_last_progress_report', 7)
+      .order('days_since_last_progress_report', { ascending: false });
+    if (stalledErr) throw stalledErr;
+
+    // 6. High-revision projects (>3 revisions)
+    const { data: allEstimates, error: estErr } = await supabase
+      .from('project_cost_estimates')
+      .select('work_order_no');
+    if (estErr) throw estErr;
+
+    const revisionCount = {};
+    (allEstimates || []).forEach(e => {
+      revisionCount[e.work_order_no] = (revisionCount[e.work_order_no] || 0) + 1;
+    });
+    const highRevisionProjects = Object.entries(revisionCount)
+      .filter(([, count]) => count > 3)
+      .map(([work_order_no, revision_count]) => ({ work_order_no, revision_count }))
+      .sort((a, b) => b.revision_count - a.revision_count);
+
+    return res.status(200).json({
+      success: true,
+      runwayData,
+      stalledProjects: stalled || [],
+      highRevisionProjects
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error in getHoActionableInsights:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Internal server error fetching actionable insights.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/analytics/ho/chart-data
+ * Returns all 6 chart datasets in a single request.
+ * Accepts: ?view=all|zo|wo, ?zone=, ?work_order_no=
+ */
+async function getHoChartData(req, res) {
+  try {
+    // Role protection checkpoint (Security-in-Depth)
+    if (req.user.role !== 'ho' && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Authorized executive roles only.' });
+    }
+
+    const { view = 'all', zone, work_order_no } = req.query;
+    const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
+
+    const sumOf = (arr, key) =>
+      (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
+
+    // === Parallel fetch all chart sources ===
+    const [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes] =
+      await Promise.all([
+        supabase.from('project_health_mv').select(
+          'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
+        ),
+        supabase.from('project_cost_estimates').select('work_order_no, estimate_amount, estimate_status, estimate_revision, created_at'),
+        supabase.from('fund_requests').select('approve_ho_amount, request_status, work_order_no'),
+        supabase.from('requisitions').select('approved_amount, requisition_status, work_order_no, zo_user_id, payment_date'),
+        supabase.from('ra_final_bills').select('gross_bill, agency_payment, work_order_no'),
+        supabase.from('zo_fund_ledger').select('zo_user_id, transaction_type, amount, created_at').gte('created_at', twelveMonthsAgo).order('created_at', { ascending: true }),
+        supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
+        supabase.from('zone_performance_mv').select('*')
+      ]);
+
+    // Throw on first error
+    for (const r of [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes]) {
+      if (r.error) throw r.error;
+    }
+
+    // === Build bubbleMatrix ===
+    let bubbleMatrix = (healthRes.data || []).map(p => ({
+      work_order_no: p.work_order_no,
+      site_details: p.site_details,
+      zone: p.zone,
+      physical_progress: Number(p.physical_progress || 0),
+      budget_utilization_pct: p.work_order_value > 0
+        ? parseFloat(((Number(p.approved_requisitions_amount) / Number(p.work_order_value)) * 100).toFixed(1))
+        : 0,
+      days_since_dpr: Number(p.days_since_last_progress_report || 0),
+      health_score: Number(p.health_score || 0),
+      health_status: p.health_status,
+      anomaly_score: p.health_status === 'Critical' ? 4 : p.health_status === 'Warning' ? 2 : 0
+    }));
+    if (zone) bubbleMatrix = bubbleMatrix.filter(p => p.zone === zone);
+    if (work_order_no) bubbleMatrix = bubbleMatrix.filter(p => p.work_order_no === work_order_no);
+
+    // === Build waterfallData ===
+    const finalEstimates = (estimatesRes.data || []).filter(e => e.estimate_status === 'Final Approved');
+    const approvedFunds  = (fundReqsRes.data  || []).filter(f => f.request_status === 'Approved');
+    const approvedReqs   = (reqsRes.data       || []).filter(r => r.requisition_status === 'Approved');
+    const waterfallData = [
+      { stage: 'Final Approved Estimate', amount: sumOf(finalEstimates, 'estimate_amount') },
+      { stage: 'HO Allocated',           amount: sumOf(approvedFunds,  'approve_ho_amount') },
+      { stage: 'Requisitions Approved',  amount: sumOf(approvedReqs,   'approved_amount') },
+      { stage: 'Gross Billed',           amount: sumOf(billsRes.data,  'gross_bill') },
+      { stage: 'Agency Paid',            amount: sumOf(billsRes.data,  'agency_payment') }
+    ];
+
+    // === Build zonalHeatmap ===
+    const zonalHeatmap = (zoneRes.data || []).map(z => ({
+      zone: z.zone,
+      health_score: Number(z.average_health_score || 0),
+      budget_util: Number(z.budget_utilization_pct || 0),
+      total_projects: Number(z.total_projects || 0),
+      delayed_projects: Number(z.delayed_projects || 0),
+      projects_at_risk: Number(z.projects_at_risk || 0)
+    }));
+
+    // === Build revisionHeatmap ===
+    const revisionMap = {};
+    (estimatesRes.data || []).forEach(e => {
+      const month = e.created_at ? e.created_at.slice(0, 7) : 'unknown';
+      const key = `${e.work_order_no}__${month}`;
+      if (!revisionMap[key]) revisionMap[key] = { work_order_no: e.work_order_no, month, revision_count: 0 };
+      revisionMap[key].revision_count++;
+    });
+    const revisionHeatmap = Object.values(revisionMap);
+
+    // === Build sCurveData ===
+    const dprByWO = {};
+    (dprRes.data || []).forEach(d => {
+      if (!dprByWO[d.work_order_no]) dprByWO[d.work_order_no] = [];
+      dprByWO[d.work_order_no].push({ date: d.login_date, progress: Number(d.physical_work_progress || 0) });
+    });
+    const sCurveData = Object.entries(dprByWO).map(([wo, actuals]) => ({
+      work_order_no: wo,
+      actuals
+    }));
+
+    // === Build runwayTrend ===
+    const ledgerByZO = {};
+    (ledgerRes.data || []).forEach(tx => {
+      if (!ledgerByZO[tx.zo_user_id]) ledgerByZO[tx.zo_user_id] = [];
+      ledgerByZO[tx.zo_user_id].push({
+        date: tx.created_at.slice(0, 10),
+        amount: tx.transaction_type === 'REQUISITION_APPROVAL'
+          ? -Number(tx.amount) : Number(tx.amount)
+      });
+    });
+    const runwayTrend = Object.entries(ledgerByZO).map(([zo_user_id, txs]) => {
+      let running = 0;
+      const history = txs.map(tx => {
+        running += tx.amount;
+        return { date: tx.date, balance: running };
+      });
+      return { zo_user_id, history };
+    });
+
+    return res.status(200).json({
+      success: true,
+      bubbleMatrix,
+      waterfallData,
+      zonalHeatmap,
+      runwayTrend,
+      sCurveData,
+      revisionHeatmap
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error in getHoChartData:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Internal server error fetching chart data.' });
+  }
+}
+
 module.exports = {
   getHoKpis,
   getHoResourceUtilization,
@@ -483,5 +700,7 @@ module.exports = {
   getAuditLog,
   getProjectDigitalTwin,
   triggerRefresh,
-  getProjectsHealth
+  getProjectsHealth,
+  getHoActionableInsights,
+  getHoChartData
 };

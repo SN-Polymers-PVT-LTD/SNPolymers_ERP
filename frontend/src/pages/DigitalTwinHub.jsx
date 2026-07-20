@@ -111,7 +111,7 @@ const DigitalTwinHub = () => {
           <div className="mb-10 pb-6 border-b border-white/5">
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Regional Portfolios</span>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Project Digital Twin Hub</h1>
-            <p className="text-xs text-slate-400 mt-1.5">Select a regional construction work order to launch its complete 13-panel digital twin simulation.</p>
+            <p className="text-xs text-slate-400 mt-1.5">Select a regional construction work order to launch its complete 5-panel digital twin simulation.</p>
           </div>
 
           {/* Search Filters Row */}

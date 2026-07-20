@@ -10,7 +10,9 @@ const {
   getAuditLog,
   getProjectDigitalTwin,
   triggerRefresh,
-  getProjectsHealth
+  getProjectsHealth,
+  getHoActionableInsights,
+  getHoChartData
 } = require('../controllers/analytics.controller');
 const verifyJwt  = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -27,6 +29,8 @@ router.get('/ho/resource-utilization', requireRole(hoRoles), getHoResourceUtiliz
 router.get('/ho/approval-sla',         requireRole(hoRoles), getHoApprovalSla);
 router.get('/ho/zone-benchmarking',    requireRole(hoRoles), getHoZoneBenchmarking);
 router.get('/ho/budget-leakage',       requireRole(hoRoles), getHoBudgetLeakage);
+router.get('/ho/actionable-insights',  requireRole(hoRoles), getHoActionableInsights);
+router.get('/ho/chart-data',           requireRole(hoRoles), getHoChartData);
 
 // ZO + HO Routes
 router.get('/zo/productivity',         requireRole(['zo', 'ho', 'admin']), getZoProductivity);

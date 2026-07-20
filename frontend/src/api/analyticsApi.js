@@ -11,3 +11,5 @@ export const getAuditLog            = (params) => authApi.get('/analytics/audit-
 export const getProjectDigitalTwin  = (wo)     => authApi.get(`/analytics/project/${wo}/digital-twin`);
 export const refreshAnalyticsViews  = ()       => authApi.post('/analytics/refresh');
 export const getProjectsHealth      = ()       => authApi.get('/analytics/projects');
+export const getHoActionableInsights = ()       => authApi.get('/analytics/ho/actionable-insights');
+export const getHoChartData          = (params) => authApi.get('/analytics/ho/chart-data', { params });
