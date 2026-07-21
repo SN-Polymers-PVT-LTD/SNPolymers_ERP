@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
+import Modal from '../components/ui/Modal';
 import BackgroundShapes from '../components/BackgroundShapes';
 import { getProjectsHealth } from '../api/analyticsApi';
 
@@ -98,8 +99,7 @@ const DigitalTwinHub = () => {
 
   return (
     <>
-      {/* Header Row */}
-          
+        
           {/* Header Row */}
           <div className="mb-10 pb-6 border-b border-white/5">
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Regional Portfolios</span>
@@ -285,63 +285,47 @@ const DigitalTwinHub = () => {
             </div>
           )}
 
-        {showPinLimitModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn">
-            <div className="glass-panel p-6 rounded-3xl max-w-sm w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden text-left bg-gradient-to-b from-slate-950 to-black">
-              <div className="flex justify-between items-center mb-5">
-                <div className="flex items-center gap-2 text-sky-400">
-                  <svg className="w-5 h-5 fill-current transform rotate-[30deg]" viewBox="0 0 24 24">
-                    <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-                  </svg>
-                  <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-200">Pin Limit Reached</h3>
-                </div>
-                <button
-                  onClick={() => setShowPinLimitModal(false)}
-                  className="text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+      <Modal
+        isOpen={showPinLimitModal}
+        onClose={() => setShowPinLimitModal(false)}
+        title="Pin Limit Reached"
+        subtitle="Pinned Projects Profile"
+        size="sm"
+      >
+        <p className="text-xs text-slate-400 leading-relaxed mb-6">
+          You can only pin up to <span className="font-extrabold text-sky-400">3 projects</span> to the sidebar. To pin this project, please unpin one of the following first:
+        </p>
 
-              <p className="text-xs text-slate-400 leading-relaxed mb-6">
-                You can only pin up to <span className="font-extrabold text-sky-400">3 projects</span> to the sidebar. To pin this project, please unpin one of the following first:
-              </p>
-
-              <div className="space-y-2 mb-6">
-                {pinnedProjects.map((wo) => (
-                  <div
-                    key={wo}
-                    className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-white/5"
-                  >
-                    <span className="text-xs font-mono font-semibold text-slate-300">{wo}</span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const updated = pinnedProjects.filter(item => item !== wo);
-                        setPinnedProjects(updated);
-                        localStorage.setItem('pinnedProjects', JSON.stringify(updated));
-                        window.dispatchEvent(new Event('pinned-projects-updated'));
-                      }}
-                      className="text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300 transition-colors"
-                    >
-                      Unpin
-                    </button>
-                  </div>
-                ))}
-              </div>
-
+        <div className="space-y-2 mb-6">
+          {pinnedProjects.map((wo) => (
+            <div
+              key={wo}
+              className="flex justify-between items-center p-3 rounded-xl bg-white/5 border border-white/5"
+            >
+              <span className="text-xs font-mono font-semibold text-slate-300">{wo}</span>
               <button
-                onClick={() => setShowPinLimitModal(false)}
-                className="w-full bg-white hover:bg-slate-100 text-slate-950 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const updated = pinnedProjects.filter(item => item !== wo);
+                  setPinnedProjects(updated);
+                  localStorage.setItem('pinnedProjects', JSON.stringify(updated));
+                  window.dispatchEvent(new Event('pinned-projects-updated'));
+                }}
+                className="text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300 transition-colors"
               >
-                Close
+                Unpin
               </button>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
 
+        <button
+          onClick={() => setShowPinLimitModal(false)}
+          className="w-full bg-white hover:bg-slate-100 text-slate-950 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+        >
+          Close
+        </button>
+      </Modal>
     </>
   );
 };

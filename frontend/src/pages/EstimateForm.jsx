@@ -459,11 +459,7 @@ const EstimateForm = () => {
   const isFormLockedByExpiry = isExpired && user?.role !== 'admin';
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         
         {/* Header */}
@@ -848,46 +844,44 @@ const EstimateForm = () => {
         </div>
       </main>
 
-      {showConfirmSubmit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md animate-fadeIn">
-          <div className="glass-panel p-8 rounded-3xl max-w-md w-full border border-amber-500/20 shadow-[0_0_50px_rgba(245,158,11,0.15)] relative overflow-hidden mx-4">
-            {/* Ambient Amber Glow */}
-            <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="flex flex-col items-center text-center">
-              {/* Submit Icon */}
-              <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-6 shadow-inner animate-pulse">
-                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
+      <Modal
+        isOpen={showConfirmSubmit}
+        onClose={() => setShowConfirmSubmit(false)}
+        title="Submit Cost Estimate?"
+        subtitle="Work Order Actions"
+        size="sm"
+      >
+        <div className="flex flex-col items-center text-center">
+          {/* Submit Icon */}
+          <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-6 shadow-inner animate-pulse">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
 
-              <h3 className="text-base font-black text-slate-100 uppercase tracking-widest mb-3">Submit Cost Estimate?</h3>
-              <p className="text-xs text-slate-400 font-medium mb-6 leading-relaxed">
-                Submit this cost estimate for review? You will not be able to edit items unless a revision is requested.
-              </p>
+          <p className="text-xs text-slate-400 font-medium mb-6 leading-relaxed">
+            Submit this cost estimate for review? You will not be able to edit items unless a revision is requested.
+          </p>
 
-              <div className="flex gap-4 w-full">
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmSubmit(false)}
-                  className="flex-1 bg-white/5 hover:bg-white/10 text-slate-200 font-bold py-3 px-6 rounded-2xl border border-white/5 transition duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={executeSubmit}
-                  className="flex-1 bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-bold py-3 px-6 rounded-2xl transition duration-300 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
-                >
-                  Confirm
-                </button>
-              </div>
-            </div>
+          <div className="flex gap-4 w-full">
+            <button
+              type="button"
+              onClick={() => setShowConfirmSubmit(false)}
+              className="flex-1 bg-white/5 hover:bg-white/10 text-slate-200 font-bold py-3 px-6 rounded-2xl border border-white/5 transition duration-300"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={executeSubmit}
+              className="flex-1 bg-gradient-to-tr from-amber-500 to-amber-400 hover:from-amber-600 hover:to-amber-500 text-slate-950 font-bold py-3 px-6 rounded-2xl transition duration-300 shadow-[0_0_20px_rgba(245,158,11,0.25)]"
+            >
+              Confirm
+            </button>
           </div>
         </div>
-      )}
-    </div>
+      </Modal>
+    </>
   );
 };
 

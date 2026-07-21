@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import BackgroundShapes from '../../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../../components/Sidebar';
 import TopNavbar from '../../components/TopNavbar';
+import Modal from '../../components/ui/Modal';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
 import { exportProjectsToExcel } from '../../utils/exportHelpers';
 import { getEligibleZOs } from '../../api/userMappingsApi';
@@ -120,131 +121,113 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
-      <div className="glass-panel p-6 rounded-3xl max-w-xl w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden">
-        {/* Ambient glow */}
-        <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-amber-500/5 blur-3xl pointer-events-none" />
-
-        <div className="flex justify-between items-center mb-6 relative z-10">
-          <div>
-            <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500 font-mono">
-              {isEdit ? 'Modify Record' : 'New Record'}
-            </span>
-            <h2 className="text-sm font-extrabold uppercase tracking-widest text-slate-100 mt-0.5">
-              {isEdit ? 'Edit Project' : 'Create Project'}
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-200 transition-colors p-1"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={isEdit ? 'Edit Project' : 'Create Project'}
+      subtitle={isEdit ? 'Modify Record' : 'New Record'}
+      size="lg"
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+          {error}
         </div>
+      )}
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="relative z-10">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {fields.map(({ name, label, placeholder, disabled, type, ...rest }) => (
-              <div key={name} className={name === 'site_details' ? 'sm:col-span-2' : ''}>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  {label}
-                  {(name === 'work_order_no' || name === 'work_order_value') && <span className="text-red-400 ml-1">*</span>}
-                </label>
-                {type === 'select' ? (
-                  <select
-                    name={name}
-                    value={form[name] || ''}
-                    onChange={handleChange}
-                    disabled={submitting}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
-                  >
-                    <option value="" className="bg-slate-900 text-slate-100">Select Zonal Office...</option>
-                    {zos.map((zo) => (
-                      <option key={zo.mobile_number} value={zo.mobile_number} className="bg-slate-900 text-slate-100">
-                        {zo.display_name || zo.mobile_number}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={type || 'text'}
-                    name={name}
-                    value={form[name]}
-                    onChange={handleChange}
-                    placeholder={placeholder}
-                    disabled={disabled || submitting}
-                    required={name === 'work_order_no' || name === 'work_order_value'}
-                    className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
-                      disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
-                    }`}
-                    {...rest}
-                  />
-                )}
-                {disabled && (
-                  <p className="text-[9px] text-slate-500 mt-1 font-mono">
-                    ⊘ Immutable after creation
-                  </p>
-                )}
-              </div>
-            ))}
-
-            {/* Status – shown only on edit */}
-            {isEdit && (
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-                  Project Status
-                </label>
+      <form onSubmit={handleSubmit} className="relative z-10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {fields.map(({ name, label, placeholder, disabled, type, ...rest }) => (
+            <div key={name} className={name === 'site_details' ? 'sm:col-span-2' : ''}>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                {label}
+                {(name === 'work_order_no' || name === 'work_order_value') && <span className="text-red-400 ml-1">*</span>}
+              </label>
+              {type === 'select' ? (
                 <select
-                  name="status"
-                  value={form.status}
+                  name={name}
+                  value={form[name] || ''}
                   onChange={handleChange}
                   disabled={submitting}
                   className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
                 >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s} className="bg-slate-900 text-slate-100">
-                      {s}
+                  <option value="" className="bg-slate-900 text-slate-100">Select Zonal Office...</option>
+                  {zos.map((zo) => (
+                    <option key={zo.mobile_number} value={zo.mobile_number} className="bg-slate-900 text-slate-100">
+                      {zo.display_name || zo.mobile_number}
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
-          </div>
+              ) : (
+                <input
+                  type={type || 'text'}
+                  name={name}
+                  value={form[name]}
+                  onChange={handleChange}
+                  placeholder={placeholder}
+                  disabled={disabled || submitting}
+                  required={name === 'work_order_no' || name === 'work_order_value'}
+                  className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
+                  }`}
+                  {...rest}
+                />
+              )}
+              {disabled && (
+                <p className="text-[9px] text-slate-500 mt-1 font-mono">
+                  ⊘ Immutable after creation
+                </p>
+              )}
+            </div>
+          ))}
 
-          <div className="flex gap-3 justify-end mt-8">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-white hover:bg-slate-100 text-slate-950 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-xl disabled:opacity-60 flex items-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-slate-800" />
-                  Saving…
-                </>
-              ) : isEdit ? 'Save Changes' : 'Create Project'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          {/* Status – shown only on edit */}
+          {isEdit && (
+            <div className="sm:col-span-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Project Status
+              </label>
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                disabled={submitting}
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
+              >
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s} className="bg-slate-900 text-slate-100">
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3 justify-end mt-8">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="bg-white hover:bg-slate-100 text-slate-950 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-xl disabled:opacity-60 flex items-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-slate-800" />
+                Saving…
+              </>
+            ) : isEdit ? 'Save Changes' : 'Create Project'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 };
 
@@ -269,76 +252,67 @@ const StatusModal = ({ project, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
-      <div className="glass-panel p-6 rounded-3xl max-w-sm w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10">
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-sm font-extrabold uppercase tracking-widest text-slate-100">Update Status</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-200 transition-colors">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title="Update Status"
+      subtitle={project.work_order_no}
+      size="sm"
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit}>
+        <div className="space-y-2 mb-6">
+          {STATUS_OPTIONS.map((s) => (
+            <label
+              key={s}
+              className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
+                status === s
+                  ? 'border-amber-500/40 bg-amber-500/5'
+                  : 'border-white/5 bg-white/[0.02] hover:border-white/10'
+              }`}
+            >
+              <input
+                type="radio"
+                name="status"
+                value={s}
+                checked={status === s}
+                onChange={() => setStatus(s)}
+                className="accent-amber-500"
+              />
+              <StatusBadge status={s} />
+            </label>
+          ))}
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={submitting}
+            className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={submitting || status === project.status}
+            className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting ? (
+              <>
+                <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-slate-800" />
+                Updating…
+              </>
+            ) : 'Apply Status'}
           </button>
         </div>
-
-        <p className="text-[10px] font-mono text-slate-500 mb-4 uppercase tracking-widest">
-          {project.work_order_no}
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-2 mb-6">
-            {STATUS_OPTIONS.map((s) => (
-              <label
-                key={s}
-                className={`flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer transition-all duration-200 ${
-                  status === s
-                    ? 'border-amber-500/40 bg-amber-500/5'
-                    : 'border-white/5 bg-white/[0.02] hover:border-white/10'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="status"
-                  value={s}
-                  checked={status === s}
-                  onChange={() => setStatus(s)}
-                  className="accent-amber-500"
-                />
-                <StatusBadge status={s} />
-              </label>
-            ))}
-          </div>
-          <div className="flex gap-3 justify-end">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || status === project.status}
-              className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md disabled:opacity-50 flex items-center gap-2"
-            >
-              {submitting ? (
-                <>
-                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-slate-800" />
-                  Updating…
-                </>
-              ) : 'Apply Status'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </Modal>
   );
 };
 
@@ -544,13 +518,8 @@ const MasterData = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-full mx-auto w-full relative z-10">
 
         {/* ── Page Header ── */}
@@ -750,7 +719,7 @@ const MasterData = () => {
           onSave={handleStatusChange}
         />
       )}
-    </div>
+    </>
   );
 };
 

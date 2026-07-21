@@ -295,14 +295,7 @@ const MaterialMaster = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-4 md:p-8 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
+    <>
         
         {/* Module Header */}
         <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
@@ -552,8 +545,6 @@ const MaterialMaster = () => {
             </div>
           </div>
         </div>
-      </main>
-      </div>
 
       {/* Create / Edit Modal Dialog */}
       {isModalOpen && (
@@ -636,7 +627,7 @@ const MaterialMaster = () => {
           </form>
         </Modal>
       )}
-    </div>
+    </>
   );
 };
 

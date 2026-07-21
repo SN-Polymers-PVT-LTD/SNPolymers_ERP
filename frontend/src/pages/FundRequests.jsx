@@ -173,16 +173,9 @@ const FundRequests = () => {
   const showDetailOrForm = activeRequest || showCreateFlow;
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto w-full relative z-10">
+    <>
         
-        {showDetailOrForm ? (
+         {showDetailOrForm ? (
           /* Detail/Creation Mode Panel */
           <div className="glass-panel p-6 md:p-8 rounded-3xl border border-white/5 bg-gradient-to-br from-white/[0.01] to-transparent">
             <RequestDetailPanel
@@ -312,8 +305,6 @@ const FundRequests = () => {
             </div>
           </div>
         )}
-      </main>
-      </div>
 
       {/* Confirm Cancel Modal */}
       {cancelTarget && (
@@ -403,7 +394,7 @@ const FundRequests = () => {
           </div>
         </Modal>
       )}
-    </div>
+    </>
   );
 };
 

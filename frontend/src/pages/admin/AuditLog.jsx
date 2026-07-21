@@ -81,16 +81,9 @@ const AuditLog = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      {/* Background Silhouettes & Ambient Glows */}
-      <BackgroundShapes />
-
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       {/* Main Grid Panel */}
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         <div className="mb-10 pb-6 border-b border-white/5">
           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 font-mono">Console Verification Ledger</span>
@@ -212,7 +205,7 @@ const AuditLog = () => {
         </div>
       </main>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './components/AuthContext';
 import { ThemeProvider } from './components/ThemeContext';
+import { ModalProvider } from './components/ModalContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -52,9 +53,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <AuthProvider>
-          <Router>
-          <Routes>
+        <ModalProvider>
+          <AuthProvider>
+            <Router>
+            <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
@@ -128,6 +130,7 @@ function App() {
           </Routes>
         </Router>
       </AuthProvider>
+        </ModalProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

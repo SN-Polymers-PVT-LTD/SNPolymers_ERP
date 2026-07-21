@@ -3,6 +3,7 @@ import authApi from '../../api/authApi';
 import BackgroundShapes from '../../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../../components/Sidebar';
 import TopNavbar from '../../components/TopNavbar';
+import Modal from '../../components/ui/Modal';
 
 // Small inline Telegram icon
 const TelegramBadgeIcon = () => (
@@ -200,18 +201,7 @@ const AdminPanel = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      {/* Background Silhouettes & Ambient Glows */}
-      <BackgroundShapes />
-
-      <Sidebar />
-      <MobileHeader />
-
-      {/* Content */}
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10 font-sans">
-
+    <>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 font-mono">Console System Policies</span>
@@ -378,272 +368,253 @@ const AdminPanel = () => {
         </div>
 
         {/* ── ADD USER MODAL ── */}
-        {showAddModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
-            <div className="glass-panel p-6 rounded-3xl max-w-md w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-200">Authorize New Account</h3>
-                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-200 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <form onSubmit={handleAddUser} className="space-y-5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Authorized Mobile Number
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="+919876543210"
-                    value={newMobile}
-                    onChange={(e) => setNewMobile(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
-                    required
-                    disabled={submitting}
-                  />
-                  <span className="text-[10px] text-slate-500 mt-1.5 block">
-                    Supports spacing. 10-digit numbers automatically convert to India standard format (<span className="text-slate-400 font-mono">+91</span>).
-                  </span>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Account User Display Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
-                    disabled={submitting}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Console Access Level Privilege
-                  </label>
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
-                    disabled={submitting}
-                  >
-                    <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
-                    <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
-                    <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
-                    <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
-                  </select>
-                </div>
-
-                {/* Telegram Chat ID — read-only, auto-filled */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Telegram Chat ID
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Auto-filled when user starts the bot"
-                    readOnly
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-500 text-sm font-semibold transition cursor-not-allowed opacity-60"
-                  />
-                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed flex items-start gap-1.5">
-                    <TelegramBadgeIcon />
-                    <span>This will be filled automatically when the user logs in for the first time and completes Telegram setup.</span>
-                  </p>
-                </div>
-
-                <div className="flex gap-3 justify-end mt-8">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Authorizing...' : 'Authorize Credentials'}
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          title="Authorize New Account"
+          subtitle="Console System Policies"
+        >
+          <form onSubmit={handleAddUser} className="space-y-5">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Authorized Mobile Number
+              </label>
+              <input
+                type="tel"
+                placeholder="+919876543210"
+                value={newMobile}
+                onChange={(e) => setNewMobile(e.target.value)}
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
+                required
+                disabled={submitting}
+              />
+              <span className="text-[10px] text-slate-500 mt-1.5 block">
+                Supports spacing. 10-digit numbers automatically convert to India standard format (<span className="text-slate-400 font-mono">+91</span>).
+              </span>
             </div>
-          </div>
-        )}
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Account User Display Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. John Doe"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
+                disabled={submitting}
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Console Access Level Privilege
+              </label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
+                disabled={submitting}
+              >
+                <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
+                <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
+                <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
+              </select>
+            </div>
+
+            {/* Telegram Chat ID — read-only, auto-filled */}
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Telegram Chat ID
+              </label>
+              <input
+                type="text"
+                placeholder="Auto-filled when user starts the bot"
+                readOnly
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-500 text-sm font-semibold transition cursor-not-allowed opacity-60"
+              />
+              <p className="mt-2 text-[10px] text-slate-500 leading-relaxed flex items-start gap-1.5">
+                <TelegramBadgeIcon />
+                <span>This will be filled automatically when the user logs in for the first time and completes Telegram setup.</span>
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-8">
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                disabled={submitting}
+              >
+                {submitting ? 'Authorizing...' : 'Authorize Credentials'}
+              </button>
+            </div>
+          </form>
+        </Modal>
 
         {/* ── EDIT USER MODAL ── */}
-        {showEditModal && editingUser && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
-            <div className="glass-panel p-6 rounded-3xl max-w-md w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-200">Edit User Account</h3>
-                <button
-                  onClick={() => { setShowEditModal(false); setEditingUser(null); }}
-                  className="text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <Modal
+          isOpen={showEditModal && !!editingUser}
+          onClose={() => { setShowEditModal(false); setEditingUser(null); }}
+          title="Edit User Account"
+          subtitle="Console System Policies"
+        >
+          {editingUser && (
+            <form onSubmit={handleEditUser} className="space-y-5">
+              {/* Mobile (read-only) */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={editingUser.mobile_number}
+                  readOnly
+                  className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-400 text-sm font-mono font-semibold transition cursor-not-allowed opacity-70"
+                />
               </div>
 
-              <form onSubmit={handleEditUser} className="space-y-5">
-                {/* Mobile (read-only) */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Mobile Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={editingUser.mobile_number}
-                    readOnly
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-400 text-sm font-mono font-semibold transition cursor-not-allowed opacity-70"
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Display Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
+                  disabled={editSubmitting}
+                />
+              </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. John Doe"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
-                    disabled={editSubmitting}
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Access Level
+                </label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
+                  disabled={editSubmitting}
+                >
+                  <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
+                  <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
+                  <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                  <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Access Level
-                  </label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-300 text-sm font-semibold transition"
-                    disabled={editSubmitting}
-                  >
-                    <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
-                    <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
-                    <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
-                    <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Account Status
-                  </label>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setEditActive(true)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${editActive
-                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
-                          : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
-                        }`}
-                      disabled={editSubmitting}
-                    >
-                      Active
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditActive(false)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${!editActive
-                          ? 'bg-red-500/15 border-red-500/30 text-red-400'
-                          : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
-                        }`}
-                      disabled={editSubmitting}
-                    >
-                      Deactivated
-                    </button>
-                  </div>
-                </div>
-
-                {/* Telegram Chat ID field */}
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Telegram Chat ID
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={editingUser.telegram_chat_id || ''}
-                      readOnly
-                      placeholder="Not linked yet"
-                      className="flex-1 glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-400 text-sm font-mono font-semibold transition cursor-not-allowed opacity-70"
-                    />
-                    {editingUser.telegram_chat_id && (
-                      <button
-                        type="button"
-                        onClick={handleClearTelegram}
-                        disabled={clearingTelegram || editSubmitting}
-                        className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider border border-red-500/25 bg-red-500/8 text-red-400 hover:bg-red-500/20 transition-all duration-200 disabled:opacity-50 shrink-0"
-                        title="Clear Telegram link"
-                      >
-                        {clearingTelegram ? '...' : 'Clear'}
-                      </button>
-                    )}
-                  </div>
-                  <p className="mt-2 text-[10px] text-slate-500 leading-relaxed flex items-start gap-1.5">
-                    <TelegramBadgeIcon />
-                    <span>
-                      {editingUser.telegram_chat_id
-                        ? 'Telegram is connected. Use "Clear" if the user switches Telegram accounts.'
-                        : 'This will be filled automatically when the user completes Telegram setup on login.'}
-                    </span>
-                  </p>
-                </div>
-
-                {/* Inline error/success inside modal */}
-                {error && (
-                  <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                    {error}
-                  </div>
-                )}
-                {success && (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                    {success}
-                  </div>
-                )}
-
-                <div className="flex gap-3 justify-end mt-8">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Account Status
+                </label>
+                <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => { setShowEditModal(false); setEditingUser(null); }}
-                    className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+                    onClick={() => setEditActive(true)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${editActive
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                      }`}
                     disabled={editSubmitting}
                   >
-                    Cancel
+                    Active
                   </button>
                   <button
-                    type="submit"
-                    className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                    type="button"
+                    onClick={() => setEditActive(false)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 border ${!editActive
+                        ? 'bg-red-500/15 border-red-500/30 text-red-400'
+                        : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                      }`}
                     disabled={editSubmitting}
                   >
-                    {editSubmitting ? 'Saving...' : 'Save Changes'}
+                    Deactivated
                   </button>
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+              </div>
 
-      </main>
-      </div>
-    </div>
+              {/* Telegram Chat ID field */}
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Telegram Chat ID
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editingUser.telegram_chat_id || ''}
+                    readOnly
+                    placeholder="Not linked yet"
+                    className="flex-1 glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-400 text-sm font-mono font-semibold transition cursor-not-allowed opacity-70"
+                  />
+                  {editingUser.telegram_chat_id && (
+                    <button
+                      type="button"
+                      onClick={handleClearTelegram}
+                      disabled={clearingTelegram || editSubmitting}
+                      className="px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider border border-red-500/25 bg-red-500/8 text-red-400 hover:bg-red-500/20 transition-all duration-200 disabled:opacity-50 shrink-0"
+                      title="Clear Telegram link"
+                    >
+                      {clearingTelegram ? '...' : 'Clear'}
+                    </button>
+                  )}
+                </div>
+                <p className="mt-2 text-[10px] text-slate-500 leading-relaxed flex items-start gap-1.5">
+                  <TelegramBadgeIcon />
+                  <span>
+                    {editingUser.telegram_chat_id
+                      ? 'Telegram is connected. Use "Clear" if the user switches Telegram accounts.'
+                      : 'This will be filled automatically when the user completes Telegram setup on login.'}
+                  </span>
+                </p>
+              </div>
+
+              {/* Inline error/success inside modal */}
+              {error && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/30 rounded-xl text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30 rounded-xl text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                  {success}
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end mt-8">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditModal(false); setEditingUser(null); }}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                  disabled={editSubmitting}
+                >
+                  {editSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          )}
+        </Modal>
+
+    </>
   );
 };
 

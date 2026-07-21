@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useModalOverlay } from '../ModalContext';
 
 const Modal = ({
   isOpen = true,
@@ -13,6 +14,15 @@ const Modal = ({
   ...props
 }) => {
   const overlayRef = useRef(null);
+  const { openModal, closeModal } = useModalOverlay();
+
+  // Signal global modal state so dock hides
+  useEffect(() => {
+    if (isOpen) {
+      openModal();
+      return () => closeModal();
+    }
+  }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Lock body scroll when modal is open
   useEffect(() => {

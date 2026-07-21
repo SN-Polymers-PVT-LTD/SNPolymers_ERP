@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import BackgroundShapes from '../components/BackgroundShapes';
+import { useModalOverlay } from '../components/ModalContext';
 import {
   getHoKpis,
   getHoZoneBenchmarking,
@@ -80,6 +81,12 @@ const InfoTooltip = ({ content, position = 'center' }) => {
 // ── Fullscreen chart zoom modal ──────────────────────────────────────────────
 const ChartModal = ({ onClose, children }) => {
   const { isDark } = useTheme();
+  const { openModal, closeModal } = useModalOverlay();
+
+  React.useEffect(() => {
+    openModal();
+    return () => closeModal();
+  }, [openModal, closeModal]);
 
   React.useEffect(() => {
     const esc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -105,7 +112,7 @@ const ChartModal = ({ onClose, children }) => {
         {/* Floating red X close button over the chart */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 z-50 p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-200 shadow-lg group"
+          className="absolute top-3 right-3 z-50 p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-lg group"
           title="Close (ESC)"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

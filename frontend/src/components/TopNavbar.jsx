@@ -3,12 +3,14 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 import Dock from './ui/Dock';
+import { useModalOverlay } from './ModalContext';
 
 const TopNavbar = () => {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
+  const { isModalOpen } = useModalOverlay();
 
   const role = user?.role || '';
   const isAdmin = role === 'admin';
@@ -146,7 +148,7 @@ const TopNavbar = () => {
   });
 
   return (
-    <div className="w-full py-4 px-8 hidden md:flex items-center justify-center relative z-30 h-24 overflow-visible bg-transparent">
+    <div className={`w-full py-4 px-8 hidden md:flex items-center justify-center relative z-20 h-24 overflow-visible bg-transparent transition-opacity duration-150 ${isModalOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
       {dockItems.length > 0 && (
         <Dock 
           items={dockItems}

@@ -474,11 +474,7 @@ const EstimateView = () => {
   const pendingItemsCount = items.filter(item => (!item.zo_office_approve || item.zo_office_approve === 'Pending') && (!item.ho_office_approve || item.ho_office_approve === 'Pending')).length;
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         
         {/* Top Header */}
@@ -1401,7 +1397,7 @@ const EstimateView = () => {
           </Modal>
         )}
       </main>
-    </div>
+    </>
   );
 };
 

@@ -40,15 +40,7 @@ const Profile = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
-          
+    <>
           {/* Header Section */}
           <div className="mb-8 pb-6 border-b border-white/5">
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">My Account</span>
@@ -367,13 +359,9 @@ const Profile = () => {
               {(profile.role === 'ho' || profile.role === 'admin') && roleData && (
                 <AdminControlRoom roleData={roleData} formatCurrency={formatCurrency} />
               )}
-
             </div>
           )}
-
-        </main>
-      </div>
-    </div>
+    </>
   );
 };
 const AdminControlRoom = ({ roleData, formatCurrency }) => {
@@ -675,7 +663,6 @@ const AdminControlRoom = ({ roleData, formatCurrency }) => {
               <div className="text-xs text-slate-500 py-4 text-center">No recent actions logged.</div>
             )}
           </div>
-
         </div>
 
       </div>

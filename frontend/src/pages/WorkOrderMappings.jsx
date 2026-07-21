@@ -3,6 +3,7 @@ import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
+import Modal from '../components/ui/Modal';
 import { getWorkOrderMappings, createWorkOrderMapping, deactivateWorkOrderMapping } from '../api/workOrderMappingsApi';
 import { getEligibleJEs } from '../api/userMappingsApi';
 import { getProjects } from '../api/projectsApi';
@@ -220,14 +221,7 @@ const WorkOrderMappings = () => {
   });
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
+    <>
         
         {/* Header Section */}
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
@@ -433,183 +427,163 @@ const WorkOrderMappings = () => {
             })()}
           </div>
         </div>
-      </main>
-      </div>
 
       {/* Map JE Modal */}
-      {showMapModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all duration-300">
-          <div className="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
-              <h2 className="text-lg font-bold tracking-tight text-slate-100">Map JE to Work Order</h2>
-              <button
-                onClick={() => setShowMapModal(false)}
-                className="text-slate-400 hover:text-slate-200 text-lg transition"
-              >
-                &times;
-              </button>
+      <Modal
+        isOpen={showMapModal}
+        onClose={() => setShowMapModal(false)}
+        title="Map JE to Work Order"
+        subtitle="Work Order Allocations"
+        size="md"
+      >
+        <form onSubmit={handleCreateMapping} className="space-y-6">
+          {mapError && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
+              <span className="block font-bold mb-1">Mapping Rejected</span>
+              {mapError}
             </div>
+          )}
 
-            <form onSubmit={handleCreateMapping} className="p-6 space-y-6">
-              
-              {mapError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
-                  <span className="block font-bold mb-1">Mapping Rejected</span>
-                  {mapError}
-                </div>
-              )}
-
-              {/* Real-time Client-side validation message */}
-              {selectedJE && selectedWO && !isConsistent && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-semibold leading-relaxed">
-                  <span className="block font-bold mb-1">Zonal Consistency Check Failure</span>
-                  {consistencyError}
-                </div>
-              )}
-
-              {loadingOptions ? (
-                <div className="py-8 text-center text-xs text-slate-500">
-                  <span className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-amber-500 mr-2" />
-                  Loading choices...
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                      Select Junior Engineer (JE)
-                    </label>
-                    <select
-                      value={selectedJE}
-                      onChange={(e) => handleJEChange(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
-                      required
-                    >
-                      <option value="" className="bg-neutral-900 text-slate-500">Select a JE...</option>
-                      {eligibleJEs.map((je) => {
-                        const zoName = je.active_zo_user_id 
-                          ? (activeProjects.find(p => p.zo_user_id === je.active_zo_user_id)?.zo_user?.display_name || je.active_zo_user_id)
-                          : '';
-                        return (
-                          <option key={je.mobile_number} value={je.mobile_number} className="bg-neutral-900 text-slate-100">
-                            {je.display_name} {je.active_zo_user_id ? `[ZO: ${zoName}]` : '[Unmapped]'}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                      Select Work Order
-                    </label>
-                    <select
-                      value={selectedWO}
-                      onChange={(e) => setSelectedWO(e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      disabled={!selectedJE}
-                      required
-                    >
-                      {!selectedJE ? (
-                        <option value="" className="bg-neutral-900 text-slate-500">Please select a JE first...</option>
-                      ) : (
-                        <>
-                          <option value="" className="bg-neutral-900 text-slate-500">Select a project...</option>
-                          {filteredProjectsForSelect.map((p) => (
-                            <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
-                              {p.work_order_no}
-                            </option>
-                          ))}
-                        </>
-                      )}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowMapModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
-                  disabled={submittingMap}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
-                  disabled={submittingMap || loadingOptions || !isConsistent}
-                >
-                  {submittingMap ? 'Processing...' : 'Assign to Work Order'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Deactivate Assignment Modal */}
-      {showDeactivateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all duration-300">
-          <div className="glass-panel w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
-              <h2 className="text-lg font-bold tracking-tight text-slate-100">Deactivate Work Order Mapping</h2>
-              <button
-                onClick={() => setShowDeactivateModal(false)}
-                className="text-slate-400 hover:text-slate-200 text-lg transition"
-              >
-                &times;
-              </button>
+          {/* Real-time Client-side validation message */}
+          {selectedJE && selectedWO && !isConsistent && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-500 text-xs font-semibold leading-relaxed">
+              <span className="block font-bold mb-1">Zonal Consistency Check Failure</span>
+              {consistencyError}
             </div>
+          )}
 
-            <form onSubmit={handleDeactivate} className="p-6 space-y-6">
-              
-              {deactivateError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
-                  {deactivateError}
-                </div>
-              )}
-
+          {loadingOptions ? (
+            <div className="py-8 text-center text-xs text-slate-500">
+              <span className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-amber-500 mr-2" />
+              Loading choices...
+            </div>
+          ) : (
+            <>
               <div className="space-y-2">
                 <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                  Select Deactivation Reason
+                  Select Junior Engineer (JE)
                 </label>
                 <select
-                  value={deactivateReason}
-                  onChange={(e) => setDeactivateReason(e.target.value)}
+                  value={selectedJE}
+                  onChange={(e) => handleJEChange(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
                   required
                 >
-                  <option value="Removed" className="bg-neutral-900 text-slate-100">Removed (Manual De-allocation)</option>
-                  <option value="Project Closed" className="bg-neutral-900 text-slate-100">Project Closed</option>
+                  <option value="" className="bg-neutral-900 text-slate-500">Select a JE...</option>
+                  {eligibleJEs.map((je) => {
+                    const zoName = je.active_zo_user_id 
+                      ? (activeProjects.find(p => p.zo_user_id === je.active_zo_user_id)?.zo_user?.display_name || je.active_zo_user_id)
+                      : '';
+                    return (
+                      <option key={je.mobile_number} value={je.mobile_number} className="bg-neutral-900 text-slate-100">
+                        {je.display_name} {je.active_zo_user_id ? `[ZO: ${zoName}]` : '[Unmapped]'}
+                      </option>
+                    );
+                  })}
                 </select>
-                <p className="text-[10px] text-slate-500 mt-1 leading-normal">
-                  *Note: Transfers are automatically processed via user mapping transfers.
-                </p>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowDeactivateModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
-                  disabled={submittingDeactivate}
+              <div className="space-y-2">
+                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                  Select Work Order
+                </label>
+                <select
+                  value={selectedWO}
+                  onChange={(e) => setSelectedWO(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={!selectedJE}
+                  required
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-red-600 text-white hover:bg-red-500 transition"
-                  disabled={submittingDeactivate}
-                >
-                  {submittingDeactivate ? 'Processing...' : 'Confirm Deactivation'}
-                </button>
+                  {!selectedJE ? (
+                    <option value="" className="bg-neutral-900 text-slate-500">Please select a JE first...</option>
+                  ) : (
+                    <>
+                      <option value="" className="bg-neutral-900 text-slate-500">Select a project...</option>
+                      {filteredProjectsForSelect.map((p) => (
+                        <option key={p.work_order_no} value={p.work_order_no} className="bg-neutral-900 text-slate-100">
+                          {p.work_order_no}
+                        </option>
+                      ))}
+                    </>
+                  )}
+                </select>
               </div>
-            </form>
+            </>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+            <button
+              type="button"
+              onClick={() => setShowMapModal(false)}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
+              disabled={submittingMap}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
+              disabled={submittingMap || loadingOptions || !isConsistent}
+            >
+              {submittingMap ? 'Processing...' : 'Assign to Work Order'}
+            </button>
           </div>
-        </div>
-      )}
-    </div>
+        </form>
+      </Modal>
+
+      {/* Deactivate Assignment Modal */}
+      <Modal
+        isOpen={showDeactivateModal}
+        onClose={() => setShowDeactivateModal(false)}
+        title="Deactivate Work Order Mapping"
+        subtitle="Work Order Allocations"
+        size="sm"
+      >
+        <form onSubmit={handleDeactivate} className="space-y-6">
+          {deactivateError && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
+              {deactivateError}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
+              Select Deactivation Reason
+            </label>
+            <select
+              value={deactivateReason}
+              onChange={(e) => setDeactivateReason(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
+              required
+            >
+              <option value="Removed" className="bg-neutral-900 text-slate-100">Removed (Manual De-allocation)</option>
+              <option value="Project Closed" className="bg-neutral-900 text-slate-100">Project Closed</option>
+            </select>
+            <p className="text-[10px] text-slate-500 mt-1 leading-normal">
+              *Note: Transfers are automatically processed via user mapping transfers.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+            <button
+              type="button"
+              onClick={() => setShowDeactivateModal(false)}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
+              disabled={submittingDeactivate}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-red-600 text-white hover:bg-red-500 transition"
+              disabled={submittingDeactivate}
+            >
+              {submittingDeactivate ? 'Processing...' : 'Confirm Deactivation'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+    </>
   );
 };
 

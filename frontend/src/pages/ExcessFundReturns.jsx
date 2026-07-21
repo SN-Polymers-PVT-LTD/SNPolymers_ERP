@@ -3,6 +3,7 @@ import { useAuth } from '../components/AuthContext';
 import BackgroundShapes from '../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
+import Modal from '../components/ui/Modal';
 import {
   getReturnRequests,
   createReturnRequest,
@@ -315,14 +316,7 @@ const ExcessFundReturns = () => {
   });
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
+    <>
         
         {/* Header Section */}
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
@@ -518,356 +512,310 @@ const ExcessFundReturns = () => {
             </table>
           </div>
         </div>
-      </main>
-      </div>
 
       {/* Request Return Modal (Admin/HO only) */}
-      {showRequestModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all duration-300">
-          <div className="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
-              <h2 className="text-lg font-bold tracking-tight text-slate-100">Request Excess Fund Return</h2>
-              <button onClick={() => setShowRequestModal(false)} className="text-slate-400 hover:text-slate-200 text-lg">&times;</button>
+      <Modal
+        isOpen={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        title="Request Excess Fund Return"
+        subtitle="Capital Return Ledger"
+        size="md"
+      >
+        <form onSubmit={handleCreateRequest} className="space-y-5">
+          {requestError && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+              {requestError}
             </div>
+          )}
 
-            <form onSubmit={handleCreateRequest} className="p-6 space-y-5">
-              {requestError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
-                  {requestError}
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Select Target Zonal Office</label>
+            <select
+              value={selectedZO}
+              onChange={(e) => {
+                setSelectedZO(e.target.value);
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
+              required
+            >
+              <option value="" className="bg-neutral-900 text-slate-500">Select a ZO...</option>
+              {eligibleZOs.map((zo) => (
+                <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100">
+                  {zo.display_name} ({zo.mobile_number})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Requested Return Amount (INR)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              placeholder="0.00"
+              value={requestAmount}
+              onChange={(e) => setRequestAmount(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Head Office Remarks / Instruction</label>
+            <textarea
+              rows="3"
+              placeholder="Provide instructions on returning excess funds..."
+              value={remarksHo}
+              onChange={(e) => setRemarksHo(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+            <button
+              type="button"
+              onClick={() => setShowRequestModal(false)}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
+              disabled={submittingRequest}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
+              disabled={submittingRequest || !selectedZO}
+            >
+              {submittingRequest ? 'Submitting...' : 'Request Return'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ZO Action Modal (ZO only) */}
+      <Modal
+        isOpen={showActionModal && !!selectedReturn}
+        onClose={() => setShowActionModal(false)}
+        title="Evaluate Return Request"
+        subtitle={selectedReturn ? `Status: ${selectedReturn.status}` : ''}
+        size="lg"
+      >
+        {selectedReturn && (
+          <div className="space-y-6">
+            {actionError && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
+                {actionError}
+              </div>
+            )}
+
+            {/* Info Metrics */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="glass-panel p-4 rounded-xl bg-white/2 border border-white/5">
+                <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Requested Amount</span>
+                <div className="text-lg font-black text-slate-100 mt-1">
+                  ₹{Number(selectedReturn.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Select Target Zonal Office</label>
-                <select
-                  value={selectedZO}
-                  onChange={(e) => {
-                    setSelectedZO(e.target.value);
-                  }}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
-                  required
-                >
-                  <option value="" className="bg-neutral-900 text-slate-500">Select a ZO...</option>
-                  {eligibleZOs.map((zo) => (
-                    <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100">
-                      {zo.display_name} ({zo.mobile_number})
-                    </option>
-                  ))}
-                </select>
               </div>
 
+              <div className="glass-panel p-4 rounded-xl bg-white/2 border border-white/5">
+                <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Your Available Balance</span>
+                <div className={`text-lg font-black mt-1 ${zoBalance >= selectedReturn.requested_amount ? 'text-emerald-400' : 'text-red-400'}`}>
+                  ₹{zoBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+
+            {zoBalance < selectedReturn.requested_amount && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-medium leading-normal">
+                *Acceptance is blocked. The requested return amount exceeds your available credit balance. You must request modification or reject this request.
+              </div>
+            )}
+
+            {/* Breakdown Allocations */}
+            <div className="space-y-3 bg-white/2 border border-white/5 p-4 rounded-xl">
+              <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Return Breakdown Allocation</span>
+                <span className="text-[10px] font-mono text-amber-500 font-bold">
+                  Total Allocated: ₹{Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="space-y-4 max-h-48 overflow-y-auto pr-1">
+                {selectedReturn.work_order_balances?.map((woBal) => (
+                  <div key={woBal.work_order_no} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="space-y-0.5">
+                      <div className="font-mono font-bold text-slate-200">{woBal.work_order_no}</div>
+                      <div className="text-[10px] text-slate-500">Avail. Balance: ₹{Number(woBal.available_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                    <div className="relative max-w-xs w-full sm:w-48">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max={woBal.available_balance}
+                        placeholder="0.00"
+                        value={breakdownAllocations[woBal.work_order_no] || ''}
+                        onChange={(e) => handleAllocationChange(woBal.work_order_no, e.target.value, woBal.available_balance)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Remarks input */}
+            <div className="space-y-2">
+              <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Evaluation Remarks / Feedback</label>
+              <textarea
+                rows="3"
+                placeholder="Required for modifications or rejections..."
+                value={remarksZo}
+                onChange={(e) => setRemarksZo(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-3 justify-end pt-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setShowActionModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-400 hover:bg-white/5 transition"
+                disabled={submittingAction}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRejectOrModify('REJECT')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase bg-red-950/20 border border-red-900/30 text-red-400 hover:bg-red-950/30 transition"
+                disabled={submittingAction || !remarksZo.trim()}
+              >
+                Reject
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleRejectOrModify('MODIFY')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-200 hover:bg-white/5 transition"
+                disabled={submittingAction || !remarksZo.trim()}
+              >
+                Modify
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAcceptReturn}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                disabled={submittingAction || Math.abs(Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0) - Number(selectedReturn.requested_amount)) > 0.01}
+              >
+                {submittingAction ? 'Processing...' : 'Accept Return'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* HO Action Modal (review modifications/rejections) */}
+      <Modal
+        isOpen={showHoActionModal && !!hoActionTarget}
+        onClose={() => setShowHoActionModal(false)}
+        title="Action Return Request"
+        subtitle={hoActionTarget ? `Status: ${hoActionTarget.status}` : ''}
+        size="md"
+      >
+        {hoActionTarget && (
+          <form onSubmit={handleHoActionSubmit} className="space-y-5">
+            {hoActionError && (
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
+                {hoActionError}
+              </div>
+            )}
+
+            <div className="p-4 rounded-xl bg-white/2 border border-white/5 space-y-2 text-xs">
+              <div>
+                <span className="text-slate-500 uppercase font-bold text-[10px] block">Target Zone</span>
+                <span className="text-slate-200 font-semibold">{hoActionTarget.zo_name} ({hoActionTarget.zo_user_id})</span>
+              </div>
+              <div>
+                <span className="text-slate-500 uppercase font-bold text-[10px] block">Requested Amount</span>
+                <span className="text-slate-200 font-bold">₹{Number(hoActionTarget.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              </div>
+              {hoActionTarget.remarks_zo && (
+                <div>
+                  <span className="text-amber-500 uppercase font-bold text-[10px] block">ZO Remarks / Response</span>
+                  <p className="text-slate-300 bg-black/30 p-2 rounded border border-white/5 leading-relaxed mt-1 font-normal">{hoActionTarget.remarks_zo}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Select Resolution Action</label>
+              <select
+                value={hoSelectedAction}
+                onChange={(e) => setHoSelectedAction(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
+                required
+              >
+                <option value="Cancel" className="bg-neutral-900 text-slate-100">Cancel Request (Delete/Archive)</option>
+                {hoActionTarget.status !== 'Rejected' && (
+                  <option value="Reissue" className="bg-neutral-900 text-slate-100">Reissue (Reset Status to 'Requested')</option>
+                )}
+              </select>
+            </div>
+
+            {hoSelectedAction === 'Reissue' && (
               <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Requested Return Amount (INR)</label>
+                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                  New Requested Amount (₹)
+                </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0.01"
-                  placeholder="0.00"
-                  value={requestAmount}
-                  onChange={(e) => setRequestAmount(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Head Office Remarks / Instruction</label>
-                <textarea
-                  rows="3"
-                  placeholder="Provide instructions on returning excess funds..."
-                  value={remarksHo}
-                  onChange={(e) => setRemarksHo(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
-                />
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowRequestModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
-                  disabled={submittingRequest}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
-                  disabled={submittingRequest || !selectedZO}
-                >
-                  {submittingRequest ? 'Submitting...' : 'Request Return'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ZO Action Modal (ZO only) */}
-      {showActionModal && selectedReturn && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all duration-300">
-          <div className="glass-panel w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-slate-100">Evaluate Return Request</h2>
-                <div className="text-[10px] text-slate-400 mt-0.5">Status: {selectedReturn.status}</div>
-              </div>
-              <button onClick={() => setShowActionModal(false)} className="text-slate-400 hover:text-slate-200 text-lg">&times;</button>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto">
-              {actionError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
-                  {actionError}
-                </div>
-              )}
-
-              {/* Info Metrics */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="glass-panel p-4 rounded-xl bg-white/2 border border-white/5">
-                  <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Requested Amount</span>
-                  <div className="text-lg font-black text-slate-100 mt-1">
-                    ₹{Number(selectedReturn.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-
-                <div className="glass-panel p-4 rounded-xl bg-white/2 border border-white/5">
-                  <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Your Available Balance</span>
-                  <div className={`text-lg font-black mt-1 ${zoBalance >= selectedReturn.requested_amount ? 'text-emerald-400' : 'text-red-400'}`}>
-                    ₹{zoBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </div>
-                </div>
-              </div>
-
-              {zoBalance < selectedReturn.requested_amount && (
-                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-medium leading-normal">
-                  *Acceptance is blocked. The requested return amount exceeds your available credit balance. You must request modification or reject this request.
-                </div>
-              )}
-
-              {/* Breakdown Allocations */}
-              <div className="space-y-3 bg-white/2 border border-white/5 p-4 rounded-xl">
-                <div className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                  Return Allocation Breakdown per Work Order
-                </div>
-                {loadingWoBalances ? (
-                  <div className="text-slate-500 text-xs py-2 flex items-center">
-                    <span className="inline-block animate-spin rounded-full h-3 w-3 border-t-2 border-amber-500 mr-2" />
-                    Loading available work order balances...
-                  </div>
-                ) : zonalWoBalances.length === 0 ? (
-                  <div className="text-red-400 text-xs py-2">
-                    No active Work Orders with available balances found.
-                  </div>
-                ) : (
-                  <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
-                    {zonalWoBalances.map((wo) => {
-                      const allocated = breakdownAllocations[wo.work_order_no] || '';
-                      return (
-                        <div key={wo.work_order_no} className="flex items-center justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-slate-200 truncate">{wo.work_order_no}</div>
-                            <div className="text-[10px] text-slate-400">Available: ₹{wo.available_balance.toLocaleString('en-IN')}</div>
-                          </div>
-                          <div className="w-32">
-                            <input
-                              type="number"
-                              placeholder="0.00"
-                              value={allocated}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setBreakdownAllocations(prev => ({
-                                  ...prev,
-                                  [wo.work_order_no]: val
-                                }));
-                              }}
-                              className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 text-right"
-                              max={wo.available_balance}
-                              min="0"
-                              step="0.01"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                
-                {/* Total Counter */}
-                <div className="flex justify-between items-center pt-2 border-t border-white/10 text-xs">
-                  <span className="font-bold text-slate-400">Total Allocated:</span>
-                  <span className={`font-black ${Math.abs(Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0) - Number(selectedReturn.requested_amount)) < 0.01 ? 'text-emerald-400' : 'text-amber-500'}`}>
-                    ₹{Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / ₹{Number(selectedReturn.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-
-              {selectedReturn.remarks_ho && (
-                <div className="space-y-1 bg-white/2 border border-white/5 p-4 rounded-xl">
-                  <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500">HO Remarks / Instructions:</div>
-                  <p className="text-xs text-slate-300 font-normal leading-relaxed">{selectedReturn.remarks_ho}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                  Zonal Office Remarks (Mandatory for Reject / Modify)
-                </label>
-                <textarea
-                  rows="3"
-                  placeholder="Provide details if rejecting or requesting modification..."
-                  value={remarksZo}
-                  onChange={(e) => setRemarksZo(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-2 justify-between pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowActionModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition mr-auto"
-                  disabled={submittingAction}
-                >
-                  Cancel
-                </button>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleRejectOrModify('REJECT')}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase bg-red-950/20 border border-red-900/30 text-red-400 hover:bg-red-950/30 transition"
-                    disabled={submittingAction || !remarksZo.trim()}
-                  >
-                    Reject
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleRejectOrModify('MODIFY')}
-                    className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-200 hover:bg-white/5 transition"
-                    disabled={submittingAction || !remarksZo.trim()}
-                  >
-                    Modify
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleAcceptReturn}
-                    className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-emerald-500 text-black hover:bg-emerald-400 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                    disabled={submittingAction || Math.abs(Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0) - Number(selectedReturn.requested_amount)) > 0.01}
-                  >
-                    {submittingAction ? 'Processing...' : 'Accept Return'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* HO Action Modal (review modifications/rejections) */}
-      {showHoActionModal && hoActionTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all duration-300">
-          <div className="glass-panel w-full max-w-md rounded-3xl overflow-hidden shadow-2xl border border-white/10 animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-white/2">
-              <div>
-                <h2 className="text-lg font-bold tracking-tight text-slate-100">Action Return Request</h2>
-                <div className="text-[10px] text-slate-400 mt-0.5">Status: {hoActionTarget.status}</div>
-              </div>
-              <button onClick={() => setShowHoActionModal(false)} className="text-slate-400 hover:text-slate-200 text-lg">&times;</button>
-            </div>
-
-            <form onSubmit={handleHoActionSubmit} className="p-6 space-y-5">
-              {hoActionError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
-                  {hoActionError}
-                </div>
-              )}
-
-              <div className="p-4 rounded-xl bg-white/2 border border-white/5 space-y-2 text-xs">
-                <div>
-                  <span className="text-slate-500 uppercase font-bold text-[10px] block">Target Zone</span>
-                  <span className="text-slate-200 font-semibold">{hoActionTarget.zo_name} ({hoActionTarget.zo_user_id})</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 uppercase font-bold text-[10px] block">Requested Amount</span>
-                  <span className="text-slate-200 font-bold">₹{Number(hoActionTarget.requested_amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-                {hoActionTarget.remarks_zo && (
-                  <div>
-                    <span className="text-amber-500 uppercase font-bold text-[10px] block">ZO Remarks / Response</span>
-                    <p className="text-slate-300 bg-black/30 p-2 rounded border border-white/5 leading-relaxed mt-1 font-normal">{hoActionTarget.remarks_zo}</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Select Resolution Action</label>
-                <select
-                  value={hoSelectedAction}
-                  onChange={(e) => setHoSelectedAction(e.target.value)}
+                  placeholder="Enter new requested amount..."
+                  value={hoRequestedAmount}
+                  onChange={(e) => setHoRequestedAmount(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
                   required
-                >
-                  <option value="Cancel" className="bg-neutral-900 text-slate-100">Cancel Request (Delete/Archive)</option>
-                  {hoActionTarget.status !== 'Rejected' && (
-                    <option value="Reissue" className="bg-neutral-900 text-slate-100">Reissue (Reset Status to 'Requested')</option>
-                  )}
-                </select>
-              </div>
-
-              {hoSelectedAction === 'Reissue' && (
-                <div className="space-y-2">
-                  <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                    New Requested Amount (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="Enter new requested amount..."
-                    value={hoRequestedAmount}
-                    onChange={(e) => setHoRequestedAmount(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Resolution Remarks</label>
-                <textarea
-                  rows="3"
-                  placeholder="Provide reason for cancellation or reissue details..."
-                  value={hoActionRemarks}
-                  onChange={(e) => setHoActionRemarks(e.target.value)}
-                  className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
                 />
               </div>
+            )}
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
-                <button
-                  type="button"
-                  onClick={() => setShowHoActionModal(false)}
-                  className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
-                  disabled={submittingHoAction}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
-                  disabled={submittingHoAction}
-                >
-                  {submittingHoAction ? 'Processing...' : 'Confirm Action'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+            <div className="space-y-2">
+              <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Resolution Remarks</label>
+              <textarea
+                rows="3"
+                placeholder="Provide reason for cancellation or reissue details..."
+                value={hoActionRemarks}
+                onChange={(e) => setHoActionRemarks(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={() => setShowHoActionModal(false)}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
+                disabled={submittingHoAction}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-amber-500 text-black hover:bg-amber-400 transition"
+                disabled={submittingHoAction}
+              >
+                {submittingHoAction ? 'Processing...' : 'Confirm Action'}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
+    </>
   );
 };
 

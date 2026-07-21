@@ -114,6 +114,8 @@ const DailyProgress = () => {
   const isAuthority = ['zo', 'ho', 'admin'].includes(user?.role);
 
   const [streak, setStreak] = useState(0);
+  const [pageFeed, setPageFeed] = useState(1);
+  const feedPageSize = 5;
 
   useEffect(() => {
     if (isJE) {
@@ -485,7 +487,7 @@ const DailyProgress = () => {
       avgProgress,
       staleSites,
       reviewQueue,
-      activityFeed: allReports.slice(0, 10)
+      activityFeed: allReports
     };
   };
 
@@ -493,13 +495,8 @@ const DailyProgress = () => {
   const authData = isAuthority ? getAuthDashboardData() : null;
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto w-full relative z-10">
         
         {/* Status Alerts */}
@@ -1058,36 +1055,69 @@ const DailyProgress = () => {
                           
                           {authData.activityFeed.length === 0 ? (
                             <p className="text-xs text-slate-500 italic py-10 text-center">No reports logged from JEs yet.</p>
-                          ) : (
-                            <div className="space-y-4">
-                              {authData.activityFeed.map(r => (
-                                <div
-                                  key={r.report_id}
-                                  onClick={() => handleViewDetails(r)}
-                                  className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:border-white/10 transition cursor-pointer flex gap-4 text-xs items-start"
-                                >
-                                  {/* Small indicator */}
-                                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 mt-1 shrink-0 animate-pulse" />
-                                  <div className="space-y-1.5 flex-grow truncate">
-                                    <div className="flex justify-between items-center">
-                                      <p className="font-extrabold text-slate-200">
-                                        {r.created_by_name || r.created_by}
-                                      </p>
-                                      <span className="font-mono text-[10px] text-slate-500">
-                                        {r.site_visit_date ? new Date(r.site_visit_date).toLocaleDateString('en-IN', { dateStyle: 'short' }) : ''}
-                                      </span>
+                          ) : (() => {
+                            const totalFeedPages = Math.ceil(authData.activityFeed.length / feedPageSize);
+                            const paginatedFeed = authData.activityFeed.slice((pageFeed - 1) * feedPageSize, pageFeed * feedPageSize);
+                            return (
+                              <div className="space-y-4">
+                                <div className="space-y-4">
+                                  {paginatedFeed.map(r => (
+                                    <div
+                                      key={r.report_id}
+                                      onClick={() => handleViewDetails(r)}
+                                      className="p-4 rounded-2xl bg-white/[0.01] border border-white/5 hover:border-white/10 transition cursor-pointer flex gap-4 text-xs items-start"
+                                    >
+                                      {/* Small indicator */}
+                                      <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 mt-1 shrink-0 animate-pulse" />
+                                      <div className="space-y-1.5 flex-grow truncate">
+                                        <div className="flex justify-between items-center">
+                                          <p className="font-extrabold text-slate-200">
+                                            {r.created_by_name || r.created_by}
+                                          </p>
+                                          <span className="font-mono text-[10px] text-slate-500">
+                                            {r.site_visit_date ? new Date(r.site_visit_date).toLocaleDateString('en-IN', { dateStyle: 'short' }) : ''}
+                                          </span>
+                                        </div>
+                                        <p className="text-slate-400 leading-relaxed truncate">
+                                          Logged <strong className="text-slate-200">{r.physical_work_progress}%</strong> progress on <span className="font-mono text-emerald-400 font-bold">{r.work_order_no}</span>
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 italic truncate">
+                                          "{r.work_progress_details}"
+                                        </p>
+                                      </div>
                                     </div>
-                                    <p className="text-slate-400 leading-relaxed truncate">
-                                      Logged <strong className="text-slate-200">{r.physical_work_progress}%</strong> progress on <span className="font-mono text-emerald-400 font-bold">{r.work_order_no}</span>
-                                    </p>
-                                    <p className="text-[10px] text-slate-500 italic truncate">
-                                      "{r.work_progress_details}"
-                                    </p>
-                                  </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          )}
+
+                                {/* Feed Pagination Controls */}
+                                {totalFeedPages > 1 && (
+                                  <div className="flex justify-between items-center bg-white/[0.01] border border-white/5 rounded-2xl p-4 text-[10px] select-none">
+                                    <span className="text-slate-500 font-bold uppercase tracking-wider">
+                                      Page {pageFeed} of {totalFeedPages}
+                                    </span>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        disabled={pageFeed === 1}
+                                        onClick={() => setPageFeed(prev => Math.max(1, prev - 1))}
+                                        size="xs"
+                                        variant="secondary"
+                                      >
+                                        Prev
+                                      </Button>
+                                      <Button
+                                        disabled={pageFeed === totalFeedPages}
+                                        onClick={() => setPageFeed(prev => Math.min(totalFeedPages, prev + 1))}
+                                        size="xs"
+                                        variant="secondary"
+                                      >
+                                        Next
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
 
@@ -1475,7 +1505,7 @@ const DailyProgress = () => {
         )}
       </main>
       </div>
-    </div>
+    </>
   );
 };
 

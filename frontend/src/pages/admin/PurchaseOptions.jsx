@@ -3,6 +3,7 @@ import authApi from '../../api/authApi';
 import BackgroundShapes from '../../components/BackgroundShapes';
 import Sidebar, { MobileHeader } from '../../components/Sidebar';
 import TopNavbar from '../../components/TopNavbar';
+import Modal from '../../components/ui/Modal';
 
 const PurchaseOptions = () => {
   const [purchaseOptions, setPurchaseOptions] = useState([]);
@@ -124,16 +125,9 @@ const PurchaseOptions = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      {/* Background Silhouettes & Ambient Glows */}
-      <BackgroundShapes />
-
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       {/* Content */}
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10 font-sans">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
           <div>
@@ -226,112 +220,95 @@ const PurchaseOptions = () => {
         </div>
 
         {/* ── ADD PURCHASE DATA OPTION MODAL ── */}
-        {showAddPurchaseModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
-            <div className="glass-panel p-6 rounded-3xl max-w-md w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-200">Add Purchase Option</h3>
-                <button onClick={() => setShowAddPurchaseModal(false)} className="text-slate-400 hover:text-slate-200 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <form onSubmit={handleAddPurchaseOption} className="space-y-5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Option Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Local Market"
-                    value={newPurchaseName}
-                    onChange={(e) => setNewPurchaseName(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
-                    required
-                    disabled={purchaseSubmitting}
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end mt-8">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddPurchaseModal(false)}
-                    className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
-                    disabled={purchaseSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
-                    disabled={purchaseSubmitting}
-                  >
-                    {purchaseSubmitting ? 'Adding...' : 'Add Option'}
-                  </button>
-                </div>
-              </form>
+        <Modal
+          isOpen={showAddPurchaseModal}
+          onClose={() => setShowAddPurchaseModal(false)}
+          title="Add Purchase Option"
+          subtitle="Console System Policies"
+        >
+          <form onSubmit={handleAddPurchaseOption} className="space-y-5">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                Option Name
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Local Market"
+                value={newPurchaseName}
+                onChange={(e) => setNewPurchaseName(e.target.value)}
+                className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
+                required
+                disabled={purchaseSubmitting}
+              />
             </div>
-          </div>
-        )}
+
+            <div className="flex gap-3 justify-end mt-8">
+              <button
+                type="button"
+                onClick={() => setShowAddPurchaseModal(false)}
+                className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+                disabled={purchaseSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                disabled={purchaseSubmitting}
+              >
+                {purchaseSubmitting ? 'Adding...' : 'Add Option'}
+              </button>
+            </div>
+          </form>
+        </Modal>
 
         {/* ── EDIT PURCHASE DATA OPTION MODAL ── */}
-        {showEditPurchaseModal && editingPurchase && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 transition-all duration-300">
-            <div className="glass-panel p-6 rounded-3xl max-w-md w-full shadow-[0_25px_60px_rgba(0,0,0,0.6)] border border-white/10 relative overflow-hidden">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-sm font-extrabold uppercase tracking-widest text-slate-200">Edit Purchase Option</h3>
-                <button
-                  onClick={() => { setShowEditPurchaseModal(false); setEditingPurchase(null); }}
-                  className="text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+        <Modal
+          isOpen={showEditPurchaseModal && !!editingPurchase}
+          onClose={() => { setShowEditPurchaseModal(false); setEditingPurchase(null); }}
+          title="Edit Purchase Option"
+          subtitle="Console System Policies"
+        >
+          {editingPurchase && (
+            <form onSubmit={handleEditPurchaseOption} className="space-y-5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
+                  Option Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Local Market"
+                  value={editPurchaseName}
+                  onChange={(e) => setEditPurchaseName(e.target.value)}
+                  className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
+                  required
+                  disabled={editPurchaseSubmitting}
+                />
               </div>
 
-              <form onSubmit={handleEditPurchaseOption} className="space-y-5">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
-                    Option Name
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Local Market"
-                    value={editPurchaseName}
-                    onChange={(e) => setEditPurchaseName(e.target.value)}
-                    className="w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-slate-100 text-sm font-semibold transition"
-                    required
-                    disabled={editPurchaseSubmitting}
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end mt-8">
-                  <button
-                    type="button"
-                    onClick={() => { setShowEditPurchaseModal(false); setEditingPurchase(null); }}
-                    className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
-                    disabled={editPurchaseSubmitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
-                    disabled={editPurchaseSubmitting}
-                  >
-                    {editPurchaseSubmitting ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+              <div className="flex gap-3 justify-end mt-8">
+                <button
+                  type="button"
+                  onClick={() => { setShowEditPurchaseModal(false); setEditingPurchase(null); }}
+                  className="px-4 py-2 text-slate-400 hover:text-slate-200 font-extrabold text-xs uppercase tracking-wider transition"
+                  disabled={editPurchaseSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-md"
+                  disabled={editPurchaseSubmitting}
+                >
+                  {editPurchaseSubmitting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          )}
+        </Modal>
       </main>
       </div>
-    </div>
+    </>
   );
 };
 
