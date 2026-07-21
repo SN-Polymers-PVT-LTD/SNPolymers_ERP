@@ -194,4 +194,37 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
       expect(item.percentage).toBeGreaterThanOrEqual(0);
     });
   });
+
+  test('M3.7: getHoChartData returns physicalProgressMetrics and jeVisitFrequencyMetrics with work order lists', async () => {
+    const req = { user: { role: 'ho', mobile_number: hoMobile }, query: {} };
+    const res = mockRes();
+    await getHoChartData(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.success).toBe(true);
+    
+    // Check physicalProgressMetrics
+    const phys = res.jsonData.physicalProgressMetrics;
+    expect(phys).toBeDefined();
+    expect(typeof phys.avgProgress).toBe('string');
+    expect(Array.isArray(phys.buckets)).toBe(true);
+    expect(phys.buckets.length).toBe(4);
+    phys.buckets.forEach(b => {
+      expect(typeof b.label).toBe('string');
+      expect(typeof b.count).toBe('number');
+      expect(Array.isArray(b.workOrders)).toBe(true);
+    });
+
+    // Check jeVisitFrequencyMetrics
+    const visit = res.jsonData.jeVisitFrequencyMetrics;
+    expect(visit).toBeDefined();
+    expect(typeof visit.avgVisit).toBe('string');
+    expect(Array.isArray(visit.buckets)).toBe(true);
+    expect(visit.buckets.length).toBe(4);
+    visit.buckets.forEach(b => {
+      expect(typeof b.label).toBe('string');
+      expect(typeof b.count).toBe('number');
+      expect(Array.isArray(b.workOrders)).toBe(true);
+    });
+  });
 });

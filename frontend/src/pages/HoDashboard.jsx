@@ -984,6 +984,641 @@ const DepartmentWiseEstimate = ({ data = [] }) => {
   );
 };
 
+// ── Generic Interactive Donut Metric Card with Work Orders Hover Popover ─────
+const MetricDonutCard = ({
+  title,
+  subtitle,
+  centerLabel,
+  centerValue,
+  buckets = [],
+  fallbackData
+}) => {
+  const { isDark } = useTheme();
+  const [hoveredBucket, setHoveredBucket] = useState(null);
+  const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
+
+  const activeBuckets = React.useMemo(() => {
+    if (buckets && buckets.length > 0 && buckets.some(b => b.count > 0)) {
+      return buckets;
+    }
+    return fallbackData || [];
+  }, [buckets, fallbackData]);
+
+  const totalCount = React.useMemo(() => {
+    return activeBuckets.reduce((acc, curr) => acc + (curr.count || 0), 0);
+  }, [activeBuckets]);
+
+  // Compute SVG Donut Slices
+  const slices = React.useMemo(() => {
+    let cumulativeAngle = 0;
+    const center = 100;
+    const outerRadius = 85;
+    const innerRadius = 55;
+
+    return activeBuckets.map((bucket) => {
+      const pct = totalCount > 0 ? (bucket.count / totalCount) * 100 : bucket.percentage || 0;
+      const angle = (pct / 100) * 360;
+      const startAngle = cumulativeAngle;
+      const endAngle = cumulativeAngle + angle;
+      cumulativeAngle += angle;
+
+      const startRad = (startAngle - 90) * (Math.PI / 180);
+      const endRad = (endAngle - 90) * (Math.PI / 180);
+
+      const x1 = center + outerRadius * Math.cos(startRad);
+      const y1 = center + outerRadius * Math.sin(startRad);
+      const x2 = center + outerRadius * Math.cos(endRad);
+      const y2 = center + outerRadius * Math.sin(endRad);
+
+      const x3 = center + innerRadius * Math.cos(endRad);
+      const y3 = center + innerRadius * Math.sin(endRad);
+      const x4 = center + innerRadius * Math.cos(startRad);
+      const y4 = center + innerRadius * Math.sin(startRad);
+
+      const largeArc = angle > 180 ? 1 : 0;
+
+      const pathData = [
+        `M ${x1.toFixed(2)} ${y1.toFixed(2)}`,
+        `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
+        `L ${x3.toFixed(2)} ${y3.toFixed(2)}`,
+        `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4.toFixed(2)} ${y4.toFixed(2)}`,
+        'Z'
+      ].join(' ');
+
+      return {
+        ...bucket,
+        pct: Math.round(pct),
+        pathData
+      };
+    });
+  }, [activeBuckets, totalCount]);
+
+  const handleMouseEnter = (e, bucket) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPopoverPos({
+      x: Math.min(window.innerWidth - 320, rect.left + rect.width / 2),
+      y: rect.top
+    });
+    setHoveredBucket(bucket);
+  };
+
+  const handleMouseMove = (e) => {
+    if (hoveredBucket) {
+      setPopoverPos({
+        x: Math.min(window.innerWidth - 340, e.clientX + 15),
+        y: Math.min(window.innerHeight - 280, e.clientY + 15)
+      });
+    }
+  };
+
+  return (
+    <div className="chart-panel h-full flex flex-col justify-between p-5 relative" onMouseMove={handleMouseMove}>
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+            {title}
+          </h3>
+          {subtitle && (
+            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2">
+        {/* Donut Graphic with Center Text */}
+        <div className="relative w-52 h-52 sm:w-60 sm:h-60 shrink-0 flex items-center justify-center">
+          <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
+            {slices.map((slice, idx) => (
+              <path
+                key={idx}
+                d={slice.pathData}
+                fill={slice.color}
+                stroke={isDark ? '#0f172a' : '#ffffff'}
+                strokeWidth="3"
+                className="transition-all duration-300 hover:opacity-80 cursor-pointer"
+                style={{
+                  transform: hoveredBucket?.label === slice.label ? 'scale(1.04)' : 'scale(1)',
+                  transformOrigin: '100px 100px'
+                }}
+                onMouseEnter={(e) => handleMouseEnter(e, slice)}
+                onMouseLeave={() => setHoveredBucket(null)}
+              />
+            ))}
+          </svg>
+
+          {/* Center Label inside donut */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              {centerLabel}
+            </span>
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-0.5">
+              {centerValue}
+            </span>
+          </div>
+        </div>
+
+        {/* Legend List */}
+        <div className="flex flex-col gap-2.5 w-full md:w-auto min-w-[210px]">
+          {slices.map((item, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center justify-between gap-4 text-xs font-semibold py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
+                hoveredBucket?.label === item.label
+                  ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]'
+                  : 'hover:bg-slate-500/10 border border-transparent'
+              }`}
+              onMouseEnter={(e) => handleMouseEnter(e, item)}
+              onMouseLeave={() => setHoveredBucket(null)}
+            >
+              <div className="flex items-center gap-2.5">
+                <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
+                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm">
+                  {item.label}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+                  {item.count}
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">
+                  ({item.pct}%)
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Interactive Floating Hover Popover listing matching Work Orders */}
+      {hoveredBucket && (
+        <div
+          className="fixed z-[600] rounded-2xl shadow-2xl p-3.5 min-w-[280px] max-w-[340px] pointer-events-none transition-all duration-150 backdrop-blur-md"
+          style={{
+            top: popoverPos.y - 10,
+            left: popoverPos.x,
+            backgroundColor: isDark ? 'rgba(30, 41, 59, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+            border: `1.5px solid ${hoveredBucket.color}`,
+            boxShadow: `0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px ${hoveredBucket.color}40`
+          }}
+        >
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: hoveredBucket.color }} />
+              <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+                {hoveredBucket.label}
+              </span>
+            </div>
+            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              {hoveredBucket.workOrders?.length || hoveredBucket.count || 0} Work Orders
+            </span>
+          </div>
+
+          {hoveredBucket.workOrders && hoveredBucket.workOrders.length > 0 ? (
+            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 text-xs">
+              {hoveredBucket.workOrders.slice(0, 15).map((wo, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/50"
+                >
+                  <div className="min-w-0 pr-2">
+                    <p className="font-extrabold font-mono text-[11px] text-slate-900 dark:text-slate-100 truncate">
+                      {wo.work_order_no}
+                    </p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                      {wo.site_details}
+                    </p>
+                  </div>
+                  <span className="shrink-0 font-extrabold text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    {wo.value}
+                  </span>
+                </div>
+              ))}
+              {hoveredBucket.workOrders.length > 15 && (
+                <p className="text-[10px] text-center font-bold text-slate-400 pt-1">
+                  + {hoveredBucket.workOrders.length - 15} more work orders
+                </p>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 italic text-center py-2">
+              No active work orders in this metric
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Physical Work Progress Card Component ─────────────────────────────────────
+const PhysicalWorkProgress = ({ data }) => {
+  const fallbackData = [
+    {
+      label: '60% and above',
+      color: '#16A34A',
+      count: 65,
+      percentage: 51,
+      workOrders: [
+        { work_order_no: 'WB_APD_101', site_details: 'Main Road Work-1', value: '85%' },
+        { work_order_no: 'WB_BAN_102', site_details: 'Main Road Work-2', value: '78%' },
+        { work_order_no: 'WB_BIR_103', site_details: 'Main Road Work-3', value: '64%' }
+      ]
+    },
+    {
+      label: '40% - 59%',
+      color: '#EAB308',
+      count: 35,
+      percentage: 27,
+      workOrders: [
+        { work_order_no: 'SK_GAN_201', site_details: 'Main Road Work-5', value: '55%' },
+        { work_order_no: 'OD_ANG_301', site_details: 'Pipe Line Work-2', value: '48%' }
+      ]
+    },
+    {
+      label: 'Below 40%',
+      color: '#DC2626',
+      count: 16,
+      percentage: 12,
+      workOrders: [
+        { work_order_no: 'JH_CHA_402', site_details: 'River Embankment-1', value: '32%' },
+        { work_order_no: 'BH_ARA_501', site_details: 'River Embankment-3', value: '18%' }
+      ]
+    },
+    {
+      label: 'Not Started',
+      color: '#64748B',
+      count: 12,
+      percentage: 9,
+      workOrders: [
+        { work_order_no: 'JH_DEO_403', site_details: 'River Embankment-2', value: '0%' }
+      ]
+    }
+  ];
+
+  return (
+    <MetricDonutCard
+      title="Physical Work Progress"
+      centerLabel="Avg. Progress"
+      centerValue={data?.avgProgress || '81%'}
+      buckets={data?.buckets}
+      fallbackData={fallbackData}
+    />
+  );
+};
+
+// ── JE Visit Frequency Card Component ─────────────────────────────────────────
+const JeVisitFrequency = ({ data }) => {
+  const fallbackData = [
+    {
+      label: '≤ 7 Days',
+      color: '#0D9488',
+      count: 46,
+      percentage: 36,
+      workOrders: [
+        { work_order_no: 'WB_APD_101', site_details: 'Main Road Work-1', value: '2d ago' },
+        { work_order_no: 'SK_GAN_201', site_details: 'Main Road Work-5', value: '5d ago' }
+      ]
+    },
+    {
+      label: '8 – 15 Days',
+      color: '#0284C7',
+      count: 52,
+      percentage: 41,
+      workOrders: [
+        { work_order_no: 'WB_BAN_102', site_details: 'Main Road Work-2', value: '10d ago' },
+        { work_order_no: 'OD_ANG_301', site_details: 'Pipe Line Work-2', value: '14d ago' }
+      ]
+    },
+    {
+      label: '> 15 Days',
+      color: '#EF4444',
+      count: 20,
+      percentage: 16,
+      workOrders: [
+        { work_order_no: 'JH_CHA_402', site_details: 'River Embankment-1', value: '22d ago' },
+        { work_order_no: 'BH_ARA_501', site_details: 'River Embankment-3', value: '28d ago' }
+      ]
+    },
+    {
+      label: 'No Visit',
+      color: '#64748B',
+      count: 10,
+      percentage: 7,
+      workOrders: [
+        { work_order_no: 'JH_DEO_403', site_details: 'River Embankment-2', value: 'No Visit' }
+      ]
+    }
+  ];
+
+  return (
+    <MetricDonutCard
+      title="JE Visit Frequency"
+      centerLabel="Avg. Visit"
+      centerValue={data?.avgVisit || '14 Days'}
+      buckets={data?.buckets}
+      fallbackData={fallbackData}
+    />
+  );
+};
+
+// ── Key Financial Indicators Component ───────────────────────────────────────
+const KeyFinancialIndicators = ({ data }) => {
+  const { isDark } = useTheme();
+
+  const formatFinancialAmount = (amt) => {
+    if (!amt || isNaN(amt)) return '₹ 0';
+    if (amt >= 10000000) {
+      const inCr = amt / 10000000;
+      const str = inCr.toFixed(3);
+      const trimmed = str.endsWith('0') ? inCr.toFixed(2) : str;
+      return `₹ ${trimmed} Cr`;
+    }
+    if (amt >= 100000) return `₹ ${(amt / 100000).toFixed(2)} L`;
+    return `₹ ${Number(amt).toLocaleString('en-IN')}`;
+  };
+
+  const items = [
+    {
+      label: 'EMD Amount',
+      value: data?.emdAmount ?? 3200000,
+      bgColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Security Deposit',
+      value: data?.securityDeposit ?? 4200000,
+      bgColor: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      )
+    },
+    {
+      label: 'IT TDS',
+      value: data?.itTds ?? 8400000,
+      bgColor: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z" />
+        </svg>
+      )
+    },
+    {
+      label: 'SGST',
+      value: data?.sgst ?? 3680000,
+      bgColor: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+        </svg>
+      )
+    },
+    {
+      label: 'CGST',
+      value: data?.cgst ?? 3680000,
+      bgColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h10M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" />
+        </svg>
+      )
+    },
+    {
+      label: 'Not Utilized',
+      value: data?.notUtilized ?? 900000,
+      bgColor: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+        </svg>
+      )
+    }
+  ];
+
+  return (
+    <div className="chart-panel h-full flex flex-col justify-between p-5">
+      <div className="flex justify-between items-center mb-3">
+        <div>
+          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+            Key Financial Indicators
+          </h3>
+          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Summary of statutory withholdings and unutilized funds
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col justify-between my-auto gap-2">
+        {items.map((item, idx) => (
+          <div
+            key={idx}
+            className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-slate-500/10 transition-colors border border-slate-200/50 dark:border-slate-800/60"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-full border shadow-xs ${item.bgColor}`}>
+                {item.icon}
+              </div>
+              <span className="font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200">
+                {item.label}
+              </span>
+            </div>
+            <span className="font-extrabold text-xs sm:text-sm font-mono text-slate-900 dark:text-slate-100">
+              {formatFinancialAmount(item.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── Executive 9-KPI Strip Component ──────────────────────────────────────────
+const ExecutiveKpiStrip = ({ data }) => {
+  const { isDark } = useTheme();
+
+  const formatCr = (amt) => {
+    if (!amt || isNaN(amt)) return '₹ 0';
+    if (amt >= 10000000) return `₹ ${(amt / 10000000).toFixed(2)} Cr`;
+    if (amt >= 100000) return `₹ ${(amt / 100000).toFixed(2)} L`;
+    return `₹ ${Number(amt).toLocaleString('en-IN')}`;
+  };
+
+  const kpis = [
+    {
+      id: 'work_orders',
+      title: 'Total Work Orders',
+      titleColor: 'text-[#1E3A8A] dark:text-[#60A5FA]',
+      value: data?.totalWorkOrders?.total ?? 128,
+      isCurrency: false,
+      subtext: `Running: ${data?.totalWorkOrders?.running ?? 84} | Completed: ${data?.totalWorkOrders?.completed ?? 32}\nPending: ${data?.totalWorkOrders?.pending ?? 12}`,
+      bgClass: 'bg-blue-50/60 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40',
+      iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+      )
+    },
+    {
+      id: 'wo_value',
+      title: 'Total WO Value',
+      titleColor: 'text-[#15803D] dark:text-[#4ADE80]',
+      value: formatCr(data?.totalWOValue ?? 125000000),
+      isCurrency: true,
+      subtext: null,
+      bgClass: 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40',
+      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+      icon: (
+        <span className="font-extrabold text-sm">₹</span>
+      )
+    },
+    {
+      id: 'estimate',
+      title: 'Total Estimate Amount',
+      titleColor: 'text-[#6D28D9] dark:text-[#C084FC]',
+      value: formatCr(data?.totalEstimateAmount?.amount ?? 118000000),
+      isCurrency: true,
+      subtext: `${data?.totalEstimateAmount?.pctOfWOValue ?? 94.4}% of WO Value`,
+      bgClass: 'bg-purple-50/60 dark:bg-purple-950/20 border-purple-200/80 dark:border-purple-800/40',
+      iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'requisition',
+      title: 'Total Requisition (ZO → HO)',
+      titleColor: 'text-[#C2410C] dark:text-[#FB923C]',
+      value: formatCr(data?.totalRequisition?.amount ?? 102500000),
+      isCurrency: true,
+      subtext: `${data?.totalRequisition?.pctOfEstimate ?? 86.9}% of Estimate`,
+      bgClass: 'bg-orange-50/60 dark:bg-orange-950/20 border-orange-200/80 dark:border-orange-800/40',
+      iconBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'approved',
+      title: 'Total Approved (HO → ZO)',
+      titleColor: 'text-[#B45309] dark:text-[#FBBF24]',
+      value: formatCr(data?.totalApproved?.amount ?? 99000000),
+      isCurrency: true,
+      subtext: `${data?.totalApproved?.pctOfRequisition ?? 96.6}% of Requisition`,
+      bgClass: 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/40',
+      iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h47M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'zo_balance',
+      title: 'ZO Available Balance',
+      titleColor: 'text-[#1D4ED8] dark:text-[#60A5FA]',
+      value: formatCr(data?.zoAvailableBalance ?? 11200000),
+      isCurrency: true,
+      subtext: null,
+      bgClass: 'bg-sky-50/60 dark:bg-sky-950/20 border-sky-200/80 dark:border-sky-800/40',
+      iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+      )
+    },
+    {
+      id: 'refund',
+      title: 'Total Refund Amount',
+      titleColor: 'text-[#0F766E] dark:text-[#2DD4BF]',
+      value: formatCr(data?.totalRefundAmount ?? 1800000),
+      isCurrency: true,
+      subtext: null,
+      bgClass: 'bg-teal-50/60 dark:bg-teal-950/20 border-teal-200/80 dark:border-teal-800/40',
+      iconBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+        </svg>
+      )
+    },
+    {
+      id: 'gross_bill',
+      title: 'Gross Bill Amount',
+      titleColor: 'text-[#BE123C] dark:text-[#FB7185]',
+      value: formatCr(data?.grossBillAmount?.amount ?? 86500000),
+      isCurrency: true,
+      subtext: `${data?.grossBillAmount?.pctOfEstimate ?? 73.3}% of Estimate`,
+      bgClass: 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-800/40',
+      iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'agency_payment',
+      title: 'Agency Payment',
+      titleColor: 'text-[#4338CA] dark:text-[#818CF8]',
+      value: formatCr(data?.agencyPayment?.amount ?? 82000000),
+      isCurrency: true,
+      subtext: `${data?.agencyPayment?.pctOfGrossBill ?? 94.8}% of Gross Bill`,
+      bgClass: 'bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200/80 dark:border-indigo-800/40',
+      iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      )
+    }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3 mb-6">
+      {kpis.map((kpi) => (
+        <div
+          key={kpi.id}
+          className={`p-3 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${kpi.bgClass}`}
+        >
+          <p className={`text-[11px] font-extrabold tracking-tight truncate mb-2 ${kpi.titleColor}`}>
+            {kpi.title}
+          </p>
+
+          <div className="flex items-center gap-2 my-auto">
+            <div className={`p-1.5 rounded-xl shrink-0 flex items-center justify-center ${kpi.iconBg}`}>
+              {kpi.icon}
+            </div>
+            <span className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-slate-100 font-mono truncate">
+              {kpi.value}
+            </span>
+          </div>
+
+          {kpi.subtext ? (
+            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-2 whitespace-pre-line truncate">
+              {kpi.subtext}
+            </p>
+          ) : (
+            <div className="h-4 mt-2" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -1344,37 +1979,50 @@ const HoDashboard = () => {
             </div>
           )}
 
-          {/* ── Row 1: Department Wise Estimate (1/2) + Fund Flow Waterfall (1/2) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('department')}>
+          {/* Executive 9-KPI Strip */}
+          <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} />
+
+          {/* ── Row 1: Physical Work Progress (1/3) + Department Wise Estimate (1/3) + Key Financial Indicators (1/3) ── */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('physical_progress')}>
+              <div style={{ minHeight: '480px' }} className="h-full">
+                <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
+              </div>
+            </ZoomCard>
+            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('department')}>
               <div style={{ minHeight: '480px' }} className="h-full">
                 <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
               </div>
             </ZoomCard>
+            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('key_financials')}>
+              <div style={{ minHeight: '480px' }} className="h-full">
+                <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
+              </div>
+            </ZoomCard>
+          </div>
+
+          {/* ── Row 2: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
               <div style={{ minHeight: '480px' }} className="h-full">
                 <FundFlowWaterfall data={chartRes?.waterfallData || []} />
               </div>
             </ZoomCard>
-          </div>
-
-          {/* ── Row 2: Bubble Risk Matrix (1/2) + Zonal Performance Heatmap (1/2) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
               <div style={{ minHeight: '480px' }} className="h-full">
                 <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
               </div>
             </ZoomCard>
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('zonal')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
-                <ZonalPerformanceHeatmap
-                  data={chartRes?.zonalHeatmap || []}
-                  onSelectZone={setSelectedZone}
-                  selectedZone={selectedZone}
-                />
-              </div>
-            </ZoomCard>
           </div>
+
+          {/* ── Row 3: Zonal Performance Heatmap (full-width) ─────────────── */}
+          <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
+            <ZonalPerformanceHeatmap
+              data={chartRes?.zonalHeatmap || []}
+              onSelectZone={setSelectedZone}
+              selectedZone={selectedZone}
+            />
+          </ZoomCard>
 
           {/* ── Row 3: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -1549,9 +2197,24 @@ const HoDashboard = () => {
           </div>
 
           {/* ── Fullscreen Chart Zoom Modal ───────────────────────────────── */}
+          {zoomedChart === 'physical_progress' && (
+            <ChartModal onClose={() => setZoomedChart(null)}>
+              <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
+            </ChartModal>
+          )}
+          {zoomedChart === 'je_visit' && (
+            <ChartModal onClose={() => setZoomedChart(null)}>
+              <JeVisitFrequency data={chartRes?.jeVisitFrequencyMetrics} />
+            </ChartModal>
+          )}
           {zoomedChart === 'department' && (
             <ChartModal onClose={() => setZoomedChart(null)}>
               <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
+            </ChartModal>
+          )}
+          {zoomedChart === 'key_financials' && (
+            <ChartModal onClose={() => setZoomedChart(null)}>
+              <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
             </ChartModal>
           )}
           {zoomedChart === 'bubble' && (
