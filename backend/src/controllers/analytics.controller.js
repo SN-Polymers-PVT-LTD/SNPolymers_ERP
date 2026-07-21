@@ -950,6 +950,114 @@ async function getHoChartData(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/analytics/je-leaderboard
+ * Returns JE leaderboard calculated by highest daily progress reports and active streak
+ * Supports timeframe query parameter: weekly, monthly, annually, lifetime
+ */
+async function getJeLeaderboard(req, res) {
+  try {
+    const { timeframe = 'weekly' } = req.query;
+
+    // 1. Calculate date threshold based on timeframe
+    let dateThreshold = null;
+    const now = new Date();
+
+    if (timeframe === 'weekly') {
+      const d = new Date(now);
+      d.setDate(d.getDate() - 7);
+      dateThreshold = d.toISOString().slice(0, 10);
+    } else if (timeframe === 'monthly') {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 1);
+      dateThreshold = d.toISOString().slice(0, 10);
+    } else if (timeframe === 'annually') {
+      const d = new Date(now);
+      d.setFullYear(d.getFullYear() - 1);
+      dateThreshold = d.toISOString().slice(0, 10);
+    } // lifetime has dateThreshold = null
+
+    // 2. Fetch only ACTIVE JE users
+    const { data: jeUsers, error: userErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name, role, daily_streak, is_active, created_at')
+      .eq('role', 'je')
+      .eq('is_active', true);
+
+    if (userErr) throw userErr;
+
+    // 3. Fetch progress reports
+    let dprQuery = supabase
+      .from('daily_progress_reports')
+      .select('report_id, created_by, physical_work_progress, site_visit_date, approval_status');
+
+    if (dateThreshold) {
+      dprQuery = dprQuery.gte('site_visit_date', dateThreshold);
+    }
+
+    const { data: reports, error: dprErr } = await dprQuery;
+    if (dprErr) throw dprErr;
+
+    // 4. Aggregate metrics per active JE user
+    const userStats = {};
+    (jeUsers || []).forEach(u => {
+      userStats[u.mobile_number] = {
+        mobile_number: u.mobile_number,
+        display_name: u.display_name || u.mobile_number,
+        daily_streak: u.daily_streak || 0,
+        total_reports: 0,
+        approved_reports: 0,
+        avg_progress: 0,
+        total_progress_points: 0,
+        score: 0
+      };
+    });
+
+    (reports || []).forEach(r => {
+      // Only count reports for currently active JEs
+      if (userStats[r.created_by]) {
+        userStats[r.created_by].total_reports += 1;
+        if (r.approval_status === 'Approved') {
+          userStats[r.created_by].approved_reports += 1;
+        }
+        userStats[r.created_by].total_progress_points += Number(r.physical_work_progress || 0);
+      }
+    });
+
+    // 5. Calculate scores and rankings for active users with logged activity or streak
+    const leaderboard = Object.values(userStats)
+      .map(u => {
+        const avgProg = u.total_reports > 0 ? parseFloat((u.total_progress_points / u.total_reports).toFixed(1)) : 0;
+        // Formula: (reports * 20) + (streak * 10) + (avgProgress * 2) + (approved_reports * 15)
+        const score = Math.round((u.total_reports * 20) + (u.daily_streak * 10) + (avgProg * 2) + (u.approved_reports * 15));
+        return {
+          ...u,
+          avg_progress: avgProg,
+          score
+        };
+      })
+      .filter(u => u.total_reports > 0 || u.daily_streak > 0); // Exclude zero-activity inactive accounts
+
+    // Sort by score descending, then total_reports descending
+    leaderboard.sort((a, b) => b.score - a.score || b.total_reports - a.total_reports);
+
+    // Assign rank positions
+    const rankedLeaderboard = leaderboard.map((item, idx) => ({
+      rank: idx + 1,
+      ...item
+    }));
+
+    return res.status(200).json({
+      success: true,
+      timeframe,
+      leaderboard: rankedLeaderboard
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error in getJeLeaderboard:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Internal server error fetching JE leaderboard.' });
+  }
+}
+
 module.exports = {
   getHoKpis,
   getHoResourceUtilization,
@@ -963,5 +1071,6 @@ module.exports = {
   triggerRefresh,
   getProjectsHealth,
   getHoActionableInsights,
-  getHoChartData
+  getHoChartData,
+  getJeLeaderboard
 };

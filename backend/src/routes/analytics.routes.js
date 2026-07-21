@@ -12,7 +12,8 @@ const {
   triggerRefresh,
   getProjectsHealth,
   getHoActionableInsights,
-  getHoChartData
+  getHoChartData,
+  getJeLeaderboard
 } = require('../controllers/analytics.controller');
 const verifyJwt  = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -21,6 +22,9 @@ const router = express.Router();
 
 // All analytics routes require authentication
 router.use(verifyJwt);
+
+// JE Leaderboard Route (accessible by all authenticated roles)
+router.get('/je-leaderboard', requireRole(['je', 'zo', 'ho', 'admin']), getJeLeaderboard);
 
 // HO Executive Routes
 const hoRoles = ['ho', 'admin'];
