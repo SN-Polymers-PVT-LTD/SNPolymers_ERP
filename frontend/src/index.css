@@ -105,37 +105,81 @@
     scrollbar-width: none;  /* Firefox */
   }
 
+  /* Marquee animation for continuous scrolling ticker */
+  @keyframes marquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    display: flex;
+    width: max-content;
+    animation: marquee 35s linear infinite;
+  }
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+
   /* ─── Chart Panel System ─────────────────────────────────────────────────── */
   /* Base panel: dark mode */
   .chart-panel {
     position: relative;
     width: 100%;
-    background: rgba(15, 23, 42, 0.45);
+    background: rgba(15, 23, 42, 0.50);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     box-shadow:
       0 4px 30px rgba(0, 0, 0, 0.35),
       inset 0 1px 1px rgba(255, 255, 255, 0.04);
     border-radius: 1.5rem;
     padding: 1.5rem;
+    transition: border-color 0.22s ease, box-shadow 0.22s ease;
+  }
+  .chart-panel:hover {
+    border-color: rgba(255, 255, 255, 0.13);
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.02),
+      0 20px 60px rgba(0, 0, 0, 0.45),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  }
+  /* Amber corner brackets on chart panels */
+  .chart-panel::before, .chart-panel::after {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    opacity: 0.45;
+    transition: opacity 0.22s ease;
+  }
+  .chart-panel:hover::before, .chart-panel:hover::after { opacity: 0.9; }
+  .chart-panel::before {
+    top: -1px; left: -1px;
+    border-top: 2px solid #f0a843;
+    border-left: 2px solid #f0a843;
+    border-radius: 6px 0 0 0;
+  }
+  .chart-panel::after {
+    bottom: -1px; right: -1px;
+    border-bottom: 2px solid #f0a843;
+    border-right: 2px solid #f0a843;
+    border-radius: 0 0 6px 0;
   }
 
   /* Chart typography — dark */
   .chart-title {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: rgba(148, 163, 184, 0.9);
+    letter-spacing: -0.01em;
+    color: rgba(225, 232, 244, 0.95);
   }
   .chart-subtitle {
-    font-size: 0.57rem;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: rgba(100, 116, 139, 0.7);
-    margin-top: 0.2rem;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: rgba(100, 116, 139, 0.75);
+    margin-top: 0.25rem;
+    line-height: 1.5;
   }
   .chart-label {
     color: rgba(100, 116, 139, 0.8);
@@ -178,10 +222,12 @@
 
   /* Chart tooltip — dark */
   .chart-tooltip {
-    background: rgba(7, 15, 35, 0.92);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    background: rgba(7, 12, 28, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.9rem;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.65);
   }
   .chart-tooltip-title  { color: rgba(248, 250, 252, 0.95); }
   .chart-tooltip-mono   { color: rgba(148, 163, 184, 0.6); font-family: monospace; }

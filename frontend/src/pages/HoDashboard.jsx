@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Sidebar, { MobileHeader } from '../components/Sidebar';
 import TopNavbar from '../components/TopNavbar';
 import BackgroundShapes from '../components/BackgroundShapes';
-import { useModalOverlay } from '../components/ModalContext';
+import ModalContext, { useModalOverlay } from '../components/ModalContext';
 import {
   getHoKpis,
   getHoZoneBenchmarking,
@@ -78,56 +78,104 @@ const InfoTooltip = ({ content, position = 'center' }) => {
   );
 };
 
-// ── Fullscreen chart zoom modal ──────────────────────────────────────────────
-const ChartModal = ({ onClose, children }) => {
-  const { isDark } = useTheme();
-  const { openModal, closeModal } = useModalOverlay();
+// ── Dynamic Fullscreen Chart Zoom Modal (React Class Component) ──────────────
+class ChartModal extends React.Component {
+  static contextType = ModalContext;
 
-  React.useEffect(() => {
-    openModal();
-    return () => closeModal();
-  }, [openModal, closeModal]);
+  componentDidMount() {
+    document.addEventListener('keydown', this.handleKeyDown);
+    if (this.context && this.context.openModal) {
+      this.context.openModal();
+    }
+  }
 
-  React.useEffect(() => {
-    const esc = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
+  componentWillUnmount() {
+    document.removeEventListener('keydown', this.handleKeyDown);
+    if (this.context && this.context.closeModal) {
+      this.context.closeModal();
+    }
+  }
 
-  return (
-    <div
-      className="fixed inset-0 z-[500] flex items-center justify-center p-6"
-      style={{
-        background: isDark ? 'rgba(0,0,0,0.88)' : 'rgba(0,0,0,0.5)',
-        backdropFilter: 'blur(16px)'
-      }}
-      onClick={onClose}
-    >
-      {/* The chart-panel itself IS the modal card — no double wrapping */}
+  handleKeyDown = (e) => {
+    if (e.key === 'Escape' && this.props.onClose) {
+      this.props.onClose();
+    }
+  };
+
+  render() {
+    const {
+      onClose,
+      children,
+      isDark = true,
+      title,
+      width = '80vw',
+      height = '80vh',
+      maxWidth = '80vw',
+      maxHeight = '80vh'
+    } = this.props;
+
+    return (
       <div
-        className="relative w-full flex flex-col overflow-hidden"
-        style={{ maxWidth: '1400px', height: '88vh' }}
-        onClick={e => e.stopPropagation()}
+        className="fixed inset-0 z-[500] flex items-center justify-center p-3 sm:p-6 transition-all duration-300"
+        style={{
+          background: isDark ? 'rgba(5, 8, 16, 0.88)' : 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)'
+        }}
+        onClick={onClose}
       >
-        {/* Floating red X close button over the chart */}
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 z-50 p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white transition-all duration-300 shadow-lg group"
-          title="Close (ESC)"
+        {/* Dynamically Sized Modal Card Box - Contained within Screen */}
+        <div
+          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${
+            isDark
+              ? 'bg-[#0b0e14] border-white/10 text-slate-100 shadow-black/90'
+              : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
+          }`}
+          style={{
+            width: width,
+            height: height,
+            maxWidth: maxWidth,
+            maxHeight: maxHeight
+          }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+          {/* Modal Header */}
+          <div
+            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 ${
+              isDark ? 'border-white/10 bg-[#0f172a]/80' : 'border-slate-100 bg-slate-50'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f59e0b]" />
+              <h3 className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono ${
+                isDark ? 'text-amber-400' : 'text-amber-600'
+              }`}>
+                {title || 'Chart Telemetry Inspection'}
+              </h3>
+            </div>
 
-        {/* Chart fills entire modal space */}
-        <div className="flex-1 overflow-auto min-h-0 h-full">
-          {children}
+            {/* Red Close Button */}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-md cursor-pointer flex items-center gap-1 text-xs font-bold uppercase tracking-wider"
+              title="Close (ESC)"
+            >
+              <span>Close</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Dynamically Scaled Inner Content Area */}
+          <div className="flex-1 overflow-auto p-4 sm:p-6 min-h-0 h-full w-full">
+            {children}
+          </div>
         </div>
       </div>
-    </div>
-  );
-};
+    );
+  }
+}
 
 // ── Zoomable wrapper for any chart panel ─────────────────────────────────────
 const ZoomCard = ({ children, onZoom, className = '' }) => (
@@ -916,8 +964,8 @@ const DepartmentWiseEstimate = ({ data = [] }) => {
   };
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-5">
-      <div className="flex justify-between items-center mb-2">
+    <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5">
+      <div className="flex justify-between items-center mb-3">
         <div>
           <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
             Department Wise Estimate Amount
@@ -928,9 +976,9 @@ const DepartmentWiseEstimate = ({ data = [] }) => {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2">
-        {/* Donut Visual */}
-        <div className="relative w-52 h-52 sm:w-60 sm:h-60 shrink-0">
+      <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
+        {/* Donut Graphic */}
+        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto">
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
             {donutSlices.map((slice, idx) => (
               <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group">
@@ -958,21 +1006,23 @@ const DepartmentWiseEstimate = ({ data = [] }) => {
           </svg>
         </div>
 
-        {/* Legend List */}
-        <div className="flex flex-col gap-2.5 w-full md:w-auto min-w-[210px]">
+        {/* Legend List - full-width rows with clear separation between name and amount */}
+        <div className="flex flex-col gap-1.5 w-full">
           {items.map((item, idx) => (
-            <div key={idx} className="flex items-center justify-between gap-4 text-xs font-semibold py-1 px-2.5 rounded-lg hover:bg-slate-500/10 transition-colors">
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
-                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm">
+            <div key={idx} className="flex items-center justify-between gap-4 text-xs py-1 px-2 rounded-lg hover:bg-slate-500/10 transition-colors">
+              {/* Department Name */}
+              <div className="flex items-center gap-2 min-w-0 pr-2">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
+                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs">
                   {item.department}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+              {/* Amount & Percentage */}
+              <div className="flex items-center gap-1.5 font-mono shrink-0 whitespace-nowrap text-right ml-auto">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs">
                   {formatAmount(item.amount)}
                 </span>
-                <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">
                   ({item.percentage}%)
                 </span>
               </div>
@@ -1086,9 +1136,9 @@ const MetricDonutCard = ({
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2">
+      <div className="flex flex-col xl:flex-row items-center justify-between gap-4 my-auto py-2">
         {/* Donut Graphic with Center Text */}
-        <div className="relative w-52 h-52 sm:w-60 sm:h-60 shrink-0 flex items-center justify-center">
+        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 flex items-center justify-center">
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
             {slices.map((slice, idx) => (
               <path
@@ -1110,21 +1160,21 @@ const MetricDonutCard = ({
 
           {/* Center Label inside donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               {centerLabel}
             </span>
-            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-0.5">
+            <span className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-0.5">
               {centerValue}
             </span>
           </div>
         </div>
 
         {/* Legend List */}
-        <div className="flex flex-col gap-2.5 w-full md:w-auto min-w-[210px]">
+        <div className="flex flex-col gap-2 w-full xl:w-auto min-w-0">
           {slices.map((item, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between gap-4 text-xs font-semibold py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
+              className={`flex items-center justify-between gap-3 text-xs font-semibold py-1 px-2 rounded-xl cursor-pointer transition-all ${
                 hoveredBucket?.label === item.label
                   ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]'
                   : 'hover:bg-slate-500/10 border border-transparent'
@@ -1132,17 +1182,17 @@ const MetricDonutCard = ({
               onMouseEnter={(e) => handleMouseEnter(e, item)}
               onMouseLeave={() => setHoveredBucket(null)}
             >
-              <div className="flex items-center gap-2.5">
-                <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
-                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
+                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs truncate max-w-[120px]" title={item.label}>
                   {item.label}
                 </span>
               </div>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+              <div className="flex items-center gap-1 font-mono shrink-0 whitespace-nowrap">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs">
                   {item.count}
                 </span>
-                <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">
                   ({item.pct}%)
                 </span>
               </div>
@@ -1402,38 +1452,67 @@ const KeyFinancialIndicators = ({ data }) => {
     }
   ];
 
+  // Compute max amount for bar scaling
+  const maxAmount = Math.max(1, ...items.map(i => i.value));
+
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-5">
       <div className="flex justify-between items-center mb-3">
         <div>
-          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+          <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>
             Key Financial Indicators
           </h3>
-          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="chart-subtitle">
             Summary of statutory withholdings and unutilized funds
           </p>
         </div>
       </div>
 
-      <div className="flex flex-col justify-between my-auto gap-2">
-        {items.map((item, idx) => (
-          <div
-            key={idx}
-            className="flex items-center justify-between py-2 px-3 rounded-xl hover:bg-slate-500/10 transition-colors border border-slate-200/50 dark:border-slate-800/60"
-          >
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full border shadow-xs ${item.bgColor}`}>
-                {item.icon}
+      <div className="flex flex-col justify-between my-auto gap-3">
+        {items.map((item, idx) => {
+          const barWidth = (item.value / maxAmount) * 100;
+          // extract border color from bgColor class for the bar
+          const barGradientMap = {
+            0: '#10b981', 1: '#0ea5e9', 2: '#f59e0b', 3: '#f43f5e', 4: '#a78bfa', 5: '#14b8a6'
+          };
+          const barColor = barGradientMap[idx] || '#f0a843';
+          return (
+            <div
+              key={idx}
+              className="group"
+            >
+              <div className="flex items-center justify-between mb-1.5 gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`p-1.5 rounded-lg border shadow-xs shrink-0 ${item.bgColor}`}>
+                    {item.icon}
+                  </div>
+                  <span className="font-bold text-xs text-slate-700 dark:text-slate-200 truncate">
+                    {item.label}
+                  </span>
+                </div>
+                <span className="font-extrabold text-xs font-mono text-slate-900 dark:text-slate-100 shrink-0 whitespace-nowrap">
+                  {formatFinancialAmount(item.value)}
+                </span>
               </div>
-              <span className="font-bold text-xs sm:text-sm text-slate-700 dark:text-slate-200">
-                {item.label}
-              </span>
+              {/* Gradient progress bar with glowing endpoint dot */}
+              <div className="relative h-1 bg-white/[0.055] rounded-full overflow-visible">
+                <div
+                  className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
+                  style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${barColor}99 0%, ${barColor} 100%)` }}
+                />
+                {/* Glowing endpoint dot */}
+                <span
+                  className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full transition-all duration-700"
+                  style={{
+                    left: `calc(${barWidth}% - 4px)`,
+                    background: barColor,
+                    boxShadow: `0 0 6px 2px ${barColor}80`
+                  }}
+                />
+              </div>
             </div>
-            <span className="font-extrabold text-xs sm:text-sm font-mono text-slate-900 dark:text-slate-100">
-              {formatFinancialAmount(item.value)}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1453,136 +1532,84 @@ const ExecutiveKpiStrip = ({ data }) => {
   const kpis = [
     {
       id: 'work_orders',
-      title: 'Total Work Orders',
-      titleColor: 'text-[#1E3A8A] dark:text-[#60A5FA]',
+      title: 'TOTAL WORK ORDERS',
+      titleColor: '#60a5fa',
+      topGlow: 'linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0) 80%)',
       value: data?.totalWorkOrders?.total ?? 128,
       isCurrency: false,
       subtext: `Running: ${data?.totalWorkOrders?.running ?? 84} | Completed: ${data?.totalWorkOrders?.completed ?? 32}\nPending: ${data?.totalWorkOrders?.pending ?? 12}`,
-      bgClass: 'bg-blue-50/60 dark:bg-blue-950/20 border-blue-200/80 dark:border-blue-800/40',
-      iconBg: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-        </svg>
-      )
     },
     {
       id: 'wo_value',
-      title: 'Total WO Value',
-      titleColor: 'text-[#15803D] dark:text-[#4ADE80]',
+      title: 'TOTAL WO VALUE',
+      titleColor: '#34d399',
+      topGlow: 'linear-gradient(90deg, #10b981 0%, rgba(16,185,129,0) 80%)',
       value: formatCr(data?.totalWOValue ?? 125000000),
       isCurrency: true,
       subtext: null,
-      bgClass: 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-800/40',
-      iconBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-      icon: (
-        <span className="font-extrabold text-sm">₹</span>
-      )
     },
     {
       id: 'estimate',
-      title: 'Total Estimate Amount',
-      titleColor: 'text-[#6D28D9] dark:text-[#C084FC]',
+      title: 'TOTAL ESTIMATE AMOUNT',
+      titleColor: '#c084fc',
+      topGlow: 'linear-gradient(90deg, #a855f7 0%, rgba(168,85,247,0) 80%)',
       value: formatCr(data?.totalEstimateAmount?.amount ?? 118000000),
       isCurrency: true,
       subtext: `${data?.totalEstimateAmount?.pctOfWOValue ?? 94.4}% of WO Value`,
-      bgClass: 'bg-purple-50/60 dark:bg-purple-950/20 border-purple-200/80 dark:border-purple-800/40',
-      iconBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      )
     },
     {
       id: 'requisition',
-      title: 'Total Requisition (ZO → HO)',
-      titleColor: 'text-[#C2410C] dark:text-[#FB923C]',
+      title: 'TOTAL REQUISITION (ZO → HO)',
+      titleColor: '#fb923c',
+      topGlow: 'linear-gradient(90deg, #f97316 0%, rgba(249,115,22,0) 80%)',
       value: formatCr(data?.totalRequisition?.amount ?? 102500000),
       isCurrency: true,
       subtext: `${data?.totalRequisition?.pctOfEstimate ?? 86.9}% of Estimate`,
-      bgClass: 'bg-orange-50/60 dark:bg-orange-950/20 border-orange-200/80 dark:border-orange-800/40',
-      iconBg: 'bg-orange-500/10 text-orange-600 dark:text-orange-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 01-2-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      )
     },
     {
       id: 'approved',
-      title: 'Total Approved (HO → ZO)',
-      titleColor: 'text-[#B45309] dark:text-[#FBBF24]',
+      title: 'TOTAL APPROVED (HO → ZO)',
+      titleColor: '#fbbf24',
+      topGlow: 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0) 80%)',
       value: formatCr(data?.totalApproved?.amount ?? 99000000),
       isCurrency: true,
       subtext: `${data?.totalApproved?.pctOfRequisition ?? 96.6}% of Requisition`,
-      bgClass: 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200/80 dark:border-amber-800/40',
-      iconBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h47M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      )
     },
     {
       id: 'zo_balance',
-      title: 'ZO Available Balance',
-      titleColor: 'text-[#1D4ED8] dark:text-[#60A5FA]',
+      title: 'ZO AVAILABLE BALANCE',
+      titleColor: '#38bdf8',
+      topGlow: 'linear-gradient(90deg, #0284c7 0%, rgba(2,132,199,0) 80%)',
       value: formatCr(data?.zoAvailableBalance ?? 11200000),
       isCurrency: true,
       subtext: null,
-      bgClass: 'bg-sky-50/60 dark:bg-sky-950/20 border-sky-200/80 dark:border-sky-800/40',
-      iconBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-      )
     },
     {
       id: 'refund',
-      title: 'Total Refund Amount',
-      titleColor: 'text-[#0F766E] dark:text-[#2DD4BF]',
+      title: 'TOTAL REFUND AMOUNT',
+      titleColor: '#2dd4bf',
+      topGlow: 'linear-gradient(90deg, #14b8a6 0%, rgba(20,184,166,0) 80%)',
       value: formatCr(data?.totalRefundAmount ?? 1800000),
       isCurrency: true,
       subtext: null,
-      bgClass: 'bg-teal-50/60 dark:bg-teal-950/20 border-teal-200/80 dark:border-teal-800/40',
-      iconBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
-        </svg>
-      )
     },
     {
       id: 'gross_bill',
-      title: 'Gross Bill Amount',
-      titleColor: 'text-[#BE123C] dark:text-[#FB7185]',
+      title: 'GROSS BILL AMOUNT',
+      titleColor: '#f87171',
+      topGlow: 'linear-gradient(90deg, #ef4444 0%, rgba(239,68,68,0) 80%)',
       value: formatCr(data?.grossBillAmount?.amount ?? 86500000),
       isCurrency: true,
       subtext: `${data?.grossBillAmount?.pctOfEstimate ?? 73.3}% of Estimate`,
-      bgClass: 'bg-rose-50/60 dark:bg-rose-950/20 border-rose-200/80 dark:border-rose-800/40',
-      iconBg: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-        </svg>
-      )
     },
     {
       id: 'agency_payment',
-      title: 'Agency Payment',
-      titleColor: 'text-[#4338CA] dark:text-[#818CF8]',
+      title: 'AGENCY PAYMENT',
+      titleColor: '#818cf8',
+      topGlow: 'linear-gradient(90deg, #6366f1 0%, rgba(99,102,241,0) 80%)',
       value: formatCr(data?.agencyPayment?.amount ?? 82000000),
       isCurrency: true,
       subtext: `${data?.agencyPayment?.pctOfGrossBill ?? 94.8}% of Gross Bill`,
-      bgClass: 'bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-200/80 dark:border-indigo-800/40',
-      iconBg: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400',
-      icon: (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      )
     }
   ];
 
@@ -1591,27 +1618,45 @@ const ExecutiveKpiStrip = ({ data }) => {
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
-          className={`p-3 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${kpi.bgClass}`}
+          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
+            isDark 
+              ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' 
+              : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
+          }`}
+          style={{ minHeight: '135px' }}
         >
-          <p className={`text-[11px] font-extrabold tracking-tight truncate mb-2 ${kpi.titleColor}`}>
+          {/* Colored Top Glow Accent Line */}
+          <div
+            className="absolute top-0 left-0 right-0 h-[2px]"
+            style={{ background: kpi.topGlow }}
+          />
+
+          {/* Title - allow line wrap so text isn't cut off */}
+          <p
+            className="text-[9.5px] font-black tracking-wider uppercase leading-snug"
+            style={{ color: kpi.titleColor }}
+          >
             {kpi.title}
           </p>
 
-          <div className="flex items-center gap-2 my-auto">
-            <div className={`p-1.5 rounded-xl shrink-0 flex items-center justify-center ${kpi.iconBg}`}>
-              {kpi.icon}
-            </div>
-            <span className="text-sm sm:text-base font-black tracking-tight text-slate-900 dark:text-slate-100 font-mono truncate">
+          {/* Main Value */}
+          <div className="my-auto py-1">
+            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${
+              isDark ? 'text-slate-100' : 'text-slate-900'
+            }`}>
               {kpi.value}
             </span>
           </div>
 
+          {/* Subtext */}
           {kpi.subtext ? (
-            <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 mt-2 whitespace-pre-line truncate">
+            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${
+              isDark ? 'text-slate-400/80' : 'text-slate-600'
+            }`}>
               {kpi.subtext}
             </p>
           ) : (
-            <div className="h-4 mt-2" />
+            <div className="h-3" />
           )}
         </div>
       ))}
@@ -1913,25 +1958,51 @@ const HoDashboard = () => {
           {/* Header Row */}
           <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Executive HQ Panel</span>
-              <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Portfolio Performance Analytics</h1>
-              <p className="text-xs text-slate-400 mt-1.5">Consolidated portfolio KPIs, zonal performance benchmarking, and cost leakage anomalies.</p>
+              <div className="flex items-center gap-2.5 mb-2">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{
+                    background: '#f0a843',
+                    boxShadow: '0 0 8px #f0a843, 0 0 18px rgba(240,168,67,0.35)',
+                    animation: 'pulse 2.5s ease-in-out infinite'
+                  }}
+                />
+                <span className="font-mono text-[10px] uppercase tracking-[3px] text-amber-500">Executive HQ Panel</span>
+              </div>
+              <h1
+                className="text-3xl font-extrabold tracking-tight mt-1"
+                style={{
+                  background: 'linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.5))',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  letterSpacing: '-0.04em'
+                }}
+              >
+                Portfolio Performance Analytics
+              </h1>
+              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Consolidated portfolio KPIs, zonal performance benchmarking, and cost leakage anomalies.</p>
             </div>
 
-            <button
-              onClick={handleRefresh}
-              disabled={refreshMutation.isPending}
-              className={`px-5 py-2.5 rounded-xl border border-white/10 text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all duration-300 ${
-                refreshMutation.isPending 
-                  ? 'bg-white/5 text-slate-400 cursor-not-allowed' 
-                  : 'bg-white hover:bg-white/90 text-slate-950'
-              }`}
-            >
-              <svg className={`w-3.5 h-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
-              </svg>
-              {refreshMutation.isPending ? 'Refreshing...' : 'Refresh Views'}
-            </button>
+            <div className="flex flex-col items-end gap-2.5">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshMutation.isPending}
+                className={`px-5 py-2.5 rounded-xl border border-transparent text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all duration-300 ${
+                  refreshMutation.isPending
+                    ? 'bg-white/5 border-white/10 text-slate-400 cursor-not-allowed'
+                    : 'bg-white hover:bg-white/90 text-slate-950 shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.5)] hover:-translate-y-0.5'
+                }`}
+              >
+                <svg className={`w-3.5 h-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+                </svg>
+                {refreshMutation.isPending ? 'Refreshing...' : 'Refresh Views'}
+              </button>
+              <div className="font-mono text-[10px] text-slate-500 tracking-wide bg-white/[0.025] border border-white/[0.045] px-2.5 py-1 rounded-md">
+                DATA SOURCE: executive_kpi_mv &nbsp;·&nbsp; AUTO-SYNC 15M
+              </div>
+            </div>
           </div>
 
           {/* View Toggle Pill Tabs */}
@@ -1948,59 +2019,139 @@ const HoDashboard = () => {
                 onClick={() => setActiveView(tab.id)}
                 className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all duration-300 ${
                   activeView === tab.id
-                    ? 'bg-amber-500 border-amber-500 text-black'
-                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20'
+                    ? 'border-transparent text-black'
+                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200 hover:border-white/20 hover:bg-white/[0.045]'
                 }`}
+                style={activeView === tab.id ? {
+                  background: 'linear-gradient(135deg, #f0a843 0%, #e8930a 100%)',
+                  boxShadow: '0 0 18px rgba(240,168,67,0.28)'
+                } : undefined}
               >
                 {tab.label}
               </button>
             ))}
           </div>
 
-          {/* Actionable Insights Strip */}
+          {/* Actionable Insights Strip — continuously moving marquee ticker with theme-aware fade edges */}
           {(stalledProjects.length > 0 || lowRunwayZones.length > 0) && (
-            <div className="mb-8 flex gap-3 overflow-x-auto no-scrollbar pb-2">
-              {lowRunwayZones.map((z, idx) => (
-                <div key={idx} className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-rose-500/30 bg-rose-950/20 text-rose-400 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                  <span className="animate-pulse">🔴</span>
-                  {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+            <div className="relative mb-8 overflow-hidden">
+              {/* Theme-aware fade masks (prevents dark blackish overlay in light mode) */}
+              <div
+                className={`pointer-events-none absolute left-0 top-0 bottom-0 w-16 z-10 transition-colors ${
+                  isDark
+                    ? 'bg-gradient-to-r from-[#0b0e14] to-transparent'
+                    : 'bg-gradient-to-r from-slate-50 to-transparent'
+                }`}
+              />
+              <div
+                className={`pointer-events-none absolute right-0 top-0 bottom-0 w-16 z-10 transition-colors ${
+                  isDark
+                    ? 'bg-gradient-to-l from-[#0b0e14] to-transparent'
+                    : 'bg-gradient-to-l from-slate-50 to-transparent'
+                }`}
+              />
+
+              {/* Continuous Moving Ticker Track (pauses on hover) */}
+              <div className="flex overflow-hidden">
+                <div className="animate-marquee gap-3 py-1 px-4">
+                  {/* Ticker items batch 1 */}
+                  {lowRunwayZones.map((z, idx) => (
+                    <div
+                      key={`z1-${idx}`}
+                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                        isDark
+                          ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
+                          : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                      {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                    </div>
+                  ))}
+                  {stalledProjects.slice(0, 5).map((p, idx) => (
+                    <div
+                      key={`p1-${idx}`}
+                      onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
+                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
+                        isDark
+                          ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
+                          : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
+                    </div>
+                  ))}
+
+                  {/* Duplicate items for seamless continuous looping marquee */}
+                  {lowRunwayZones.map((z, idx) => (
+                    <div
+                      key={`z2-${idx}`}
+                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
+                        isDark
+                          ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
+                          : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                      {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                    </div>
+                  ))}
+                  {stalledProjects.slice(0, 5).map((p, idx) => (
+                    <div
+                      key={`p2-${idx}`}
+                      onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
+                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
+                        isDark
+                          ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
+                          : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                      {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {stalledProjects.slice(0, 5).map((p, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
-                  className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-amber-500/30 bg-amber-950/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer hover:border-amber-500/50 transition-colors"
-                >
-                  <span>⚠️</span>
-                  {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
-                </div>
-              ))}
+              </div>
             </div>
           )}
 
           {/* Executive 9-KPI Strip */}
+          <div className="flex items-center gap-3 mb-3">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
           <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} />
 
-          {/* ── Row 1: Physical Work Progress (1/3) + Department Wise Estimate (1/3) + Key Financial Indicators (1/3) ── */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('physical_progress')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
+          {/* ── Section: Performance Overview ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Performance Overview</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
+          {/* ── Row 1: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('physical_progress')}>
+              <div style={{ minHeight: '520px' }} className="h-full">
                 <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
               </div>
             </ZoomCard>
-            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('department')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
+            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
+              <div style={{ minHeight: '520px' }} className="h-full">
                 <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
               </div>
             </ZoomCard>
-            <ZoomCard className="col-span-1" onZoom={() => setZoomedChart('key_financials')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
+            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
+              <div style={{ minHeight: '520px' }} className="h-full">
                 <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
               </div>
             </ZoomCard>
           </div>
 
+          {/* ── Section: Fund Flow & Risk ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Fund Flow &amp; Risk</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
           {/* ── Row 2: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
             <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
@@ -2015,6 +2166,11 @@ const HoDashboard = () => {
             </ZoomCard>
           </div>
 
+          {/* ── Section: Zonal Intelligence ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Zonal Intelligence</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
           {/* ── Row 3: Zonal Performance Heatmap (full-width) ─────────────── */}
           <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
             <ZonalPerformanceHeatmap
@@ -2024,7 +2180,12 @@ const HoDashboard = () => {
             />
           </ZoomCard>
 
-          {/* ── Row 3: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
+          {/* ── Section: Trends & Projections ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Trends &amp; Projections</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
+          {/* ── Row 4: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
             <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('runway')}>
               <div style={{ minHeight: '420px' }} className="h-full">
@@ -2046,7 +2207,12 @@ const HoDashboard = () => {
             </ZoomCard>
           </div>
 
-          {/* ── Row 4: Quick Executive Summary KPI Strip (6 premium tiles) ──── */}
+          {/* ── Section: Project Health Summary ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Project Health Summary</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
+          {/* ── Row 5: Quick Executive Summary KPI Strip (6 premium tiles) ──── */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
             {[
               {
@@ -2187,7 +2353,12 @@ const HoDashboard = () => {
             ))}
           </div>
 
-          {/* ── Row 5: Full-width Work Order Telemetry Table ──────────────── */}
+          {/* ── Section: Work Order Telemetry ── */}
+          <div className="flex items-center gap-3 mb-3 mt-2">
+            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Work Order Telemetry</span>
+            <div className="flex-1 h-px bg-white/[0.045]" />
+          </div>
+          {/* ── Row 6: Full-width Work Order Telemetry Table ──────────────── */}
           <div className="mb-6">
             <WorkOrderTelemetryTable
               data={projectsList}
@@ -2196,54 +2367,54 @@ const HoDashboard = () => {
             />
           </div>
 
-          {/* ── Fullscreen Chart Zoom Modal ───────────────────────────────── */}
+          {/* ── Fullscreen Chart Zoom Modal (Dynamic Class Component) ───────── */}
           {zoomedChart === 'physical_progress' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Physical Work Progress Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
               <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
             </ChartModal>
           )}
           {zoomedChart === 'je_visit' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="JE Visit Frequency Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
               <JeVisitFrequency data={chartRes?.jeVisitFrequencyMetrics} />
             </ChartModal>
           )}
           {zoomedChart === 'department' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Department Wise Estimate Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
               <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
             </ChartModal>
           )}
           {zoomedChart === 'key_financials' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
               <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
             </ChartModal>
           )}
           {zoomedChart === 'bubble' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
             </ChartModal>
           )}
           {zoomedChart === 'fundflow' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <FundFlowWaterfall data={chartRes?.waterfallData || []} />
             </ChartModal>
           )}
           {zoomedChart === 'zonal' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Zonal Performance Heatmap Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <ZonalPerformanceHeatmap data={chartRes?.zonalHeatmap || []} onSelectZone={setSelectedZone} selectedZone={selectedZone} />
             </ChartModal>
           )}
           {zoomedChart === 'runway' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Predictive Cash Runway & Projections" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <PredictiveRunwayLines trendData={chartRes?.runwayTrend || []} runwayData={insightsRes?.runwayData || []} />
             </ChartModal>
           )}
           {zoomedChart === 'scurve' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <SCurveProgress data={chartRes?.sCurveData || []} />
             </ChartModal>
           )}
           {zoomedChart === 'revision' && (
-            <ChartModal onClose={() => setZoomedChart(null)}>
+            <ChartModal title="Estimate Revision Timeline Churn" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
               <RevisionHeatmap data={chartRes?.revisionHeatmap || []} isModal={true} />
             </ChartModal>
           )}

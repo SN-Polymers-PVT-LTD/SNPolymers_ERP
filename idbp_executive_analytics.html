@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDBP — Portfolio Performance Analytics</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:rgba(18,23,33,0.88);
+    --grid:rgba(255,255,255,0.028);
+    --border:rgba(255,255,255,0.08);
+    --border-soft:rgba(255,255,255,0.045);
+    --border-hover:rgba(255,255,255,0.14);
+    --text:#eceef2;
+    --text-dim:#8d95a8;
+    --text-faint:#50596b;
+    --amber:#f0a843;
+    --amber-dim:rgba(240,168,67,0.12);
+    --amber-glow:rgba(240,168,67,0.25);
+    --blue:#5b9bd5;
+    --blue-dim:rgba(91,155,213,0.12);
+    --green:#3fb880;
+    --green-dim:rgba(63,184,128,0.12);
+    --rose:#e55a4e;
+    --rose-dim:rgba(229,90,78,0.12);
+    --violet:#9585e0;
+    --violet-dim:rgba(149,133,224,0.12);
+    --teal:#3ab5aa;
+    --teal-dim:rgba(58,181,170,0.12);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background-color:var(--bg);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(240,168,67,0.055) 0%, transparent 70%),
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size:100% 100%, 36px 36px, 36px 36px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+  ::selection{background:var(--amber-dim);color:var(--amber);}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:4px;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+  .disp{font-family:'Space Grotesk',sans-serif;}
+  .page{max-width:1440px;margin:0 auto;padding:32px 36px 100px;}
+
+  /* Panel */
+  .panel{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--border-soft);
+    border-radius:14px;
+    padding:22px 24px 24px;
+    backdrop-filter:blur(12px);
+    -webkit-backdrop-filter:blur(12px);
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  .panel:hover{border-color:var(--border-hover);box-shadow:0 0 0 1px rgba(255,255,255,0.02),0 20px 60px rgba(0,0,0,0.35);}
+  .panel::before,.panel::after{content:"";position:absolute;width:16px;height:16px;pointer-events:none;opacity:0.55;transition:opacity .2s;}
+  .panel:hover::before,.panel:hover::after{opacity:1;}
+  .panel::before{top:-1px;left:-1px;border-top:2px solid var(--amber);border-left:2px solid var(--amber);border-radius:3px 0 0 0;}
+  .panel::after{bottom:-1px;right:-1px;border-bottom:2px solid var(--amber);border-right:2px solid var(--amber);border-radius:0 0 3px 0;}
+
+  /* Topbar */
+  .topbar{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding-bottom:24px;margin-bottom:24px;border-bottom:1px solid var(--border-soft);flex-wrap:wrap;}
+  .topbar .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;color:var(--amber);text-transform:uppercase;display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber),0 0 20px rgba(240,168,67,0.35);animation:pulse-dot 2.5s ease-in-out infinite;}
+  @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.55;transform:scale(0.82);}}
+  .topbar h1{font-family:'Space Grotesk',sans-serif;font-size:32px;font-weight:800;letter-spacing:-1px;margin:0 0 6px;background:linear-gradient(135deg,#fff 30%,rgba(255,255,255,0.5));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+  .topbar p{margin:0;color:var(--text-dim);font-size:13px;max-width:540px;line-height:1.6;}
+  .top-actions{display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+  .refresh-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text-faint);letter-spacing:0.4px;background:rgba(255,255,255,0.02);border:1px solid var(--border-soft);padding:5px 10px;border-radius:6px;}
+  .refresh-btn{display:flex;align-items:center;gap:8px;padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,#fff 0%,#e8eaf0 100%);color:#0b0e14;border:none;font-weight:800;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:transform .15s ease,box-shadow .15s ease;box-shadow:0 4px 16px rgba(0,0,0,0.4);}
+  .refresh-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,0.5);}
+  .refresh-btn svg{width:13px;height:13px;transition:transform .5s ease;}
+  .refresh-btn.spin svg{animation:spin .6s linear;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:22px;flex-wrap:wrap;}
+  .tab{padding:8px 18px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,0.025);color:var(--text-dim);font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all .18s ease;}
+  .tab:hover{color:var(--text);border-color:rgba(255,255,255,0.18);background:rgba(255,255,255,0.045);}
+  .tab.active{background:linear-gradient(135deg,var(--amber) 0%,#e8930a 100%);border-color:transparent;color:#0d0e10;font-weight:800;box-shadow:0 0 18px var(--amber-glow);}
+
+  /* Ticker */
+  .ticker{overflow:hidden;margin-bottom:22px;border-radius:10px;border:1px solid var(--border-soft);background:rgba(255,255,255,0.012);padding:4px;position:relative;}
+  .ticker::before,.ticker::after{content:"";position:absolute;top:0;bottom:0;width:64px;z-index:2;pointer-events:none;}
+  .ticker::before{left:0;background:linear-gradient(90deg,var(--bg) 0%,transparent 100%);}
+  .ticker::after{right:0;background:linear-gradient(-90deg,var(--bg) 0%,transparent 100%);}
+  .ticker-track{display:flex;gap:8px;padding:6px 8px;animation:scroll-left 34s linear infinite;width:max-content;}
+  .ticker:hover .ticker-track{animation-play-state:paused;}
+  @keyframes scroll-left{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+  .chip{display:flex;align-items:center;gap:8px;padding:8px 15px;border-radius:8px;white-space:nowrap;font-size:10.5px;font-weight:700;letter-spacing:0.5px;border:1px solid;cursor:default;}
+  .chip.crit{background:var(--rose-dim);border-color:rgba(229,90,78,0.3);color:var(--rose);}
+  .chip.warn{background:var(--amber-dim);border-color:rgba(240,168,67,0.3);color:var(--amber);}
+  .chip .pulse{width:6px;height:6px;border-radius:50%;background:currentColor;animation:pulse 1.8s ease-in-out infinite;flex-shrink:0;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.2;}}
+
+  /* KPI strip */
+  .kpi-strip{display:grid;grid-template-columns:repeat(9,1fr);gap:10px;margin-bottom:22px;}
+  .kpi{position:relative;border-radius:12px;border:1px solid var(--border-soft);padding:0;overflow:hidden;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;background:var(--panel);backdrop-filter:blur(8px);}
+  .kpi:hover{transform:translateY(-3px);border-color:var(--border-hover);box-shadow:0 12px 32px rgba(0,0,0,0.4);}
+  .kpi-ruler{height:3px;background:linear-gradient(90deg,var(--tick,var(--amber)),transparent);opacity:0.9;}
+  .kpi-body{padding:13px 14px 14px;}
+  .kpi-label{font-size:9px;font-weight:800;letter-spacing:0.8px;text-transform:uppercase;color:var(--accent,var(--amber));margin-bottom:10px;line-height:1.45;}
+  .kpi-value{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--text);letter-spacing:-0.2px;}
+  .kpi-sub{font-size:9px;color:var(--text-faint);margin-top:8px;line-height:1.6;white-space:pre-line;}
+
+  /* Layout */
+  .row{display:grid;gap:14px;margin-bottom:14px;}
+  .row-3{grid-template-columns:repeat(3,1fr);}
+  .row-2{grid-template-columns:repeat(2,1fr);}
+
+  .chart-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin:0;letter-spacing:-0.2px;}
+  .chart-sub{font-size:11px;color:var(--text-dim);margin:4px 0 16px;line-height:1.5;}
+  .legend{display:flex;gap:16px;font-size:9px;font-weight:700;letter-spacing:0.7px;text-transform:uppercase;color:var(--text-faint);flex-wrap:wrap;}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:50%;display:inline-block;}
+
+  /* Section label divider */
+  .section-label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:2.5px;text-transform:uppercase;color:var(--text-faint);margin:24px 0 10px;display:flex;align-items:center;gap:10px;}
+  .section-label::after{content:"";flex:1;height:1px;background:var(--border-soft);}
+
+  /* Gauge */
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;padding-top:8px;}
+  .gauge-value{font-family:'IBM Plex Mono',monospace;font-size:36px;font-weight:600;margin-top:-54px;}
+  .gauge-caption{font-size:10px;color:var(--text-dim);margin-top:4px;text-align:center;max-width:180px;line-height:1.4;}
+  .gauge-stats{display:flex;gap:28px;margin-top:22px;}
+  .gauge-stat{text-align:center;}
+  .gauge-stat b{display:block;font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:600;}
+  .gauge-stat span{font-size:9px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.7px;margin-top:2px;display:block;}
+
+  /* Donut */
+  .donut-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:center;}
+  .donut{width:164px;height:164px;border-radius:50%;position:relative;flex-shrink:0;box-shadow:0 0 0 1px var(--border-soft);}
+  .donut-hole{position:absolute;inset:24px;border-radius:50%;background:var(--panel);display:flex;flex-direction:column;align-items:center;justify-content:center;border:1px solid var(--border-soft);}
+  .donut-hole b{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;}
+  .donut-hole span{font-size:8px;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.5px;margin-top:2px;}
+  .donut-legend{display:flex;flex-direction:column;gap:8px;min-width:175px;}
+  .donut-legend .item{display:flex;align-items:center;justify-content:space-between;font-size:11px;padding:5px 9px;border-radius:8px;transition:background .15s;}
+  .donut-legend .item:hover{background:rgba(255,255,255,0.03);}
+  .donut-legend .name{display:flex;align-items:center;gap:8px;font-weight:600;}
+  .donut-legend .dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+  .donut-legend .val{font-family:'IBM Plex Mono',monospace;color:var(--text-dim);font-size:10px;}
+
+  /* Financial bars */
+  .fin-list{display:flex;flex-direction:column;gap:14px;margin-top:8px;}
+  .fin-row .top{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;margin-bottom:6px;}
+  .fin-row .top span{color:var(--text-dim);font-weight:500;}
+  .fin-row .top b{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--text);font-size:11px;}
+  .fin-track{height:5px;border-radius:4px;background:rgba(255,255,255,0.05);overflow:visible;position:relative;}
+  .fin-fill{height:100%;border-radius:4px;position:relative;}
+  .fin-fill::after{content:"";position:absolute;right:-1px;top:50%;transform:translateY(-50%);width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+
+  /* Waterfall */
+  .wf-row{display:grid;grid-template-columns:155px 1fr 90px;align-items:center;gap:12px;margin-bottom:14px;}
+  .wf-label{font-size:11px;font-weight:600;color:var(--text-dim);}
+  .wf-track{height:24px;border-radius:6px;background:rgba(255,255,255,0.04);position:relative;overflow:hidden;}
+  .wf-fill{height:100%;border-radius:6px;background:linear-gradient(90deg,var(--blue),var(--teal));opacity:0.85;}
+  .wf-val{font-family:'IBM Plex Mono',monospace;font-size:11px;text-align:right;font-weight:600;}
+  .wf-drop{font-size:9px;color:var(--rose);text-align:right;margin-top:3px;font-family:'IBM Plex Mono',monospace;}
+
+  /* Heatmap */
+  .heat-table{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:8px;}
+  .heat-table th{text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-faint);font-weight:700;padding:10px 12px;border-bottom:1px solid var(--border-soft);font-family:'Space Grotesk',sans-serif;}
+  .heat-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);transition:background .15s;}
+  .heat-table tr:hover td{background:rgba(255,255,255,0.02);}
+  .heat-cell{display:inline-flex;min-width:54px;justify-content:center;padding:4px 10px;border-radius:7px;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;}
+  .heat-zone{font-weight:700;font-family:'Space Grotesk',sans-serif;font-size:12px;}
+
+  /* Revision heatmap */
+  .rev-grid{display:grid;grid-template-columns:72px repeat(8,1fr);gap:5px;margin-top:12px;}
+  .rev-cell{aspect-ratio:1;border-radius:5px;transition:transform .15s,opacity .15s;cursor:default;}
+  .rev-cell:hover{transform:scale(1.15);opacity:0.85;}
+  .rev-rowlabel{font-size:9px;color:var(--text-faint);font-family:'IBM Plex Mono',monospace;display:flex;align-items:center;}
+  .rev-collabel{font-size:8px;color:var(--text-faint);text-align:center;font-family:'IBM Plex Mono',monospace;padding-bottom:2px;}
+
+  /* Telemetry */
+  .telemetry-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:18px;}
+  .telemetry-controls{display:flex;gap:8px;flex-wrap:wrap;}
+  .telemetry-controls input,.telemetry-controls select{background:rgba(255,255,255,0.04);border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:9px;font-size:11.5px;font-family:'Inter',sans-serif;outline:none;transition:border-color .18s;}
+  .telemetry-controls input:focus,.telemetry-controls select:focus{border-color:var(--amber);}
+  .export-btn{padding:9px 16px;border-radius:9px;background:linear-gradient(135deg,var(--green),#2da06c);color:#061a10;border:none;font-weight:800;font-size:10px;letter-spacing:0.8px;text-transform:uppercase;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:transform .15s,box-shadow .15s;}
+  .export-btn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(63,184,128,0.3);}
+  table.telemetry{width:100%;border-collapse:collapse;font-size:11.5px;}
+  table.telemetry th{text-align:left;padding:10px 12px;font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-faint);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;white-space:nowrap;font-family:'Space Grotesk',sans-serif;transition:color .15s;}
+  table.telemetry th:hover{color:var(--amber);}
+  table.telemetry td{padding:11px 12px;border-bottom:1px solid rgba(255,255,255,0.035);transition:background .15s;}
+  table.telemetry tr:hover td{background:rgba(255,255,255,0.025);}
+  .wo-link{color:var(--blue);font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11px;}
+  .badge{padding:3px 10px;border-radius:7px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.6px;}
+  .badge.healthy{background:var(--green-dim);color:var(--green);border:1px solid rgba(63,184,128,0.2);}
+  .badge.warning{background:var(--amber-dim);color:var(--amber);border:1px solid rgba(240,168,67,0.2);}
+  .badge.critical{background:var(--rose-dim);color:var(--rose);border:1px solid rgba(229,90,78,0.2);}
+
+  /* Footer */
+  footer{margin-top:36px;padding-top:20px;border-top:1px solid var(--border-soft);display:flex;justify-content:space-between;color:var(--text-faint);font-size:10px;font-family:'IBM Plex Mono',monospace;flex-wrap:wrap;gap:8px;letter-spacing:0.3px;}
+
+  /* Tooltip */
+  .tooltip{position:fixed;z-index:60;background:#0a0d12;border:1px solid var(--border);border-radius:12px;padding:12px 15px;font-size:11px;pointer-events:none;min-width:160px;box-shadow:0 16px 48px rgba(0,0,0,0.6);display:none;backdrop-filter:blur(16px);}
+  .tooltip b{font-family:'Space Grotesk',sans-serif;font-size:12px;display:block;margin-bottom:6px;color:var(--text);}
+  .tooltip .r{display:flex;justify-content:space-between;gap:14px;color:var(--text-dim);margin-top:3px;font-size:10.5px;}
+  .tooltip .r b{display:inline;font-family:'IBM Plex Mono',monospace;color:var(--text);font-size:11px;}
+  svg text{font-family:'IBM Plex Mono',monospace;}
+
+  @media(max-width:1180px){.kpi-strip{grid-template-columns:repeat(3,1fr);}.row-3{grid-template-columns:1fr 1fr;}.row-2{grid-template-columns:1fr;}}
+  @media(max-width:720px){.page{padding:20px 18px 60px;}.kpi-strip{grid-template-columns:repeat(2,1fr);}.row-3{grid-template-columns:1fr;}.topbar{align-items:flex-start;}.top-actions{align-items:flex-start;}}
+  @media(prefers-reduced-motion:reduce){.ticker-track{animation:none;}.refresh-btn.spin svg{animation:none;}.chip .pulse{animation:none;}.eyebrow .dot{animation:none;}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div>
+      <div class="eyebrow"><span class="dot"></span>SECTOR&nbsp;·&nbsp;EXEC-HQ&nbsp;/&nbsp;PORTFOLIO</div>
+      <h1 class="disp">Portfolio Performance Analytics</h1>
+      <p>Consolidated portfolio KPIs, zonal performance benchmarking, and cost leakage anomalies across all active work orders.</p>
+    </div>
+    <div class="top-actions">
+      <button class="refresh-btn" id="refreshBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18"/></svg>
+        Refresh views
+      </button>
+      <div class="refresh-meta">LAST REFRESHED &nbsp;<span id="refreshTime">09:42:16 IST</span> &nbsp;·&nbsp; NEXT AUTO-SYNC IN 15M</div>
+    </div>
+  </div>
+
+  <!-- View tabs -->
+  <div class="tabs">
+    <button class="tab active" data-tab="all">All — Portfolio</button>
+    <button class="tab" data-tab="zo">ZO Wise</button>
+    <button class="tab" data-tab="je">JE Wise</button>
+    <button class="tab" data-tab="wo">Work Order Wise</button>
+  </div>
+
+  <!-- Risk ticker -->
+  <div class="ticker">
+    <div class="ticker-track" id="tickerTrack"></div>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="section-label">Executive KPIs</div>
+  <div class="kpi-strip" id="kpiStrip"></div>
+
+  <!-- Row 1 -->
+  <div class="section-label">Performance Overview</div>
+  <div class="row row-3">
+    <div class="panel">
+      <h3 class="chart-title">Physical Work Progress</h3>
+      <p class="chart-sub">Portfolio-wide completion against baseline timeline</p>
+      <div class="gauge-wrap">
+        <svg width="220" height="130" viewBox="0 0 220 130">
+          <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="16" stroke-linecap="round"/>
+          <path d="M20 110 A90 90 0 0 1 200 110" fill="none" stroke="url(#gaugeGrad)" stroke-width="16" stroke-linecap="round" stroke-dasharray="282.6" stroke-dashoffset="82" id="gaugeArc"/>
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#e55a4e"/>
+              <stop offset="50%" stop-color="#f0a843"/>
+              <stop offset="100%" stop-color="#3fb880"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="gauge-value mono">71<span style="font-size:16px;color:var(--text-faint);">%</span></div>
+        <div class="gauge-caption">Weighted physical progress, all active WOs</div>
+        <div class="gauge-stats">
+          <div class="gauge-stat"><b style="color:var(--green)">84</b><span>Running</span></div>
+          <div class="gauge-stat"><b style="color:var(--blue)">32</b><span>Completed</span></div>
+          <div class="gauge-stat"><b style="color:var(--amber)">12</b><span>Pending</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 class="chart-title">Department Wise Estimate</h3>
+      <p class="chart-sub">Breakdown of estimated costs across operational departments</p>
+      <div class="donut-row">
+        <div class="donut" id="deptDonut"></div>
+        <div class="donut-legend" id="deptLegend"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3 class="chart-title">Key Financial Indicators</h3>
+      <p class="chart-sub">Statutory holds &amp; deductions across the portfolio</p>
+      <div class="fin-list" id="finList"></div>
+    </div>
+  </div>
+
+  <!-- Row 2 -->
+  <div class="section-label">Fund Flow &amp; Risk</div>
+  <div class="row row-2">
+    <div class="panel">
+      <h3 class="chart-title">Fund Flow Pipeline</h3>
+      <p class="chart-sub">Capital drop-off from cost estimate to agency payment</p>
+      <div id="waterfall" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="panel">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <h3 class="chart-title">Bubble Risk Matrix</h3>
+          <p class="chart-sub">Budget utilization vs physical progress · bubble size = days since last DPR</p>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--green)"></i>Healthy</span>
+          <span><i style="background:var(--amber)"></i>Warning</span>
+          <span><i style="background:var(--rose)"></i>Critical</span>
+        </div>
+      </div>
+      <svg viewBox="0 0 600 380" style="width:100%;height:auto;margin-top:6px;" id="bubbleSvg"></svg>
+    </div>
+  </div>
+
+  <!-- Row 3: zonal heatmap -->
+  <div class="section-label">Zonal Intelligence</div>
+  <div class="panel row" style="margin-bottom:14px;">
+    <h3 class="chart-title">Zonal Performance Heatmap</h3>
+    <p class="chart-sub">Budget discipline, delivery pace and reporting compliance by zone</p>
+    <table class="heat-table">
+      <thead><tr><th>Zone</th><th>Active WOs</th><th>Budget Utilization</th><th>Physical Progress</th><th>DPR Compliance</th><th>Avg Health Score</th></tr></thead>
+      <tbody id="zonalBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Row 4 -->
+  <div class="section-label">Trends &amp; Projections</div>
+  <div class="row row-3">
+    <div class="panel">
+      <h3 class="chart-title">Cash Runway &amp; Projections</h3>
+      <p class="chart-sub">Projected balance depletion, next 60 days</p>
+      <svg viewBox="0 0 380 220" style="width:100%;height:auto;" id="runwaySvg"></svg>
+    </div>
+    <div class="panel">
+      <h3 class="chart-title">S-Curve Performance</h3>
+      <p class="chart-sub">Planned vs actual cumulative progress</p>
+      <svg viewBox="0 0 380 220" style="width:100%;height:auto;" id="scurveSvg"></svg>
+    </div>
+    <div class="panel">
+      <h3 class="chart-title">Estimate Revision Churn</h3>
+      <p class="chart-sub">Revision count per work order, last 8 weeks</p>
+      <div class="rev-grid" id="revGrid"></div>
+    </div>
+  </div>
+
+  <!-- Telemetry -->
+  <div class="section-label">Work Order Telemetry</div>
+  <div class="panel" style="margin-top:0;">
+    <div class="telemetry-head">
+      <div>
+        <h3 class="chart-title">Work Order Telemetry</h3>
+        <p class="chart-sub" style="margin-bottom:0;">High-density project tracking and performance telemetry</p>
+      </div>
+      <div class="telemetry-controls">
+        <input type="text" id="woSearch" placeholder="Search work order or site...">
+        <select id="deptFilter"><option value="">All departments</option></select>
+        <button class="export-btn" id="exportBtn">Export Excel</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="telemetry">
+        <thead>
+          <tr>
+            <th data-key="wo">WO No</th><th data-key="zone">Zone</th><th data-key="dept">Department</th>
+            <th data-key="value">Value</th><th data-key="progress">Progress</th><th data-key="health">Health</th><th data-key="status">Status</th>
+          </tr>
+        </thead>
+        <tbody id="woBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <footer>
+    <span>IDBP · Integrated Digital Business Platform &nbsp;—&nbsp; S.N Polymers</span>
+    <span>DATA SOURCE: executive_kpi_mv · project_health_mv &nbsp;·&nbsp; VIEW REFRESH: 15M CYCLE</span>
+  </footer>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const fmtCr = (v) => '₹ ' + v.toFixed(2) + ' Cr';
+const fmtL  = (v) => '₹ ' + v.toFixed(2) + ' L';
+
+const kpis = [
+  { label:'Total Work Orders', accent:'var(--blue)', tick:'var(--blue)', value:'128', sub:'Running: 84  |  Completed: 32\nPending: 12' },
+  { label:'Total WO Value', accent:'var(--green)', tick:'var(--green)', value:fmtCr(125.00), sub:null },
+  { label:'Total Estimate Amount', accent:'var(--violet)', tick:'var(--violet)', value:fmtCr(118.00), sub:'94.4% of WO Value' },
+  { label:'Requisition (ZO→HO)', accent:'#e08a3d', tick:'#e08a3d', value:fmtCr(102.50), sub:'86.9% of Estimate' },
+  { label:'Approved (HO→ZO)', accent:'var(--amber)', tick:'var(--amber)', value:fmtCr(99.00), sub:'96.6% of Requisition' },
+  { label:'ZO Available Balance', accent:'var(--blue)', tick:'var(--blue)', value:fmtCr(11.20), sub:null },
+  { label:'Total Refund Amount', accent:'var(--teal)', tick:'var(--teal)', value:fmtL(180.00), sub:null },
+  { label:'Gross Bill Amount', accent:'var(--rose)', tick:'var(--rose)', value:fmtCr(86.50), sub:'73.3% of Estimate' },
+  { label:'Agency Payment', accent:'#7c74d6', tick:'#7c74d6', value:fmtCr(82.00), sub:'94.8% of Gross Bill' },
+];
+document.getElementById('kpiStrip').innerHTML = kpis.map(k => `
+  <div class="kpi">
+    <div class="kpi-ruler" style="--tick:${k.tick}"></div>
+    <div class="kpi-body">
+      <div class="kpi-label" style="--accent:${k.accent}; color:${k.accent}">${k.label}</div>
+      <div class="kpi-value">${k.value}</div>
+      ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : '<div style="height:16px;margin-top:7px;"></div>'}
+    </div>
+  </div>`).join('');
+
+const alerts = [
+  { type:'crit', text:'ZONE SOUTH — Balance depletes in 9 days' },
+  { type:'crit', text:'ZONE EAST — Balance depletes in 14 days' },
+  { type:'warn', text:'WO-2312 — No DPR for 18d (40% done)' },
+  { type:'warn', text:'WO-2205 — No DPR for 22d (35% done)' },
+  { type:'warn', text:'WO-2222 — No DPR for 25d (20% done)' },
+  { type:'warn', text:'WO-2276 — No DPR for 15d (58% done)' },
+];
+const tickerHtml = alerts.map(a => `<div class="chip ${a.type}"><span class="pulse"></span>${a.text}</div>`).join('');
+document.getElementById('tickerTrack').innerHTML = tickerHtml + tickerHtml;
+
+const deptData = [
+  { name:'Civil Works', pct:38, amt:44.84, color:'var(--blue)' },
+  { name:'Electrical', pct:22, amt:25.96, color:'var(--amber)' },
+  { name:'Instrumentation', pct:15, amt:17.70, color:'var(--violet)' },
+  { name:'IT Infrastructure', pct:12, amt:14.16, color:'var(--teal)' },
+  { name:'HVAC', pct:8, amt:9.44, color:'var(--rose)' },
+  { name:'Others', pct:5, amt:5.90, color:'var(--text-faint)' },
+];
+(function(){
+  let acc = 0;
+  const stops = deptData.map(d => { const start = acc; acc += d.pct; return `${d.color} ${start}% ${acc}%`; }).join(', ');
+  document.getElementById('deptDonut').style.background = `conic-gradient(${stops})`;
+  document.getElementById('deptDonut').innerHTML = `<div class="donut-hole"><b>${fmtCr(118)}</b><span>Total Estimate</span></div>`;
+  document.getElementById('deptLegend').innerHTML = deptData.map(d => `
+    <div class="item">
+      <span class="name"><span class="dot" style="background:${d.color}"></span>${d.name}</span>
+      <span class="val">${fmtCr(d.amt)} <span style="color:var(--text-faint)">(${d.pct}%)</span></span>
+    </div>`).join('');
+})();
+
+const finData = [
+  { label:'EMD Amount', value:32.00, max:90, color:'var(--blue)' },
+  { label:'Security Deposit', value:42.00, max:90, color:'var(--teal)' },
+  { label:'IT / TDS', value:84.00, max:90, color:'var(--amber)' },
+  { label:'SGST', value:36.80, max:90, color:'var(--violet)' },
+  { label:'CGST', value:36.80, max:90, color:'var(--violet)' },
+  { label:'Not Utilized', value:9.00, max:90, color:'var(--rose)' },
+];
+document.getElementById('finList').innerHTML = finData.map(f => `
+  <div class="fin-row">
+    <div class="top"><span>${f.label}</span><b>${fmtL(f.value)}</b></div>
+    <div class="fin-track"><div class="fin-fill" style="width:${(f.value/f.max*100).toFixed(0)}%; background:${f.color}; color:${f.color}"></div></div>
+  </div>`).join('');
+
+const wfData = [
+  { stage:'Final Approved Estimate', amount:118.0 },
+  { stage:'HO Allocated', amount:108.5 },
+  { stage:'Requisitions Approved', amount:102.5 },
+  { stage:'Gross Billed', amount:86.5 },
+  { stage:'Agency Paid', amount:82.0 },
+];
+document.getElementById('waterfall').innerHTML = wfData.map((w,i) => {
+  const pct = (w.amount / wfData[0].amount * 100).toFixed(1);
+  const drop = i > 0 ? (wfData[i-1].amount - w.amount) : 0;
+  return `<div class="wf-row">
+    <div class="wf-label">${w.stage}</div>
+    <div class="wf-track"><div class="wf-fill" style="width:${pct}%"></div></div>
+    <div><div class="wf-val">${fmtCr(w.amount)}</div>${drop > 0 ? `<div class="wf-drop">−${fmtCr(drop)}</div>` : ''}</div>
+  </div>`;
+}).join('');
+
+const bubbleData = [
+  { wo:'WO-2291', site:'Panagarh Extension Unit', budget:62, progress:88, days:2, status:'healthy' },
+  { wo:'WO-2287', site:'Haldia Feeder Line', budget:74, progress:70, days:4, status:'healthy' },
+  { wo:'WO-2265', site:'Durgapur Bay 3', budget:91, progress:65, days:9, status:'warning' },
+  { wo:'WO-2240', site:'Kharagpur Substation', budget:98, progress:52, days:12, status:'warning' },
+  { wo:'WO-2312', site:'Asansol Pipeline', budget:118, progress:40, days:18, status:'critical' },
+  { wo:'WO-2205', site:'Bardhaman Depot', budget:132, progress:35, days:22, status:'critical' },
+  { wo:'WO-2330', site:'Siliguri New Block', budget:45, progress:30, days:3, status:'healthy' },
+  { wo:'WO-2198', site:'Howrah Yard Upgrade', budget:85, progress:90, days:1, status:'healthy' },
+  { wo:'WO-2276', site:'Malda Transformer Bay', budget:105, progress:58, days:15, status:'warning' },
+  { wo:'WO-2350', site:'Kolkata East Annex', budget:55, progress:95, days:2, status:'healthy' },
+  { wo:'WO-2222', site:'Cooch Behar Link Rd', budget:120, progress:20, days:25, status:'critical' },
+  { wo:'WO-2301', site:'Jalpaiguri Site B', budget:70, progress:45, days:6, status:'warning' },
+];
+(function(){
+  const W=600,H=380,PAD=58,MAXB=140;
+  const colorFor = s => s==='critical'?'#e55a4e':s==='warning'?'#f0a843':'#3fb880';
+  const toX = v => PAD+(v/MAXB)*(W-2*PAD);
+  const toY = v => (H-PAD)-(v/100)*(H-2*PAD);
+  const midX=toX(80),midY=toY(50);
+  let svg=`<rect width="${W}" height="${H}" fill="rgba(255,255,255,0.007)" rx="10"/>
+    <line x1="${midX}" y1="${PAD}" x2="${midX}" y2="${H-PAD}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="4 4"/>
+    <line x1="${PAD}" y1="${midY}" x2="${W-PAD}" y2="${midY}" stroke="rgba(255,255,255,0.07)" stroke-dasharray="4 4"/>
+    <text x="${PAD+8}" y="${PAD+16}" fill="rgba(255,255,255,0.16)" font-size="8" font-weight="700" letter-spacing="1">EFFICIENT</text>
+    <text x="${midX+8}" y="${PAD+16}" fill="rgba(255,255,255,0.16)" font-size="8" font-weight="700" letter-spacing="1">ON TRACK</text>
+    <text x="${PAD+8}" y="${H-PAD-10}" fill="rgba(255,255,255,0.16)" font-size="8" font-weight="700" letter-spacing="1">DORMANT</text>
+    <text x="${midX+8}" y="${H-PAD-10}" fill="rgba(229,90,78,0.5)" font-size="8" font-weight="700" letter-spacing="1">CRITICAL OVERRUN</text>
+    <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/>
+    <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/>
+    <text x="${W/2}" y="${H-10}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="8" font-weight="700" letter-spacing="1">BUDGET UTILIZATION %</text>
+    <text x="18" y="${H/2}" text-anchor="middle" fill="rgba(255,255,255,0.35)" font-size="8" font-weight="700" letter-spacing="1" transform="rotate(-90 18 ${H/2})">PHYSICAL PROGRESS %</text>`;
+  [0,35,70,105,140].forEach(v=>{svg+=`<text x="${toX(v)}" y="${H-PAD+14}" text-anchor="middle" fill="rgba(255,255,255,0.22)" font-size="7">${v}%</text>`;});
+  [0,25,50,75,100].forEach(v=>{svg+=`<text x="${PAD-8}" y="${toY(v)+3}" text-anchor="end" fill="rgba(255,255,255,0.22)" font-size="7">${v}%</text>`;});
+  bubbleData.forEach(d=>{
+    const r=Math.min(20,6+d.days/3.2),c=colorFor(d.status);
+    svg+=`<circle cx="${toX(d.budget)}" cy="${toY(d.progress)}" r="${r}" fill="${c}" fill-opacity="0.7" stroke="${c}" stroke-width="1.5" style="cursor:pointer" data-wo="${d.wo}" data-site="${d.site}" data-budget="${d.budget}" data-progress="${d.progress}" data-days="${d.days}" class="bubble-node"/>`;
+  });
+  document.getElementById('bubbleSvg').innerHTML=svg;
+  const tooltip=document.getElementById('tooltip');
+  document.querySelectorAll('.bubble-node').forEach(el=>{
+    el.addEventListener('mousemove',e=>{
+      tooltip.style.display='block';tooltip.style.left=(e.clientX+16)+'px';tooltip.style.top=(e.clientY-90)+'px';
+      tooltip.innerHTML=`<b>${el.dataset.site}</b>
+        <div class="r"><span>Work Order</span><b>${el.dataset.wo}</b></div>
+        <div class="r"><span>Budget Spent</span><b>${el.dataset.budget}%</b></div>
+        <div class="r"><span>Progress</span><b>${el.dataset.progress}%</b></div>
+        <div class="r"><span>Last DPR</span><b>${el.dataset.days}d ago</b></div>`;
+    });
+    el.addEventListener('mouseleave',()=>tooltip.style.display='none');
+  });
+})();
+
+const zonalData=[
+  {zone:'North',wos:26,budget:71,progress:82,dpr:94,health:84},
+  {zone:'South',wos:31,budget:88,progress:61,dpr:72,health:64},
+  {zone:'East',wos:22,budget:96,progress:48,dpr:58,health:49},
+  {zone:'West',wos:29,budget:66,progress:77,dpr:88,health:79},
+  {zone:'Central',wos:20,budget:80,progress:69,dpr:81,health:71},
+];
+function heatColor(v,invert=false){
+  const t=invert?100-v:v;
+  if(t>=80) return{bg:'var(--green-dim)',c:'var(--green)'};
+  if(t>=55) return{bg:'var(--amber-dim)',c:'var(--amber)'};
+  return{bg:'var(--rose-dim)',c:'var(--rose)'};
+}
+document.getElementById('zonalBody').innerHTML=zonalData.map(z=>{
+  const b=heatColor(z.budget,true),p=heatColor(z.progress),d=heatColor(z.dpr),h=heatColor(z.health);
+  return `<tr>
+    <td class="heat-zone">${z.zone}</td><td class="mono">${z.wos}</td>
+    <td><span class="heat-cell" style="background:${b.bg};color:${b.c}">${z.budget}%</span></td>
+    <td><span class="heat-cell" style="background:${p.bg};color:${p.c}">${z.progress}%</span></td>
+    <td><span class="heat-cell" style="background:${d.bg};color:${d.c}">${z.dpr}%</span></td>
+    <td><span class="heat-cell" style="background:${h.bg};color:${h.c}">${z.health}</span></td>
+  </tr>`;
+}).join('');
+
+(function(){
+  const W=380,H=220,PAD=34;
+  const zones=[{name:'South',color:'#e55a4e',start:11.2,dailyBurn:0.42},{name:'East',color:'#f0a843',start:9.6,dailyBurn:0.22},{name:'North',color:'#3fb880',start:14.8,dailyBurn:0.11}];
+  const toX=d=>PAD+(d/60)*(W-2*PAD),toY=v=>(H-PAD)-(v/16)*(H-2*PAD);
+  let svg=`<line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/><line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/>`;
+  [0,10,20,30,40,50,60].forEach(d=>svg+=`<text x="${toX(d)}" y="${H-PAD+14}" text-anchor="middle" fill="rgba(255,255,255,0.28)" font-size="7">${d}d</text>`);
+  [0,4,8,12,16].forEach(v=>svg+=`<text x="${PAD-6}" y="${toY(v)+3}" text-anchor="end" fill="rgba(255,255,255,0.28)" font-size="7">₹${v}Cr</text>`);
+  zones.forEach(z=>{
+    let pts=[0,10,20,30,40,50,60].map(d=>`${toX(d)},${toY(Math.max(0,z.start-z.dailyBurn*d))}`).join(' ');
+    svg+=`<polyline points="${pts}" fill="none" stroke="${z.color}" stroke-width="2"/>`;
+    const lp=pts.split(' ').pop().split(',');
+    svg+=`<circle cx="${lp[0]}" cy="${lp[1]}" r="3" fill="${z.color}" opacity="0.75"/>`;
+  });
+  svg+=`<text x="${W-PAD}" y="${PAD-6}" text-anchor="end" fill="rgba(255,255,255,0.28)" font-size="7">ZONE BALANCE PROJECTION</text>`;
+  document.getElementById('runwaySvg').innerHTML=svg;
+})();
+
+(function(){
+  const W=380,H=220,PAD=34;
+  const planned=[4,12,22,34,46,58,68,77,85,91,96,100],actual=[2,7,15,24,33,42,50,58,64,68,71,71];
+  const toX=i=>PAD+(i/(planned.length-1))*(W-2*PAD),toY=v=>(H-PAD)-(v/100)*(H-2*PAD);
+  const line=arr=>arr.map((v,i)=>`${toX(i)},${toY(v)}`).join(' ');
+  let svg=`<line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/>
+    <line x1="${PAD}" y1="${PAD}" x2="${PAD}" y2="${H-PAD}" stroke="rgba(255,255,255,0.12)"/>
+    <polyline points="${line(planned)}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5" stroke-dasharray="5 4"/>
+    <polyline points="${line(actual)}" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+    <text x="${PAD}" y="${PAD-8}" fill="rgba(255,255,255,0.32)" font-size="8" font-weight="700">— PLANNED &nbsp;&nbsp; <tspan fill="#f0a843">— ACTUAL</tspan></text>`;
+  [0,25,50,75,100].forEach(v=>svg+=`<text x="${PAD-6}" y="${toY(v)+3}" text-anchor="end" fill="rgba(255,255,255,0.28)" font-size="7">${v}%</text>`);
+  document.getElementById('scurveSvg').innerHTML=svg;
+})();
+
+const revRows=['WO-2312','WO-2205','WO-2222','WO-2276','WO-2265'];
+const revData=[[0,1,2,3,2,1,0,1],[1,2,3,4,3,2,3,4],[2,3,4,5,4,3,2,3],[0,0,1,2,1,2,1,0],[1,1,2,2,3,2,1,1]];
+function revColor(v){if(v>=4)return'rgba(229,90,78,0.85)';if(v>=2)return'rgba(240,168,67,0.72)';if(v>=1)return'rgba(63,184,128,0.58)';return'rgba(255,255,255,0.04)';}
+(function(){
+  let html='<div></div>';
+  for(let w=1;w<=8;w++) html+=`<div class="rev-collabel">W${w}</div>`;
+  revRows.forEach((r,ri)=>{
+    html+=`<div class="rev-rowlabel">${r}</div>`;
+    revData[ri].forEach(v=>{html+=`<div class="rev-cell" style="background:${revColor(v)}" title="${r}: ${v} revisions"></div>`;});
+  });
+  document.getElementById('revGrid').innerHTML=html;
+})();
+
+const woRows=[
+  {wo:'WO-2291',zone:'North',dept:'Civil Works',value:340,progress:88,health:91,status:'healthy'},
+  {wo:'WO-2287',zone:'West',dept:'Electrical',value:210,progress:70,health:78,status:'healthy'},
+  {wo:'WO-2265',zone:'East',dept:'Instrumentation',value:180,progress:65,health:61,status:'warning'},
+  {wo:'WO-2240',zone:'South',dept:'HVAC',value:265,progress:52,health:55,status:'warning'},
+  {wo:'WO-2312',zone:'East',dept:'Civil Works',value:410,progress:40,health:38,status:'critical'},
+  {wo:'WO-2205',zone:'South',dept:'IT Infrastructure',value:150,progress:35,health:34,status:'critical'},
+  {wo:'WO-2330',zone:'North',dept:'Civil Works',value:95,progress:30,health:82,status:'healthy'},
+  {wo:'WO-2198',zone:'Central',dept:'Electrical',value:305,progress:90,health:93,status:'healthy'},
+  {wo:'WO-2276',zone:'East',dept:'Instrumentation',value:220,progress:58,health:57,status:'warning'},
+  {wo:'WO-2350',zone:'West',dept:'IT Infrastructure',value:130,progress:95,health:96,status:'healthy'},
+  {wo:'WO-2222',zone:'South',dept:'Civil Works',value:380,progress:20,health:29,status:'critical'},
+  {wo:'WO-2301',zone:'Central',dept:'HVAC',value:175,progress:45,health:52,status:'warning'},
+];
+let currentSort={key:'health',asc:false};
+function renderTable(){
+  const q=document.getElementById('woSearch').value.toLowerCase();
+  const dept=document.getElementById('deptFilter').value;
+  let rows=woRows.filter(r=>(r.wo.toLowerCase().includes(q)||r.dept.toLowerCase().includes(q)||r.zone.toLowerCase().includes(q))&&(!dept||r.dept===dept));
+  rows.sort((a,b)=>{const av=a[currentSort.key],bv=b[currentSort.key];if(typeof av==='string')return currentSort.asc?av.localeCompare(bv):bv.localeCompare(av);return currentSort.asc?av-bv:bv-av;});
+  document.getElementById('woBody').innerHTML=rows.map(r=>`
+    <tr>
+      <td class="wo-link">${r.wo}</td><td>${r.zone}</td><td>${r.dept}</td>
+      <td class="mono">${fmtL(r.value)}</td><td class="mono">${r.progress}%</td>
+      <td class="mono">${r.health}</td><td><span class="badge ${r.status}">${r.status}</span></td>
+    </tr>`).join('')||`<tr><td colspan="7" style="text-align:center;color:var(--text-faint);padding:28px;">No work orders matching this filter</td></tr>`;
+}
+const deptOptions=[...new Set(woRows.map(r=>r.dept))];
+document.getElementById('deptFilter').innerHTML+=deptOptions.map(d=>`<option value="${d}">${d}</option>`).join('');
+document.getElementById('woSearch').addEventListener('input',renderTable);
+document.getElementById('deptFilter').addEventListener('change',renderTable);
+document.querySelectorAll('table.telemetry th').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const key=th.dataset.key;
+    const map={wo:'wo',zone:'zone',dept:'dept',value:'value',progress:'progress',health:'health',status:'status'};
+    if(currentSort.key===map[key])currentSort.asc=!currentSort.asc;
+    else{currentSort.key=map[key];currentSort.asc=false;}
+    renderTable();
+  });
+});
+renderTable();
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+}));
+
+document.getElementById('refreshBtn').addEventListener('click',function(){
+  this.classList.add('spin');
+  setTimeout(()=>{
+    this.classList.remove('spin');
+    const now=new Date();
+    document.getElementById('refreshTime').textContent=now.toLocaleTimeString('en-IN',{hour12:false})+' IST';
+  },600);
+});
+
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  const btn=document.getElementById('exportBtn');
+  const original=btn.textContent;
+  btn.textContent='Exported ✓';
+  setTimeout(()=>btn.textContent=original,1400);
+});
+</script>
+</body>
+</html>
