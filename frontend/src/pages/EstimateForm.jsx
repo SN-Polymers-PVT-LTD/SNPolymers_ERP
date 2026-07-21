@@ -459,11 +459,7 @@ const EstimateForm = () => {
   const isFormLockedByExpiry = isExpired && user?.role !== 'admin';
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
         
         {/* Header */}
@@ -887,7 +883,7 @@ const EstimateForm = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

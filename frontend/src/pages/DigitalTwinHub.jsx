@@ -98,8 +98,7 @@ const DigitalTwinHub = () => {
 
   return (
     <>
-      {/* Header Row */}
-          
+        
           {/* Header Row */}
           <div className="mb-10 pb-6 border-b border-white/5">
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Regional Portfolios</span>
@@ -341,7 +340,6 @@ const DigitalTwinHub = () => {
             </div>
           </div>
         )}
-
     </>
   );
 };

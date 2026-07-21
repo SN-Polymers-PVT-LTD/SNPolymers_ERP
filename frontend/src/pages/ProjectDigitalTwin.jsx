@@ -54,27 +54,31 @@ const ProjectDigitalTwin = () => {
 
   if (isForbidden) {
     return (
-      <div className="glass-panel p-8 rounded-3xl border border-rose-500/20 bg-rose-950/10 text-center max-w-md w-full mx-auto my-12">
-        <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/20">
-          <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0-6h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
-          </svg>
-        </div>
-        <h2 className="text-xl font-black text-rose-500 uppercase tracking-wider">Access Denied</h2>
-        <p className="text-xs text-slate-400 mt-3">You are not mapped to this work order or authorized to view this project's digital twin.</p>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="mt-6 px-5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold uppercase tracking-wider hover:bg-white/5 text-slate-200 transition"
-        >
-          Back to Dashboard
-        </button>
-      </div>
+      <>
+          <main className="flex-grow p-6 md:p-10 flex items-center justify-center relative z-10">
+            <div className="glass-panel p-8 rounded-3xl border border-rose-500/20 bg-rose-950/10 text-center max-w-md w-full">
+              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4 border border-rose-500/20">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0-6h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-black text-rose-500 uppercase tracking-wider">Access Denied</h2>
+              <p className="text-xs text-slate-400 mt-3">You are not mapped to this work order or authorized to view this project's digital twin.</p>
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="mt-6 px-5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-bold uppercase tracking-wider hover:bg-white/5 text-slate-200 transition"
+              >
+                Back to Dashboard
+              </button>
+            </div>
+          </main>
+      </>
     );
   }
 
   return (
     <>
-      {/* Header */}
+          {/* Header */}
           <div className="mb-8 pb-6 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Project Performance Twin</span>
@@ -471,7 +475,6 @@ const ProjectDigitalTwin = () => {
 
             </div>
           )}
-
     </>
   );
 };

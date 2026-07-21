@@ -220,14 +220,7 @@ const WorkOrderMappings = () => {
   });
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
-        <main className="flex-grow p-6 md:p-10 overflow-y-auto no-scrollbar max-w-7xl mx-auto w-full relative z-10">
+    <>
         
         {/* Header Section */}
         <div className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
@@ -433,8 +426,6 @@ const WorkOrderMappings = () => {
             })()}
           </div>
         </div>
-      </main>
-      </div>
 
       {/* Map JE Modal */}
       {showMapModal && (
@@ -606,10 +597,10 @@ const WorkOrderMappings = () => {
                 </button>
               </div>
             </form>
+            </div>
           </div>
-        </div>
       )}
-    </div>
+    </>
   );
 };
 

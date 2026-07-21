@@ -339,11 +339,7 @@ const FundReports = () => {
   const closedCount = reports.filter((r) => r.projects_master?.status === 'Closed').length;
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       <main className="flex-grow p-6 md:p-10 overflow-y-auto w-full relative z-10">
 
         {/* ── Page Header ── */}
@@ -643,7 +639,7 @@ const FundReports = () => {
           }
         />
       )}
-    </div>
+    </>
   );
 };
 

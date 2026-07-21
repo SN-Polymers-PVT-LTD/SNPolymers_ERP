@@ -124,16 +124,9 @@ const PurchaseOptions = () => {
   };
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      {/* Background Silhouettes & Ambient Glows */}
-      <BackgroundShapes />
-
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       {/* Content */}
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10 font-sans">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
           <div>
@@ -331,7 +324,7 @@ const PurchaseOptions = () => {
         )}
       </main>
       </div>
-    </div>
+    </>
   );
 };
 

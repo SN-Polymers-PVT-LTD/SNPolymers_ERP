@@ -652,11 +652,7 @@ const RAFinalBill = () => {
   const currentSystemDateTime = formatDateTime(new Date());
 
   return (
-    <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-      <BackgroundShapes />
-      <Sidebar />
-      <MobileHeader />
-
+    <>
       {/* SUCCESS TOAST POPUP — fixed bottom-right, auto-dismisses */}
       {toast && (
         <div
@@ -689,7 +685,6 @@ const RAFinalBill = () => {
       )}
 
       <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
-        <TopNavbar />
         <main className="flex-grow p-6 md:p-10 overflow-y-auto w-full relative z-10">
         {/* Status Alerts */}
         {displayError && (
@@ -1710,7 +1705,7 @@ const RAFinalBill = () => {
           )}
         </Modal>
       )}
-    </div>
+    </>
   );
 };
 
