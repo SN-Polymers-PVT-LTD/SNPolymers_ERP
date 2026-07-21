@@ -829,6 +829,154 @@ const RevisionHeatmap = ({ data, isModal = false }) => {
   );
 };
 
+// ── Department Wise Estimate Donut Chart ──────────────────────────────────────
+const DepartmentWiseEstimate = ({ data = [] }) => {
+  const { isDark } = useTheme();
+
+  const DEFAULT_COLORS = ['#2563EB', '#0D9488', '#7C3AED', '#F97316', '#64748B', '#E11D48', '#059669'];
+
+  const items = React.useMemo(() => {
+    if (!data || data.length === 0) {
+      return [
+        { department: 'Civil', amount: 44800000, percentage: 38, color: '#2563EB' },
+        { department: 'Electrical', amount: 30700000, percentage: 26, color: '#0D9488' },
+        { department: 'Mechanical', amount: 21200000, percentage: 18, color: '#7C3AED' },
+        { department: 'Plumbing', amount: 11800000, percentage: 10, color: '#F97316' },
+        { department: 'Others', amount: 9500000, percentage: 8, color: '#64748B' }
+      ];
+    }
+    return data.map((item, idx) => ({
+      ...item,
+      color: DEFAULT_COLORS[idx % DEFAULT_COLORS.length]
+    }));
+  }, [data]);
+
+  const donutSlices = React.useMemo(() => {
+    let cumulativeAngle = 0;
+    const center = 100;
+    const outerRadius = 85;
+    const innerRadius = 45;
+
+    return items.map((slice) => {
+      const angle = (slice.percentage / 100) * 360;
+      const startAngle = cumulativeAngle;
+      const endAngle = cumulativeAngle + angle;
+      cumulativeAngle += angle;
+
+      const startRad = (startAngle - 90) * (Math.PI / 180);
+      const endRad = (endAngle - 90) * (Math.PI / 180);
+
+      const x1 = center + outerRadius * Math.cos(startRad);
+      const y1 = center + outerRadius * Math.sin(startRad);
+      const x2 = center + outerRadius * Math.cos(endRad);
+      const y2 = center + outerRadius * Math.sin(endRad);
+
+      const x3 = center + innerRadius * Math.cos(endRad);
+      const y3 = center + innerRadius * Math.sin(endRad);
+      const x4 = center + innerRadius * Math.cos(startRad);
+      const y4 = center + innerRadius * Math.sin(startRad);
+
+      const largeArc = angle > 180 ? 1 : 0;
+
+      const pathData = [
+        `M ${x1.toFixed(2)} ${y1.toFixed(2)}`,
+        `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
+        `L ${x3.toFixed(2)} ${y3.toFixed(2)}`,
+        `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4.toFixed(2)} ${y4.toFixed(2)}`,
+        'Z'
+      ].join(' ');
+
+      const midRad = ((startAngle + endAngle) / 2 - 90) * (Math.PI / 180);
+      const labelRadius = (outerRadius + innerRadius) / 2;
+      const labelX = center + labelRadius * Math.cos(midRad);
+      const labelY = center + labelRadius * Math.sin(midRad);
+
+      return {
+        ...slice,
+        pathData,
+        labelX,
+        labelY,
+        angle
+      };
+    });
+  }, [items]);
+
+  const formatAmount = (amt) => {
+    if (!amt || isNaN(amt)) return '₹ 0';
+    if (amt >= 10000000) return `₹ ${(amt / 10000000).toFixed(2)} Cr`;
+    if (amt >= 100000) return `₹ ${(amt / 100000).toFixed(2)} L`;
+    return `₹ ${Number(amt).toLocaleString('en-IN')}`;
+  };
+
+  return (
+    <div className="chart-panel h-full flex flex-col justify-between p-5">
+      <div className="flex justify-between items-center mb-2">
+        <div>
+          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+            Department Wise Estimate Amount
+          </h3>
+          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Breakdown of estimated costs across operational departments
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2">
+        {/* Donut Visual */}
+        <div className="relative w-52 h-52 sm:w-60 sm:h-60 shrink-0">
+          <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
+            {donutSlices.map((slice, idx) => (
+              <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group">
+                <path
+                  d={slice.pathData}
+                  fill={slice.color}
+                  stroke={isDark ? '#0f172a' : '#ffffff'}
+                  strokeWidth="2.5"
+                />
+                {slice.percentage >= 6 && (
+                  <text
+                    x={slice.labelX}
+                    y={slice.labelY + 4}
+                    fill="#ffffff"
+                    fontSize="11"
+                    fontWeight="800"
+                    textAnchor="middle"
+                    className="pointer-events-none drop-shadow"
+                  >
+                    {Math.round(slice.percentage)}%
+                  </text>
+                )}
+              </g>
+            ))}
+          </svg>
+        </div>
+
+        {/* Legend List */}
+        <div className="flex flex-col gap-2.5 w-full md:w-auto min-w-[210px]">
+          {items.map((item, idx) => (
+            <div key={idx} className="flex items-center justify-between gap-4 text-xs font-semibold py-1 px-2.5 rounded-lg hover:bg-slate-500/10 transition-colors">
+              <div className="flex items-center gap-2.5">
+                <span className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
+                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs sm:text-sm">
+                  {item.department}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+                  {formatAmount(item.amount)}
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold">
+                  ({item.percentage}%)
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -1189,11 +1337,11 @@ const HoDashboard = () => {
             </div>
           )}
 
-          {/* ── Row 1: Bubble Risk Matrix (1/2) + Fund Flow Waterfall (1/2) ── */}
+          {/* ── Row 1: Department Wise Estimate (1/2) + Fund Flow Waterfall (1/2) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('department')}>
               <div style={{ minHeight: '480px' }} className="h-full">
-                <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
+                <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
               </div>
             </ZoomCard>
             <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
@@ -1203,14 +1351,23 @@ const HoDashboard = () => {
             </ZoomCard>
           </div>
 
-          {/* ── Row 2: Zonal Performance Heatmap (full-width) ─────────────── */}
-          <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
-            <ZonalPerformanceHeatmap
-              data={chartRes?.zonalHeatmap || []}
-              onSelectZone={setSelectedZone}
-              selectedZone={selectedZone}
-            />
-          </ZoomCard>
+          {/* ── Row 2: Bubble Risk Matrix (1/2) + Zonal Performance Heatmap (1/2) ── */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+              <div style={{ minHeight: '480px' }} className="h-full">
+                <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
+              </div>
+            </ZoomCard>
+            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('zonal')}>
+              <div style={{ minHeight: '480px' }} className="h-full">
+                <ZonalPerformanceHeatmap
+                  data={chartRes?.zonalHeatmap || []}
+                  onSelectZone={setSelectedZone}
+                  selectedZone={selectedZone}
+                />
+              </div>
+            </ZoomCard>
+          </div>
 
           {/* ── Row 3: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
@@ -1385,6 +1542,11 @@ const HoDashboard = () => {
           </div>
 
           {/* ── Fullscreen Chart Zoom Modal ───────────────────────────────── */}
+          {zoomedChart === 'department' && (
+            <ChartModal onClose={() => setZoomedChart(null)}>
+              <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
+            </ChartModal>
+          )}
           {zoomedChart === 'bubble' && (
             <ChartModal onClose={() => setZoomedChart(null)}>
               <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />

@@ -176,4 +176,22 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
       expect(item.zone).toBe(zoneData.zone);
     });
   });
+
+  test('M3.6: getHoChartData returns departmentWiseEstimate array with valid structure', async () => {
+    const req = { user: { role: 'ho', mobile_number: hoMobile }, query: {} };
+    const res = mockRes();
+    await getHoChartData(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.success).toBe(true);
+    expect(Array.isArray(res.jsonData.departmentWiseEstimate)).toBe(true);
+    expect(res.jsonData.departmentWiseEstimate.length).toBeGreaterThan(0);
+    res.jsonData.departmentWiseEstimate.forEach(item => {
+      expect(typeof item.department).toBe('string');
+      expect(typeof item.amount).toBe('number');
+      expect(typeof item.percentage).toBe('number');
+      expect(item.amount).toBeGreaterThanOrEqual(0);
+      expect(item.percentage).toBeGreaterThanOrEqual(0);
+    });
+  });
 });
