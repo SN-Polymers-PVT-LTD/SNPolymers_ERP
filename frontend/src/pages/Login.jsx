@@ -45,7 +45,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 flex items-center justify-center px-4 font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-transparent text-slate-100 flex items-center justify-center px-4 font-sans relative overflow-hidden">
       {/* Background Silhouettes & Ambient Glows */}
       <BackgroundShapes />
 

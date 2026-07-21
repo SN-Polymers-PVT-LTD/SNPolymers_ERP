@@ -9,8 +9,8 @@ const AppLayout = () => {
   const { isDark } = useTheme();
 
   return (
-    <div className={`h-screen flex flex-col md:flex-row font-sans relative overflow-hidden ${
-      isDark ? 'bg-black text-slate-100' : 'bg-slate-100 text-slate-900'
+    <div className={`h-screen flex flex-col md:flex-row font-sans relative overflow-hidden bg-transparent ${
+      isDark ? 'text-slate-100' : 'text-slate-900'
     }`}>
       <BackgroundShapes />
       <Sidebar />

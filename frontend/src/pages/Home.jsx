@@ -7,7 +7,7 @@ const Home = () => {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-black text-slate-100 flex flex-col font-sans relative overflow-hidden">
+    <div className="min-h-screen bg-transparent text-slate-100 flex flex-col font-sans relative overflow-hidden">
       {/* Background Silhouettes & Ambient Glows */}
       <BackgroundShapes />
 

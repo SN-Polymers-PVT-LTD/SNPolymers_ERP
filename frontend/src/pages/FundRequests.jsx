@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, Modal } from '../components/ui';
+import { Button, Input, Modal, SkeletonTable } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Subcomponents
@@ -272,9 +272,7 @@ const FundRequests = () => {
                 </div>
 
                 {loading ? (
-                  <div className="flex items-center justify-center p-24">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
-                  </div>
+                  <SkeletonTable rows={6} cols={6} />
                 ) : filteredRequests.length === 0 ? (
                   <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
                     No requests matching filters.

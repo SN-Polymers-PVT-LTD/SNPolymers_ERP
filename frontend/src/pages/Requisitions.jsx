@@ -16,7 +16,7 @@ import {
   getMainHeadCapacity
 } from '../api/requisitionsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
-import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Helper for currency formatting
@@ -87,10 +87,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
   if (loading) {
     return (
       <Modal isOpen={true} onClose={null} size="sm">
-        <div className="flex flex-col items-center justify-center p-6">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
-          <span className="text-xs text-slate-400 mt-4 uppercase tracking-widest font-bold">Loading Details…</span>
-        </div>
+        <SkeletonCard />
       </Modal>
     );
   }
@@ -1872,9 +1869,7 @@ const Requisitions = () => {
               /* Requisitions List Table */
               <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5 min-h-[400px] flex flex-col">
                 {loading ? (
-                  <div className="flex items-center justify-center flex-1 p-24">
-                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
-                  </div>
+                  <SkeletonTable rows={6} cols={7} />
                 ) : filteredRequisitions.length === 0 ? (
                   <div className="text-center flex-1 flex items-center justify-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
                     No requisitions matching parameters.

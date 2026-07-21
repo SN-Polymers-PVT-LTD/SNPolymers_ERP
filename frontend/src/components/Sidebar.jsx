@@ -634,7 +634,7 @@ const Sidebar = () => {
           />
         </Link>
         <div
-          className={`flex flex-col transition-all duration-300 ease-in-out origin-left whitespace-nowrap overflow-hidden ${
+          className={`flex flex-col transition-all duration-300 ease-in-out origin-left whitespace-nowrap overflow-hidden flex-1 ${
             displayCollapsed ? 'opacity-0 max-w-0 pointer-events-none' : 'opacity-100 max-w-[200px]'
           }`}
         >
@@ -645,6 +645,22 @@ const Sidebar = () => {
             ERP Console
           </span>
         </div>
+
+        {!displayCollapsed && (
+          <button
+            onClick={() => setIsCollapsed((prev) => !prev)}
+            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 transition shrink-0"
+            title={isCollapsed ? 'Pin Sidebar' : 'Unpin Sidebar'}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isCollapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
+              )}
+            </svg>
+          </button>
+        )}
       </div>
 
       <nav className="flex-grow space-y-2 min-w-0">

@@ -6,9 +6,10 @@
   body {
     background-color: #000000; /* Pure Black theme base */
     color: #f8fafc;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0px, transparent 50%);
+    background-image: url('/darkmode_background.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
     background-attachment: fixed;
     min-height: 100vh;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -314,9 +315,11 @@
 body.light {
   background-color: #f8fafc;
   color: #0f172a;
-  background-image: 
-    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 50%);
+  background-image: url('/lightmode_background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 body.light ::-webkit-scrollbar-track {

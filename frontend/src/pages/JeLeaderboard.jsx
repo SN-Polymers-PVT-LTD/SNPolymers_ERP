@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authApi from '../api/authApi';
 import { useAuth } from '../components/AuthContext';
+import { SkeletonTable, SkeletonCard } from '../components/ui';
 
 const JeLeaderboard = () => {
   const { user } = useAuth();
@@ -95,9 +96,9 @@ const JeLeaderboard = () => {
       )}
 
       {loading ? (
-        <div className="py-20 text-center text-slate-500">
-          <span className="inline-block animate-spin rounded-full h-10 w-10 border-t-2 border-amber-500 mb-3" />
-          <p className="text-xs font-semibold">Calculating rankings & progress points...</p>
+        <div className="space-y-6">
+          <SkeletonCard />
+          <SkeletonTable rows={5} cols={5} />
         </div>
       ) : leaderboard.length === 0 ? (
         <div className="glass-panel p-12 rounded-3xl text-center text-slate-400">

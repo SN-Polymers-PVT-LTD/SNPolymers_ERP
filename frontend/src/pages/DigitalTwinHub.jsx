@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '../components/ui/Modal';
+import { SkeletonCard } from '../components/ui';
 import { getProjectsHealth } from '../api/analyticsApi';
 
 const formatINR = (value) => {
@@ -160,7 +161,7 @@ const DigitalTwinHub = () => {
           ) : isLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3, 4, 5, 6].map(idx => (
-                <div key={idx} className="glass-panel p-6 rounded-3xl animate-pulse h-48 bg-white/[0.02]" />
+                <SkeletonCard key={idx} />
               ))}
             </div>
           ) : filteredProjects.length === 0 ? (

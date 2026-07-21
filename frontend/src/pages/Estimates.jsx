@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, Select, Badge } from '../components/ui';
+import { Button, Input, Select, Badge, SkeletonCard } from '../components/ui';
 import authApi from '../api/authApi';
 
 const getStatusBadgeVariant = (status) => {
@@ -247,9 +247,9 @@ const Estimates = () => {
             {/* Scrollable list/grid of cards */}
             <div className="flex-grow overflow-y-auto no-scrollbar min-h-0 pr-1 space-y-4 mb-6 z-10">
               {loading ? (
-                <div className="flex flex-col items-center justify-center p-24 gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Retrieving ledger details...</span>
+                <div className="space-y-4">
+                  <SkeletonCard />
+                  <SkeletonCard />
                 </div>
               ) : filteredEstimates.length === 0 ? (
                 <div className="text-center py-20 text-slate-500 text-xs uppercase font-extrabold tracking-widest border border-dashed border-white/5 rounded-2xl">

@@ -44,13 +44,10 @@ const JeLeaderboard = React.lazy(() => import('./pages/JeLeaderboard'));
 
 
 
+import { SkeletonPage } from './components/ui';
+
 const AppChunkLoader = () => {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-slate-400">
-      <span className="animate-spin rounded-full h-8 w-8 border-t-2 border-amber-500 mr-3" />
-      <span className="text-xs font-semibold">Loading component chunk...</span>
-    </div>
-  );
+  return <SkeletonPage />;
 };
 
 const queryClient = new QueryClient({

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import Modal from '../components/ui/Modal';
+import { SkeletonTable } from '../components/ui';
 import { getWorkOrderMappings, createWorkOrderMapping, deactivateWorkOrderMapping } from '../api/workOrderMappingsApi';
 import { getEligibleJEs } from '../api/userMappingsApi';
 import { getProjects } from '../api/projectsApi';
@@ -307,9 +308,8 @@ const WorkOrderMappings = () => {
             <tbody className="divide-y divide-white/5 text-xs font-medium text-slate-300">
               {loading ? (
                 <tr>
-                  <td colSpan={isReadOnly ? 6 : 7} className="px-6 py-12 text-center text-slate-500">
-                    <span className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-amber-500 mr-2" />
-                    Loading mappings data...
+                  <td colSpan={isReadOnly ? 6 : 7} className="p-0">
+                    <SkeletonTable rows={5} cols={isReadOnly ? 6 : 7} />
                   </td>
                 </tr>
               ) : filteredMappings.length === 0 ? (
