@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import { getZonalBalances, getZonalLedger, reconcileZonalBalances } from '../api/zoBalancesApi';
 
 const ZonalBalances = () => {

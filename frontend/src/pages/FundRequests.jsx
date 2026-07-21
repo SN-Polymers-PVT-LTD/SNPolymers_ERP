@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import { Button, Input, Modal } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 

@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import { Button, Input, TextArea, Select, Checkbox, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {

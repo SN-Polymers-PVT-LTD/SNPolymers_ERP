@@ -2,11 +2,8 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../components/ThemeContext';
+import ModalContext from '../components/ModalContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
-import BackgroundShapes from '../components/BackgroundShapes';
-import ModalContext, { useModalOverlay } from '../components/ModalContext';
 import {
   getHoKpis,
   getHoZoneBenchmarking,
@@ -56,27 +53,6 @@ const useChartColors = () => {
     // Panel
     isDark,
   };
-};
-
-const InfoTooltip = ({ content, position = 'center' }) => {
-  const positionClasses = {
-    center: 'right-0 origin-top-right',
-    left: 'right-0 origin-top-right',
-    right: 'right-0 origin-top-right'
-  };
-
-  return (
-    <div className="absolute top-4 right-4 group cursor-pointer z-40">
-      <div className="transition-colors">
-        <svg className="w-5 h-5 text-amber-400/80 group-hover:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      </div>
-      <div className={`absolute top-full mt-2 w-64 p-3.5 rounded-xl tooltip-popover text-xs font-medium tracking-wide leading-relaxed opacity-0 scale-95 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 z-[100] ${positionClasses[position]}`}>
-        {content}
-      </div>
-    </div>
-  );
 };
 
 // ── Dynamic Fullscreen Chart Zoom Modal (React Class Component) ──────────────
@@ -830,7 +806,7 @@ const SCurveProgress = ({ data }) => {
 const RevisionHeatmap = ({ data, isModal = false }) => {
   const [tooltip, setTooltip] = useState(null);
   const c = useChartColors();
-  const W = 600, PAD_LEFT = 120, PAD_RIGHT = 30, CELL_SIZE = 24, GAP = 4;
+  const W = 600, PAD_LEFT = 120, CELL_SIZE = 24, GAP = 4;
 
   const workOrders = Array.from(new Set((data || []).map(d => d.work_order_no)));
   const months = Array.from(new Set((data || []).map(d => d.month))).sort();
@@ -953,17 +929,17 @@ const DepartmentWiseEstimate = ({ data }) => {
   }, [items]);
 
   const donutSlices = React.useMemo(() => {
-    let cumulativeAngle = 0;
+    let currentCumulativeAngle = 0;
     const center = 100;
     const outerRadius = 85;
     const innerRadius = 55;
-
     return items.map((slice) => {
       const pct = totalAmount > 0 ? ((Number(slice.amount) || 0) / totalAmount) * 100 : slice.percentage || 0;
       const angle = (pct / 100) * 360;
-      const startAngle = cumulativeAngle;
-      const endAngle = cumulativeAngle + angle;
-      cumulativeAngle += angle;
+      const startAngle = currentCumulativeAngle;
+      const endAngle = currentCumulativeAngle + angle;
+      // eslint-disable-next-line react-hooks/immutability
+      currentCumulativeAngle += angle;
 
       const startRad = (startAngle - 90) * (Math.PI / 180);
       const endRad = (endAngle - 90) * (Math.PI / 180);
@@ -1168,7 +1144,7 @@ const MetricDonutCard = ({
 
   // Compute SVG Donut Slices
   const slices = React.useMemo(() => {
-    let cumulativeAngle = 0;
+    let currentCumulativeAngle = 0;
     const center = 100;
     const outerRadius = 85;
     const innerRadius = 55;
@@ -1176,9 +1152,10 @@ const MetricDonutCard = ({
     return activeBuckets.map((bucket) => {
       const pct = totalCount > 0 ? (bucket.count / totalCount) * 100 : bucket.percentage || 0;
       const angle = (pct / 100) * 360;
-      const startAngle = cumulativeAngle;
-      const endAngle = cumulativeAngle + angle;
-      cumulativeAngle += angle;
+      const startAngle = currentCumulativeAngle;
+      const endAngle = currentCumulativeAngle + angle;
+      // eslint-disable-next-line react-hooks/immutability
+      currentCumulativeAngle += angle;
 
       const startRad = (startAngle - 90) * (Math.PI / 180);
       const endRad = (endAngle - 90) * (Math.PI / 180);
@@ -2016,7 +1993,7 @@ const HoDashboard = () => {
 
 
   // 1. Fetch HO KPIs
-  const { data: kpiRes, isLoading: kpiLoading, isError: kpiErr } = useQuery({
+  useQuery({
     queryKey: ['hoKpis'],
     queryFn: async () => {
       const res = await getHoKpis();
@@ -2025,7 +2002,7 @@ const HoDashboard = () => {
   });
 
   // 2. Fetch Zonal Benchmarking
-  const { data: zoneRes, isLoading: zoneLoading, isError: zoneErr } = useQuery({
+  useQuery({
     queryKey: ['hoZoneBenchmarking'],
     queryFn: async () => {
       const res = await getHoZoneBenchmarking();
@@ -2034,7 +2011,7 @@ const HoDashboard = () => {
   });
 
   // 3. Fetch Budget Leakages
-  const { data: leakageRes, isLoading: leakageLoading, isError: leakageErr } = useQuery({
+  useQuery({
     queryKey: ['hoBudgetLeakage'],
     queryFn: async () => {
       const res = await getHoBudgetLeakage();
@@ -2095,15 +2072,12 @@ const HoDashboard = () => {
                     animation: 'pulse 2.5s ease-in-out infinite'
                   }}
                 />
-                <span className="font-mono text-[10px] uppercase tracking-[3px] text-amber-500">Executive HQ Panel</span>
+                <span className="font-mono text-[10px] uppercase tracking-[3px] text-amber-500">Executive Analytics</span>
               </div>
               <h1
-                className="text-3xl font-extrabold tracking-tight mt-1"
+                className="text-3xl font-extrabold tracking-tight mt-1 text-slate-900 dark:text-slate-100"
                 style={{
-                  background: 'linear-gradient(135deg, #fff 30%, rgba(255,255,255,0.5))',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
+                  color: 'var(--title-color, inherit)',
                   letterSpacing: '-0.04em'
                 }}
               >
@@ -2433,7 +2407,7 @@ const HoDashboard = () => {
                   </svg>
                 )
               },
-            ].map(({ id, label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
+            ].map(({ label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
               <div
                 key={label}
                 onClick={() => {

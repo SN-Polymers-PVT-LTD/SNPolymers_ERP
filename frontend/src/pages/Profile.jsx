@@ -1,7 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import authApi from '../api/authApi';
 
 const Profile = () => {
@@ -59,9 +56,43 @@ const Profile = () => {
           )}
 
           {loading ? (
-            <div className="py-12 text-center text-slate-500">
-              <span className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-amber-500 mr-2" />
-              <p className="mt-2 text-xs">Loading profile dashboard...</p>
+            <div className="space-y-8 animate-pulse">
+              {/* Profile Card Skeleton */}
+              <div className="glass-panel p-6 rounded-3xl flex flex-col md:flex-row items-center gap-6">
+                <div className="w-20 h-20 rounded-2xl bg-white/10 shrink-0" />
+                <div className="flex-1 space-y-3 w-full">
+                  <div className="h-6 w-48 bg-white/10 rounded-lg" />
+                  <div className="h-4 w-32 bg-white/5 rounded-md" />
+                  <div className="flex gap-4 pt-2">
+                    <div className="h-4 w-24 bg-white/5 rounded-md" />
+                    <div className="h-4 w-28 bg-white/5 rounded-md" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Stats Grid Skeleton */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="glass-panel p-5 rounded-2xl space-y-3">
+                    <div className="h-3 w-20 bg-white/10 rounded" />
+                    <div className="h-7 w-16 bg-white/10 rounded-lg" />
+                  </div>
+                ))}
+              </div>
+
+              {/* 3-Column Control Room Cards Skeleton */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="glass-panel p-6 rounded-3xl h-[520px] flex flex-col justify-between">
+                    <div className="h-5 w-36 bg-white/10 rounded-lg mb-6" />
+                    <div className="space-y-4 flex-1">
+                      {[1, 2, 3, 4].map((j) => (
+                        <div key={j} className="h-16 bg-white/5 rounded-2xl" />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           ) : !profile ? (
             <div className="text-center text-slate-500 py-12">No profile data available.</div>

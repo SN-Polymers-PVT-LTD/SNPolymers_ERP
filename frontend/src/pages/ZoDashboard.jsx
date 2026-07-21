@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
-import BackgroundShapes from '../components/BackgroundShapes';
 import { getZoProductivity, getRecentActivity } from '../api/analyticsApi';
 
 const formatActivityDescription = (log) => {

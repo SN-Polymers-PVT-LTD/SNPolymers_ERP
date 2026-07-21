@@ -350,7 +350,6 @@ const Sidebar = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const currentPath = location.pathname;
-  const isAdmin = user?.role === 'admin';
 
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
@@ -383,8 +382,11 @@ const Sidebar = () => {
           localStorage.removeItem('pinnedProjects');
         }
       }
-    } catch (e) {}
+    } catch {
+      // ignore
+    }
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPinnedProjects();
     window.addEventListener('pinned-projects-updated', loadPinnedProjects);
     return () => {

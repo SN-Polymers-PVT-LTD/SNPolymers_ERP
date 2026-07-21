@@ -1,7 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import BackgroundShapes from '../../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../../components/Sidebar';
-import TopNavbar from '../../components/TopNavbar';
 import Modal from '../../components/ui/Modal';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
 import { exportProjectsToExcel } from '../../utils/exportHelpers';

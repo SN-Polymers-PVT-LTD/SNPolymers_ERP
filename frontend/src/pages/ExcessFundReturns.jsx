@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import Modal from '../components/ui/Modal';
 import {
   getReturnRequests,
@@ -103,6 +100,16 @@ const ExcessFundReturns = () => {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleAllocationChange = (workOrderNo, val, maxVal) => {
+    const num = parseFloat(val);
+    if (isNaN(num) || num < 0) {
+      setBreakdownAllocations((prev) => ({ ...prev, [workOrderNo]: '' }));
+    } else {
+      const clamped = Math.min(num, maxVal);
+      setBreakdownAllocations((prev) => ({ ...prev, [workOrderNo]: clamped }));
+    }
+  };
 
 
 
@@ -634,7 +641,9 @@ const ExcessFundReturns = () => {
             {/* Breakdown Allocations */}
             <div className="space-y-3 bg-white/2 border border-white/5 p-4 rounded-xl">
               <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Return Breakdown Allocation</span>
+                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                  Return Breakdown Allocation {loadingWoBalances && '(Loading...)'}
+                </span>
                 <span className="text-[10px] font-mono text-amber-500 font-bold">
                   Total Allocated: ₹{Object.values(breakdownAllocations).reduce((sum, v) => sum + Number(v || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                 </span>

@@ -7,39 +7,51 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Views
+// Views (Static for auth entrypoints)
 import Home from './pages/Home';
 import Login from './pages/Login';
 import OtpVerify from './pages/OtpVerify';
 import TelegramSetup from './pages/TelegramSetup';
-import Dashboard from './pages/Dashboard';
-import AdminPanel from './pages/admin/AdminPanel';
-import AuditLog from './pages/admin/AuditLog';
-import MasterData from './pages/admin/MasterData';
-import PurchaseOptions from './pages/admin/PurchaseOptions';
-import FundReports from './pages/FundReports';
-import FundRequests from './pages/FundRequests';
-import MaterialMaster from './pages/MaterialMaster';
-import Estimates from './pages/Estimates';
-import EstimateForm from './pages/EstimateForm';
-import EstimateView from './pages/EstimateView';
-import Requisitions from './pages/Requisitions';
-import DailyProgress from './pages/DailyProgress';
-import RAFinalBill from './pages/RAFinalBill';
 import Docs from './pages/docs/Docs';
 import SystemPolicy from './pages/SystemPolicy';
-import UserMappings from './pages/UserMappings';
-import WorkOrderMappings from './pages/WorkOrderMappings';
-import ZonalBalances from './pages/ZonalBalances';
-import ExcessFundReturns from './pages/ExcessFundReturns';
-import Profile from './pages/Profile';
-import HoDashboard from './pages/HoDashboard';
-import ZoDashboard from './pages/ZoDashboard';
-import AuditComplianceCenter from './pages/AuditComplianceCenter';
-import ProjectDigitalTwin from './pages/ProjectDigitalTwin';
-import DigitalTwinHub from './pages/DigitalTwinHub';
+
+// Dynamic Lazy Views for chunk splitting & optimistic preloading
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
+const AuditLog = React.lazy(() => import('./pages/admin/AuditLog'));
+const MasterData = React.lazy(() => import('./pages/admin/MasterData'));
+const PurchaseOptions = React.lazy(() => import('./pages/admin/PurchaseOptions'));
+const FundReports = React.lazy(() => import('./pages/FundReports'));
+const FundRequests = React.lazy(() => import('./pages/FundRequests'));
+const MaterialMaster = React.lazy(() => import('./pages/MaterialMaster'));
+const Estimates = React.lazy(() => import('./pages/Estimates'));
+const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
+const EstimateView = React.lazy(() => import('./pages/EstimateView'));
+const Requisitions = React.lazy(() => import('./pages/Requisitions'));
+const DailyProgress = React.lazy(() => import('./pages/DailyProgress'));
+const RAFinalBill = React.lazy(() => import('./pages/RAFinalBill'));
+const UserMappings = React.lazy(() => import('./pages/UserMappings'));
+const WorkOrderMappings = React.lazy(() => import('./pages/WorkOrderMappings'));
+const ZonalBalances = React.lazy(() => import('./pages/ZonalBalances'));
+const ExcessFundReturns = React.lazy(() => import('./pages/ExcessFundReturns'));
+const Profile = React.lazy(() => import('./pages/Profile'));
+const HoDashboard = React.lazy(() => import('./pages/HoDashboard'));
+const ZoDashboard = React.lazy(() => import('./pages/ZoDashboard'));
+const AuditComplianceCenter = React.lazy(() => import('./pages/AuditComplianceCenter'));
+const ProjectDigitalTwin = React.lazy(() => import('./pages/ProjectDigitalTwin'));
+const DigitalTwinHub = React.lazy(() => import('./pages/DigitalTwinHub'));
+const JeLeaderboard = React.lazy(() => import('./pages/JeLeaderboard'));
 
 
+
+const AppChunkLoader = () => {
+  return (
+    <div className="min-h-screen flex items-center justify-center text-slate-400">
+      <span className="animate-spin rounded-full h-8 w-8 border-t-2 border-amber-500 mr-3" />
+      <span className="text-xs font-semibold">Loading component chunk...</span>
+    </div>
+  );
+};
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,7 +80,11 @@ function App() {
 
             {/* Protected Routes utilizing Persistent AppLayout */}
             <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
-              <Route element={<AppLayout />}>
+              <Route element={
+                <React.Suspense fallback={<AppChunkLoader />}>
+                  <AppLayout />
+                </React.Suspense>
+              }>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/fund-reports" element={<FundReports />} />
@@ -117,10 +133,11 @@ function App() {
                   <Route path="/analytics/zo" element={<ZoDashboard />} />
                 </Route>
 
-                {/* JE/ZO/HO/Admin Digital Twin Route */}
+                {/* JE/ZO/HO/Admin Digital Twin & Leaderboard Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
                   <Route path="/projects/:work_order_no/digital-twin" element={<ProjectDigitalTwin />} />
                   <Route path="/analytics/digital-twin" element={<DigitalTwinHub />} />
+                  <Route path="/analytics/leaderboard" element={<JeLeaderboard />} />
                 </Route>
               </Route>
             </Route>

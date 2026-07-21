@@ -1,8 +1,5 @@
 import React from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import HoDashboardView from './dashboard/HoDashboardView';
 import ZoDashboardView from './dashboard/ZoDashboardView';
 import JeDashboardView from './dashboard/JeDashboardView';

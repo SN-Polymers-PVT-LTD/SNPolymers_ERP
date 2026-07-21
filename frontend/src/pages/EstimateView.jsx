@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
 import { Button, Input, Modal, TextArea } from '../components/ui';
 import authApi from '../api/authApi';
 import { exportToExcel } from '../utils/exportHelpers';
@@ -70,7 +68,7 @@ const EstimateView = () => {
   const [showApproveAllConfirm, setShowApproveAllConfirm] = useState(false);
 
   // Fetch estimate details using React Query
-  const { data: estimateData, isLoading: loading, error: queryError } = useQuery({
+  const { data: estimateData, isLoading: loading } = useQuery({
     queryKey: ['estimate', id],
     queryFn: async () => {
       const [detailRes, revisionRes, purchaseRes] = await Promise.all([
@@ -94,8 +92,6 @@ const EstimateView = () => {
   const summary = estimateData?.summary;
   const revisions = useMemo(() => estimateData?.revisions || [], [estimateData?.revisions]);
   const purchaseOptions = useMemo(() => estimateData?.purchaseOptions || [], [estimateData?.purchaseOptions]);
-
-  const displayError = error || queryError?.response?.data?.message || queryError?.message || '';
 
   // Initialize row decisions when estimateData is loaded
   useEffect(() => {
@@ -418,26 +414,16 @@ const EstimateView = () => {
 
   if (loading) {
     return (
-      <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-        <BackgroundShapes />
-        <Sidebar />
-        <MobileHeader />
-        <main className="flex-grow flex items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
-        </main>
+      <div className="flex-grow flex items-center justify-center p-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500" />
       </div>
     );
   }
 
   if (!estimate) {
     return (
-      <div className="h-screen bg-black text-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden">
-        <BackgroundShapes />
-        <Sidebar />
-        <MobileHeader />
-        <main className="flex-grow flex items-center justify-center text-xs uppercase font-extrabold tracking-widest text-slate-400">
-          Estimate details not found.
-        </main>
+      <div className="flex-grow flex items-center justify-center p-12 text-xs uppercase font-extrabold tracking-widest text-slate-400">
+        Estimate details not found.
       </div>
     );
   }

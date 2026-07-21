@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-import { useTheme } from './ThemeContext';
 import Dock from './ui/Dock';
 import { useModalOverlay } from './ModalContext';
 
@@ -15,7 +14,6 @@ const TopNavbar = () => {
   const role = user?.role || '';
   const isAdmin = role === 'admin';
   const isAuthorizedZOOrHOOrAdmin = ['zo', 'ho', 'admin'].includes(role);
-  const isAuthorizedJEOrAbove = ['je', 'zo', 'ho', 'admin'].includes(role);
   const isAuthorizedFinance = ['je', 'zo', 'ho', 'admin', 'staff'].includes(role);
 
   // Helper to resolve the first route the user has access to for each module

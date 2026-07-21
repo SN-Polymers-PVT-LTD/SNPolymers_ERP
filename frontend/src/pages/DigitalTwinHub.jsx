@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import Modal from '../components/ui/Modal';
-import BackgroundShapes from '../components/BackgroundShapes';
 import { getProjectsHealth } from '../api/analyticsApi';
 
 const formatINR = (value) => {
@@ -56,6 +53,7 @@ const DigitalTwinHub = () => {
   const paginatedProjects = filteredProjects.slice((page - 1) * CARDS_PER_PAGE, page * CARDS_PER_PAGE);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [searchTerm, statusFilter, zoneFilter]);
 
@@ -66,6 +64,7 @@ const DigitalTwinHub = () => {
     try {
       const stored = localStorage.getItem('pinnedProjects');
       if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPinnedProjects(JSON.parse(stored));
       } else {
         const defaults = ['WO-OVR-8F0DDDAB', 'WO-OVR-A6313AA6', 'WO-OVR-FBE2B471'];

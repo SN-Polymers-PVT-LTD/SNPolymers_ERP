@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
 import { Button, Input, TextArea, Select, Modal } from '../components/ui';
 import authApi from '../api/authApi';
 import { useQueryClient } from '@tanstack/react-query';

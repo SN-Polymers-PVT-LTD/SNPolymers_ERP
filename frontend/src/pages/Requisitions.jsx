@@ -1,8 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import { getProjects } from '../api/projectsApi';
 import { getEstimates, getEstimateById } from '../api/estimatesApi';
 import { getMaterialCategories } from '../api/materialsApi';

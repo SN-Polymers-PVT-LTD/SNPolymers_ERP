@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import authApi from '../../api/authApi';
-import BackgroundShapes from '../../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../../components/Sidebar';
-import TopNavbar from '../../components/TopNavbar';
 
 const AuditLog = () => {
   const [sessions, setSessions] = useState([]);

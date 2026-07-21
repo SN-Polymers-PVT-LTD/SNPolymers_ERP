@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
 import { Button, Input, TextArea, Badge, Modal } from '../components/ui';
 import { getReports, getDeletedReports, createReport, updateReport, deleteReport, restoreReport } from '../api/reportsApi';
 import { getProjects } from '../api/projectsApi';

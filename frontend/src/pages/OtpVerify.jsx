@@ -44,10 +44,25 @@ const OtpVerify = () => {
     }
   }, [mobileNumber, navigate]);
 
-  // Auto-focus the first OTP input box on mount
+  // Auto-focus the first OTP input box on mount & trigger speculative optimistic preloading
   useEffect(() => {
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
+    }
+
+    // Speculatively prefetch key destination page module chunks in background
+    const prefetchRoutes = () => {
+      import('../pages/Dashboard').catch(() => {});
+      import('../pages/DailyProgress').catch(() => {});
+      import('../pages/HoDashboard').catch(() => {});
+      import('../pages/ZoDashboard').catch(() => {});
+    };
+
+    // Low-priority prefetch after initial paint
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(prefetchRoutes);
+    } else {
+      setTimeout(prefetchRoutes, 300);
     }
   }, []);
 

@@ -1,8 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import BackgroundShapes from '../components/BackgroundShapes';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
 import Modal from '../components/ui/Modal';
 import { getWorkOrderMappings, createWorkOrderMapping, deactivateWorkOrderMapping } from '../api/workOrderMappingsApi';
 import { getEligibleJEs } from '../api/userMappingsApi';

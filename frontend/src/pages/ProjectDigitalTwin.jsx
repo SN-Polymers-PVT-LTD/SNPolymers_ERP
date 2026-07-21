@@ -1,9 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import Sidebar, { MobileHeader } from '../components/Sidebar';
-import TopNavbar from '../components/TopNavbar';
-import BackgroundShapes from '../components/BackgroundShapes';
 import { getProjectDigitalTwin } from '../api/analyticsApi';
 
 const formatINR = (value) => {
