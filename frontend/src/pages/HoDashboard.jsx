@@ -1938,7 +1938,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'estimate',
-      title: 'TOTAL ESTIMATE',
+      title: 'TOTAL ESTIMATE AMOUNT',
       description: 'Aggregated cost estimate value of final approved sheets.',
       formula: 'Sum(estimate_amount where status = \'Final Approved\')',
       titleColor: '#c084fc',
@@ -1949,7 +1949,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'requisition',
-      title: 'TOTAL REQUISITION',
+      title: 'TOTAL REQUISITION (ZO → HO)',
       description: 'Total site fund requisitions requested from Zonal Offices.',
       formula: 'Sum(approved_amount where status = \'Approved\')',
       titleColor: '#fb923c',
@@ -1960,7 +1960,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'approved',
-      title: 'TOTAL APPROVED',
+      title: 'TOTAL APPROVED (HO → ZO)',
       description: 'Total funds authorized and allocated from Head Office to Zones.',
       formula: 'Sum(approve_ho_amount where status = \'Approved\')',
       titleColor: '#fbbf24',
@@ -1971,7 +1971,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'zo_balance',
-      title: 'ZO BALANCE',
+      title: 'ZO AVAILABLE BALANCE',
       description: 'Liquid fund balance currently available across all Zonal Office ledgers.',
       formula: 'Sum(available_balance)',
       titleColor: '#38bdf8',
@@ -1982,7 +1982,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'refund',
-      title: 'TOTAL REFUND',
+      title: 'TOTAL REFUND AMOUNT',
       description: 'Unspent excess funds returned from Zonal Offices to Head Office.',
       formula: 'Sum(transaction_type = \'RETURN\')',
       titleColor: '#2dd4bf',
@@ -2015,7 +2015,7 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'due_bill',
-      title: 'DUE BILL AMOUNT',
+      title: 'REMAINING BILL AMOUNT',
       description: 'Pending unbilled work order value exposure remaining in portfolio.',
       formula: 'Total WO Value - Gross Bill Amount',
       titleColor: '#ec4899',
@@ -2031,20 +2031,11 @@ const ExecutiveKpiStrip = ({ data }) => {
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
-<<<<<<< HEAD
-          className={`relative p-3 sm:p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
-            isDark 
-              ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' 
-              : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-          }`}
-          style={{ minHeight: '125px' }}
-=======
           className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark
               ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20'
               : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
             }`}
           style={{ minHeight: '135px' }}
->>>>>>> c8a07312b9cb0f5ebf7777fd3ff512a228e9d9a5
         >
           {/* Colored Top Glow Accent Line */}
           <div
@@ -2052,52 +2043,30 @@ const ExecutiveKpiStrip = ({ data }) => {
             style={{ background: kpi.topGlow }}
           />
 
-<<<<<<< HEAD
-          {/* Title */}
-          <p
-            className="text-[9px] sm:text-[9.5px] font-black tracking-wider uppercase leading-snug line-clamp-2"
-            style={{ color: kpi.titleColor }}
-            title={kpi.title}
-          >
-            {kpi.title}
-          </p>
-
-          {/* Main Value */}
-          <div className="my-auto py-1">
-            <span className={`text-sm sm:text-base lg:text-lg font-bold font-mono tracking-tight whitespace-nowrap ${
-              isDark ? 'text-slate-100' : 'text-slate-900'
-            }`}>
-=======
-          {/* Title with Top-Left Info Icon */}
-          <div className="flex items-center gap-1.5 mb-1">
-            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
+          {/* Title with Top-Right Corner Info Icon */}
+          <div className="flex items-start justify-between gap-1.5 mb-1">
             <p
-              className="text-[9.5px] font-black tracking-wider uppercase leading-snug"
+              className="text-[9.5px] font-black tracking-wider uppercase leading-snug flex-1 min-w-0"
               style={{ color: kpi.titleColor }}
+              title={kpi.title}
             >
               {kpi.title}
             </p>
+            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
           </div>
 
           {/* Main Value */}
           <div className="my-auto py-1">
             <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'
               }`}>
->>>>>>> c8a07312b9cb0f5ebf7777fd3ff512a228e9d9a5
               {kpi.value}
             </span>
           </div>
 
           {/* Subtext */}
           {kpi.subtext ? (
-<<<<<<< HEAD
-            <p className={`text-[8.5px] sm:text-[9px] font-medium leading-tight truncate ${
-              isDark ? 'text-slate-400/80' : 'text-slate-600'
-            }`} title={kpi.subtext}>
-=======
             <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'
-              }`}>
->>>>>>> c8a07312b9cb0f5ebf7777fd3ff512a228e9d9a5
+              }`} title={kpi.subtext}>
               {kpi.subtext}
             </p>
           ) : (
