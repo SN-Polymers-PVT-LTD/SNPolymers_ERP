@@ -3,15 +3,17 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const ThemeContext = createContext();
 
 export const DARK_BACKGROUNDS = [
-  { id: 'radial-indigo', name: 'Radial Glow (Default Dark)', style: 'radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0px, transparent 50%)' },
+  { id: 'radial-indigo', name: 'Oceanic Wave Flow (Default Dark)', style: 'radial-gradient(ellipse 90% 60% at 10% -10%, rgba(14, 165, 233, 0.18), transparent 60%), radial-gradient(circle at 90% 20%, rgba(6, 182, 212, 0.14), transparent 50%), radial-gradient(circle at 50% 90%, rgba(99, 102, 241, 0.12), transparent 60%)' },
+  { id: 'tropical-beach', name: 'Tropical Beach Horizon 🏝️', style: 'radial-gradient(circle at 95% 15%, rgba(16, 185, 129, 0.18), transparent 55%), radial-gradient(ellipse 90% 60% at 40% -10%, rgba(6, 182, 212, 0.18), transparent 70%), radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.15), transparent 50%), radial-gradient(circle at 90% 85%, rgba(245, 158, 11, 0.15), transparent 50%), linear-gradient(180deg, #07111e 0%, #050d1a 50%, #17150c 100%)', bgColor: '#050d1a' },
   { id: 'rotating-svg-dark', name: 'Rotating SVG Vector & CAD Blueprint', url: '/dark-blueprint.svg', style: "url('/dark-blueprint.svg')" },
-  { id: 'image-dark', name: 'Blueprint & Arc Overlay (Image)', url: '/darkmode_background.png', style: "url('/darkmode_background.png')" },
-  { id: 'pure-black', name: 'Deep Midnight Black', style: 'none', bgColor: '#000000' },
-  { id: 'cyber-mesh', name: 'Cyber Neon Gradient', style: 'radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.25), transparent 70%), radial-gradient(circle at 0% 100%, rgba(236, 72, 153, 0.15), transparent 60%)' },
+  { id: 'image-dark', name: 'Light Tech Arc Overlay (Image)', url: '/darkmode_background.png', style: "url('/darkmode_background.png')" },
+  { id: 'pure-black', name: 'Minimal Deep Black', style: 'none', bgColor: '#000000' },
+  { id: 'warm-sunlight', name: 'Glistening Sunlight Ray', style: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(251, 191, 36, 0.20), transparent), radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.14), transparent 45%), radial-gradient(circle at 15% 30%, rgba(245, 158, 11, 0.10), transparent 50%)' },
 ];
 
 export const LIGHT_BACKGROUNDS = [
   { id: 'radial-soft', name: 'Oceanic Wave Flow (Default Light)', style: 'radial-gradient(ellipse 90% 60% at 10% -10%, rgba(14, 165, 233, 0.14), transparent 60%), radial-gradient(circle at 90% 20%, rgba(6, 182, 212, 0.10), transparent 50%), radial-gradient(circle at 50% 90%, rgba(99, 102, 241, 0.05), transparent 60%)' },
+  { id: 'tropical-beach', name: 'Tropical Beach Horizon 🏝️', style: 'radial-gradient(circle at 95% 15%, rgba(16, 185, 129, 0.22), transparent 55%), radial-gradient(ellipse 90% 60% at 40% -10%, rgba(6, 182, 212, 0.22), transparent 70%), radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.18), transparent 50%), radial-gradient(circle at 90% 85%, rgba(251, 191, 36, 0.18), transparent 50%), linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 50%, #fef3c7 100%)', bgColor: '#e0f2fe' },
   { id: 'rotating-svg-light', name: 'Rotating SVG Vector & CAD Blueprint', url: '/light-blueprint.svg', style: "url('/light-blueprint.svg')" },
   { id: 'image-light', name: 'Light Tech Arc Overlay (Image)', url: '/lightmode_background.png', style: "url('/lightmode_background.png')" },
   { id: 'clean-slate', name: 'Minimal Soft Slate', style: 'none', bgColor: '#f8fafc' },

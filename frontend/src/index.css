@@ -4,9 +4,10 @@
 
 @layer base {
   body {
-    background-color: #050810; /* Sleek dark theme base */
+    background-color: #050810;
+    /* Sleek dark theme base */
     color: #f8fafc;
-    background-image: 
+    background-image:
       radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.08) 0px, transparent 50%),
       radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.04) 0px, transparent 50%);
     background-attachment: fixed;
@@ -20,28 +21,57 @@
     width: 6px;
     height: 6px;
   }
+
   ::-webkit-scrollbar-track {
     background: rgba(0, 0, 0, 0.2);
   }
+
   ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 9999px;
   }
+
   ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
   }
 }
 
 @layer utilities {
-  /* Glassmorphism Panel core class */
+
+  /* Glassmorphism Panel core class - Apple x Oracle Grade Dark Mode (70% Transparency) */
   .glass-panel {
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    background: rgba(15, 23, 42, 0.30);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 
-      0 4px 30px rgba(0, 0, 0, 0.4),
-      inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      0 12px 40px rgba(0, 0, 0, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Universal Translucent Nested Cards inside Glass Panels */
+  .glass-panel .bg-white\/2,
+  .glass-panel .bg-white\/5 {
+    background-color: rgba(255, 255, 255, 0.025) !important;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .glass-panel .bg-white\/2:hover,
+  .glass-panel .bg-white\/5:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+  }
+
+  /* Translucent Data Grid Tables in Dark Mode */
+  table thead tr.bg-white\/2 {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+  }
+
+  table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.04) !important;
   }
 
   /* Hoverable Glass Card with interactive transformations */
@@ -53,7 +83,7 @@
     transform: translateY(-2px);
     background: rgba(15, 23, 42, 0.65);
     border-color: rgba(255, 255, 255, 0.15);
-    box-shadow: 
+    box-shadow:
       0 20px 40px rgba(0, 0, 0, 0.6),
       0 0 25px rgba(99, 102, 241, 0.05),
       inset 0 1px 2px rgba(255, 255, 255, 0.1);
@@ -71,24 +101,29 @@
 
   .glass-input:focus {
     background: rgba(0, 0, 0, 0.85);
-    border-color: rgba(245, 158, 11, 0.5); /* Glowing amber border on focus */
-    box-shadow: 
+    border-color: rgba(245, 158, 11, 0.5);
+    /* Glowing amber border on focus */
+    box-shadow:
       0 0 15px rgba(245, 158, 11, 0.15),
       inset 0 1px 1px rgba(255, 255, 255, 0.05);
   }
 
-  /* Floating navigation specific glass */
+  /* Floating navigation & sidebar glassmorphism */
   .glass-nav {
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(10, 15, 30, 0.05);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 10px 30px rgba(0, 0, 0, 0.15),
+      inset 0 1px 1px rgba(255, 255, 255, 0.1);
   }
 
   /* Dynamic Glow effects for active cards */
   .glow-border-active {
     border-color: rgba(245, 158, 11, 0.3);
-    box-shadow: 
+    box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.5),
       0 0 20px rgba(245, 158, 11, 0.1),
       inset 0 1px 1px rgba(255, 255, 255, 0.08);
@@ -99,22 +134,32 @@
   main.overflow-y-auto::-webkit-scrollbar {
     display: none;
   }
+
   .no-scrollbar,
   main.overflow-y-auto {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
   }
 
   /* Marquee animation for continuous scrolling ticker */
   @keyframes marquee {
-    0% { transform: translateX(0%); }
-    100% { transform: translateX(-50%); }
+    0% {
+      transform: translateX(0%);
+    }
+
+    100% {
+      transform: translateX(-50%);
+    }
   }
+
   .animate-marquee {
     display: flex;
     width: max-content;
     animation: marquee 35s linear infinite;
   }
+
   .animate-marquee:hover {
     animation-play-state: paused;
   }
@@ -135,15 +180,18 @@
     padding: 1.5rem;
     transition: border-color 0.22s ease, box-shadow 0.22s ease;
   }
+
   .chart-panel:hover {
     border-color: rgba(255, 255, 255, 0.13);
     box-shadow:
-      0 0 0 1px rgba(255,255,255,0.02),
+      0 0 0 1px rgba(255, 255, 255, 0.02),
       0 20px 60px rgba(0, 0, 0, 0.45),
       inset 0 1px 1px rgba(255, 255, 255, 0.05);
   }
+
   /* Amber corner brackets on chart panels */
-  .chart-panel::before, .chart-panel::after {
+  .chart-panel::before,
+  .chart-panel::after {
     content: "";
     position: absolute;
     width: 16px;
@@ -152,15 +200,23 @@
     opacity: 0.45;
     transition: opacity 0.22s ease;
   }
-  .chart-panel:hover::before, .chart-panel:hover::after { opacity: 0.9; }
+
+  .chart-panel:hover::before,
+  .chart-panel:hover::after {
+    opacity: 0.9;
+  }
+
   .chart-panel::before {
-    top: -1px; left: -1px;
+    top: -1px;
+    left: -1px;
     border-top: 2px solid #f0a843;
     border-left: 2px solid #f0a843;
     border-radius: 6px 0 0 0;
   }
+
   .chart-panel::after {
-    bottom: -1px; right: -1px;
+    bottom: -1px;
+    right: -1px;
     border-bottom: 2px solid #f0a843;
     border-right: 2px solid #f0a843;
     border-radius: 0 0 6px 0;
@@ -173,6 +229,7 @@
     letter-spacing: -0.01em;
     color: rgba(225, 232, 244, 0.95);
   }
+
   .chart-subtitle {
     font-size: 0.6rem;
     font-weight: 700;
@@ -181,12 +238,15 @@
     margin-top: 0.25rem;
     line-height: 1.5;
   }
+
   .chart-label {
     color: rgba(100, 116, 139, 0.8);
   }
+
   .chart-text-primary {
     color: rgba(248, 250, 252, 0.9);
   }
+
   .chart-text-secondary {
     color: rgba(148, 163, 184, 0.7);
   }
@@ -201,6 +261,7 @@
     font-size: 0.625rem;
     font-weight: 800;
   }
+
   .badge-amber {
     background: rgba(120, 53, 15, 0.25);
     color: #fbbf24;
@@ -210,6 +271,7 @@
     font-size: 0.625rem;
     font-weight: 800;
   }
+
   .badge-rose {
     background: rgba(136, 19, 55, 0.2);
     color: #f87171;
@@ -227,25 +289,45 @@
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 0.9rem;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.65);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
   }
-  .chart-tooltip-title  { color: rgba(248, 250, 252, 0.95); }
-  .chart-tooltip-mono   { color: rgba(148, 163, 184, 0.6); font-family: monospace; }
-  .chart-tooltip-label  { color: rgba(148, 163, 184, 0.75); }
-  .chart-tooltip-normal { color: rgba(203, 213, 225, 0.85); }
-  .chart-tooltip-divider { border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 0.35rem; }
+
+  .chart-tooltip-title {
+    color: rgba(248, 250, 252, 0.95);
+  }
+
+  .chart-tooltip-mono {
+    color: rgba(148, 163, 184, 0.6);
+    font-family: monospace;
+  }
+
+  .chart-tooltip-label {
+    color: rgba(148, 163, 184, 0.75);
+  }
+
+  .chart-tooltip-normal {
+    color: rgba(203, 213, 225, 0.85);
+  }
+
+  .chart-tooltip-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 0.35rem;
+  }
 
   /* Chart table — dark */
   .chart-table-header {
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     color: rgba(100, 116, 139, 0.7);
   }
-  .chart-table-body > tr + tr {
+
+  .chart-table-body>tr+tr {
     border-top: 1px solid rgba(255, 255, 255, 0.04);
   }
+
   .chart-table-row:hover {
     background: rgba(255, 255, 255, 0.03);
   }
+
   .chart-table-row-selected {
     background: rgba(255, 255, 255, 0.07) !important;
   }
@@ -264,6 +346,7 @@
     outline: none;
     transition: border-color 0.2s;
   }
+
   .chart-select:hover,
   .chart-select:focus {
     border-color: rgba(255, 255, 255, 0.2);
@@ -283,6 +366,7 @@
     transition: all 0.2s;
     cursor: pointer;
   }
+
   .chart-filter-btn:hover {
     color: rgba(248, 250, 252, 0.95);
     background: rgba(255, 255, 255, 0.06);
@@ -295,6 +379,7 @@
     border-color: rgba(255, 255, 255, 0.06);
     transition: background 0.2s;
   }
+
   .chart-stat-cell:hover {
     background: rgba(255, 255, 255, 0.05);
   }
@@ -305,6 +390,7 @@
   tr {
     page-break-inside: avoid !important;
   }
+
   thead {
     display: table-header-group !important;
   }
@@ -314,7 +400,7 @@
 body.light {
   background-color: #f8fafc;
   color: #0f172a;
-  background-image: 
+  background-image:
     radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.04) 0px, transparent 50%),
     radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 50%);
   background-attachment: fixed;
@@ -323,27 +409,55 @@ body.light {
 body.light ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.02);
 }
+
 body.light ::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.12);
 }
+
 body.light ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.24);
 }
 
-/* Glassmorphism Panel overrides */
+/* Glassmorphism Panel overrides - Apple x Oracle Light Mode (70% Transparency) */
 body.light .glass-panel {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.30) 0%, rgba(241, 245, 249, 0.30) 100%) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
   box-shadow: 
-    0 10px 40px -10px rgba(0, 0, 0, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.05);
+    0 15px 35px -5px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+}
+
+body.light .glass-panel .bg-white\/2,
+body.light .glass-panel .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02) !important;
+}
+
+body.light .glass-panel .bg-white\/2:hover,
+body.light .glass-panel .bg-white\/5:hover {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  border-color: rgba(245, 158, 11, 0.4) !important;
+}
+
+/* Translucent Data Grid Tables in Light Mode */
+body.light table thead tr.bg-white\/2 {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+body.light table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.35) !important;
 }
 
 /* Hoverable Glass Card overrides */
 body.light .glass-card-hover:hover {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
   border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 
+  box-shadow:
     0 20px 40px -15px rgba(245, 158, 11, 0.25),
     0 0 25px rgba(99, 102, 241, 0.08),
     inset 0 1px 2px rgba(255, 255, 255, 0.95);
@@ -359,7 +473,7 @@ body.light .glass-input {
 body.light .glass-input:focus {
   background: #ffffff;
   border-color: rgba(245, 158, 11, 0.6);
-  box-shadow: 
+  box-shadow:
     0 0 15px rgba(245, 158, 11, 0.15),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
 }
@@ -368,18 +482,22 @@ body.light .glass-input::placeholder {
   color: #64748b;
 }
 
-/* Floating navigation specific glass overrides */
+/* Floating navigation & sidebar glass overrides */
 body.light .glass-nav {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.15);
-  border-right: 1px solid rgba(99, 102, 241, 0.15);
-  box-shadow: 0 4px 20px -5px rgba(99, 102, 241, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(248, 250, 252, 0.1) 100%) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.8) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow:
+    0 10px 30px -5px rgba(0, 0, 0, 0.03),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95) !important;
 }
 
 /* Dynamic Glow effects for active cards overrides */
 body.light .glow-border-active {
   border-color: rgba(245, 158, 11, 0.5) !important;
-  box-shadow: 
+  box-shadow:
     0 8px 32px -8px rgba(245, 158, 11, 0.25),
     0 0 20px rgba(245, 158, 11, 0.08),
     inset 0 1px 1px rgba(255, 255, 255, 0.9);
@@ -392,6 +510,7 @@ body.light .bg-indigo-500\/10,
 body.light .bg-indigo-500\/20 {
   background-color: rgba(99, 102, 241, 0.12) !important;
 }
+
 body.light .text-indigo-300,
 body.light .text-indigo-400,
 body.light .text-indigo-500,
@@ -400,6 +519,7 @@ body.light .dark\:text-indigo-400 {
   color: #3730a3 !important;
   font-weight: 800 !important;
 }
+
 body.light .border-indigo-900\/30,
 body.light .border-indigo-500\/20 {
   border-color: rgba(99, 102, 241, 0.3) !important;
@@ -411,6 +531,7 @@ body.light .bg-emerald-500\/10,
 body.light .bg-emerald-500\/20 {
   background-color: rgba(16, 185, 129, 0.12) !important;
 }
+
 body.light .text-emerald-300,
 body.light .text-emerald-400,
 body.light .text-emerald-500,
@@ -420,6 +541,7 @@ body.light .dark\:text-emerald-400 {
   color: #065f46 !important;
   font-weight: 800 !important;
 }
+
 body.light .border-emerald-900\/30,
 body.light .border-emerald-500\/20 {
   border-color: rgba(16, 185, 129, 0.3) !important;
@@ -431,6 +553,7 @@ body.light .bg-red-500\/10,
 body.light .bg-red-500\/20 {
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
+
 body.light .text-red-300,
 body.light .text-red-400,
 body.light .text-red-500,
@@ -440,6 +563,7 @@ body.light .dark\:text-red-400 {
   color: #991b1b !important;
   font-weight: 800 !important;
 }
+
 body.light .border-red-900\/30,
 body.light .border-red-500\/20 {
   border-color: rgba(239, 68, 68, 0.3) !important;
@@ -451,6 +575,7 @@ body.light .bg-amber-500\/10,
 body.light .bg-amber-500\/20 {
   background-color: rgba(245, 158, 11, 0.12) !important;
 }
+
 body.light .text-amber-300,
 body.light .text-amber-400,
 body.light .text-amber-500,
@@ -460,6 +585,7 @@ body.light .dark\:text-amber-400 {
   color: #92400e !important;
   font-weight: 800 !important;
 }
+
 body.light .border-amber-900\/30,
 body.light .border-amber-500\/20 {
   border-color: rgba(245, 158, 11, 0.3) !important;
@@ -495,7 +621,7 @@ body.light .border-white\/20 {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
-body.light .divide-white\/5 > :not([hidden]) ~ :not([hidden]) {
+body.light .divide-white\/5> :not([hidden])~ :not([hidden]) {
   border-color: rgba(0, 0, 0, 0.08) !important;
 }
 
@@ -531,9 +657,11 @@ body.light .bg-slate-900\/5,
 body.light .bg-slate-900,
 body.light .bg-neutral-950,
 body.light .dark\:bg-neutral-950 {
-  background-color: #f1f5f9 !important;
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
   color: #0f172a !important;
-  border-color: rgba(0, 0, 0, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
 }
 
 body.light .bg-white\/2 {
@@ -571,13 +699,16 @@ body.light .bg-rose-950\/80 {
 
 /* Styling for option elements in select dropdowns to ensure visibility in both themes */
 select option {
-  background-color: #0f172a !important; /* slate-900 */
-  color: #f1f5f9 !important;            /* slate-100 */
+  background-color: #0f172a !important;
+  /* slate-900 */
+  color: #f1f5f9 !important;
+  /* slate-100 */
 }
 
 body.light select option {
   background-color: #ffffff !important;
-  color: #0f172a !important;            /* slate-900 */
+  color: #0f172a !important;
+  /* slate-900 */
 }
 
 /* ─── Date Input Calendar Icon Visibility Fix ───────────────────────────────── */
@@ -617,16 +748,31 @@ body.light .doc-portal-layout footer {
 
 /* ─── Keyframe Animations ────────────────────────────────────────────────── */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
+
 .animate-fadeIn {
   animation: fadeIn 0.3s ease forwards;
 }
 
 @keyframes slideInRight {
-  from { opacity: 0; transform: translateX(24px) scale(0.97); }
-  to   { opacity: 1; transform: translateX(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 /* ─── Remove number input spin buttons (up/down scrollers) ─────────────── */
@@ -635,15 +781,19 @@ input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
+
 input[type="number"] {
-  -moz-appearance: textfield; /* Firefox */
+  -moz-appearance: textfield;
+  /* Firefox */
 }
 
 /* ─── Documentation Page Specific CSS ────────────────────────────────────── */
 .doc-prose h2 {
-  font-size: 1.25rem; /* text-xl */
+  font-size: 1.25rem;
+  /* text-xl */
   font-weight: 700;
-  color: #f1f5f9; /* slate-100 */
+  color: #f1f5f9;
+  /* slate-100 */
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   padding-bottom: 0.5rem;
   margin-top: 2rem;
@@ -651,14 +801,17 @@ input[type="number"] {
 }
 
 body.light .doc-prose h2 {
-  color: #0f172a; /* slate-900 */
+  color: #0f172a;
+  /* slate-900 */
   border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 .doc-prose h3 {
-  font-size: 1rem; /* text-base */
+  font-size: 1rem;
+  /* text-base */
   font-weight: 700;
-  color: #f59e0b; /* amber-500 */
+  color: #f59e0b;
+  /* amber-500 */
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
@@ -666,11 +819,13 @@ body.light .doc-prose h2 {
 .doc-prose p {
   margin-bottom: 1rem;
   line-height: 1.7;
-  color: #cbd5e1; /* slate-300 */
+  color: #cbd5e1;
+  /* slate-300 */
 }
 
 body.light .doc-prose p {
-  color: #334155; /* slate-700 */
+  color: #334155;
+  /* slate-700 */
 }
 
 .doc-prose ul {
@@ -690,7 +845,8 @@ body.light .doc-prose p {
 }
 
 .doc-prose strong {
-  color: #f8fafc; /* slate-50 */
+  color: #f8fafc;
+  /* slate-50 */
   font-weight: 700;
 }
 
@@ -706,7 +862,8 @@ body.light .doc-prose strong {
 
 .doc-prose code {
   background-color: rgba(255, 255, 255, 0.08);
-  color: #fcd34d; /* amber-300 */
+  color: #fcd34d;
+  /* amber-300 */
   padding: 0.125rem 0.375rem;
   border-radius: 0.375rem;
   font-family: monospace;
@@ -715,7 +872,8 @@ body.light .doc-prose strong {
 
 body.light .doc-prose code {
   background-color: rgba(0, 0, 0, 0.05);
-  color: #b45309; /* amber-700 */
+  color: #b45309;
+  /* amber-700 */
 }
 
 .tooltip-popover {
@@ -736,13 +894,13 @@ body.light .tooltip-popover {
 /* ─── Chart System — Light Mode Overrides ────────────────────────────────── */
 
 body.light .chart-panel {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  border: 1px solid rgba(0, 0, 0, 0.07) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(248, 250, 252, 0.35) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
   box-shadow:
-    0 8px 32px -8px rgba(0, 0, 0, 0.1),
-    0 1px 3px rgba(0, 0, 0, 0.05) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+    0 8px 32px -8px rgba(0, 0, 0, 0.05),
+    inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
 }
 
 body.light .chart-title {
@@ -792,23 +950,41 @@ body.light .chart-tooltip {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
-body.light .chart-tooltip-title  { color: #0f172a !important; }
-body.light .chart-tooltip-mono   { color: #64748b !important; }
-body.light .chart-tooltip-label  { color: #475569 !important; }
-body.light .chart-tooltip-normal { color: #334155 !important; }
-body.light .chart-tooltip-divider { border-top-color: rgba(0, 0, 0, 0.07) !important; }
+
+body.light .chart-tooltip-title {
+  color: #0f172a !important;
+}
+
+body.light .chart-tooltip-mono {
+  color: #64748b !important;
+}
+
+body.light .chart-tooltip-label {
+  color: #475569 !important;
+}
+
+body.light .chart-tooltip-normal {
+  color: #334155 !important;
+}
+
+body.light .chart-tooltip-divider {
+  border-top-color: rgba(0, 0, 0, 0.07) !important;
+}
 
 /* Light mode chart table */
 body.light .chart-table-header {
   border-bottom-color: rgba(0, 0, 0, 0.08) !important;
   color: #64748b !important;
 }
-body.light .chart-table-body > tr + tr {
+
+body.light .chart-table-body>tr+tr {
   border-top-color: rgba(0, 0, 0, 0.05) !important;
 }
+
 body.light .chart-table-row:hover {
   background: rgba(99, 102, 241, 0.04) !important;
 }
+
 body.light .chart-table-row-selected {
   background: rgba(99, 102, 241, 0.07) !important;
 }
@@ -820,6 +996,7 @@ body.light .chart-select {
   color: #1e293b !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) !important;
 }
+
 body.light .chart-select:hover,
 body.light .chart-select:focus {
   border-color: rgba(99, 102, 241, 0.35) !important;
@@ -832,6 +1009,7 @@ body.light .chart-filter-btn {
   border-color: rgba(0, 0, 0, 0.1) !important;
   background: transparent !important;
 }
+
 body.light .chart-filter-btn:hover {
   color: #0f172a !important;
   background: rgba(0, 0, 0, 0.04) !important;
@@ -842,6 +1020,7 @@ body.light .chart-stat-cell {
   background: rgba(0, 0, 0, 0.02) !important;
   border-color: rgba(0, 0, 0, 0.07) !important;
 }
+
 body.light .chart-stat-cell:hover {
   background: rgba(99, 102, 241, 0.05) !important;
 }

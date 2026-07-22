@@ -461,7 +461,7 @@ const EstimateView = () => {
 
   return (
     <>
-      <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-7xl mx-auto w-full relative z-10">
+      <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-[96%] mx-auto w-full relative z-10">
         
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">

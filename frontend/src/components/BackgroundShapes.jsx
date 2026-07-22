@@ -5,16 +5,67 @@ const BackgroundShapes = () => {
   const { theme, darkBg, lightBg } = useTheme();
 
   // Check if current active background is the rotating SVG overlay preset
-  const isRotatingSvgActive = theme === 'dark' 
-    ? darkBg === 'rotating-svg-dark' 
+  const isRotatingSvgActive = theme === 'dark'
+    ? darkBg === 'rotating-svg-dark'
     : lightBg === 'rotating-svg-light';
 
-  const isSunlightActive = theme === 'light' && lightBg === 'warm-sunlight';
-  const isIndigoAuroraActive = theme === 'light' && lightBg === 'radial-soft';
+  const isSunlightActive = theme === 'dark' ? darkBg === 'warm-sunlight' : lightBg === 'warm-sunlight';
+  const isIndigoAuroraActive = theme === 'dark' ? darkBg === 'radial-indigo' : lightBg === 'radial-soft';
+  const isTropicalBeachActive = theme === 'dark' ? darkBg === 'tropical-beach' : lightBg === 'tropical-beach';
 
   return (
     <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+      {/* 00. Tropical Beach — Ambient Fluid Ocean & Golden Sand Wave Flow */}
+      {isTropicalBeachActive && (
+        <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-80 overflow-hidden">
+          <svg className="w-full h-full" viewBox="0 0 1440 900" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              {/* Cyan Lagoon to Emerald Fluid Wave Gradient */}
+              <linearGradient id="tropLagoonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="rgba(6, 182, 212, 0.22)" />
+                <stop offset="50%" stopColor="rgba(20, 184, 166, 0.16)" />
+                <stop offset="100%" stopColor="rgba(56, 189, 248, 0.08)" />
+              </linearGradient>
+
+              {/* Warm Golden Sunlight Reflection Gradient */}
+              <linearGradient id="tropSandGlowGrad" x1="100%" y1="100%" x2="0%" y2="0%">
+                <stop offset="0%" stopColor="rgba(251, 191, 36, 0.22)" />
+                <stop offset="40%" stopColor="rgba(245, 158, 11, 0.12)" />
+                <stop offset="100%" stopColor="rgba(255, 255, 255, 0)" />
+              </linearGradient>
+            </defs>
+
+            {/* Upper Sky Cyan Horizon Fluid Contour */}
+            <path
+              d="M-100,-50 C300,120 700,-30 1100,100 C1300,165 1500,80 1600,-50 Z"
+              fill="url(#tropLagoonGrad)"
+            />
+
+            {/* Bottom-Right Warm Golden Beach Light Aura */}
+            <path
+              d="M1600,950 C1200,750 800,920 400,800 C200,740 0,820 -100,950 Z"
+              fill="url(#tropSandGlowGrad)"
+            />
+
+            {/* Delicate Flowing Contour Waves */}
+            <path
+              d="M -50,180 C 400,320 900,150 1500,280"
+              fill="none"
+              stroke="rgba(6, 182, 212, 0.28)"
+              strokeWidth="2"
+            />
+            <path
+              d="M -50,220 C 450,360 850,200 1500,320"
+              fill="none"
+              stroke="rgba(20, 184, 166, 0.20)"
+              strokeWidth="1.5"
+              strokeDasharray="12 8"
+            />
+          </svg>
+        </div>
+      )}
       {/* 0A. Vibrant Oceanic Fluid Waves (Default Light Mode) */}
+
       {isIndigoAuroraActive && (
         <div className="absolute top-0 left-0 w-full h-full pointer-events-none opacity-90 overflow-hidden">
           <svg className="w-full h-full" viewBox="0 0 1440 900" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -129,17 +180,16 @@ const BackgroundShapes = () => {
       <div className="absolute top-[30%] right-[20%] w-[35rem] h-[35rem] rounded-full bg-indigo-600/5 blur-[140px] animate-pulse pointer-events-none" style={{ animationDuration: '15s' }}></div>
 
       {/* 2. Tech Grid Pattern Overlay */}
-      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ 
-        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)', 
-        backgroundSize: '32px 32px' 
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{
+        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.2) 1px, transparent 1px)',
+        backgroundSize: '32px 32px'
       }}></div>
 
       {/* 3. Rotating SVG Vector Shapes — Render ONLY when selected in User Profile */}
       {isRotatingSvgActive && (
-        <svg 
-          className={`absolute inset-0 w-full h-full pointer-events-none ${
-            theme === 'light' ? 'text-indigo-950/20' : 'text-white/20'
-          }`} 
+        <svg
+          className={`absolute inset-0 w-full h-full pointer-events-none ${theme === 'light' ? 'text-indigo-950/20' : 'text-white/20'
+            }`}
           viewBox="0 0 1000 1000"
           preserveAspectRatio="xMidYMid slice"
           xmlns="http://www.w3.org/2000/svg"
@@ -163,6 +213,94 @@ const BackgroundShapes = () => {
             <line x1="800" y1="350" x2="800" y2="400" stroke="currentColor" strokeWidth="0.75" />
             <line x1="800" y1="350" x2="757" y2="375" stroke="currentColor" strokeWidth="0.75" />
             <line x1="800" y1="350" x2="757" y2="325" stroke="currentColor" strokeWidth="0.75" />
+          </g>
+
+          {/* Bottom-Left Industrial CAD Working Pipe & Valve Assembly Blueprint */}
+          <g className="opacity-65" transform="translate(-60, -220)">
+            {/* Main Horizontal & Vertical Polymer Pipe Run */}
+            <path
+              d="M 50,920 L 220,920 Q 250,920 250,890 L 250,720 Q 250,690 280,690 L 450,690"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="16"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity="0.12"
+            />
+            <path
+              d="M 50,920 L 220,920 Q 250,920 250,890 L 250,720 Q 250,690 280,690 L 450,690"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+
+            {/* Parallel CAD Outer Diameter Boundary Lines */}
+            <path
+              d="M 50,912 L 215,912 Q 242,912 242,885 L 242,725 Q 242,698 275,698 L 450,698"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.75"
+              strokeDasharray="4 2"
+            />
+            <path
+              d="M 50,928 L 225,928 Q 258,928 258,895 L 258,715 Q 258,682 285,682 L 450,682"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="0.75"
+              strokeDasharray="4 2"
+            />
+
+            {/* Animated Fluid Flow Centerline Telemetry */}
+            <path
+              d="M 50,920 L 220,920 Q 250,920 250,890 L 250,720 Q 250,690 280,690 L 450,690"
+              fill="none"
+              stroke="rgba(245, 158, 11, 0.6)"
+              strokeWidth="2"
+              strokeDasharray="8 12"
+              className="animate-[dash_15s_linear_infinite]"
+            />
+
+            {/* Pipe Connection Flanges */}
+            {/* Flange 1 (Horizontal Start) */}
+            <rect x="110" y="908" width="8" height="24" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1" />
+            <line x1="114" y1="904" x2="114" y2="936" stroke="currentColor" strokeWidth="0.75" />
+
+            {/* Flange 2 (Vertical Midpoint) */}
+            <rect x="238" y="800" width="24" height="8" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1" />
+            <line x1="234" y1="804" x2="266" y2="804" stroke="currentColor" strokeWidth="0.75" />
+
+            {/* Flange 3 (Horizontal End) */}
+            <rect x="380" y="678" width="8" height="24" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="1" />
+            <line x1="384" y1="674" x2="384" y2="706" stroke="currentColor" strokeWidth="0.75" />
+
+            {/* Gate Valve Wheel Assembly on Vertical Pipe */}
+            <g transform="translate(250, 750)">
+              {/* Valve Bonnet & Stem */}
+              <line x1="0" y1="0" x2="-35" y2="0" stroke="currentColor" strokeWidth="2" />
+              {/* Valve Handwheel Circle */}
+              <circle cx="-42" cy="0" r="16" fill="rgba(99, 102, 241, 0.08)" stroke="currentColor" strokeWidth="1.2" />
+              <circle cx="-42" cy="0" r="4" fill="currentColor" />
+              <line x1="-58" y1="0" x2="-26" y2="0" stroke="currentColor" strokeWidth="0.75" />
+              <line x1="-42" y1="-16" x2="-42" y2="16" stroke="currentColor" strokeWidth="0.75" />
+              {/* Valve Body Hourglass Triangle Silhouette */}
+              <polygon points="-8,-10 -8,10 8,0" fill="currentColor" opacity="0.4" />
+              <polygon points="8,-10 8,10 -8,0" fill="currentColor" opacity="0.4" />
+            </g>
+
+            {/* Digital Pressure Gauge Telemetry Node */}
+            <g transform="translate(160, 920)">
+              <line x1="0" y1="0" x2="0" y2="-28" stroke="currentColor" strokeWidth="1" />
+              <circle cx="0" cy="-42" r="14" fill="rgba(15, 23, 42, 0.8)" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M 0,-42 L 7,-49" stroke="rgba(245, 158, 11, 0.9)" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="0" cy="-42" r="2" fill="currentColor" />
+              <text x="0" y="-22" textAnchor="middle" fill="currentColor" fontSize="7" fontWeight="bold" fontFamily="monospace">6.4 BAR</text>
+            </g>
+
+            {/* Fluid Flow Direction Arrows */}
+            <path d="M 80,920 L 72,916 L 72,924 Z" fill="currentColor" />
+            <path d="M 330,690 L 322,686 L 322,694 Z" fill="currentColor" />
           </g>
         </svg>
       )}

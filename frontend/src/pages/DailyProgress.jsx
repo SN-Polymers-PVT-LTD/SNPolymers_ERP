@@ -517,7 +517,7 @@ const DailyProgress = () => {
             /* ========================================================
                PROJECT DRILL DOWN VIEW (SPREADSHEET GRID)
                ======================================================== */
-            <div className="space-y-6 animate-fadeIn max-w-7xl mx-auto">
+            <div className="space-y-6 animate-fadeIn max-w-[96%] mx-auto">
 
               {/* Nav Header */}
               <div className="flex justify-between items-center pb-4 border-b border-white/5">

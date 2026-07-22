@@ -251,7 +251,7 @@ export const MobileHeader = () => {
           />
 
           {/* Drawer Panel */}
-          <aside className="fixed top-0 left-0 bottom-0 w-72 bg-[#030712]/98 border-r border-white/10 z-50 p-6 flex flex-col justify-between shadow-[5px_0_30px_rgba(0,0,0,0.85)] md:hidden animate-in slide-in-from-left duration-300">
+          <aside className="fixed top-0 left-0 bottom-0 w-72 bg-[#050814]/20 backdrop-blur-lg border-r border-white/10 z-50 p-6 flex flex-col justify-between shadow-[5px_0_30px_rgba(0,0,0,0.3)] md:hidden animate-in slide-in-from-left duration-300">
             <div>
               {/* Header */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">

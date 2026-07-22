@@ -1,31 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import authApi from '../api/authApi';
 import { useTheme } from '../components/ThemeContext';
+import { useAuth } from '../components/AuthContext';
 
 const Profile = () => {
   const { theme, toggleTheme, darkBg, setDarkBg, lightBg, setLightBg, DARK_BACKGROUNDS, LIGHT_BACKGROUNDS } = useTheme();
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  
+  // Instant local profile initialization from AuthContext
+  const [profile, setProfile] = useState(() => ({
+    display_name: user?.display_name || 'Operator',
+    mobile_number: user?.mobile_number || '',
+    role: user?.role || 'user',
+    telegram_chat_id: user?.telegram_chat_id || null,
+    is_active: true,
+    daily_streak: 0
+  }));
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchProfile = async () => {
-      setLoading(true);
-      setError('');
       try {
         const response = await authApi.get('/profile');
-        if (response.data?.success) {
-          setProfile(response.data.profile);
+        if (response.data?.success && isMounted) {
+          setProfile(prev => ({
+            ...prev,
+            ...response.data.profile
+          }));
         }
       } catch (err) {
-        console.error('Error fetching profile data:', err);
-        setError(err.response?.data?.message || 'Failed to fetch profile details.');
-      } finally {
-        setLoading(false);
+        console.error('Error fetching profile updates:', err);
       }
     };
 
     fetchProfile();
+    return () => { isMounted = false; };
   }, []);
 
   return (

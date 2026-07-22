@@ -167,81 +167,87 @@ const HoDashboardView = () => {
             </Link>
           </div>
 
-          {/* Requisitions Awaiting Approval Queue */}
-          <div className="glass-panel p-6 rounded-3xl border border-white/5">
-            <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">
-                Requisitions Awaiting Your Approval <span className="text-amber-500 font-mono font-bold">({pendingRequisitions.length})</span>
-              </h2>
-              <Link to="/requisitions" className="text-xs font-bold text-amber-500 hover:underline">
-                View all &rarr;
-              </Link>
-            </div>
-            {pendingRequisitions.length === 0 ? (
-              <div className="text-slate-500 text-xs py-6 text-center font-bold uppercase tracking-widest">
-                No pending requisitions awaiting review
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingRequisitions.slice(0, 5).map((req) => (
-                  <div key={req.requisition_id} className="flex justify-between items-center p-3 rounded-2xl bg-white/2 border border-white/5 hover:border-white/10 transition">
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{req.requisition_no || req.requisition_id}</span>
-                      <div className="text-xs font-bold text-slate-200 mt-0.5">{req.work_order_no} — {req.site_details || 'Site Location'}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs font-bold text-rose-400 font-mono">{formatINR(req.requested_amount || req.approved_amount)}</div>
-                      <span className="text-[9px] font-bold uppercase text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">Pending</span>
-                    </div>
+          {/* Side-by-side Row: Requisitions Awaiting Approval & Ongoing Work Zones */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Requisitions Awaiting Approval Queue */}
+            <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
+              <div>
+                <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-2.5">
+                  <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Requisitions Awaiting Approval <span className="text-amber-500 font-mono font-bold">({pendingRequisitions.length})</span>
+                  </h2>
+                  <Link to="/requisitions" className="text-[11px] font-bold text-amber-500 hover:underline">
+                    View all &rarr;
+                  </Link>
+                </div>
+                {pendingRequisitions.length === 0 ? (
+                  <div className="text-slate-500 text-xs py-8 text-center font-bold uppercase tracking-widest">
+                    No pending requisitions awaiting review
                   </div>
-                ))}
+                ) : (
+                  <div className="space-y-2">
+                    {pendingRequisitions.slice(0, 4).map((req) => (
+                      <div key={req.requisition_id} className="flex justify-between items-center p-2.5 rounded-xl bg-white/2 border border-white/5 hover:border-white/10 transition">
+                        <div className="truncate mr-2">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block truncate">{req.requisition_no || req.requisition_id}</span>
+                          <div className="text-xs font-bold text-slate-200 truncate mt-0.5">{req.work_order_no} — {req.site_details || 'Site Location'}</div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-bold text-rose-400 font-mono">{formatINR(req.requested_amount || req.approved_amount)}</div>
+                          <span className="text-[8px] font-bold uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20">Pending</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Ongoing Work Zones (Ported from Profile) */}
-          <div className="glass-panel p-6 rounded-3xl border border-white/5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-4">
+            {/* Ongoing Work Zones */}
+            <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col justify-between">
               <div>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Ongoing Work Zones</h2>
-                <p className="text-[10px] text-slate-500 font-medium">Top priority work order performance</p>
-              </div>
-              <div>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-[10px] text-slate-300 focus:outline-none"
-                >
-                  <option value="value">Highest Value</option>
-                  <option value="lowest_value">Lowest Value</option>
-                  <option value="progress">Most Estimates</option>
-                  <option value="least_estimates">Least Estimates</option>
-                  <option value="physical_progress">Highest Completion</option>
-                  <option value="lowest_completion">Lowest Completion</option>
-                </select>
+                <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-2.5 mb-3">
+                  <div>
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Ongoing Work Zones</h2>
+                  </div>
+                  <div>
+                    <select
+                      value={filterType}
+                      onChange={(e) => setFilterType(e.target.value)}
+                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-[9px] font-bold uppercase text-slate-300 focus:outline-none"
+                    >
+                      <option value="value">Highest Value</option>
+                      <option value="lowest_value">Lowest Value</option>
+                      <option value="progress">Most Estimates</option>
+                      <option value="least_estimates">Least Estimates</option>
+                      <option value="physical_progress">Highest Completion</option>
+                      <option value="lowest_completion">Lowest Completion</option>
+                    </select>
+                  </div>
+                </div>
+                {topProjects.length > 0 ? (
+                  <div className="space-y-2">
+                    {topProjects.slice(0, 4).map((p) => (
+                      <div key={p.work_order_no} className="p-2.5 rounded-xl bg-white/2 border border-white/5 hover:border-white/10 transition">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="truncate">
+                            <div className="font-bold text-xs text-slate-100 truncate">{p.work_order_no}</div>
+                            <div className="text-[9px] text-slate-500 font-medium truncate mt-0.5">{p.site_details}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            {(filterType === 'value' || filterType === 'lowest_value') && <div className="text-xs font-bold text-amber-500 font-mono">{formatINR(p.work_order_value || 0)}</div>}
+                            {(filterType === 'progress' || filterType === 'least_estimates') && <div className="text-xs font-bold text-sky-400">{p.estimate_sheets_count || 0} Est</div>}
+                            {(filterType === 'physical_progress' || filterType === 'lowest_completion') && <div className="text-xs font-bold text-emerald-400">{p.max_physical_progress || 0}%</div>}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500 py-8 text-center">No work order records found.</div>
+                )}
               </div>
             </div>
-            {topProjects.length > 0 ? (
-              <div className="space-y-3">
-                {topProjects.map((p) => (
-                  <div key={p.work_order_no} className="p-3 rounded-2xl bg-white/2 border border-white/5 hover:border-white/10 transition">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="truncate">
-                        <div className="font-bold text-xs text-slate-100 truncate">{p.work_order_no}</div>
-                        <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">{p.site_details}</div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {(filterType === 'value' || filterType === 'lowest_value') && <div className="text-xs font-bold text-amber-500 font-mono">{formatINR(p.work_order_value || 0)}</div>}
-                        {(filterType === 'progress' || filterType === 'least_estimates') && <div className="text-xs font-bold text-sky-400">{p.estimate_sheets_count || 0} Estimates</div>}
-                        {(filterType === 'physical_progress' || filterType === 'lowest_completion') && <div className="text-xs font-bold text-emerald-400">{p.max_physical_progress || 0}% Done</div>}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs text-slate-500 py-6 text-center">No work order records found.</div>
-            )}
           </div>
 
           {/* Cash Distribution Breakdown (Ported from Profile) */}
