@@ -12,6 +12,12 @@ const formatINR = (value) => {
   }).format(num);
 };
 
+const resolvePhotoUrl = (url) => {
+  if (!url) return null;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  return `https://ervvwrmgkiyfzbqjqbcg.supabase.co/storage/v1/object/public/daily-progress-photos/${url}`;
+};
+
 const ProjectDigitalTwin = () => {
   const { work_order_no } = useParams();
   const navigate = useNavigate();
@@ -184,55 +190,58 @@ const ProjectDigitalTwin = () => {
                           
                           {photos.length > 0 ? (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {photos.map((item, idx) => (
-                                <div key={item.report_id || idx} className="group relative aspect-video bg-slate-950 rounded-2xl border border-white/10 overflow-hidden flex flex-col justify-between p-3 transition-all hover:border-amber-500/50 shadow-lg">
-                                  {item.daily_site_photo_url ? (
-                                    <img
-                                      src={item.daily_site_photo_url}
-                                      alt={item.original_photo_filename || `Site Visit - ${item.site_visit_date}`}
-                                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                                      onError={(e) => {
-                                        e.target.style.display = 'none';
-                                      }}
-                                    />
-                                  ) : null}
-                                  
-                                  {/* Dark Gradient Overlay */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
+                              {photos.map((item, idx) => {
+                                const photoUrl = resolvePhotoUrl(item.daily_site_photo_url);
+                                return (
+                                  <div key={item.report_id || idx} className="group relative aspect-video bg-slate-950 rounded-2xl border border-white/10 overflow-hidden flex flex-col justify-between p-3 transition-all hover:border-amber-500/50 shadow-lg">
+                                    {photoUrl ? (
+                                      <img
+                                        src={photoUrl}
+                                        alt={item.original_photo_filename || `Site Visit - ${item.site_visit_date}`}
+                                        className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                        onError={(e) => {
+                                          console.warn('Failed to load image:', photoUrl);
+                                        }}
+                                      />
+                                    ) : null}
+                                    
+                                    {/* Dark Gradient Overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent opacity-80 group-hover:opacity-60 transition-opacity pointer-events-none" />
 
-                                  {/* Top Badges */}
-                                  <div className="relative z-10 flex items-center justify-between">
-                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-black/60 text-amber-400 border border-amber-500/30 backdrop-blur-md">
-                                      {item.physical_work_progress}% Physical Progress
-                                    </span>
-                                    <span className="text-[9px] font-mono text-slate-300 bg-black/60 px-2 py-0.5 rounded border border-white/10 backdrop-blur-md">
-                                      {item.site_visit_date}
-                                    </span>
-                                  </div>
+                                    {/* Top Badges */}
+                                    <div className="relative z-10 flex items-center justify-between pointer-events-none">
+                                      <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-black/60 text-amber-400 border border-amber-500/30 backdrop-blur-md">
+                                        {item.physical_work_progress}% Physical Progress
+                                      </span>
+                                      <span className="text-[9px] font-mono text-slate-300 bg-black/60 px-2 py-0.5 rounded border border-white/10 backdrop-blur-md">
+                                        {item.site_visit_date}
+                                      </span>
+                                    </div>
 
-                                  {/* Bottom Details */}
-                                  <div className="relative z-10 space-y-0.5">
-                                    <p className="text-[10px] font-bold text-slate-100 truncate">
-                                      {item.original_photo_filename || `Daily Progress Photo #${idx + 1}`}
-                                    </p>
-                                    {item.remarks_after_site_visit && (
-                                      <p className="text-[9px] text-slate-400 truncate italic">
-                                        "{item.remarks_after_site_visit}"
+                                    {/* Bottom Details */}
+                                    <div className="relative z-10 space-y-0.5 pointer-events-none">
+                                      <p className="text-[10px] font-bold text-slate-100 truncate">
+                                        {item.original_photo_filename || `Daily Progress Photo #${idx + 1}`}
                                       </p>
+                                      {item.remarks_after_site_visit && (
+                                        <p className="text-[9px] text-slate-400 truncate italic">
+                                          "{item.remarks_after_site_visit}"
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    {photoUrl && (
+                                      <a
+                                        href={photoUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="absolute inset-0 z-20"
+                                        title="Click to view high-resolution photo"
+                                      />
                                     )}
                                   </div>
-
-                                  {item.daily_site_photo_url && (
-                                    <a
-                                      href={item.daily_site_photo_url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="absolute inset-0 z-20"
-                                      title="Click to view high-resolution photo"
-                                    />
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="aspect-video bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center p-6 text-center">

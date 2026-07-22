@@ -392,13 +392,43 @@ async function getProjectDigitalTwin(req, res) {
       department: coordsRes.data?.department || null
     } : null;
 
+    // Resolve signed Supabase storage URLs for daily site photos
+    const rawPhotos = photosRes.data || [];
+    const photosWithUrls = await Promise.all(
+      rawPhotos.map(async (photo) => {
+        let photo_url = photo.daily_site_photo_url;
+        if (photo_url && !photo_url.startsWith('http://') && !photo_url.startsWith('https://') && !photo_url.startsWith('data:')) {
+          try {
+            const { data: signData } = await supabase.storage
+              .from('daily-progress-photos')
+              .createSignedUrl(photo_url, 3600);
+            
+            if (signData?.signedUrl) {
+              photo_url = signData.signedUrl;
+            } else {
+              const { data: pubData } = supabase.storage
+                .from('daily-progress-photos')
+                .getPublicUrl(photo_url);
+              if (pubData?.publicUrl) photo_url = pubData.publicUrl;
+            }
+          } catch (e) {
+            console.warn('[ANALYTICS] Failed to generate photo URL for:', photo_url);
+          }
+        }
+        return {
+          ...photo,
+          daily_site_photo_url: photo_url
+        };
+      })
+    );
+
     return res.status(200).json({
       success: true,
       overview: overviewData,
       materials: materialsRes.data || [],
       approvals: approvalsRes.data || [],
       budget: budgetRes.data || null,
-      photos: photosRes.data || [],
+      photos: photosWithUrls,
       audits: enrichedAudits
     });
   } catch (error) {
