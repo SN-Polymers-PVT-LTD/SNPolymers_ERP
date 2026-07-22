@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1/auth';
+const defaultApiUrl = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? `http://${window.location.hostname}:5000/api/v1/auth`
+  : 'http://localhost:5000/api/v1/auth';
+
+const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 
 const authApi = axios.create({
   baseURL: API_URL,

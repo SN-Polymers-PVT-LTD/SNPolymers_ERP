@@ -50,8 +50,26 @@ app.use(requestLogger);
 const PORT = process.env.PORT || 5000;
 
 // Configuration
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+].filter(Boolean);
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, postman, curl)
+    if (!origin) return callback(null, true);
+    // Allow configured origins, non-prod dev environments, or local IP addresses (192.168.x.x, 10.x.x.x, 172.x.x.x)
+    if (
+      allowedOrigins.includes(origin) ||
+      process.env.NODE_ENV !== 'production' ||
+      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

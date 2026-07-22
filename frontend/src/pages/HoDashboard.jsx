@@ -905,13 +905,13 @@ const DepartmentWiseEstimate = ({ data }) => {
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 
   const fallbackData = [
-    { department: 'PWD', amount: 70500000, percentage: 83.6, color: '#3B82F6', work_order_count: 212 },
-    { department: 'Dept', amount: 8500000, percentage: 10.1, color: '#10B981', work_order_count: 25 },
-    { department: 'Civil', amount: 1814000, percentage: 2.1, color: '#8B5CF6', work_order_count: 5 },
-    { department: 'PWD Department', amount: 1800000, percentage: 2.1, color: '#F97316', work_order_count: 5 },
-    { department: 'Irrigation', amount: 750000, percentage: 0.9, color: '#64748B', work_order_count: 3 },
-    { department: 'WRDD', amount: 500000, percentage: 0.6, color: '#EF4444', work_order_count: 2 },
-    { department: 'PHE', amount: 500000, percentage: 0.6, color: '#14B8A6', work_order_count: 1 }
+    { department: 'PWD', amount: 70500000, percentage: 83.6, color: '#3B82F6' },
+    { department: 'Dept', amount: 8500000, percentage: 10.1, color: '#10B981' },
+    { department: 'Civil', amount: 1814000, percentage: 2.1, color: '#8B5CF6' },
+    { department: 'PWD Department', amount: 1800000, percentage: 2.1, color: '#F97316' },
+    { department: 'Irrigation', amount: 750000, percentage: 0.9, color: '#64748B' },
+    { department: 'WRDD', amount: 500000, percentage: 0.6, color: '#EF4444' },
+    { department: 'PHE', amount: 500000, percentage: 0.6, color: '#14B8A6' }
   ];
 
   const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#64748B', '#EF4444', '#14B8A6', '#EC4899', '#F59E0B'];
@@ -1108,14 +1108,6 @@ const DepartmentWiseEstimate = ({ data }) => {
             </span>
             <span className="font-bold text-xs font-mono text-slate-200">
               {hoveredDept.percentage}%
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 mt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Work Orders:
-            </span>
-            <span className="font-bold text-xs font-mono text-emerald-400">
-              {hoveredDept.work_order_count !== undefined ? hoveredDept.work_order_count : (hoveredDept.workOrders?.length ?? 'N/A')}
             </span>
           </div>
         </div>,

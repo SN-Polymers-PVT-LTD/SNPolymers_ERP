@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDBP — Zonal Analytics Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink-900:#0e1726; --ink-700:#2c3a4f; --ink-500:#5b6b81; --ink-400:#8695a8;
+    --bg:#f3f5f9; --card:#ffffff; --line:#e7ebf1;
+    --indigo:#4c5fd5; --indigo-dk:#333f9c; --indigo-bg:#eef0fd;
+    --teal:#0fa383; --teal-bg:#e5f7f2;
+    --amber:#d8890f; --amber-bg:#fdf1de;
+    --red:#e0453f; --red-bg:#fdecec;
+    --violet:#8455d4; --slate:#c7cedb;
+    --radius:16px; --radius-sm:10px;
+    --shadow-sm:0 1px 2px rgba(15,23,42,0.05);
+    --shadow-md:0 8px 24px -8px rgba(15,23,42,0.12), 0 2px 6px -2px rgba(15,23,42,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',-apple-system,Arial,sans-serif;background:var(--bg);color:var(--ink-900);-webkit-font-smoothing:antialiased;}
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:224px;flex-shrink:0;background:linear-gradient(180deg,#151d33,#0e1726);padding:20px 14px;position:sticky;top:0;height:100vh;}
+  .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 20px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;}
+  .brand .mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--indigo),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;}
+  .brand .txt{color:#fff;font-weight:700;font-size:14.5px;line-height:1.2;}
+  .brand .txt small{display:block;font-weight:400;font-size:10.5px;color:#8fa0bd;}
+  nav a{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;color:#a8b6cc;text-decoration:none;border-radius:10px;margin-bottom:2px;}
+  nav a:hover{background:rgba(255,255,255,.05);}
+  nav a.active{background:rgba(76,95,213,.22);color:#fff;font-weight:600;}
+  nav a .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.7;flex-shrink:0;}
+
+  .main{flex:1;padding:26px 32px 50px;max-width:1440px;}
+  .pagehead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;flex-wrap:wrap;gap:10px;}
+  .pagehead h1{font-size:21px;font-weight:700;margin:0 0 3px;letter-spacing:-0.01em;}
+  .pagehead p{margin:0;font-size:12.5px;color:var(--ink-400);}
+
+  /* ZO officer selector */
+  .zone-select{display:flex;align-items:center;gap:10px;margin:18px 0 22px;flex-wrap:wrap;}
+  .zone-select label{font-size:12.5px;font-weight:600;color:var(--ink-500);}
+  .zo-dropdown{position:relative;min-width:280px;}
+  .zo-dropdown .trigger{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 14px;cursor:pointer;box-shadow:var(--shadow-sm);}
+  .zo-dropdown .trigger:hover{border-color:#c9d0dd;}
+  .zo-dropdown .trigger .av{width:26px;height:26px;border-radius:50%;background:var(--indigo-bg);color:var(--indigo-dk);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;flex-shrink:0;}
+  .zo-dropdown .trigger .info{flex:1;line-height:1.25;}
+  .zo-dropdown .trigger .info .n{font-size:13px;font-weight:700;color:var(--ink-900);}
+  .zo-dropdown .trigger .info .z{font-size:11px;color:var(--ink-400);}
+  .zo-dropdown .trigger .chev{color:var(--ink-400);font-size:11px;transition:transform .15s;}
+  .zo-dropdown.open .trigger .chev{transform:rotate(180deg);}
+  .zo-dropdown .menu{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-md);padding:6px;z-index:20;display:none;max-height:280px;overflow:auto;}
+  .zo-dropdown.open .menu{display:block;}
+  .zo-option{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;}
+  .zo-option:hover{background:#f5f6fa;}
+  .zo-option.active{background:var(--indigo-bg);}
+  .zo-option .av{width:26px;height:26px;border-radius:50%;background:var(--indigo-bg);color:var(--indigo-dk);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:800;flex-shrink:0;}
+  .zo-option .info .n{font-size:12.5px;font-weight:700;color:var(--ink-900);}
+  .zo-option .info .z{font-size:11px;color:var(--ink-400);}
+
+  /* ZO profile bar */
+  .zo-profile{display:flex;align-items:center;gap:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px 20px;box-shadow:var(--shadow-sm);margin-bottom:24px;flex-wrap:wrap;}
+  .zo-profile .av-lg{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--indigo),var(--violet));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;flex-shrink:0;}
+  .zo-profile .who{flex:1;min-width:180px;}
+  .zo-profile .who .name{font-size:15px;font-weight:700;}
+  .zo-profile .who .role{font-size:12px;color:var(--ink-400);margin-top:2px;}
+  .zo-profile .stat{text-align:center;padding:0 16px;border-left:1px solid var(--line);}
+  .zo-profile .stat .l{font-size:11px;color:var(--ink-400);font-weight:500;}
+  .zo-profile .stat .v{font-size:16px;font-weight:800;margin-top:3px;}
+  .zo-profile .stat .v.up{color:var(--teal);}
+  .zo-profile .stat .v.down{color:var(--red);}
+
+  .section-label{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-400);margin:30px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-label:first-of-type{margin-top:0;}
+  .section-label::after{content:"";flex:1;height:1px;background:var(--line);}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .kpi{background:var(--card);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm);border:1px solid var(--line);position:relative;overflow:hidden;}
+  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--indigo));}
+  .kpi .label{font-size:12px;color:var(--ink-400);font-weight:500;margin-bottom:8px;}
+  .kpi .value{font-size:24px;font-weight:800;letter-spacing:-0.02em;}
+  .kpi .sub{font-size:11.5px;color:var(--ink-400);margin-top:6px;}
+
+  .alert-panel{background:var(--card);border:1px solid #f6d3d1;border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow-sm);}
+  .alert-panel.ok{border-color:#c9ecdd;}
+  .alert-panel .head{display:flex;align-items:center;gap:9px;font-size:14px;font-weight:700;color:var(--red);margin-bottom:10px;}
+  .alert-panel.ok .head{color:var(--teal);}
+  .alert-panel .head .ic{width:26px;height:26px;border-radius:50%;background:var(--red-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .alert-panel.ok .head .ic{background:var(--teal-bg);}
+  .alert-list{display:flex;flex-direction:column;gap:7px;}
+  .alert-item{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;background:#fbfbfd;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 12px;}
+  .tag{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;}
+  .tag-red{background:var(--red-bg);color:var(--red);}
+  .tag-amber{background:var(--amber-bg);color:var(--amber);}
+
+  .group-row{display:flex;gap:14px;flex-wrap:wrap;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow-sm);flex:1;min-width:280px;}
+  .card h3{font-size:13.5px;font-weight:700;margin:0 0 14px;}
+  .card h3 .n{font-weight:500;color:var(--ink-400);font-size:11.5px;}
+
+  .donut-wrap{display:flex;align-items:center;gap:20px;}
+  .donut-wrap svg{flex-shrink:0;}
+  .center-label{font-size:15px;font-weight:800;fill:var(--ink-900);}
+  .legend{font-size:12px;display:flex;flex-direction:column;gap:8px;flex:1;}
+  .legend .row{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .legend .name{display:flex;align-items:center;gap:8px;color:var(--ink-700);}
+  .legend .dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+  .legend .val{font-weight:600;color:var(--ink-900);white-space:nowrap;}
+
+  .fin-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:0;}
+  .fin-item{text-align:center;padding:4px 8px;border-right:1px solid var(--line);}
+  .fin-item:last-child{border-right:none;}
+  .fin-item .l{font-size:11px;color:var(--ink-400);font-weight:500;}
+  .fin-item .v{font-size:16px;font-weight:800;margin-top:4px;}
+
+  /* JE team */
+  .je-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;}
+  .je-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;}
+  .je-card .top{display:flex;align-items:center;gap:9px;margin-bottom:10px;}
+  .je-card .av{width:30px;height:30px;border-radius:50%;background:var(--indigo-bg);color:var(--indigo-dk);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;}
+  .je-card .name{font-size:12.5px;font-weight:700;}
+  .je-card .row{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-500);margin-top:5px;}
+  .je-card .row b{color:var(--ink-900);font-weight:700;}
+  .je-card .flag{display:inline-block;margin-top:8px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;}
+
+  .table-wrap{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:auto;max-height:360px;box-shadow:var(--shadow-sm);}
+  table{border-collapse:separate;border-spacing:0;font-size:12px;width:max-content;min-width:100%;}
+  th,td{padding:10px 13px;text-align:right;white-space:nowrap;}
+  thead th{background:#fafbfd;color:var(--ink-400);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;position:sticky;top:0;z-index:2;border-bottom:1px solid var(--line);}
+  tbody td{border-bottom:1px solid var(--line);color:var(--ink-700);}
+  tbody tr:hover td{background:#f7f8fb;}
+  td.frozen,th.frozen{text-align:left;position:sticky;background:#fff;z-index:1;}
+  th.frozen{background:#fafbfd;z-index:3;}
+  th.f1,td.f1{left:0;min-width:110px;font-weight:600;color:var(--ink-900);}
+  th.f2,td.f2{left:110px;min-width:150px;box-shadow:3px 0 6px -3px rgba(15,23,42,0.08);}
+  .status{font-size:10.5px;font-weight:700;padding:3px 10px;border-radius:20px;white-space:nowrap;}
+  .st-track{background:var(--teal-bg);color:var(--teal);}
+  .st-attn{background:var(--amber-bg);color:var(--amber);}
+  .st-crit{background:var(--red-bg);color:var(--red);}
+  .st-slow{background:var(--amber-bg);color:var(--amber);}
+
+  .feed{display:flex;flex-direction:column;gap:0;}
+  .feed-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .feed-item:last-child{border-bottom:none;}
+  .feed-item .time{color:var(--ink-400);font-size:11px;white-space:nowrap;min-width:64px;}
+  .feed-item .txt{color:var(--ink-700);}
+  .feed-item .txt b{color:var(--ink-900);}
+
+  /* Funnel */
+  .funnel{display:flex;flex-direction:column;gap:10px;}
+  .funnel-row{display:grid;grid-template-columns:120px 1fr 84px;align-items:center;gap:12px;}
+  .funnel-row .flabel{font-size:12px;color:var(--ink-500);font-weight:500;}
+  .funnel-row .ftrack{background:var(--bg);border-radius:6px;height:16px;overflow:hidden;}
+  .funnel-row .ffill{height:100%;border-radius:6px;}
+  .funnel-row .fval{font-size:12.5px;font-weight:700;text-align:right;}
+  .funnel-note{font-size:11.5px;color:var(--ink-400);margin-top:2px;}
+
+  /* Trend */
+  .trend-chart{width:100%;}
+  .trend-chart .grid-line{stroke:var(--line);stroke-width:1;}
+  .trend-months{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-400);padding:0 4px;margin-top:2px;}
+
+  /* Leaderboard */
+  .lb-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .lb-table th{text-align:left;color:var(--ink-400);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.02em;padding:0 8px 8px 0;border-bottom:1px solid var(--line);}
+  .lb-table td{padding:9px 8px 9px 0;border-bottom:1px solid var(--line);color:var(--ink-700);}
+  .lb-table tr:last-child td{border-bottom:none;}
+  .lb-table tr.me td{background:var(--indigo-bg);font-weight:700;color:var(--ink-900);}
+  .lb-table tr.me td:first-child{border-radius:8px 0 0 8px;}
+  .lb-table tr.me td:last-child{border-radius:0 8px 8px 0;}
+  .lb-rank{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:var(--bg);font-size:11px;font-weight:700;color:var(--ink-500);}
+
+  .footer{text-align:center;font-size:11.5px;color:var(--ink-400);margin-top:32px;padding-top:18px;border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <div class="brand">
+      <div class="mark">ID</div>
+      <div class="txt">IDBP<small>Project Monitoring System</small></div>
+    </div>
+    <nav>
+      <a><span class="dot"></span>Dashboard</a>
+      <a class="active"><span class="dot"></span>Zonal analytics</a>
+      <a><span class="dot"></span>Work order</a>
+      <a><span class="dot"></span>Estimate</a>
+      <a><span class="dot"></span>Requisition (ZO → HO)</a>
+      <a><span class="dot"></span>HO approval</a>
+      <a><span class="dot"></span>Fund release</a>
+      <a><span class="dot"></span>Billing</a>
+      <a><span class="dot"></span>Reports</a>
+    </nav>
+  </div>
+
+  <div class="main">
+    <div class="pagehead">
+      <div>
+        <h1>Zonal Analytics Dashboard</h1>
+        <p>Select a Zonal Officer to see how business is performing under them</p>
+      </div>
+    </div>
+
+    <div class="zone-select">
+      <label>Zonal Officer</label>
+      <div class="zo-dropdown" id="zoDropdown"></div>
+    </div>
+
+    <div class="zo-profile" id="zoProfile"></div>
+
+    <div class="section-label">Overview</div>
+    <div class="kpi-row" id="kpiRow"></div>
+
+    <div class="section-label">Needs attention</div>
+    <div id="alertPanel"></div>
+
+    <div class="section-label">Estimate &amp; budget in this zone</div>
+    <div class="group-row">
+      <div class="card">
+        <h3>Department wise estimate <span class="n" id="deptTotal"></span></h3>
+        <div class="donut-wrap" id="deptDonut"></div>
+      </div>
+      <div class="card">
+        <h3>Physical progress distribution <span class="n" id="progAvgLbl"></span></h3>
+        <div class="donut-wrap" id="progDonut"></div>
+      </div>
+    </div>
+
+    <div class="section-label">Money movement in this zone</div>
+    <div class="card">
+      <div class="fin-strip" id="finStrip"></div>
+    </div>
+
+    <div class="section-label">Financial flow in this zone</div>
+    <div class="card">
+      <div class="funnel" id="funnel"></div>
+      <div class="funnel-note" id="funnelNote"></div>
+    </div>
+
+    <div class="section-label">Trend &amp; how this officer ranks</div>
+    <div class="group-row">
+      <div class="card">
+        <h3>Physical progress, last 6 months</h3>
+        <div id="trendChart"></div>
+        <div class="trend-months"><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span></div>
+      </div>
+      <div class="card">
+        <h3>Zonal Officer leaderboard <span class="n">by avg. progress</span></h3>
+        <table class="lb-table" id="leaderboard"></table>
+      </div>
+    </div>
+
+    <div class="section-label">Junior engineers under this zone</div>
+    <div class="card">
+      <div class="je-grid" id="jeGrid"></div>
+    </div>
+
+    <div class="section-label">Work orders in this zone</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="frozen f1">WO no</th>
+            <th class="frozen f2">Site details</th>
+            <th>Total estimate</th>
+            <th>Requisition</th>
+            <th>Approved</th>
+            <th>Gross bill</th>
+            <th>Progress</th>
+            <th>JE visit (days)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="woTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section-label">Recent activity in this zone</div>
+    <div class="card">
+      <div class="feed" id="activityFeed"></div>
+    </div>
+
+    <div class="footer">All amounts in INR · Cr = Crore · Reference layout for review — generated by IDBP System</div>
+  </div>
+</div>
+
+<script>
+const COMPANY_AVG_PROGRESS = 78;
+
+const zones = {
+  kolkata: {
+    name: "Kolkata Zone", zo: "Anirban Sen", initials: "AS", since: "Since Feb 2023",
+    totalWO: 34, totalValue: 4.10, avgProgress: 84, refundPending: 0.05, zoBalance: 0.38,
+    trend: [70,74,77,80,82,84],
+    funnel: {estimate:3.85, requisition:3.55, approved:3.40, grossBill:3.05, agencyPayment:2.90},
+    dept: [
+      {label:"Civil", value:40, color:"#4c5fd5"},
+      {label:"Electrical", value:30, color:"#0fa383"},
+      {label:"Mechanical", value:20, color:"#d8890f"},
+      {label:"Others", value:10, color:"#c7cedb"}
+    ],
+    prog: [
+      {label:"60% and above", value:70, color:"#0fa383"},
+      {label:"40%–59%", value:20, color:"#d8890f"},
+      {label:"Below 40%", value:7, color:"#e0453f"},
+      {label:"Not started", value:3, color:"#c7cedb"}
+    ],
+    fin: [["EMD","0.10"],["Security deposit","0.12"],["ITDS","0.22"],["SGST","0.10"],["CGST","0.10"],["Not utilized","0.02"]],
+    je: [
+      {name:"Rina Das", projects:8, reports:42, streak:12},
+      {name:"Suman Ghosh", projects:6, reports:30, streak:7},
+      {name:"Partha Roy", projects:5, reports:25, streak:15},
+      {name:"Kabir Islam", projects:3, reports:10, streak:2}
+    ],
+    critical: [
+      {wo:"WO/2026/0112", site:"Kolkata – Site K3", progress:32, days:16, tag:"Critical", tagClass:"tag-red"}
+    ],
+    wo: [
+      {no:"WO/2026/0110", site:"Kolkata – Site K1", est:"33,30,000", req:"30,00,000", app:"28,00,000", bill:"26,50,000", prog:"85%", days:12, status:"On track", cls:"st-track"},
+      {no:"WO/2026/0111", site:"Kolkata – Site K2", est:"41,20,000", req:"38,00,000", app:"36,80,000", bill:"34,20,000", prog:"92%", days:18, status:"On track", cls:"st-track"},
+      {no:"WO/2026/0112", site:"Kolkata – Site K3", est:"29,60,000", req:"26,00,000", app:"25,00,000", bill:"21,80,000", prog:"32%", days:16, status:"Critical", cls:"st-crit"},
+      {no:"WO/2026/0113", site:"Kolkata – Site K4", est:"47,20,000", req:"44,00,000", app:"42,00,000", bill:"36,40,000", prog:"78%", days:14, status:"On track", cls:"st-track"}
+    ],
+    activity: [
+      {time:"2h ago", txt:"<b>Rina Das</b> submitted a progress report for WO/2026/0110"},
+      {time:"5h ago", txt:"<b>Anirban Sen</b> approved requisition for WO/2026/0111"},
+      {time:"1d ago", txt:"<b>Suman Ghosh</b> flagged a delay on WO/2026/0112"},
+      {time:"2d ago", txt:"<b>Anirban Sen</b> zonal-approved billing for WO/2026/0109"}
+    ]
+  },
+  siliguri: {
+    name: "Siliguri Zone", zo: "Meera Bhattacharjee", initials: "MB", since: "Since Jul 2022",
+    totalWO: 28, totalValue: 3.20, avgProgress: 76, refundPending: 0.04, zoBalance: 0.29,
+    trend: [82,80,78,77,76,76],
+    funnel: {estimate:3.00, requisition:2.70, approved:2.55, grossBill:2.10, agencyPayment:1.95},
+    dept: [
+      {label:"Civil", value:35, color:"#4c5fd5"},
+      {label:"Electrical", value:28, color:"#0fa383"},
+      {label:"Mechanical", value:22, color:"#d8890f"},
+      {label:"Plumbing", value:15, color:"#8455d4"}
+    ],
+    prog: [
+      {label:"60% and above", value:55, color:"#0fa383"},
+      {label:"40%–59%", value:30, color:"#d8890f"},
+      {label:"Below 40%", value:10, color:"#e0453f"},
+      {label:"Not started", value:5, color:"#c7cedb"}
+    ],
+    fin: [["EMD","0.08"],["Security deposit","0.10"],["ITDS","0.18"],["SGST","0.08"],["CGST","0.08"],["Not utilized","0.03"]],
+    je: [
+      {name:"Arjun Pal", projects:7, reports:38, streak:9},
+      {name:"Debjani Roy", projects:5, reports:20, streak:4},
+      {name:"Faisal Ahmed", projects:4, reports:15, streak:1}
+    ],
+    critical: [
+      {wo:"WO/2026/0208", site:"Siliguri – Site S2", progress:38, days:19, tag:"Slow progress", tagClass:"tag-amber"}
+    ],
+    wo: [
+      {no:"WO/2026/0206", site:"Siliguri – Site S1", est:"23,50,000", req:"21,00,000", app:"20,00,000", bill:"15,80,000", prog:"66%", days:11, status:"On track", cls:"st-track"},
+      {no:"WO/2026/0207", site:"Siliguri – Site S2", est:"26,60,000", req:"24,00,000", app:"20,00,000", bill:"9,20,000", prog:"38%", days:19, status:"Slow progress", cls:"st-slow"},
+      {no:"WO/2026/0208", site:"Siliguri – Site S3", est:"32,90,000", req:"29,00,000", app:"27,00,000", bill:"27,50,000", prog:"88%", days:10, status:"On track", cls:"st-track"}
+    ],
+    activity: [
+      {time:"1h ago", txt:"<b>Arjun Pal</b> submitted a progress report for WO/2026/0206"},
+      {time:"6h ago", txt:"<b>Meera Bhattacharjee</b> requested revision on WO/2026/0207"},
+      {time:"3d ago", txt:"<b>Debjani Roy</b> updated status of WO/2026/0208"}
+    ]
+  },
+  durgapur: {
+    name: "Durgapur Zone", zo: "Rajesh Verma", initials: "RV", since: "Since Nov 2021",
+    totalWO: 40, totalValue: 5.10, avgProgress: 68, refundPending: 0.07, zoBalance: 0.21,
+    trend: [74,72,70,69,68,68],
+    funnel: {estimate:4.70, requisition:4.05, approved:3.60, grossBill:2.55, agencyPayment:2.20},
+    dept: [
+      {label:"Civil", value:30, color:"#4c5fd5"},
+      {label:"Electrical", value:20, color:"#0fa383"},
+      {label:"Mechanical", value:35, color:"#d8890f"},
+      {label:"Others", value:15, color:"#c7cedb"}
+    ],
+    prog: [
+      {label:"60% and above", value:40, color:"#0fa383"},
+      {label:"40%–59%", value:30, color:"#d8890f"},
+      {label:"Below 40%", value:20, color:"#e0453f"},
+      {label:"Not started", value:10, color:"#c7cedb"}
+    ],
+    fin: [["EMD","0.12"],["Security deposit","0.15"],["ITDS","0.28"],["SGST","0.14"],["CGST","0.14"],["Not utilized","0.04"]],
+    je: [
+      {name:"Vikram Singh", projects:9, reports:44, streak:20},
+      {name:"Sneha Patra", projects:6, reports:28, streak:3},
+      {name:"Alok Nandi", projects:5, reports:22, streak:0, flag:"No recent visit"},
+      {name:"Priya Sen", projects:4, reports:18, streak:5}
+    ],
+    critical: [
+      {wo:"WO/2026/0305", site:"Durgapur – Site D2", progress:29, days:22, tag:"Critical", tagClass:"tag-red"},
+      {wo:"WO/2026/0309", site:"Durgapur – Site D6", progress:41, days:0, tag:"No JE visit", tagClass:"tag-amber"},
+      {wo:"WO/2026/0311", site:"Durgapur – Site D8", progress:52, days:24, tag:"Slow progress", tagClass:"tag-amber"}
+    ],
+    wo: [
+      {no:"WO/2026/0304", site:"Durgapur – Site D1", est:"31,10,000", req:"28,00,000", app:"27,00,000", bill:"23,20,000", prog:"74%", days:16, status:"On track", cls:"st-track"},
+      {no:"WO/2026/0305", site:"Durgapur – Site D2", est:"29,60,000", req:"26,00,000", app:"22,00,000", bill:"12,10,000", prog:"29%", days:22, status:"Critical", cls:"st-crit"},
+      {no:"WO/2026/0309", site:"Durgapur – Site D6", est:"27,40,000", req:"24,00,000", app:"22,00,000", bill:"14,30,000", prog:"41%", days:0, status:"Need attention", cls:"st-attn"},
+      {no:"WO/2026/0311", site:"Durgapur – Site D8", est:"35,80,000", req:"31,00,000", app:"29,00,000", bill:"19,60,000", prog:"52%", days:24, status:"Slow progress", cls:"st-slow"}
+    ],
+    activity: [
+      {time:"30m ago", txt:"<b>Rajesh Verma</b> escalated WO/2026/0305 for review"},
+      {time:"4h ago", txt:"<b>Vikram Singh</b> submitted a progress report for WO/2026/0304"},
+      {time:"2d ago", txt:"<b>Alok Nandi</b> has not logged a site visit in 22 days"},
+      {time:"3d ago", txt:"<b>Rajesh Verma</b> approved requisition for WO/2026/0311"}
+    ]
+  },
+  malda: {
+    name: "Malda Zone", zo: "Farida Khatun", initials: "FK", since: "Since May 2023",
+    totalWO: 26, totalValue: 2.60, avgProgress: 81, refundPending: 0.02, zoBalance: 0.16,
+    trend: [68,72,75,78,80,81],
+    funnel: {estimate:2.45, requisition:2.30, approved:2.20, grossBill:1.95, agencyPayment:1.85},
+    dept: [
+      {label:"Civil", value:45, color:"#4c5fd5"},
+      {label:"Electrical", value:25, color:"#0fa383"},
+      {label:"Mechanical", value:20, color:"#d8890f"},
+      {label:"Others", value:10, color:"#c7cedb"}
+    ],
+    prog: [
+      {label:"60% and above", value:65, color:"#0fa383"},
+      {label:"40%–59%", value:22, color:"#d8890f"},
+      {label:"Below 40%", value:8, color:"#e0453f"},
+      {label:"Not started", value:5, color:"#c7cedb"}
+    ],
+    fin: [["EMD","0.07"],["Security deposit","0.08"],["ITDS","0.15"],["SGST","0.07"],["CGST","0.07"],["Not utilized","0.01"]],
+    je: [
+      {name:"Sourav Dutta", projects:6, reports:32, streak:11},
+      {name:"Ruma Chatterjee", projects:5, reports:26, streak:6}
+    ],
+    critical: [],
+    wo: [
+      {no:"WO/2026/0401", site:"Malda – Site F1", est:"26,60,000", req:"24,00,000", app:"20,00,000", bill:"9,20,000", prog:"70%", days:8, status:"On track", cls:"st-track"},
+      {no:"WO/2026/0402", site:"Malda – Site F2", est:"18,50,000", req:"16,00,000", app:"15,00,000", bill:"12,60,000", prog:"84%", days:6, status:"On track", cls:"st-track"}
+    ],
+    activity: [
+      {time:"3h ago", txt:"<b>Sourav Dutta</b> submitted a progress report for WO/2026/0401"},
+      {time:"1d ago", txt:"<b>Farida Khatun</b> approved requisition for WO/2026/0402"}
+    ]
+  }
+};
+
+function donutSVG(segments, r, sw, centerText){
+  r = r || 42; sw = sw || 13;
+  const C = 2*Math.PI*r;
+  let offset = 0, circles = "";
+  segments.forEach(seg=>{
+    const len = seg.value/100*C;
+    circles += `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${sw}" stroke-dasharray="${len.toFixed(1)} ${C.toFixed(1)}" stroke-dashoffset="${(-offset).toFixed(1)}"/>`;
+    offset += len;
+  });
+  return `<svg width="120" height="120" viewBox="0 0 100 100"><g transform="rotate(-90 50 50)">${circles}</g>${centerText?`<text x="50" y="54" text-anchor="middle" class="center-label">${centerText}</text>`:""}</svg>`;
+}
+
+function legendHTML(segments, valueFmt){
+  return `<div class="legend">${segments.map(s=>`
+    <div class="row">
+      <span class="name"><span class="dot" style="background:${s.color}"></span>${s.label}</span>
+      <span class="val">${valueFmt(s)}</span>
+    </div>`).join("")}</div>`;
+}
+
+function initials(n){ return n.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase(); }
+
+function buildDropdown(selectedKey){
+  const dd = document.getElementById("zoDropdown");
+  const z = zones[selectedKey];
+  dd.innerHTML = `
+    <div class="trigger" onclick="toggleDropdown()">
+      <div class="av">${z.initials}</div>
+      <div class="info"><div class="n">${z.zo}</div><div class="z">${z.name}</div></div>
+      <div class="chev">▾</div>
+    </div>
+    <div class="menu">
+      ${Object.keys(zones).map(key=>{
+        const o = zones[key];
+        return `<div class="zo-option ${key===selectedKey?'active':''}" onclick="selectZo(event,'${key}')">
+          <div class="av">${o.initials}</div>
+          <div class="info"><div class="n">${o.zo}</div><div class="z">${o.name}</div></div>
+        </div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function toggleDropdown(){
+  document.getElementById("zoDropdown").classList.toggle("open");
+}
+
+function selectZo(e, key){
+  e.stopPropagation();
+  document.getElementById("zoDropdown").classList.remove("open");
+  renderZone(key);
+}
+
+document.addEventListener("click", (e)=>{
+  const dd = document.getElementById("zoDropdown");
+  if(dd && !dd.contains(e.target)) dd.classList.remove("open");
+});
+
+function renderZone(key){
+  const z = zones[key];
+
+  buildDropdown(key);
+
+  const delta = z.avgProgress - COMPANY_AVG_PROGRESS;
+  document.getElementById("zoProfile").innerHTML = `
+    <div class="av-lg">${z.initials}</div>
+    <div class="who"><div class="name">${z.zo}</div><div class="role">Zonal Officer · ${z.name} · ${z.since}</div></div>
+    <div class="stat"><div class="l">Work orders</div><div class="v">${z.totalWO}</div></div>
+    <div class="stat"><div class="l">Zone value</div><div class="v">₹${z.totalValue.toFixed(2)} Cr</div></div>
+    <div class="stat"><div class="l">Progress vs company</div><div class="v ${delta>=0?'up':'down'}">${z.avgProgress}% (${delta>=0?'+':''}${delta} pts)</div></div>
+  `;
+
+  document.getElementById("kpiRow").innerHTML = `
+    <div class="kpi" style="--accent:var(--indigo);"><div class="label">Total work orders</div><div class="value">${z.totalWO}</div><div class="sub">Active under ${z.zo}</div></div>
+    <div class="kpi" style="--accent:var(--violet);"><div class="label">Total zone value</div><div class="value">₹${z.totalValue.toFixed(2)} Cr</div><div class="sub">Contract value in ${z.name}</div></div>
+    <div class="kpi" style="--accent:var(--teal);"><div class="label">Avg. physical progress</div><div class="value">${z.avgProgress}%</div><div class="sub">Company average: ${COMPANY_AVG_PROGRESS}%</div></div>
+    <div class="kpi" style="--accent:var(--amber);"><div class="label">ZO available balance</div><div class="value">₹${z.zoBalance.toFixed(2)} Cr</div><div class="sub">Refund pending ₹${z.refundPending.toFixed(2)} Cr</div></div>
+  `;
+
+  const alertEl = document.getElementById("alertPanel");
+  if(z.critical.length===0){
+    alertEl.innerHTML = `<div class="alert-panel ok"><div class="head"><span class="ic">✓</span>No work orders currently need attention in ${z.name}</div></div>`;
+  } else {
+    alertEl.innerHTML = `<div class="alert-panel">
+      <div class="head"><span class="ic">⚠</span>${z.critical.length} work order${z.critical.length>1?'s':''} need attention in ${z.name}</div>
+      <div class="alert-list">${z.critical.map(c=>`
+        <div class="alert-item"><span>${c.wo} · ${c.site} · ${c.progress}% progress${c.days?`, ${c.days}-day visit gap`:''}</span><span class="tag ${c.tagClass}">${c.tag}</span></div>
+      `).join("")}</div>
+    </div>`;
+  }
+
+  document.getElementById("deptTotal").textContent = "by estimate share";
+  document.getElementById("deptDonut").innerHTML = donutSVG(z.dept) + legendHTML(z.dept, s=>`${s.value}%`);
+
+  document.getElementById("progAvgLbl").textContent = `avg. ${z.avgProgress}%`;
+  document.getElementById("progDonut").innerHTML = donutSVG(z.prog, 42, 13, z.avgProgress+"%") + legendHTML(z.prog, s=>`${s.value}%`);
+
+  // Financial flow funnel
+  const stages = [
+    {label:"Estimate", val:z.funnel.estimate, color:"#4c5fd5"},
+    {label:"Requisition", val:z.funnel.requisition, color:"#4c5fd5"},
+    {label:"Approved", val:z.funnel.approved, color:"#0fa383"},
+    {label:"Gross bill", val:z.funnel.grossBill, color:"#d8890f"},
+    {label:"Agency payment", val:z.funnel.agencyPayment, color:"#0fa383"}
+  ];
+  const maxStage = stages[0].val;
+  document.getElementById("funnel").innerHTML = stages.map(s=>`
+    <div class="funnel-row">
+      <div class="flabel">${s.label}</div>
+      <div class="ftrack"><div class="ffill" style="width:${(s.val/maxStage*100).toFixed(0)}%;background:${s.color};"></div></div>
+      <div class="fval">₹${s.val.toFixed(2)} Cr</div>
+    </div>
+  `).join("");
+  const realized = Math.round(z.funnel.agencyPayment/z.funnel.estimate*100);
+  document.getElementById("funnelNote").textContent = `${realized}% of estimated value has reached agency payment so far`;
+
+  // Trend chart (6-month physical progress)
+  const trendW = 320, trendH = 110, pad = 10;
+  const pts = z.trend.map((v,i)=>{
+    const x = pad + i*((trendW-2*pad)/(z.trend.length-1));
+    const y = trendH - 10 - v*0.85;
+    return [x,y];
+  });
+  const poly = pts.map(p=>p.join(",")).join(" ");
+  const accent = z.trend[z.trend.length-1] >= z.trend[0] ? "#0fa383" : "#e0453f";
+  document.getElementById("trendChart").innerHTML = `
+    <svg class="trend-chart" viewBox="0 0 ${trendW} ${trendH}" height="120">
+      <line class="grid-line" x1="0" y1="${trendH-10-COMPANY_AVG_PROGRESS*0.85}" x2="${trendW}" y2="${trendH-10-COMPANY_AVG_PROGRESS*0.85}" stroke-dasharray="3 3"/>
+      <polyline points="${poly}" fill="none" stroke="${accent}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3" fill="${accent}"/>`).join("")}
+    </svg>
+  `;
+
+  // Leaderboard across all ZOs
+  const ranked = Object.keys(zones).map(k=>({key:k, ...zones[k]})).sort((a,b)=>b.avgProgress-a.avgProgress);
+  document.getElementById("leaderboard").innerHTML = `
+    <tr><th>Rank</th><th>Officer</th><th>Progress</th><th>Value</th></tr>
+    ${ranked.map((r,i)=>`
+      <tr class="${r.key===key?'me':''}">
+        <td><span class="lb-rank">${i+1}</span></td>
+        <td>${r.zo}</td>
+        <td>${r.avgProgress}%</td>
+        <td>₹${r.totalValue.toFixed(2)} Cr</td>
+      </tr>
+    `).join("")}
+  `;
+
+  document.getElementById("finStrip").innerHTML = z.fin.map(([l,v])=>`
+    <div class="fin-item"><div class="l">${l}</div><div class="v">₹${v} Cr</div></div>
+  `).join("");
+
+  document.getElementById("jeGrid").innerHTML = z.je.map(je=>`
+    <div class="je-card">
+      <div class="top"><div class="av">${initials(je.name)}</div><div class="name">${je.name}</div></div>
+      <div class="row"><span>Assigned projects</span><b>${je.projects}</b></div>
+      <div class="row"><span>Reports submitted</span><b>${je.reports}</b></div>
+      <div class="row"><span>Current streak</span><b>${je.streak} day${je.streak===1?'':'s'}</b></div>
+      ${je.flag?`<span class="flag tag-red" style="background:var(--red-bg);color:var(--red);">${je.flag}</span>`:''}
+    </div>
+  `).join("");
+
+  document.getElementById("woTableBody").innerHTML = z.wo.map(w=>`
+    <tr>
+      <td class="frozen f1">${w.no}</td>
+      <td class="frozen f2">${w.site}</td>
+      <td>${w.est}</td><td>${w.req}</td><td>${w.app}</td><td>${w.bill}</td>
+      <td>${w.prog}</td><td>${w.days}</td>
+      <td><span class="status ${w.cls}">${w.status}</span></td>
+    </tr>
+  `).join("");
+
+  document.getElementById("activityFeed").innerHTML = z.activity.map(a=>`
+    <div class="feed-item"><span class="time">${a.time}</span><span class="txt">${a.txt}</span></div>
+  `).join("");
+}
+
+renderZone("kolkata");
+</script>
+</body>
+</html>
