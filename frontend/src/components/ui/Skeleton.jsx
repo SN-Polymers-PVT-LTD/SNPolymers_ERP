@@ -81,43 +81,30 @@ export const SkeletonTable = ({ rows = 5, cols = 6, className = '' }) => (
  * Skeleton Full Page Layout (For Suspense & Chunk Loading)
  */
 export const SkeletonPage = () => (
-  <div className="min-h-screen w-full flex flex-col md:flex-row relative overflow-hidden">
-    {/* Sidebar Rail Skeleton */}
-    <div className="hidden md:flex flex-col w-20 p-4 border-r border-white/5 space-y-8">
-      <Skeleton variant="circular" className="w-10 h-10 mx-auto" />
-      <div className="space-y-4 flex-1 pt-6">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="w-10 h-10 rounded-xl mx-auto" />
-        ))}
+  <div className="w-full space-y-8 max-w-7xl mx-auto p-2 md:p-4">
+    {/* Top Header Bar Skeleton */}
+    <div className="flex justify-between items-center pb-6 border-b border-white/5">
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-28" />
+        <Skeleton className="h-8 w-64" />
       </div>
+      <Skeleton className="h-10 w-32 rounded-xl" />
     </div>
 
-    {/* Main Body Skeleton */}
-    <div className="flex-grow p-6 md:p-10 space-y-8 max-w-7xl mx-auto w-full">
-      {/* Top Header Bar Skeleton */}
-      <div className="flex justify-between items-center pb-6 border-b border-white/5">
-        <div className="space-y-2">
-          <Skeleton className="h-3 w-28" />
-          <Skeleton className="h-8 w-64" />
+    {/* Metrics Row Skeleton */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="glass-panel p-5 rounded-2xl space-y-3">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-7 w-28" />
         </div>
-        <Skeleton className="h-10 w-32 rounded-xl" />
-      </div>
+      ))}
+    </div>
 
-      {/* Metrics Row Skeleton */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="glass-panel p-5 rounded-2xl space-y-3">
-            <Skeleton className="h-3 w-20" />
-            <Skeleton className="h-7 w-28" />
-          </div>
-        ))}
-      </div>
-
-      {/* Main Table/Panel Skeleton */}
-      <div className="glass-panel p-6 rounded-3xl space-y-4">
-        <Skeleton className="h-5 w-44" />
-        <SkeletonTable rows={5} cols={5} />
-      </div>
+    {/* Main Table/Panel Skeleton */}
+    <div className="glass-panel p-6 rounded-3xl space-y-4">
+      <Skeleton className="h-5 w-44" />
+      <SkeletonTable rows={5} cols={5} />
     </div>
   </div>
 );

@@ -78,63 +78,61 @@ function App() {
             {/* Protected Routes utilizing Persistent AppLayout */}
             <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
               <Route element={
-                <React.Suspense fallback={<AppChunkLoader />}>
-                  <AppLayout />
-                </React.Suspense>
+                <AppLayout />
               }>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/fund-reports" element={<FundReports />} />
-                <Route path="/materials" element={<MaterialMaster />} />
-                <Route path="/estimates" element={<Estimates />} />
-                <Route path="/estimates/new" element={<EstimateForm />} />
-                <Route path="/estimates/:id" element={<EstimateView />} />
-                <Route path="/estimates/:id/edit" element={<EstimateForm />} />
+                <Route path="/dashboard" element={<React.Suspense fallback={<AppChunkLoader />}><Dashboard /></React.Suspense>} />
+                <Route path="/profile" element={<React.Suspense fallback={<AppChunkLoader />}><Profile /></React.Suspense>} />
+                <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
+                <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
+                <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
+                <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+                <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
+                <Route path="/estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
 
                 {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
-                  <Route path="/requisitions" element={<Requisitions />} />
-                  <Route path="/daily-progress" element={<DailyProgress />} />
+                  <Route path="/requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><Requisitions /></React.Suspense>} />
+                  <Route path="/daily-progress" element={<React.Suspense fallback={<AppChunkLoader />}><DailyProgress /></React.Suspense>} />
                 </Route>
 
                 {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
-                  <Route path="/fund-requests" element={<FundRequests />} />
+                  <Route path="/fund-requests" element={<React.Suspense fallback={<AppChunkLoader />}><FundRequests /></React.Suspense>} />
                 </Route>
 
                 {/* RA/Final Bills & User/Work Order Mappings Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
-                  <Route path="/ra-final-bills" element={<RAFinalBill />} />
-                  <Route path="/user-mappings" element={<UserMappings />} />
-                  <Route path="/work-order-mappings" element={<WorkOrderMappings />} />
-                  <Route path="/zonal-balances" element={<ZonalBalances />} />
-                  <Route path="/excess-fund-returns" element={<ExcessFundReturns />} />
+                  <Route path="/ra-final-bills" element={<React.Suspense fallback={<AppChunkLoader />}><RAFinalBill /></React.Suspense>} />
+                  <Route path="/user-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><UserMappings /></React.Suspense>} />
+                  <Route path="/work-order-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><WorkOrderMappings /></React.Suspense>} />
+                  <Route path="/zonal-balances" element={<React.Suspense fallback={<AppChunkLoader />}><ZonalBalances /></React.Suspense>} />
+                  <Route path="/excess-fund-returns" element={<React.Suspense fallback={<AppChunkLoader />}><ExcessFundReturns /></React.Suspense>} />
                 </Route>
 
                 {/* Admin Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-                  <Route path="/admin" element={<AdminPanel />} />
-                  <Route path="/admin/sessions" element={<AuditLog />} />
-                  <Route path="/admin/master-data" element={<MasterData />} />
-                  <Route path="/admin/purchase-options" element={<PurchaseOptions />} />
+                  <Route path="/admin" element={<React.Suspense fallback={<AppChunkLoader />}><AdminPanel /></React.Suspense>} />
+                  <Route path="/admin/sessions" element={<React.Suspense fallback={<AppChunkLoader />}><AuditLog /></React.Suspense>} />
+                  <Route path="/admin/master-data" element={<React.Suspense fallback={<AppChunkLoader />}><MasterData /></React.Suspense>} />
+                  <Route path="/admin/purchase-options" element={<React.Suspense fallback={<AppChunkLoader />}><PurchaseOptions /></React.Suspense>} />
                 </Route>
 
                 {/* HO/Admin Analytics Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
-                  <Route path="/analytics/ho" element={<HoDashboard />} />
-                  <Route path="/analytics/audit" element={<AuditComplianceCenter />} />
+                  <Route path="/analytics/ho" element={<React.Suspense fallback={<AppChunkLoader />}><HoDashboard /></React.Suspense>} />
+                  <Route path="/analytics/audit" element={<React.Suspense fallback={<AppChunkLoader />}><AuditComplianceCenter /></React.Suspense>} />
                 </Route>
 
                 {/* ZO/HO/Admin Analytics Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
-                  <Route path="/analytics/zo" element={<ZoDashboard />} />
+                  <Route path="/analytics/zo" element={<React.Suspense fallback={<AppChunkLoader />}><ZoDashboard /></React.Suspense>} />
                 </Route>
 
                 {/* JE/ZO/HO/Admin Digital Twin & Leaderboard Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
-                  <Route path="/projects/:work_order_no/digital-twin" element={<ProjectDigitalTwin />} />
-                  <Route path="/analytics/digital-twin" element={<DigitalTwinHub />} />
-                  <Route path="/analytics/leaderboard" element={<JeLeaderboard />} />
+                  <Route path="/projects/:work_order_no/digital-twin" element={<React.Suspense fallback={<AppChunkLoader />}><ProjectDigitalTwin /></React.Suspense>} />
+                  <Route path="/analytics/digital-twin" element={<React.Suspense fallback={<AppChunkLoader />}><DigitalTwinHub /></React.Suspense>} />
+                  <Route path="/analytics/leaderboard" element={<React.Suspense fallback={<AppChunkLoader />}><JeLeaderboard /></React.Suspense>} />
                 </Route>
               </Route>
             </Route>

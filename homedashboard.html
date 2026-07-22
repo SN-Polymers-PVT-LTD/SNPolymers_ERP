@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNPolymers ERP — Home Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0e13;
+    --panel:#14161c;
+    --panel-border:rgba(255,255,255,0.07);
+    --panel-border-soft:rgba(255,255,255,0.045);
+    --panel-border-hover:rgba(255,255,255,0.13);
+    --text:#eef0f3;
+    --text-dim:#9298a6;
+    --text-faint:#5a6070;
+    --amber:#e0994a;
+    --amber-dim:rgba(224,153,74,0.10);
+    --blue:#5b9bd5;
+    --blue-dim:rgba(91,155,213,0.10);
+    --green:#3fb880;
+    --green-dim:rgba(63,184,128,0.10);
+    --rose:#e5645a;
+    --rose-dim:rgba(229,100,90,0.10);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    font-size:14px;
+  }
+  ::selection{background:var(--amber-dim);color:var(--amber);}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:2px;border-radius:4px;}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ---------- design notes ---------- */
+  .note{position:relative;}
+  .note::before{
+    content:attr(data-note);
+    position:absolute; left:0; top:-22px;
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:.02em;
+    color:#9585e0; background:rgba(149,133,224,0.1); border:1px solid rgba(149,133,224,0.28);
+    padding:3px 8px; border-radius:6px; white-space:nowrap;
+    opacity:0; transform:translateY(4px); transition:opacity .2s ease, transform .2s ease;
+    pointer-events:none; z-index:40;
+  }
+  body.annotate .note::before{ opacity:1; transform:translateY(0); }
+  body.annotate .note{ outline:1px dashed rgba(149,133,224,0.3); outline-offset:4px; border-radius:inherit; }
+
+  /* ---------- shell ---------- */
+  .shell-top{ position:sticky; top:0; z-index:50; background:rgba(12,14,19,0.92); backdrop-filter:blur(14px); border-bottom:1px solid var(--panel-border-soft); }
+  .shell-inner{ max-width:1400px; margin:0 auto; padding:14px 32px; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark{ width:28px; height:28px; border-radius:7px; background:var(--amber); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; color:#1a1206; }
+  .brand-name{ font-weight:700; font-size:14px; }
+  .brand-sub{ font-size:11px; color:var(--text-faint); margin-top:1px; }
+  .role-switch{ display:flex; gap:2px; background:rgba(255,255,255,0.03); border:1px solid var(--panel-border-soft); border-radius:10px; padding:3px; }
+  .role-switch button{ appearance:none; border:none; background:transparent; color:var(--text-dim); font-size:12px; font-weight:600; padding:6px 13px; border-radius:7px; cursor:pointer; transition:all .15s ease; }
+  .role-switch button:hover{ color:var(--text); }
+  .role-switch button.active{ background:var(--amber); color:#1a1206; }
+  .shell-right{ display:flex; align-items:center; gap:14px; }
+  .annotate-toggle{ display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint); cursor:pointer; user-select:none; padding:6px 11px; border:1px solid var(--panel-border-soft); border-radius:8px; }
+  .annotate-toggle:hover{ border-color:var(--panel-border-hover); color:var(--text-dim); }
+  .avatar{ width:30px; height:30px; border-radius:8px; background:var(--panel); border:1px solid var(--panel-border); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--amber); }
+
+  .page{ max-width:1400px; margin:0 auto; padding:36px 32px 90px; }
+
+  /* ---------- header block (matches original: title + subtitle, plain) ---------- */
+  .page-header{ margin-bottom:32px; padding-bottom:22px; border-bottom:1px solid var(--panel-border-soft); }
+  .eyebrow{ font-size:10.5px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--amber); }
+  .page-title{ font-size:26px; font-weight:700; letter-spacing:-.01em; margin:7px 0 0; }
+  .page-sub{ font-size:12.5px; color:var(--text-dim); margin-top:6px; }
+
+  /* ---------- KPI row (unchanged position/shape from original) ---------- */
+  .kpi-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; margin-bottom:28px; }
+  .kpi-card{ background:var(--panel); border:1px solid var(--panel-border-soft); border-radius:16px; padding:20px 22px; transition:border-color .15s ease; }
+  .kpi-card:hover{ border-color:var(--panel-border-hover); }
+  .kpi-label{ font-size:11px; font-weight:600; color:var(--text-dim); }
+  .kpi-value{ font-size:28px; font-weight:700; margin-top:8px; letter-spacing:-.01em; }
+  .kpi-change{ font-size:11.5px; color:var(--text-faint); margin-top:5px; }
+
+  /* ---------- grid (2/3 + 1/3, same as original app) ---------- */
+  .grid-main{ display:grid; grid-template-columns:2fr 1fr; gap:22px; align-items:start; }
+  .col-stack{ display:flex; flex-direction:column; gap:22px; }
+  @media (max-width: 980px){ .grid-main{ grid-template-columns:1fr; } .shell-inner{ flex-wrap:wrap; } }
+
+  .panel{ background:var(--panel); border:1px solid var(--panel-border-soft); border-radius:16px; padding:22px 24px; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; gap:12px; }
+  .panel-title{ font-size:13px; font-weight:700; color:var(--text); }
+  .panel-title .n{ color:var(--text-faint); font-weight:400; }
+  .panel-link{ font-size:12px; color:var(--amber); text-decoration:none; font-weight:600; }
+  .panel-link:hover{ text-decoration:underline; }
+
+  /* Analytics teaser (link-out card, not a full duplicate) */
+  .analytics-teaser{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:14px; }
+  .at-stat{ background:rgba(255,255,255,0.025); border:1px solid var(--panel-border-soft); border-radius:12px; padding:13px 15px; }
+  .at-label{ display:block; font-size:10.5px; color:var(--text-faint); font-weight:600; margin-bottom:6px; }
+  .at-val{ font-size:20px; font-weight:700; }
+  .at-cta{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim); text-decoration:none; }
+  .at-cta:hover{ color:var(--text); }
+  .at-cta svg{ width:11px; height:11px; color:var(--amber); flex-shrink:0; }
+
+  /* generic rows used across queues/lists */
+  .list-row{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:13px 0; border-bottom:1px solid var(--panel-border-soft); }
+  .list-row:last-child{ border-bottom:none; }
+  .lr-id{ font-size:10.5px; font-weight:700; color:var(--text-faint); }
+  .lr-title{ font-size:13px; font-weight:600; margin-top:2px; }
+  .lr-amt{ font-size:13px; font-weight:700; text-align:right; flex-shrink:0; }
+  .badge{ font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2.5px 8px; border-radius:5px; }
+  .badge.critical{ background:var(--rose-dim); color:var(--rose); }
+  .badge.warning{ background:var(--amber-dim); color:var(--amber); }
+  .badge.ok{ background:var(--green-dim); color:var(--green); }
+  .badge.info{ background:var(--blue-dim); color:var(--blue); }
+
+  table{ width:100%; border-collapse:collapse; }
+  th{ text-align:left; font-size:10.5px; color:var(--text-faint); font-weight:600; padding:0 0 10px; border-bottom:1px solid var(--panel-border-soft); }
+  td{ padding:13px 0; font-size:12.5px; border-bottom:1px solid var(--panel-border-soft); color:var(--text-dim); }
+  tr:last-child td{ border-bottom:none; }
+  td .primary{ color:var(--text); font-weight:600; }
+  .bar-track{ width:100%; height:6px; border-radius:4px; background:rgba(255,255,255,0.06); overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:4px; }
+
+  .qa-link{ display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-radius:11px; background:rgba(255,255,255,0.025); border:1px solid var(--panel-border-soft); text-decoration:none; color:var(--text); margin-bottom:8px; transition:all .15s ease; }
+  .qa-link:hover{ border-color:rgba(224,153,74,0.35); background:var(--amber-dim); }
+  .qa-link:last-child{ margin-bottom:0; }
+  .qa-t{ font-size:12.5px; font-weight:600; }
+  .qa-s{ font-size:10.5px; color:var(--text-faint); margin-top:2px; }
+  .qa-arrow{ font-size:14px; color:var(--amber); }
+
+  .usercount-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .uc-cell{ background:rgba(255,255,255,0.025); border:1px solid var(--panel-border-soft); border-radius:11px; padding:12px 14px; }
+  .uc-label{ font-size:10.5px; color:var(--text-faint); font-weight:600; }
+  .uc-val{ font-size:19px; font-weight:700; margin-top:4px; }
+
+  .activity-item{ display:flex; gap:11px; padding:11px 0; border-bottom:1px solid var(--panel-border-soft); }
+  .activity-item:last-child{ border-bottom:none; padding-bottom:0; }
+  .activity-dot{ width:6px; height:6px; border-radius:50%; background:var(--amber); margin-top:6px; flex-shrink:0; }
+  .activity-msg{ font-size:12.5px; color:var(--text); line-height:1.4; }
+  .activity-time{ font-size:10.5px; color:var(--text-faint); margin-top:3px; }
+
+  /* ledger rows (ZO fund ledger) */
+  .ledger-row{ display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid var(--panel-border-soft); }
+  .ledger-row:last-child{ border-bottom:none; }
+  .ledger-t{ font-size:12px; font-weight:600; color:var(--text); }
+  .ledger-d{ font-size:10.5px; color:var(--text-faint); margin-top:2px; }
+  .ledger-amt{ font-weight:700; font-size:13px; }
+  .ledger-amt.pos{ color:var(--green); }
+  .ledger-amt.neg{ color:var(--rose); }
+
+  /* cash distribution */
+  .cash-row{ display:flex; align-items:center; gap:12px; padding:13px 15px; border-radius:12px; border:1px solid; margin-bottom:10px; }
+  .cash-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .cash-label{ flex:1; }
+  .cash-t{ font-size:12.5px; font-weight:600; color:var(--text); }
+  .cash-s{ font-size:10.5px; color:var(--text-faint); margin-top:2px; }
+  .cash-amt{ font-weight:700; font-size:13px; flex-shrink:0; }
+  .cash-pipeline{ background:rgba(255,255,255,0.025); border:1px solid var(--panel-border-soft); border-radius:12px; padding:14px 16px; margin-top:2px; }
+  .cash-pipeline-label{ font-size:11px; font-weight:600; color:var(--text-dim); margin-bottom:10px; }
+  .cash-pipeline-row{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin-bottom:6px; }
+
+  .sort-select{ background:rgba(255,255,255,0.03); border:1px solid var(--panel-border-soft); color:var(--text-dim); font-size:11px; padding:6px 10px; border-radius:8px; cursor:pointer; }
+
+  .stat-trio{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:16px; }
+
+  .empty-good{ text-align:center; padding:26px 20px; border:1px dashed rgba(63,184,128,0.28); background:var(--green-dim); border-radius:12px; }
+  .empty-good .em-text{ font-size:12px; color:var(--green); font-weight:700; margin-top:6px; }
+  .empty-good .em-sub{ font-size:11px; color:var(--text-dim); margin-top:4px; }
+
+  .streak-strip{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:20px; }
+  .streak-left{ display:flex; align-items:center; gap:14px; }
+  .streak-icon{ width:44px; height:44px; border-radius:12px; background:var(--amber-dim); border:1px solid rgba(224,153,74,0.25); display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .streak-title{ font-size:19px; font-weight:700; margin-top:1px; }
+  .streak-right{ display:flex; gap:28px; }
+  .streak-stat-label{ font-size:10.5px; color:var(--text-faint); font-weight:600; }
+  .streak-stat-val{ font-size:13px; font-weight:700; margin-top:2px; }
+</style>
+</head>
+<body>
+
+<div class="shell-top">
+  <div class="shell-inner">
+    <div class="brand">
+      <div class="brand-mark">SN</div>
+      <div><div class="brand-name">SNPolymers ERP</div><div class="brand-sub">Site &amp; Fund Operations</div></div>
+    </div>
+    <div class="role-switch" id="roleSwitch">
+      <button data-role="ho" class="active">HO</button>
+      <button data-role="admin">Admin</button>
+      <button data-role="zo">ZO</button>
+      <button data-role="je">JE</button>
+    </div>
+    <div class="shell-right">
+      <label class="annotate-toggle"><input type="checkbox" id="annotateToggle" style="accent-color:#e0994a;">Design notes</label>
+      <div class="avatar">RS</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================= HO ============================= -->
+<div id="view-ho">
+<div class="page">
+
+  <div class="page-header">
+    <span class="eyebrow">Authorized Operator Session</span>
+    <h1 class="page-title">Welcome back, Rakesh</h1>
+    <p class="page-sub">Select a sub-module from the navigation rails or review key details below.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card note" data-note="same KPI card shape as original — value now leads with what needs action">
+      <div class="kpi-label">Requisitions Awaiting Approval</div>
+      <div class="kpi-value" style="color:var(--rose);">7</div>
+      <div class="kpi-change">Oldest filed 6 days ago</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Estimates Under Review</div>
+      <div class="kpi-value" style="color:var(--blue);">12</div>
+      <div class="kpi-change">4 pending over a week</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Requisitions Approved</div>
+      <div class="kpi-value" style="color:var(--green);">₹84.2L</div>
+      <div class="kpi-change">126 bills processed</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Budget Overruns</div>
+      <div class="kpi-value" style="color:var(--amber);">3</div>
+      <div class="kpi-change">2 critical, see analytics</div>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div class="col-stack">
+
+      <div class="panel note" data-note="was Zone Benchmarking table — replaced with a teaser, since /analytics/ho already computes this from real backend queries">
+        <div class="panel-head"><span class="panel-title">Portfolio Analytics</span><a class="panel-link" href="#">Open full analytics →</a></div>
+        <div class="analytics-teaser">
+          <div class="at-stat"><span class="at-label">Zones tracked</span><span class="at-val" style="color:var(--blue);">6</span></div>
+          <div class="at-stat"><span class="at-label">Budget overruns</span><span class="at-val" style="color:var(--rose);">3</span></div>
+          <div class="at-stat"><span class="at-label">Portfolio variance</span><span class="at-val" style="color:var(--green);">−2.1%</span></div>
+        </div>
+        <a href="#" class="at-cta">Zone benchmarking, leakage detection, S-curves &amp; cash runway <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+
+      <div class="panel note" data-note="was Budget Leakage Anomaly Detector — kept in the same slot, still leads with the critical item">
+        <div class="panel-head"><span class="panel-title">Requisitions Awaiting Your Approval <span class="n">· 7</span></span><a class="panel-link" href="#">View all →</a></div>
+        <div class="list-row">
+          <div><span class="lr-id">REQ-8851 · Filed 6 days ago</span><div class="lr-title">WO-2291 — Siliguri Storage Depot</div></div>
+          <div class="lr-amt" style="color:var(--rose);">₹4.2L</div>
+        </div>
+        <div class="list-row">
+          <div><span class="lr-id">REQ-8862 · Filed 2 days ago</span><div class="lr-title">WO-2312 — Kolkata North Access Road</div></div>
+          <div class="lr-amt" style="color:var(--amber);">₹1.8L</div>
+        </div>
+        <a href="#" class="qa-link" style="justify-content:center;"><span class="qa-t" style="color:var(--text-dim);">+ 5 more pending →</span></a>
+      </div>
+
+      <div class="panel note" data-note="ported from Profile.jsx's AdminControlRoom — project-level ranking, distinct from the zone-level view in /analytics/ho">
+        <div class="panel-head">
+          <span class="panel-title">Ongoing Work Zones <span class="n">· top 5</span></span>
+          <select class="sort-select"><option>Highest Value</option><option>Most Estimates</option><option>Highest Completion</option><option>Highest Spend</option><option>Most Active Reports</option></select>
+        </div>
+        <table>
+          <thead><tr><th>Work Order</th><th>Site</th><th style="text-align:right">Value</th></tr></thead>
+          <tbody>
+            <tr><td class="primary mono">WO-2291</td><td>Siliguri Storage Depot — Phase II</td><td style="text-align:right;color:var(--amber);font-weight:700;">₹14.0L</td></tr>
+            <tr><td class="primary mono">WO-2244</td><td>Durgapur Pipeline Extension</td><td style="text-align:right;color:var(--amber);font-weight:700;">₹8.1L</td></tr>
+            <tr><td class="primary mono">WO-2312</td><td>Kolkata North Access Road</td><td style="text-align:right;color:var(--amber);font-weight:700;">₹5.6L</td></tr>
+            <tr><td class="primary mono">WO-2107</td><td>Howrah Bridge Approach Works</td><td style="text-align:right;color:var(--amber);font-weight:700;">₹4.9L</td></tr>
+            <tr><td class="primary mono">WO-2298</td><td>Durgapur Effluent Treatment Unit</td><td style="text-align:right;color:var(--amber);font-weight:700;">₹4.3L</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel note" data-note="ported from Profile.jsx — the financial pulse HO wants on login, previously three clicks deep in their own profile">
+        <div class="panel-head"><span class="panel-title">Cash Distribution</span></div>
+        <div class="cash-row" style="border-color:rgba(224,153,74,0.2);background:var(--amber-dim);">
+          <div class="cash-dot" style="background:var(--amber);"></div>
+          <div class="cash-label"><div class="cash-t">In-Flight / Pending Approvals</div><div class="cash-s">Fund requests &amp; pending requisitions</div></div>
+          <div class="cash-amt" style="color:var(--amber);">₹22.6L</div>
+        </div>
+        <div class="cash-row" style="border-color:rgba(63,184,128,0.2);background:var(--green-dim);">
+          <div class="cash-dot" style="background:var(--green);"></div>
+          <div class="cash-label"><div class="cash-t">Capital Moved (30 Days)</div><div class="cash-s">Disbursed to ZO and field accounts</div></div>
+          <div class="cash-amt" style="color:var(--green);">₹91.4L</div>
+        </div>
+        <div class="cash-pipeline">
+          <div class="cash-pipeline-label">Capital Velocity Pipeline</div>
+          <div style="margin-bottom:10px;">
+            <div class="cash-pipeline-row"><span>Zonal Office Disbursals</span><span class="mono">₹58.2L</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:64%;background:var(--green);"></div></div>
+          </div>
+          <div>
+            <div class="cash-pipeline-row"><span>Site Requisitions Paid</span><span class="mono">₹33.2L</span></div>
+            <div class="bar-track"><div class="bar-fill" style="width:36%;background:var(--blue);"></div></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="col-stack">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Modules</span></div>
+        <a class="qa-link" href="#"><div><div class="qa-t">Review Cost Estimates</div><div class="qa-s">12 in review</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Approve Payment Requisitions</div><div class="qa-s">7 pending</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Audit Zonal Ledgers</div><div class="qa-s">6 zones</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Portfolio Analytics</div><div class="qa-s">Zone health, leakage, S-curves</div></div><span class="qa-arrow">→</span></a>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">User Count Breakdown</span></div>
+        <div class="usercount-grid">
+          <div class="uc-cell"><div class="uc-label">Junior Eng (JE)</div><div class="uc-val" style="color:var(--amber);">24</div></div>
+          <div class="uc-cell"><div class="uc-label">Zonal Offices (ZO)</div><div class="uc-val" style="color:var(--blue);">6</div></div>
+          <div class="uc-cell"><div class="uc-label">Head Office (HO)</div><div class="uc-val" style="color:var(--green);">4</div></div>
+          <div class="uc-cell"><div class="uc-label">Admin Staff</div><div class="uc-val" style="color:var(--rose);">3</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Recent Activity Logs</span></div>
+        <div class="activity-item"><div class="activity-dot"></div><div><div class="activity-msg">Requisition <b>REQ-8842</b> approved for WO-2244</div><div class="activity-time">10:31 IST</div></div></div>
+        <div class="activity-item"><div class="activity-dot" style="background:var(--blue);"></div><div><div class="activity-msg">Estimate <b>EST-1190</b> moved to ZO Review</div><div class="activity-time">09:58 IST</div></div></div>
+        <div class="activity-item"><div class="activity-dot" style="background:var(--rose);"></div><div><div class="activity-msg">Daily log missed for 2 days — Siliguri site 4</div><div class="activity-time">09:20 IST</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============================= ADMIN ============================= -->
+<div id="view-admin" style="display:none;">
+<div class="page">
+  <div class="page-header">
+    <span class="eyebrow">Authorized Operator Session</span>
+    <h1 class="page-title">Welcome back, Admin</h1>
+    <p class="page-sub">Same operational view as HO below, plus platform-level controls on the right.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card"><div class="kpi-label">System Uptime (30d)</div><div class="kpi-value" style="color:var(--green);">99.97%</div><div class="kpi-change">API + DB tier</div></div>
+    <div class="kpi-card"><div class="kpi-label">Active Sessions</div><div class="kpi-value" style="color:var(--blue);">31</div><div class="kpi-change">HO, ZO, JE devices now</div></div>
+    <div class="kpi-card"><div class="kpi-label">Audit Events (24h)</div><div class="kpi-value">218</div><div class="kpi-change">Nothing flagged</div></div>
+    <div class="kpi-card"><div class="kpi-label">Total Users</div><div class="kpi-value" style="color:var(--amber);">37</div><div class="kpi-change">Across all roles</div></div>
+  </div>
+
+  <div class="grid-main">
+    <div class="col-stack">
+      <div class="panel note" data-note="admin reuses the exact same Portfolio Analytics + Ongoing Work Zones + Cash Distribution components as HO — same query, no separate copy to drift out of sync">
+        <div class="panel-head"><span class="panel-title">Operational View</span></div>
+        <p style="font-size:12.5px;color:var(--text-dim);line-height:1.6;margin:0;">Admin sees the identical Portfolio Analytics, requisition queue, Ongoing Work Zones and Cash Distribution panels shown on the HO screen — same components, same data source. This surface adds only what's unique to Admin: platform controls, to the right.</p>
+      </div>
+    </div>
+    <div class="col-stack">
+      <div class="panel note" data-note="removed the Access Whitelist card — admin adds users directly, it isn't a request queue">
+        <div class="panel-head"><span class="panel-title">Platform Controls</span></div>
+        <a class="qa-link" href="#"><div><div class="qa-t">Manage Users &amp; Roles</div><div class="qa-s">37 active accounts</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">System Health</div><div class="qa-s">All green</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Audit Log</div><div class="qa-s">218 events today</div></div><span class="qa-arrow">→</span></a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============================= ZO ============================= -->
+<div id="view-zo" style="display:none;">
+<div class="page">
+  <div class="page-header">
+    <span class="eyebrow">Kolkata North Zonal Office</span>
+    <h1 class="page-title">Zonal Credit Limit Ledger</h1>
+    <p class="page-sub">Available credit, assigned projects and junior engineer productivity for your zone.</p>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px;">
+    <div class="kpi-row" style="margin-bottom:0;">
+      <div class="kpi-card" style="background:transparent;border:none;padding:0;">
+        <div class="kpi-label">Available Credit Balance</div>
+        <div class="kpi-value" style="color:var(--green);">₹18.6L</div>
+      </div>
+      <div class="kpi-card" style="background:transparent;border:none;padding:0;">
+        <div class="kpi-label">Total Assigned Limit</div>
+        <div class="kpi-value">₹20.0L</div>
+      </div>
+      <div class="kpi-card" style="background:transparent;border:none;padding:0;">
+        <div class="kpi-label">Mapped Active Projects</div>
+        <div class="kpi-value" style="color:var(--text-dim);">14 WO Sites</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div class="col-stack">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Junior Engineer Productivity <span class="n">· 9 JEs</span></span></div>
+        <table>
+          <thead><tr><th>JE Name</th><th style="text-align:center">Assigned Projects</th><th style="text-align:center">Daily Streak</th><th style="text-align:right">Status</th></tr></thead>
+          <tbody>
+            <tr><td class="primary">Arindam Das</td><td style="text-align:center;">4</td><td style="text-align:center;">🔥 12 days</td><td style="text-align:right;"><span class="badge ok">Excellent</span></td></tr>
+            <tr><td class="primary">Priya Sen</td><td style="text-align:center;">3</td><td style="text-align:center;">🔥 6 days</td><td style="text-align:right;"><span class="badge info">Active</span></td></tr>
+            <tr><td class="primary">Manoj Kar</td><td style="text-align:center;">2</td><td style="text-align:center;">0 days</td><td style="text-align:right;"><span class="badge warning">Warning</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Workload Distribution</span></div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;"><span style="font-weight:600;">Arindam Das</span><span style="color:var(--text-faint);">4 mapped work orders</span></div><div class="bar-track"><div class="bar-fill" style="width:80%;background:var(--amber);"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;"><span style="font-weight:600;">Priya Sen</span><span style="color:var(--text-faint);">3 mapped work orders</span></div><div class="bar-track"><div class="bar-fill" style="width:60%;background:var(--amber);"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px;"><span style="font-weight:600;">Manoj Kar</span><span style="color:var(--text-faint);">2 mapped work orders</span></div><div class="bar-track"><div class="bar-fill" style="width:40%;background:var(--amber);"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="col-stack">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Zonal Control</span></div>
+        <a class="qa-link" href="#"><div><div class="qa-t">Initiate Zonal Fund Request</div><div class="qa-s">Current balance ₹18.6L</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Inspect Zonal Ledger</div><div class="qa-s">Full transaction history</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Audit Site Progress Logs</div><div class="qa-s">2 gaps flagged</div></div><span class="qa-arrow">→</span></a>
+      </div>
+
+      <div class="panel note" data-note="ported from Profile.jsx — the ledger's own transaction feed, previously only visible on the ZO's profile page">
+        <div class="panel-head"><span class="panel-title">Recent Fund Ledger</span></div>
+        <div class="ledger-row"><div><div class="ledger-t">Allocation</div><div class="ledger-d">21 Jul 2026</div></div><div class="ledger-amt pos">+ ₹3,50,000</div></div>
+        <div class="ledger-row"><div><div class="ledger-t">Requisition Paid</div><div class="ledger-d">20 Jul 2026</div></div><div class="ledger-amt neg">− ₹1,84,200</div></div>
+        <div class="ledger-row"><div><div class="ledger-t">Requisition Paid</div><div class="ledger-d">19 Jul 2026</div></div><div class="ledger-amt neg">− ₹92,500</div></div>
+        <div class="ledger-row"><div><div class="ledger-t">Return</div><div class="ledger-d">18 Jul 2026</div></div><div class="ledger-amt pos">+ ₹40,000</div></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Zonal Site Timeline</span></div>
+        <div class="activity-item"><div class="activity-dot"></div><div><div class="activity-msg">Priya Sen logged progress — Site 6, 62%</div><div class="activity-time">09:40 IST</div></div></div>
+        <div class="activity-item"><div class="activity-dot" style="background:var(--rose);"></div><div><div class="activity-msg">No log from Manoj Kar for 3rd consecutive day</div><div class="activity-time">Today</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============================= JE ============================= -->
+<div id="view-je" style="display:none;">
+<div class="page">
+  <div class="page-header">
+    <span class="eyebrow">Junior Engineer · Field Session</span>
+    <h1 class="page-title">Continuous Site Logging Streak</h1>
+  </div>
+
+  <div class="panel" style="margin-bottom:22px;">
+    <div class="streak-strip">
+      <div class="streak-left">
+        <div class="streak-icon">🔥</div>
+        <div><div class="kpi-label">Continuous Site Logging Streak</div><div class="streak-title">12 Days Reporting Active</div></div>
+      </div>
+      <div class="streak-right">
+        <div><div class="streak-stat-label">Assigned Projects</div><div class="streak-stat-val">4 Sites Mapped</div></div>
+        <div><div class="streak-stat-label">Operator Role</div><div class="streak-stat-val" style="color:var(--amber);">Junior Engineer</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-main">
+    <div class="col-stack">
+      <div class="panel note" data-note="site 6 hasn't logged today — flagged inline rather than buried behind an average">
+        <div class="panel-head"><span class="panel-title">Assigned Mapped Work Orders</span></div>
+        <table>
+          <thead><tr><th>Work Order No</th><th>Site Location</th><th style="text-align:center">Estimate Status</th><th style="text-align:right">Site Status</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="primary mono">WO-2312</td><td>Kolkata North Access Road</td>
+              <td style="text-align:center;"><span class="badge info">Under ZO Review</span></td>
+              <td style="text-align:right;">
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;"><span style="font-weight:700;color:var(--text);">78%</span><div class="bar-track" style="width:60px;"><div class="bar-fill" style="width:78%;background:var(--green);"></div></div></div>
+                <div style="font-size:10.5px;color:var(--text-faint);text-align:right;">logged today</div>
+              </td>
+            </tr>
+            <tr>
+              <td class="primary mono">WO-2340</td><td>Site 6 — Storage Annex</td>
+              <td style="text-align:center;"><span class="badge warning">Draft</span></td>
+              <td style="text-align:right;">
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;"><span style="font-weight:700;color:var(--text);">62%</span><div class="bar-track" style="width:60px;"><div class="bar-fill" style="width:62%;background:var(--amber);"></div></div></div>
+                <div style="font-size:10.5px;color:var(--rose);text-align:right;">last logged 2 days ago</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel note" data-note="ported from Profile.jsx — stats + approval-status feed previously only visible on the JE's own profile page">
+        <div class="panel-head"><span class="panel-title">Your Reports</span></div>
+        <div class="stat-trio">
+          <div class="at-stat"><span class="at-label">Total Reports</span><span class="at-val">42</span></div>
+          <div class="at-stat"><span class="at-label">Approved Estimates</span><span class="at-val" style="color:var(--green);">9</span></div>
+          <div class="at-stat"><span class="at-label">Pending Review</span><span class="at-val" style="color:var(--amber);">2</span></div>
+        </div>
+        <table>
+          <thead><tr><th>Visit Date</th><th>Work Order</th><th style="text-align:center">Progress</th><th style="text-align:right">Status</th></tr></thead>
+          <tbody>
+            <tr><td>21 Jul 2026</td><td class="mono">WO-2312</td><td style="text-align:center;">78%</td><td style="text-align:right;"><span class="badge ok">Approved</span></td></tr>
+            <tr><td>17 Jul 2026</td><td class="mono">WO-2340</td><td style="text-align:center;">55%</td><td style="text-align:right;"><span class="badge critical">Rejected</span></td></tr>
+            <tr><td>16 Jul 2026</td><td class="mono">WO-2340</td><td style="text-align:center;">50%</td><td style="text-align:right;"><span class="badge info">Pending</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col-stack">
+      <div class="panel">
+        <div class="panel-head"><span class="panel-title">Quick Action Panel</span></div>
+        <a class="qa-link" href="#" style="background:var(--amber-dim);border-color:rgba(224,153,74,0.3);"><div><div class="qa-t">Log Site Progress</div><div class="qa-s">Upload daily logs &amp; photos</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Create Cost Estimate</div><div class="qa-s">Draft materials &amp; measurements</div></div><span class="qa-arrow">→</span></a>
+        <a class="qa-link" href="#"><div><div class="qa-t">Submit Requisition</div><div class="qa-s">Declare GST &amp; vendor bill</div></div><span class="qa-arrow">→</span></a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll('#roleSwitch button');
+  const views = { ho:'view-ho', admin:'view-admin', zo:'view-zo', je:'view-je' };
+  buttons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      buttons.forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      Object.values(views).forEach(id=>document.getElementById(id).style.display='none');
+      document.getElementById(views[btn.dataset.role]).style.display='block';
+      window.scrollTo({top:0, behavior:'smooth'});
+    });
+  });
+  document.getElementById('annotateToggle').addEventListener('change', (e)=>{
+    document.body.classList.toggle('annotate', e.target.checked);
+  });
+</script>
+
+</body>
+</html>

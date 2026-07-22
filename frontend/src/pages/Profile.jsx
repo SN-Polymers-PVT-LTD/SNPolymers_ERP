@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import authApi from '../api/authApi';
+import { useTheme } from '../components/ThemeContext';
 
 const Profile = () => {
+  const { theme, toggleTheme, darkBg, setDarkBg, lightBg, setLightBg, DARK_BACKGROUNDS, LIGHT_BACKGROUNDS } = useTheme();
   const [profile, setProfile] = useState(null);
   const [roleData, setRoleData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -398,6 +400,109 @@ const Profile = () => {
                   txPageSize={txPageSize}
                 />
               )}
+
+              {/* Theme & Background Personalization Settings (Bottom Section) */}
+              <div className="glass-panel p-6 rounded-3xl shadow-xl relative overflow-hidden mt-8">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-6">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Personalization</span>
+                    <h3 className="text-lg font-bold text-slate-100 mt-0.5">Appearance & Custom Backgrounds</h3>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">Customize your preferred UI theme and select unique background styles for light and dark modes.</p>
+                  </div>
+                  <button
+                    onClick={toggleTheme}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition shrink-0"
+                  >
+                    <span>{theme === 'light' ? '🌙 Switch to Dark Mode' : '☀️ Switch to Light Mode'}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Dark Theme Background Selector */}
+                  <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <span>🌙</span>
+                        <span>Dark Theme Background</span>
+                      </div>
+                      {theme === 'dark' && (
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active Now</span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2.5 pt-1">
+                      {DARK_BACKGROUNDS.map((bg) => (
+                        <button
+                          key={bg.id}
+                          onClick={() => setDarkBg(bg.id)}
+                          className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                            darkBg === bg.id
+                              ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 shadow-md ring-1 ring-amber-500/30'
+                              : 'bg-white/2 border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 overflow-hidden relative" style={{ background: bg.url ? `url(${bg.url}) center/cover` : bg.style }}>
+                              {!bg.url && bg.bgColor && <div className="w-full h-full" style={{ backgroundColor: bg.bgColor }} />}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold">{bg.name}</div>
+                              <div className="text-[10px] text-slate-500">{bg.url ? 'High-res image background' : 'CSS vector / gradient'}</div>
+                            </div>
+                          </div>
+                          {darkBg === bg.id && (
+                            <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Light Theme Background Selector */}
+                  <div className="p-4 rounded-2xl bg-white/2 border border-white/5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <span>☀️</span>
+                        <span>Light Theme Background</span>
+                      </div>
+                      {theme === 'light' && (
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active Now</span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2.5 pt-1">
+                      {LIGHT_BACKGROUNDS.map((bg) => (
+                        <button
+                          key={bg.id}
+                          onClick={() => setLightBg(bg.id)}
+                          className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
+                            lightBg === bg.id
+                              ? 'bg-amber-500/10 border-amber-500/50 text-amber-400 shadow-md ring-1 ring-amber-500/30'
+                              : 'bg-white/2 border-white/5 text-slate-300 hover:bg-white/5 hover:border-white/10'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg border border-white/10 shrink-0 overflow-hidden relative" style={{ background: bg.url ? `url(${bg.url}) center/cover` : bg.style }}>
+                              {!bg.url && bg.bgColor && <div className="w-full h-full" style={{ backgroundColor: bg.bgColor }} />}
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold">{bg.name}</div>
+                              <div className="text-[10px] text-slate-500">{bg.url ? 'High-res image background' : 'CSS vector / gradient'}</div>
+                            </div>
+                          </div>
+                          {lightBg === bg.id && (
+                            <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
     </>
