@@ -366,13 +366,14 @@ async function getProjectDigitalTwin(req, res) {
     ];
 
     // 3. Perform component fetches in parallel
-    const [overviewRes, materialsRes, approvalsRes, budgetRes, auditsRes, coordsRes] = await Promise.all([
+    const [overviewRes, materialsRes, approvalsRes, budgetRes, auditsRes, coordsRes, photosRes] = await Promise.all([
       supabase.from('project_health_mv').select('*').eq('work_order_no', work_order_no).maybeSingle(),
       supabase.from('material_variance_mv').select('*').eq('work_order_no', work_order_no),
       supabase.from('approval_sla_mv').select('*').eq('work_order_no', work_order_no).order('submitted_at', { ascending: false }),
       supabase.from('budget_leakage_mv').select('*').eq('work_order_no', work_order_no).maybeSingle(),
       supabase.from('audit_log').select('*').in('record_identifier', allowedIdentifiers).order('timestamp', { ascending: false }).limit(50),
-      supabase.from('projects_master').select('site_latitude, site_longitude, department').eq('work_order_no', work_order_no).maybeSingle()
+      supabase.from('projects_master').select('site_latitude, site_longitude, department').eq('work_order_no', work_order_no).maybeSingle(),
+      supabase.from('daily_progress_reports').select('report_id, site_visit_date, physical_work_progress, daily_site_photo_url, original_photo_filename, remarks_after_site_visit, created_by').eq('work_order_no', work_order_no).order('site_visit_date', { ascending: false }).limit(10)
     ]);
 
     if (overviewRes.error) throw overviewRes.error;
@@ -397,6 +398,7 @@ async function getProjectDigitalTwin(req, res) {
       materials: materialsRes.data || [],
       approvals: approvalsRes.data || [],
       budget: budgetRes.data || null,
+      photos: photosRes.data || [],
       audits: enrichedAudits
     });
   } catch (error) {

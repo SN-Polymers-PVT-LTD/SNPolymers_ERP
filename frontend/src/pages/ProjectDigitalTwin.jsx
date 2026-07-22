@@ -38,6 +38,7 @@ const ProjectDigitalTwin = () => {
   const approvedRequisitionAmt = budget.approved_requisitions_amount || 0;
   const overrunAmt = Math.max(0, approvedRequisitionAmt - (overview.work_order_value || 0));
   const overrunPct = Math.max(0, (budget.budget_variance_pct || 0) - 100);
+  const photos = twinData?.photos || [];
   const audits = twinData?.audits || [];
 
   // Tab definitions
@@ -175,15 +176,73 @@ const ProjectDigitalTwin = () => {
                         </div>
 
                         <div className="space-y-3">
-                          <span className="text-slate-500 font-bold uppercase tracking-widest block text-[10px]">Site Attachment Gallery</span>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="aspect-video bg-white/5 rounded-2xl border border-white/5 flex items-center justify-center text-[10px] text-slate-500 uppercase tracking-widest">
-                              Site Photo 1 Placeholder
-                            </div>
-                            <div className="aspect-video bg-white/5 rounded-2xl border border-white/5 flex items-center justify-center text-[10px] text-slate-500 uppercase tracking-widest">
-                              Site Photo 2 Placeholder
-                            </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-slate-500 font-bold uppercase tracking-widest block text-[10px]">
+                              Site Attachment Gallery {photos.length > 0 && `(${photos.length} Latest)`}
+                            </span>
                           </div>
+                          
+                          {photos.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {photos.map((item, idx) => (
+                                <div key={item.report_id || idx} className="group relative aspect-video bg-slate-950 rounded-2xl border border-white/10 overflow-hidden flex flex-col justify-between p-3 transition-all hover:border-amber-500/50 shadow-lg">
+                                  {item.daily_site_photo_url ? (
+                                    <img
+                                      src={item.daily_site_photo_url}
+                                      alt={item.original_photo_filename || `Site Visit - ${item.site_visit_date}`}
+                                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                      onError={(e) => {
+                                        e.target.style.display = 'none';
+                                      }}
+                                    />
+                                  ) : null}
+                                  
+                                  {/* Dark Gradient Overlay */}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent opacity-80 group-hover:opacity-60 transition-opacity" />
+
+                                  {/* Top Badges */}
+                                  <div className="relative z-10 flex items-center justify-between">
+                                    <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-black/60 text-amber-400 border border-amber-500/30 backdrop-blur-md">
+                                      {item.physical_work_progress}% Physical Progress
+                                    </span>
+                                    <span className="text-[9px] font-mono text-slate-300 bg-black/60 px-2 py-0.5 rounded border border-white/10 backdrop-blur-md">
+                                      {item.site_visit_date}
+                                    </span>
+                                  </div>
+
+                                  {/* Bottom Details */}
+                                  <div className="relative z-10 space-y-0.5">
+                                    <p className="text-[10px] font-bold text-slate-100 truncate">
+                                      {item.original_photo_filename || `Daily Progress Photo #${idx + 1}`}
+                                    </p>
+                                    {item.remarks_after_site_visit && (
+                                      <p className="text-[9px] text-slate-400 truncate italic">
+                                        "{item.remarks_after_site_visit}"
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  {item.daily_site_photo_url && (
+                                    <a
+                                      href={item.daily_site_photo_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="absolute inset-0 z-20"
+                                      title="Click to view high-resolution photo"
+                                    />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="aspect-video bg-white/[0.02] rounded-2xl border border-white/5 flex flex-col items-center justify-center p-6 text-center">
+                              <span className="text-2xl mb-2">📷</span>
+                              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">No Site Photos Uploaded Yet</p>
+                              <p className="text-[9.5px] text-slate-500 mt-1 max-w-xs">
+                                Site visit photos attached by Junior Engineers in Daily Progress Reports will automatically appear here.
+                              </p>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
