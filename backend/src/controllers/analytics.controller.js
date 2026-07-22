@@ -720,8 +720,22 @@ async function getHoChartData(req, res) {
       return { zo_user_id, history };
     });
 
-    // === Build departmentWiseEstimate ===
-    const projectsList = allProjects;
+    // === Build departmentWiseEstimate & projectsList with agency_payment ===
+    const billsByWo = {};
+    filteredBills.forEach(b => {
+      if (!billsByWo[b.work_order_no]) {
+        billsByWo[b.work_order_no] = { agency_payment: 0, gross_bill: 0 };
+      }
+      billsByWo[b.work_order_no].agency_payment += Number(b.agency_payment || 0);
+      billsByWo[b.work_order_no].gross_bill += Number(b.gross_bill || 0);
+    });
+
+    const projectsList = allProjects.map(p => ({
+      ...p,
+      agency_payment: billsByWo[p.work_order_no]?.agency_payment || 0,
+      gross_billed: billsByWo[p.work_order_no]?.gross_bill || 0,
+    }));
+
     const estimateByWO = {};
     filteredEstimates.forEach(e => {
       if (e.estimate_status === 'Final Approved') {
@@ -793,7 +807,7 @@ async function getHoChartData(req, res) {
     });
 
     const totalHealthCount = healthProjects.length || 1;
-    const avgProgressVal = healthProjects.length > 0 ? Math.round(totalProgSum / totalHealthCount) : 81;
+    const avgProgressVal = healthProjects.length > 0 ? Math.round(totalProgSum / healthProjects.length) : 0;
 
     let physicalProgressMetrics = {
       avgProgress: `${avgProgressVal}%`,

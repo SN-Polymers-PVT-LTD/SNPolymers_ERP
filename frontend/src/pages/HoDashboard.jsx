@@ -62,55 +62,33 @@ const useChartColors = () => {
   };
 };
 
-// ── Dynamic Fullscreen Chart Zoom Modal (React Class Component) ──────────────
-class ChartModal extends React.Component {
-  static contextType = ModalContext;
+// ── Dynamic Fullscreen Chart Zoom Modal Component ─────────────────────────────
+const ChartModal = ({ title, description, formula, isDark, width = '96vw', height = '92vh', maxWidth = '1600px', maxHeight = '1000px', onClose, children }) => {
+  const { isDark: themeDark } = useTheme();
+  const dark = isDark !== undefined ? isDark : themeDark;
 
-  componentDidMount() {
-    document.addEventListener('keydown', this.handleKeyDown);
-    if (this.context && this.context.openModal) {
-      this.context.openModal();
-    }
-  }
+  // Close on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
-  componentWillUnmount() {
-    document.removeEventListener('keydown', this.handleKeyDown);
-    if (this.context && this.context.closeModal) {
-      this.context.closeModal();
-    }
-  }
-
-  handleKeyDown = (e) => {
-    if (e.key === 'Escape' && this.props.onClose) {
-      this.props.onClose();
-    }
-  };
-
-  render() {
-    const {
-      onClose,
-      children,
-      isDark = true,
-      title,
-      width = '80vw',
-      height = '80vh',
-      maxWidth = '80vw',
-      maxHeight = '80vh'
-    } = this.props;
-
-    return (
+  if (typeof document !== 'undefined') {
+    return ReactDOM.createPortal(
       <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-8 pl-16 sm:pl-20 transition-all duration-300"
+        className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
         style={{
-          background: isDark ? 'rgba(5, 8, 16, 0.92)' : 'rgba(0, 0, 0, 0.7)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)'
+          background: dark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(16px)'
         }}
         onClick={onClose}
       >
         {/* Dynamically Sized Modal Card Box - Contained within Screen */}
         <div
-          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${isDark
+          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${dark
               ? 'bg-[#0b0e14] border-white/10 text-slate-100 shadow-black/90'
               : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
             }`}
@@ -124,17 +102,20 @@ class ChartModal extends React.Component {
         >
           {/* Modal Header */}
           <div
-            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${isDark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
+            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${dark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
               }`}
           >
             <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" />
               <h3
-                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${isDark ? 'text-amber-400' : 'text-amber-600'
+                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${dark ? 'text-amber-400' : 'text-amber-600'
                   }`}
               >
                 {title || 'Chart Telemetry Inspection'}
               </h3>
+              {description && formula && (
+                <ChartInfoTooltip description={description} formula={formula} />
+              )}
             </div>
 
             {/* Red Close Button */}
@@ -155,10 +136,12 @@ class ChartModal extends React.Component {
             {children}
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
-}
+  return null;
+};
 
 // ── Zoomable wrapper for any chart panel ─────────────────────────────────────
 const ZoomCard = ({ children, onZoom, className = '' }) => (
@@ -416,9 +399,15 @@ const FundFlowWaterfall = ({ data }) => {
 
   return (
     <div className="chart-panel h-full">
-      <div>
-        <h3 className="chart-title">Fund Flow Pipeline</h3>
-        <p className="chart-subtitle">Capital flow drop-off from cost estimate to agency payment</p>
+      <div className="flex justify-between items-start mb-2">
+        <div>
+          <h3 className="chart-title">Fund Flow Pipeline</h3>
+          <p className="chart-subtitle">Capital flow drop-off from cost estimate to agency payment</p>
+        </div>
+        <ChartInfoTooltip
+          description="Capital realization pipeline tracking fund flow drop-off from cost estimate to agency payment."
+          formula="Stage Drop-off = Current Stage Amount - Subsequent Stage Amount"
+        />
       </div>
 
       <div className="relative mt-6">
@@ -827,7 +816,7 @@ const SCurveProgress = ({ data }) => {
 };
 
 /* ─── Investment vs Recovery Realization Plot ─────────────────────── */
-const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
+const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = false }) => {
   const { isDark } = useTheme();
   const navigate = useNavigate();
   const [viewMode, setViewMode] = useState('summary');
@@ -840,14 +829,22 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
     const totalProjects = pList.length || 1;
     const woValue = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
     const investment = pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0), 0);
-    const billReceived = pList.reduce((a, p) => a + Number(p.agency_paid || p.gross_billed || 0), 0);
+    const grossBilled = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
+    let billReceived = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
+    if (!billReceived && agencyPaymentAmount) {
+      billReceived = Number(agencyPaymentAmount);
+    }
 
     const pendingRecovery = Math.max(0, investment - billReceived);
+    const surplusRecovery = Math.max(0, billReceived - investment);
     const remainingWOValue = Math.max(0, woValue - investment);
+    const deductions = Math.max(0, grossBilled - billReceived);
 
     const investmentPct = woValue > 0 ? ((investment / woValue) * 100).toFixed(1) : '0.0';
-    const billRecoveryPct = woValue > 0 ? ((billReceived / woValue) * 100).toFixed(1) : '0.0';
+    const disbursementPct = woValue > 0 ? ((billReceived / woValue) * 100).toFixed(1) : '0.0';
     const recoveryAgainstInvestPct = investment > 0 ? ((billReceived / investment) * 100).toFixed(1) : '0.0';
+    const recoveryBarPct = Math.min(100, Number(recoveryAgainstInvestPct));
+    const deductionRate = grossBilled > 0 ? ((deductions / grossBilled) * 100).toFixed(1) : '0.0';
 
     const getProgressBand = (prog, status) => {
       const p = Number(prog || 0);
@@ -880,8 +877,9 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
     const woItems = pList.map(p => {
       const wVal = Number(p.work_order_value || 0);
       const inv = Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0);
-      const rec = Number(p.agency_paid || p.gross_billed || 0);
+      const rec = Number(p.agency_payment ?? p.agency_paid ?? 0);
       const pend = Math.max(0, inv - rec);
+      const surplus = Math.max(0, rec - inv);
       const rem = Math.max(0, wVal - inv);
       const band = getProgressBand(p.physical_progress, p.health_status);
       return {
@@ -892,6 +890,7 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
         investment: inv,
         billReceived: rec,
         pendingRecovery: pend,
+        surplusRecovery: surplus,
         remainingWOValue: rem,
         band,
         physical_progress: p.physical_progress || 0,
@@ -902,16 +901,21 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
       totalProjects,
       woValue,
       investment,
+      grossBilled,
       billReceived,
+      deductions,
+      deductionRate,
       pendingRecovery,
+      surplusRecovery,
       remainingWOValue,
       investmentPct,
-      billRecoveryPct,
+      disbursementPct,
       recoveryAgainstInvestPct,
+      recoveryBarPct,
       bands,
       woItems,
     };
-  }, [projects]);
+  }, [projects, agencyPaymentAmount]);
 
   const filteredWos = React.useMemo(() => {
     const q = searchWo.toLowerCase().trim();
@@ -932,36 +936,37 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="min-w-0 flex-1">
+          <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+            Investment &amp; Bill Recovery Realization
+          </h3>
+          <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+            {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode('summary')}
+              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'summary' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
+            >
+              Summary
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('work_order')}
+              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'work_order' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
+            >
+              WO Wise ({metrics.woItems.length})
+            </button>
+          </div>
+
           <ChartInfoTooltip
             description="Capital investment vs bill recovery realization across work order progress bands."
             formula="Pending Recovery = Requisition Investment - Contractor Bill Payments Received"
           />
-          <div className="min-w-0">
-            <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-              Investment &amp; Bill Recovery Realization
-            </h3>
-            <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl shrink-0 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setViewMode('summary')}
-            className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'summary' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-          >
-            Summary
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('work_order')}
-            className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'work_order' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-          >
-            WO Wise ({metrics.woItems.length})
-          </button>
         </div>
       </div>
 
@@ -969,10 +974,16 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
         <>
           {/* Top Formula KPI Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2">
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
               <div className="flex items-center justify-between gap-1 min-w-0">
                 <p className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 truncate">Total Investment %</p>
-                <span className="shrink-0 text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">Inv / WO</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">Inv / WO</span>
+                  <ChartInfoTooltip
+                    description="Percentage of total portfolio Work Order value that has been requested and approved for project execution."
+                    formula="Total Investment % = (Approved Requisitions / Total WO Value) × 100"
+                  />
+                </div>
               </div>
               <p className="text-base sm:text-lg font-black font-mono text-amber-400 mt-1">{metrics.investmentPct}%</p>
               <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
@@ -981,37 +992,130 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
               </p>
             </div>
 
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
               <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-400 truncate">Bill Recovery %</p>
-                <span className="shrink-0 text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 whitespace-nowrap">Rec / WO</span>
+                <p className="text-[9px] font-extrabold uppercase tracking-wider text-teal-400 truncate">Payment Disbursement %</p>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 whitespace-nowrap">Paid / WO</span>
+                  <ChartInfoTooltip
+                    description="Percentage of total portfolio Work Order value that has actually been disbursed to agencies as net payment. Represents actual fund outflow rate against contracted value."
+                    formula="Payment Disbursement % = (Net Agency Payments / Total WO Value) × 100"
+                  />
+                </div>
               </div>
-              <p className="text-base sm:text-lg font-black font-mono text-emerald-400 mt-1">{metrics.billRecoveryPct}%</p>
+              <p className="text-base sm:text-lg font-black font-mono text-teal-400 mt-1">{metrics.disbursementPct}%</p>
               <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Rec: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
+                <span className="truncate">Paid: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
                 <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
               </p>
             </div>
 
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${
+              metrics.surplusRecovery > 0
+                ? (isDark ? 'bg-amber-950/40 border-amber-500/30' : 'bg-amber-50 border-amber-300')
+                : (isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200')
+            }`}>
               <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-sky-400 truncate">Recovery vs Invest</p>
-                <span className="shrink-0 text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20 whitespace-nowrap">Rec / Inv</span>
+                <p className={`text-[9px] font-extrabold uppercase tracking-wider truncate ${metrics.surplusRecovery > 0 ? 'text-amber-400' : 'text-sky-400'}`}>Disbursement vs Investment</p>
+                <div className="flex items-center gap-1 shrink-0">
+                  <span className={`text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
+                    metrics.surplusRecovery > 0
+                      ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                      : 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
+                  }`}>Paid / Inv</span>
+                  <ChartInfoTooltip
+                    description={metrics.surplusRecovery > 0
+                      ? '⚠ Over-disbursement: Agency payments exceed approved requisition investment. This may indicate payments released outside the requisition approval chain — flag for compliance audit.'
+                      : 'Ratio of net agency payments against approved requisition investment. Shows what fraction of the investment pool has been disbursed to agencies.'}
+                    formula="Disbursement vs Investment % = (Net Agency Payments / Approved Requisitions) × 100"
+                  />
+                </div>
               </div>
-              <p className="text-base sm:text-lg font-black font-mono text-sky-400 mt-1">{metrics.recoveryAgainstInvestPct}%</p>
+              <div className="flex items-center gap-2 mt-1">
+                <p className={`text-base sm:text-lg font-black font-mono ${metrics.surplusRecovery > 0 ? 'text-amber-400' : 'text-sky-400'}`}>{metrics.recoveryAgainstInvestPct}%</p>
+                {metrics.surplusRecovery > 0 && (
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 whitespace-nowrap">⚠ Over-Disbursed</span>
+                )}
+              </div>
               <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Pending: <strong className="text-rose-400">{fmtCr(metrics.pendingRecovery)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.investment)}</span>
+                <span className="truncate">Paid: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong>
+                  {metrics.surplusRecovery > 0
+                    ? <span className="text-amber-400 font-bold"> (+{fmtCr(metrics.surplusRecovery)} over)</span>
+                    : <span className="text-rose-400 font-bold"> (Pend: {fmtCr(metrics.pendingRecovery)})</span>
+                  }
+                </span>
+                <span className="text-slate-500 truncate">of Inv: {fmtCr(metrics.investment)}</span>
               </p>
             </div>
           </div>
+
+          {/* Gross Bill → Deductions → Net Paid Pipeline */}
+          {metrics.grossBilled > 0 && (
+            <div className="my-2 p-2.5 rounded-xl border border-white/5 bg-slate-950/40">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-[8.5px] font-black uppercase tracking-wider text-slate-400 font-mono">Gross Bill → Deductions → Net Paid Pipeline</p>
+                <ChartInfoTooltip
+                  description="Shows how gross billed amount reduces to net agency payment after statutory deductions (TDS, Security Deposit, GST, EMD etc.)."
+                  formula="Deductions = Gross Bill Amount − Net Agency Payment"
+                />
+              </div>
+              <div className="flex items-center gap-2 text-[8px] font-mono flex-wrap">
+                {/* Gross Billed */}
+                <div className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg bg-sky-500/10 border border-sky-500/20 min-w-[80px]">
+                  <span className="text-sky-300 font-bold uppercase tracking-wider text-[7px]">Gross Billed</span>
+                  <span className="text-sky-200 font-black text-[11px]">{fmtCr(metrics.grossBilled)}</span>
+                </div>
+                {/* Arrow */}
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-rose-400 font-black text-[10px]">−</span>
+                  <span className="text-rose-300 font-bold text-[7px] uppercase tracking-wider">{metrics.deductionRate}%</span>
+                </div>
+                {/* Deductions */}
+                <div className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 min-w-[80px]">
+                  <span className="text-rose-300 font-bold uppercase tracking-wider text-[7px]">Deductions</span>
+                  <span className="text-rose-200 font-black text-[11px]">{fmtCr(metrics.deductions)}</span>
+                </div>
+                {/* Arrow */}
+                <div className="flex flex-col items-center gap-0.5">
+                  <span className="text-emerald-400 font-black text-[10px]">→</span>
+                </div>
+                {/* Net Paid */}
+                <div className="flex flex-col items-center gap-0.5 p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 min-w-[80px]">
+                  <span className="text-emerald-300 font-bold uppercase tracking-wider text-[7px]">Net Agency Paid</span>
+                  <span className="text-emerald-200 font-black text-[11px]">{fmtCr(metrics.billReceived)}</span>
+                </div>
+                {/* Deduction bar */}
+                <div className="flex-1 min-w-[80px]">
+                  <div className="h-2 w-full rounded-full overflow-hidden flex bg-slate-800">
+                    <div
+                      style={{ width: `${metrics.grossBilled > 0 ? ((metrics.billReceived / metrics.grossBilled) * 100).toFixed(1) : 0}%` }}
+                      className="bg-emerald-500 h-full"
+                      title={`Net Paid: ${fmtCr(metrics.billReceived)}`}
+                    />
+                    <div
+                      style={{ width: `${metrics.deductionRate}%` }}
+                      className="bg-rose-500/70 h-full"
+                      title={`Deductions: ${fmtCr(metrics.deductions)} (${metrics.deductionRate}%)`}
+                    />
+                  </div>
+                  <p className="text-[7.5px] text-slate-500 mt-0.5 font-mono">Net retained: {metrics.grossBilled > 0 ? (100 - Number(metrics.deductionRate)).toFixed(1) : 0}% of Gross</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Dual Realization Progress Bars */}
           <div className="my-2 space-y-2 p-2.5 rounded-xl border border-white/5 bg-slate-950/40">
             {/* Bar 1: Investment vs Remaining WO Value */}
             <div>
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase text-slate-400 mb-1 font-mono">
-                <span className="truncate">1. Capital Investment Realization</span>
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="truncate">1. Capital Investment Realization</span>
+                  <ChartInfoTooltip
+                    description="Visual breakdown of total investment disbursed against overall portfolio work order capacity."
+                    formula="Remaining WO Value = Total WO Value - Approved Requisition Investment"
+                  />
+                </div>
                 <span className="shrink-0 text-slate-300">WO Value: {fmtCr(metrics.woValue)}</span>
               </div>
               <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-800">
@@ -1035,24 +1139,35 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
             {/* Bar 2: Recovery Realization against Total Investment */}
             <div className="border-t border-white/5 pt-1.5">
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase text-slate-400 mb-1 font-mono">
-                <span className="truncate">2. Recovery Realization (Investment Pool)</span>
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="truncate">2. Recovery Realization (Investment Pool)</span>
+                  <ChartInfoTooltip
+                    description="Visual realization of actual contractor bill payments recovered against the disbursed investment pool."
+                    formula="Pending Recovery = Approved Requisitions - Agency Billed Payments"
+                  />
+                </div>
                 <span className="shrink-0 text-slate-300">Pool: {fmtCr(metrics.investment)}</span>
               </div>
               <div className="h-3 w-full rounded-full overflow-hidden flex bg-slate-800">
                 <div
-                  style={{ width: `${Math.max(1, Math.min(100, Number(metrics.recoveryAgainstInvestPct)))}%` }}
+                  style={{ width: `${Math.max(1, metrics.recoveryBarPct)}%` }}
                   className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Govt Received: ${fmtCr(metrics.billReceived)} (${metrics.recoveryAgainstInvestPct}%)`}
+                  title={`Agency Paid: ${fmtCr(metrics.billReceived)} (${metrics.recoveryAgainstInvestPct}% of Investment)`}
                 />
-                <div
-                  style={{ width: `${Math.max(0, 100 - Number(metrics.recoveryAgainstInvestPct))}%` }}
-                  className="bg-rose-500/80 h-full transition-all duration-500"
-                  title={`Pending Bill Recovery: ${fmtCr(metrics.pendingRecovery)}`}
-                />
+                {metrics.pendingRecovery > 0 && (
+                  <div
+                    style={{ width: `${Math.max(0, 100 - metrics.recoveryBarPct)}%` }}
+                    className="bg-rose-500/80 h-full transition-all duration-500"
+                    title={`Pending Bill Recovery: ${fmtCr(metrics.pendingRecovery)}`}
+                  />
+                )}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1 text-[8px] font-mono text-slate-400">
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Received: {fmtCr(metrics.billReceived)} ({metrics.recoveryAgainstInvestPct}%)</span>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-rose-500/80 shrink-0" /> Pending: {fmtCr(metrics.pendingRecovery)}</span>
+                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Agency Paid: {fmtCr(metrics.billReceived)} ({metrics.recoveryAgainstInvestPct}%)</span>
+                {metrics.surplusRecovery > 0
+                  ? <span className="flex items-center gap-1 truncate text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" /> Surplus: +{fmtCr(metrics.surplusRecovery)}</span>
+                  : <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-rose-500/80 shrink-0" /> Pending: {fmtCr(metrics.pendingRecovery)}</span>
+                }
               </div>
             </div>
           </div>
@@ -1635,7 +1750,7 @@ const MetricDonutCard = ({
               {centerLabel}
             </span>
             <span className={`${isModal ? 'text-3xl sm:text-4xl' : 'text-xl sm:text-2xl'} font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-0.5`}>
-              {centerValue}
+              {typeof centerValue === 'string' ? centerValue.replace(/%%+/g, '%') : centerValue}
             </span>
           </div>
         </div>
@@ -1735,11 +1850,17 @@ const MetricDonutCard = ({
 
 // ── Physical Work Progress Card Component ─────────────────────────────────────
 const PhysicalWorkProgress = ({ data, isModal = false }) => {
+  const rawAvg = data?.avgProgress !== undefined && data?.avgProgress !== null ? String(data.avgProgress).replace(/%+$/g, '') : '0';
+  const centerVal = `${rawAvg}%`;
+
   return (
     <MetricDonutCard
       title="Physical Work Progress"
+      subtitle="Distribution of work orders by completion band"
+      description="Work order distribution categorized by physical work completion bands."
+      formula="Physical Progress % = (Latest DPR Work Completed / Total WO Scope) × 100"
       centerLabel="Avg. Progress"
-      centerValue={data?.avgProgress !== undefined ? `${data.avgProgress}%` : '0%'}
+      centerValue={centerVal}
       buckets={data?.buckets || []}
       isModal={isModal}
     />
@@ -1751,6 +1872,9 @@ const JeVisitFrequency = ({ data }) => {
   return (
     <MetricDonutCard
       title="JE Visit Frequency"
+      subtitle="Distribution of sites by DPR reporting lag"
+      description="Categorization of project sites based on recent Junior Engineer DPR site inspection frequency."
+      formula="Inspection Gap = Current Date - Date of Last Approved DPR"
       centerLabel="Avg. Visit"
       centerValue={data?.avgVisit !== undefined ? `${data.avgVisit} Days` : '0 Days'}
       buckets={data?.buckets || []}
@@ -2463,6 +2587,16 @@ const HoDashboard = () => {
         </div>
 
         <div className="flex flex-col items-end gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono font-bold text-slate-300 dark:text-slate-300 bg-white/5 px-2.5 py-1 rounded-xl border border-white/10 flex items-center gap-1.5 shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Data Source: Live ERP Database Sync
+            </span>
+            <ChartInfoTooltip
+              description="Analytics metrics are derived in real-time from live system entries across Work Orders, Approved Estimates, ZO Fund Requisitions, Bank Disbursals, DPR Logs, and Contractor Bills."
+              formula="Source = Live SQL aggregation across work_orders, estimate_sheets, requisitions & agency_bills tables"
+            />
+          </div>
           <button
             onClick={handleRefresh}
             disabled={refreshMutation.isPending}
@@ -2634,9 +2768,18 @@ const HoDashboard = () => {
       )}
 
       {/* Executive 9-KPI Strip */}
-      <div className="flex items-center gap-3 mb-3">
-        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
-        <div className="flex-1 h-px bg-white/[0.045]" />
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
+          <div className="hidden md:block h-px w-24 bg-white/[0.045]" />
+        </div>
+        <div className="flex items-center gap-1.5 text-[10px] font-mono text-slate-400">
+          <span className="hidden sm:inline">Data Source: Live ERP Ledger (Work Orders, Estimates, Requisitions & Bills)</span>
+          <ChartInfoTooltip
+            description="All Executive KPI metrics are calculated in real-time by aggregating live database records across Work Orders, Final Approved Estimates, ZO Fund Requisitions, Disbursals, DPR Progress Submissions, and Agency Bills."
+            formula="Source = Live SQL aggregation across work_orders, estimate_sheets, requisitions & agency_bills"
+          />
+        </div>
       </div>
       <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} />
 
@@ -2719,7 +2862,10 @@ const HoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('revision')}>
           <div style={{ minHeight: '420px' }} className="h-full">
-            <InvestmentRecoveryPlot projects={projectsList} />
+            <InvestmentRecoveryPlot
+              projects={projectsList}
+              agencyPaymentAmount={chartRes?.executiveSummaryKpis?.agencyPayment?.amount}
+            />
           </div>
         </ZoomCard>
       </div>
@@ -2927,8 +3073,20 @@ const HoDashboard = () => {
         </ChartModal>
       )}
       {zoomedChart === 'revision' && (
-        <ChartModal title="Investment & Bill Recovery Realization" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-          <InvestmentRecoveryPlot projects={projectsList} isModal={true} />
+        <ChartModal
+          title="Investment & Bill Recovery Realization"
+          description="Capital investment vs bill recovery realization across work order progress bands."
+          formula="Pending Recovery = Requisition Investment - Contractor Bill Payments Received"
+          isDark={isDark}
+          width="96vw"
+          height="92vh"
+          onClose={() => setZoomedChart(null)}
+        >
+          <InvestmentRecoveryPlot
+            projects={projectsList}
+            agencyPaymentAmount={chartRes?.executiveSummaryKpis?.agencyPayment?.amount}
+            isModal={true}
+          />
         </ChartModal>
       )}
 
