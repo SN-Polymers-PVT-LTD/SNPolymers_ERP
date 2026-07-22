@@ -2031,10 +2031,11 @@ const ExecutiveKpiStrip = ({ data }) => {
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
-          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark
+          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
+            isDark
               ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20'
               : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-            }`}
+          }`}
           style={{ minHeight: '135px' }}
         >
           {/* Colored Top Glow Accent Line */}
@@ -2043,30 +2044,34 @@ const ExecutiveKpiStrip = ({ data }) => {
             style={{ background: kpi.topGlow }}
           />
 
-          {/* Title with Top-Right Corner Info Icon */}
-          <div className="flex items-start justify-between gap-1.5 mb-1">
-            <p
-              className="text-[9.5px] font-black tracking-wider uppercase leading-snug flex-1 min-w-0"
-              style={{ color: kpi.titleColor }}
-              title={kpi.title}
-            >
-              {kpi.title}
-            </p>
+          {/* Top Right Corner Info Button */}
+          <div className="absolute top-2.5 right-2.5 z-10">
             <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
           </div>
 
+          {/* Title */}
+          <p
+            className="text-[9.5px] font-black tracking-wider uppercase leading-snug pr-6"
+            style={{ color: kpi.titleColor }}
+            title={kpi.title}
+          >
+            {kpi.title}
+          </p>
+
           {/* Main Value */}
           <div className="my-auto py-1">
-            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'
-              }`}>
+            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${
+              isDark ? 'text-slate-100' : 'text-slate-900'
+            }`}>
               {kpi.value}
             </span>
           </div>
 
           {/* Subtext */}
           {kpi.subtext ? (
-            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'
-              }`} title={kpi.subtext}>
+            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${
+              isDark ? 'text-slate-400/80' : 'text-slate-600'
+            }`} title={kpi.subtext}>
               {kpi.subtext}
             </p>
           ) : (
