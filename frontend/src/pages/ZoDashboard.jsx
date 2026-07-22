@@ -58,6 +58,85 @@ const SectionLabel = ({ children }) => (
   </div>
 );
 
+/* ─── Chart Info Tooltip Component (Portal Architecture for Zero Clipping) ──── */
+const ChartInfoTooltip = ({ description, formula }) => {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const btnRef = useRef(null);
+  const { isDark } = useTheme();
+
+  const updatePosition = () => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const popW = 280;
+    const popH = 140;
+
+    let left = rect.right - popW;
+    if (left < 16) left = 16;
+    if (left + popW > window.innerWidth - 16) {
+      left = Math.max(16, window.innerWidth - popW - 16);
+    }
+
+    let top = rect.bottom + 8;
+    if (top + popH > window.innerHeight - 16) {
+      top = Math.max(16, rect.top - popH - 8);
+    }
+
+    setPos({ x: left, y: top });
+  };
+
+  const handleOpen = () => {
+    updatePosition();
+    setShow(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onMouseEnter={handleOpen}
+        onMouseLeave={() => setShow(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          updatePosition();
+          setShow(!show);
+        }}
+        className="w-5 h-5 rounded-full bg-amber-500/15 hover:bg-amber-500/35 border border-amber-500/50 flex items-center justify-center text-[11px] font-black text-amber-400 hover:text-amber-300 transition-all cursor-pointer shadow-md shadow-amber-500/10 hover:scale-110 shrink-0"
+        title="Click or hover for chart details & formula"
+      >
+        i
+      </button>
+
+      {show && ReactDOM.createPortal(
+        <div
+          className="fixed z-[999999] p-3.5 rounded-2xl shadow-2xl min-w-[260px] max-w-[300px] text-xs backdrop-blur-xl pointer-events-none transition-all duration-150 border"
+          style={{
+            top: pos.y,
+            left: pos.x,
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: isDark ? 'rgba(245, 158, 11, 0.5)' : 'rgba(245, 158, 11, 0.4)',
+            boxShadow: '0 20px 40px -5px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(245,158,11,0.2)'
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-2 border-b border-white/10 pb-1.5 text-amber-400 font-extrabold uppercase text-[10px] tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Metric Info &amp; Formula
+          </div>
+          <p className="text-[11px] text-slate-200 dark:text-slate-200 leading-snug font-medium mb-2.5">
+            {description}
+          </p>
+          <div className="bg-slate-950/90 p-2.5 rounded-xl border border-white/10 font-mono text-[10px] text-emerald-400 font-semibold leading-relaxed">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5 font-sans">Formula:</span>
+            {formula}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
 /* ─── Paginated ZO Name Selector Component ──────────────────────── */
 const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
   const { isDark } = useTheme();
@@ -444,9 +523,15 @@ const PhysicalWorkProgress = ({ projects, isModal = false }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-5 relative" onMouseMove={handleMouseMove}>
       <div className="flex justify-between items-center mb-2">
-        <div>
-          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Physical Work Progress</h3>
-          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution of work orders by completion band</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Work order distribution categorized by physical work completion bands."
+            formula="Physical Progress % = (Latest DPR Work Completed / Total WO Scope) × 100"
+          />
+          <div>
+            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Physical Work Progress</h3>
+            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution of work orders by completion band</p>
+          </div>
         </div>
       </div>
       <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2 flex-1">
@@ -578,9 +663,15 @@ const DepartmentWiseEstimate = ({ projects }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative" onMouseMove={handleMouseMove}>
       <div className="flex justify-between items-center mb-3">
-        <div>
-          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Estimate Amount</h3>
-          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of estimated costs across operational departments</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Distribution of estimated project expenditure allocated across operational departments."
+            formula="Dept Share % = (Sum of Approved Estimates in Dept / Total Zonal Estimate) × 100"
+          />
+          <div>
+            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Estimate Amount</h3>
+            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of estimated costs across operational departments</p>
+          </div>
         </div>
       </div>
       <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
@@ -663,9 +754,15 @@ const KeyFinancialIndicators = ({ projects }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-5">
       <div className="flex justify-between items-center mb-3">
-        <div>
-          <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>Key Financial Indicators</h3>
-          <p className="chart-subtitle">Summary of statutory withholdings</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Summary of statutory withholdings and security deposits retained across zonal projects."
+            formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
+          />
+          <div>
+            <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>Key Financial Indicators</h3>
+            <p className="chart-subtitle">Summary of statutory withholdings</p>
+          </div>
         </div>
       </div>
       <div className="flex flex-col justify-between my-auto gap-3">
@@ -1339,16 +1436,16 @@ const ExecutiveKpiStrip = ({ projects }) => {
   const dueBill = Math.max(0, totalWOVal - grossBill);
 
   const kpis = [
-    { id: 'wo', title: 'TOTAL WORK ORDERS', color: '#60a5fa', glow: 'linear-gradient(90deg, #3b82f6, transparent)', value: totalWO, subtext: `Running: ${running} | Completed: ${completed}\nPending: ${pending}` },
-    { id: 'woval', title: 'TOTAL WO VALUE', color: '#34d399', glow: 'linear-gradient(90deg, #10b981, transparent)', value: fmtCr(totalWOVal), subtext: null },
-    { id: 'est', title: 'TOTAL ESTIMATE AMOUNT', color: '#c084fc', glow: 'linear-gradient(90deg, #a855f7, transparent)', value: fmtCr(totalEst), subtext: `${totalWOVal ? ((totalEst / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
-    { id: 'req', title: 'TOTAL REQUISITION (ZO→HO)', color: '#fb923c', glow: 'linear-gradient(90deg, #f97316, transparent)', value: fmtCr(totalReq), subtext: `${totalEst ? ((totalReq / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'app', title: 'TOTAL APPROVED (HO→ZO)', color: '#fbbf24', glow: 'linear-gradient(90deg, #f59e0b, transparent)', value: fmtCr(approvedReq), subtext: `${totalReq ? ((approvedReq / totalReq) * 100).toFixed(1) : 0}% of Requisition` },
-    { id: 'bal', title: 'ZO AVAILABLE BALANCE', color: '#38bdf8', glow: 'linear-gradient(90deg, #0284c7, transparent)', value: fmtCr(zoBalance), subtext: null },
-    { id: 'ref', title: 'TOTAL REFUND AMOUNT', color: '#2dd4bf', glow: 'linear-gradient(90deg, #14b8a6, transparent)', value: fmtCr(refund), subtext: null },
-    { id: 'gb', title: 'GROSS BILL AMOUNT', color: '#f87171', glow: 'linear-gradient(90deg, #ef4444, transparent)', value: fmtCr(grossBill), subtext: `${totalEst ? ((grossBill / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'ap', title: 'AGENCY PAYMENT', color: '#818cf8', glow: 'linear-gradient(90deg, #6366f1, transparent)', value: fmtCr(agencyPay), subtext: `${grossBill ? ((agencyPay / grossBill) * 100).toFixed(1) : 0}% of Gross Bill` },
-    { id: 'due', title: 'DUE BILL AMOUNT', color: '#ec4899', glow: 'linear-gradient(90deg, #db2777, transparent)', value: fmtCr(dueBill), subtext: `${totalWOVal ? ((dueBill / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
+    { id: 'wo', title: 'TOTAL WORK ORDERS', description: 'Total active and completed work orders in zone.', formula: 'Count(zonal_projects)', color: '#60a5fa', glow: 'linear-gradient(90deg, #3b82f6, transparent)', value: totalWO, subtext: `Running: ${running} | Completed: ${completed}\nPending: ${pending}` },
+    { id: 'woval', title: 'TOTAL WO VALUE', description: 'Consolidated monetary value of all awarded zonal work orders.', formula: 'Sum(work_order_value)', color: '#34d399', glow: 'linear-gradient(90deg, #10b981, transparent)', value: fmtCr(totalWOVal), subtext: null },
+    { id: 'est', title: 'TOTAL ESTIMATE AMOUNT', description: 'Aggregated cost estimate value of final approved sheets in zone.', formula: 'Sum(estimate_amount where status = \'Final Approved\')', color: '#c084fc', glow: 'linear-gradient(90deg, #a855f7, transparent)', value: fmtCr(totalEst), subtext: `${totalWOVal ? ((totalEst / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
+    { id: 'req', title: 'TOTAL REQUISITION (ZO→HO)', description: 'Total site fund requisitions requested from Zonal Office.', formula: 'Sum(approved_amount where status = \'Approved\')', color: '#fb923c', glow: 'linear-gradient(90deg, #f97316, transparent)', value: fmtCr(totalReq), subtext: `${totalEst ? ((totalReq / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
+    { id: 'app', title: 'TOTAL APPROVED (HO→ZO)', description: 'Total funds authorized and allocated from Head Office to Zone.', formula: 'Sum(approve_ho_amount where status = \'Approved\')', color: '#fbbf24', glow: 'linear-gradient(90deg, #f59e0b, transparent)', value: fmtCr(approvedReq), subtext: `${totalReq ? ((approvedReq / totalReq) * 100).toFixed(1) : 0}% of Requisition` },
+    { id: 'bal', title: 'ZO AVAILABLE BALANCE', description: 'Liquid fund balance currently available in Zonal Office ledger.', formula: 'Sum(available_balance)', color: '#38bdf8', glow: 'linear-gradient(90deg, #0284c7, transparent)', value: fmtCr(zoBalance), subtext: null },
+    { id: 'ref', title: 'TOTAL REFUND AMOUNT', description: 'Unspent excess funds returned from Zonal Office to Head Office.', formula: 'Sum(transaction_type = \'RETURN\')', color: '#2dd4bf', glow: 'linear-gradient(90deg, #14b8a6, transparent)', value: fmtCr(refund), subtext: null },
+    { id: 'gb', title: 'GROSS BILL AMOUNT', description: 'Gross contractor billings submitted across zonal work orders.', formula: 'Sum(gross_bill)', color: '#f87171', glow: 'linear-gradient(90deg, #ef4444, transparent)', value: fmtCr(grossBill), subtext: `${totalEst ? ((grossBill / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
+    { id: 'ap', title: 'AGENCY PAYMENT', description: 'Net payments disbursed to contractors after statutory withholdings.', formula: 'Sum(agency_payment)', color: '#818cf8', glow: 'linear-gradient(90deg, #6366f1, transparent)', value: fmtCr(agencyPay), subtext: `${grossBill ? ((agencyPay / grossBill) * 100).toFixed(1) : 0}% of Gross Bill` },
+    { id: 'due', title: 'DUE BILL AMOUNT', description: 'Pending unbilled work order value exposure remaining in zone.', formula: 'Total WO Value - Gross Bill Amount', color: '#ec4899', glow: 'linear-gradient(90deg, #db2777, transparent)', value: fmtCr(dueBill), subtext: `${totalWOVal ? ((dueBill / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
   ];
 
   return (
@@ -1360,7 +1457,10 @@ const ExecutiveKpiStrip = ({ projects }) => {
           style={{ minHeight: '135px' }}
         >
           <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: kpi.glow }} />
-          <p className="text-[9.5px] font-black tracking-wider uppercase leading-snug" style={{ color: kpi.color }}>{kpi.title}</p>
+          <div className="absolute top-2.5 right-2.5 z-10">
+            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
+          </div>
+          <p className="text-[9.5px] font-black tracking-wider uppercase leading-snug pr-6" style={{ color: kpi.color }}>{kpi.title}</p>
           <div className="my-auto py-1">
             <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{kpi.value}</span>
           </div>
@@ -1417,9 +1517,15 @@ const WorkOrderTelemetryTable = ({ data, availableZos, selectedZo, onSelectZo, g
   return (
     <div className="relative w-full glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/10 mb-8 text-xs">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
-          <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density zonal project tracking and performance telemetry</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="High-density project tracking telemetry table with real-time health score metrics for zonal projects."
+            formula="Health Score = 100 - (Days Since DPR × 2) - (Budget Overrun %)"
+          />
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
+            <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density zonal project tracking and performance telemetry</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button

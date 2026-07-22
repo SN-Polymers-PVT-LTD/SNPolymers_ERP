@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../components/ThemeContext';
@@ -110,11 +110,10 @@ class ChartModal extends React.Component {
       >
         {/* Dynamically Sized Modal Card Box - Contained within Screen */}
         <div
-          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${
-            isDark
+          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${isDark
               ? 'bg-[#0b0e14] border-white/10 text-slate-100 shadow-black/90'
               : 'bg-white border-slate-200 text-slate-900 shadow-2xl'
-          }`}
+            }`}
           style={{
             width: width,
             height: height,
@@ -125,16 +124,14 @@ class ChartModal extends React.Component {
         >
           {/* Modal Header */}
           <div
-            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${
-              isDark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
-            }`}
+            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${isDark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
+              }`}
           >
             <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" />
               <h3
-                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${
-                  isDark ? 'text-amber-400' : 'text-amber-600'
-                }`}
+                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${isDark ? 'text-amber-400' : 'text-amber-600'
+                  }`}
               >
                 {title || 'Chart Telemetry Inspection'}
               </h3>
@@ -195,24 +192,20 @@ const KpiDetailsModal = ({ title, colorClass, projects, onClose, navigate }) => 
       onClick={onClose}
     >
       <div
-        className={`relative w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border ${
-          isDark 
-            ? 'bg-slate-950 border-white/10 text-slate-100 shadow-black/80' 
+        className={`relative w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border ${isDark
+            ? 'bg-slate-950 border-white/10 text-slate-100 shadow-black/80'
             : 'bg-white border-slate-200 text-slate-900 shadow-2xl shadow-slate-900/20'
-        }`}
+          }`}
         onClick={e => e.stopPropagation()}
       >
         {/* Modal Header */}
-        <div className={`flex items-center justify-between px-6 py-5 border-b shrink-0 ${
-          isDark ? 'border-white/10 bg-slate-900' : 'border-slate-100 bg-white'
-        }`}>
+        <div className={`flex items-center justify-between px-6 py-5 border-b shrink-0 ${isDark ? 'border-white/10 bg-slate-900' : 'border-slate-100 bg-white'
+          }`}>
           <div className="flex items-center gap-3">
-            <h2 className={`text-lg font-black uppercase tracking-widest ${
-              colorClass || (isDark ? 'text-slate-100' : 'text-slate-900')
-            }`}>{title}</h2>
-            <span className={`px-3 py-1 rounded-full border text-[10px] font-extrabold ${
-              isDark ? 'bg-white/10 border-white/15 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
-            }`}>
+            <h2 className={`text-lg font-black uppercase tracking-widest ${colorClass || (isDark ? 'text-slate-100' : 'text-slate-900')
+              }`}>{title}</h2>
+            <span className={`px-3 py-1 rounded-full border text-[10px] font-extrabold ${isDark ? 'bg-white/10 border-white/15 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'
+              }`}>
               {projects.length} {projects.length === 1 ? 'Project' : 'Projects'}
             </span>
           </div>
@@ -231,18 +224,16 @@ const KpiDetailsModal = ({ title, colorClass, projects, onClose, navigate }) => 
         {/* Modal Body: Scrollable Table */}
         <div className={`p-6 overflow-y-auto no-scrollbar flex-1 ${isDark ? 'bg-slate-950' : 'bg-white'}`}>
           {projects.length === 0 ? (
-            <div className={`text-center py-12 text-xs font-bold uppercase tracking-wider ${
-              isDark ? 'text-slate-500' : 'text-slate-400'
-            }`}>
+            <div className={`text-center py-12 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'
+              }`}>
               No projects matching this filter
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className={`border-b text-[9px] font-black uppercase tracking-widest ${
-                    isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
-                  }`}>
+                  <tr className={`border-b text-[9px] font-black uppercase tracking-widest ${isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'
+                    }`}>
                     <th className="py-3 px-3">WO No</th>
                     <th className="py-3 px-3">Zone</th>
                     <th className="py-3 px-3">Department</th>
@@ -258,15 +249,15 @@ const KpiDetailsModal = ({ title, colorClass, projects, onClose, navigate }) => 
                       p.health_score >= 80
                         ? isDark ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 font-extrabold'
                         : p.health_score >= 60
-                        ? isDark ? 'bg-amber-950/80 text-amber-400 border-amber-500/30' : 'bg-amber-500/10 text-amber-800 border-amber-500/30 font-extrabold'
-                        : isDark ? 'bg-rose-950/80 text-rose-400 border-rose-500/30' : 'bg-rose-500/10 text-rose-700 border-rose-500/30 font-extrabold';
+                          ? isDark ? 'bg-amber-950/80 text-amber-400 border-amber-500/30' : 'bg-amber-500/10 text-amber-800 border-amber-500/30 font-extrabold'
+                          : isDark ? 'bg-rose-950/80 text-rose-400 border-rose-500/30' : 'bg-rose-500/10 text-rose-700 border-rose-500/30 font-extrabold';
 
                     const statusBadge =
                       p.health_status === 'Critical'
                         ? isDark ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-rose-50 text-rose-700 border-rose-200 font-black'
                         : p.health_status === 'Warning'
-                        ? isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-800 border-amber-200 font-black'
-                        : isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border-emerald-200 font-black';
+                          ? isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-800 border-amber-200 font-black'
+                          : isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border-emerald-200 font-black';
 
                     return (
                       <tr key={idx} className={`transition-colors group ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50/80'}`}>
@@ -275,9 +266,8 @@ const KpiDetailsModal = ({ title, colorClass, projects, onClose, navigate }) => 
                             onClose();
                             navigate(`/projects/${p.work_order_no}/digital-twin`);
                           }}
-                          className={`py-3.5 px-3 font-extrabold hover:underline cursor-pointer font-mono ${
-                            isDark ? 'text-sky-400' : 'text-sky-600'
-                          }`}
+                          className={`py-3.5 px-3 font-extrabold hover:underline cursor-pointer font-mono ${isDark ? 'text-sky-400' : 'text-sky-600'
+                            }`}
                         >
                           {p.work_order_no}
                         </td>
@@ -324,9 +314,15 @@ const BubbleRiskMatrix = ({ data }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between">
       <div className="flex justify-between items-center mb-3 shrink-0">
-        <div>
-          <h3 className="chart-title">Bubble Risk Matrix</h3>
-          <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Scatter matrix plotting budget utilization vs physical work progress and DPR delay severity."
+            formula="X = Budget Spent %, Y = Physical Progress %, Bubble Radius = Days Since Last DPR"
+          />
+          <div>
+            <h3 className="chart-title">Bubble Risk Matrix</h3>
+            <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
+          </div>
         </div>
         <div className="flex gap-3 text-[8px] font-black uppercase tracking-wider chart-label">
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500"></span> Healthy</span>
@@ -525,9 +521,15 @@ const ZonalPerformanceHeatmap = ({ data, onSelectZone, selectedZone }) => {
     <div className="chart-panel h-full flex flex-col justify-between">
       <div>
         <div className="flex justify-between items-center mb-4">
-          <div>
-            <h3 className="chart-title">Zonal Performance Heatmap</h3>
-            <p className="chart-subtitle">Cross-regional metric matrices. Click a row to filter work orders.</p>
+          <div className="flex items-center gap-2">
+            <ChartInfoTooltip
+              description="Comparative performance matrix benchmarking Zonal Offices across operational KPIs."
+              formula="Zonal Health Score = Avg(100 - Days Since DPR × 2 - Budget Overrun %)"
+            />
+            <div>
+              <h3 className="chart-title">Zonal Performance Heatmap</h3>
+              <p className="chart-subtitle">Cross-regional metric matrices. Click a row to filter work orders.</p>
+            </div>
           </div>
           {selectedZone && (
             <button
@@ -654,9 +656,15 @@ const PredictiveRunwayLines = ({ trendData, runwayData }) => {
   return (
     <div className="chart-panel h-full">
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h3 className="chart-title">Cash Runway &amp; Projections</h3>
-          <p className="chart-subtitle">60-day historical ledger vs 60-day predictive burn-rate projection</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Historical 12-month liquid cash balance runway for Zonal Offices."
+            formula="Running Balance = Initial Balance + Allocations - Requisition Disbursals"
+          />
+          <div>
+            <h3 className="chart-title">Cash Runway &amp; Projections</h3>
+            <p className="chart-subtitle">60-day historical ledger vs 60-day predictive burn-rate projection</p>
+          </div>
         </div>
       </div>
 
@@ -743,9 +751,15 @@ const SCurveProgress = ({ data }) => {
   return (
     <div className="chart-panel h-full">
       <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-        <div>
-          <h3 className="chart-title">S-Curve Performance Progress</h3>
-          <p className="chart-subtitle">Planned linear trajectory vs actual DPR submissions</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="Cumulative project timeline comparing planned linear progress trajectory with actual DPR progress logs."
+            formula="Actual Trajectory = Cumulative Avg(DPR Physical Work Progress %)"
+          />
+          <div>
+            <h3 className="chart-title">S-Curve Performance Progress</h3>
+            <p className="chart-subtitle">Planned linear trajectory vs actual DPR submissions</p>
+          </div>
         </div>
         <select
           value={selectedWo}
@@ -918,13 +932,19 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-        <div className="min-w-0">
-          <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-            Investment &amp; Bill Recovery Realization
-          </h3>
-          <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-            {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
-          </p>
+        <div className="flex items-center gap-2 min-w-0">
+          <ChartInfoTooltip
+            description="Capital investment vs bill recovery realization across work order progress bands."
+            formula="Pending Recovery = Requisition Investment - Contractor Bill Payments Received"
+          />
+          <div className="min-w-0">
+            <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+              Investment &amp; Bill Recovery Realization
+            </h3>
+            <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl shrink-0 self-start sm:self-auto">
@@ -1160,26 +1180,95 @@ const InvestmentRecoveryPlot = ({ projects, isModal = false }) => {
   );
 };
 
+// ── Chart Info Tooltip Component (Portal Architecture for Zero Clipping) ────
+const ChartInfoTooltip = ({ description, formula }) => {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const btnRef = useRef(null);
+  const { isDark } = useTheme();
+
+  const updatePosition = () => {
+    if (!btnRef.current) return;
+    const rect = btnRef.current.getBoundingClientRect();
+    const popW = 280;
+    const popH = 140;
+
+    let left = rect.right - popW;
+    if (left < 16) left = 16;
+    if (left + popW > window.innerWidth - 16) {
+      left = Math.max(16, window.innerWidth - popW - 16);
+    }
+
+    let top = rect.bottom + 8;
+    if (top + popH > window.innerHeight - 16) {
+      top = Math.max(16, rect.top - popH - 8);
+    }
+
+    setPos({ x: left, y: top });
+  };
+
+  const handleOpen = () => {
+    updatePosition();
+    setShow(true);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onMouseEnter={handleOpen}
+        onMouseLeave={() => setShow(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          updatePosition();
+          setShow(!show);
+        }}
+        className="w-5 h-5 rounded-full bg-amber-500/15 hover:bg-amber-500/35 border border-amber-500/50 flex items-center justify-center text-[11px] font-black text-amber-400 hover:text-amber-300 transition-all cursor-pointer shadow-md shadow-amber-500/10 hover:scale-110 shrink-0"
+        title="Click or hover for chart details & formula"
+      >
+        i
+      </button>
+
+      {show && ReactDOM.createPortal(
+        <div
+          className="fixed z-[999999] p-3.5 rounded-2xl shadow-2xl min-w-[260px] max-w-[300px] text-xs backdrop-blur-xl pointer-events-none transition-all duration-150 border"
+          style={{
+            top: pos.y,
+            left: pos.x,
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: isDark ? 'rgba(245, 158, 11, 0.5)' : 'rgba(245, 158, 11, 0.4)',
+            boxShadow: '0 20px 40px -5px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(245,158,11,0.2)'
+          }}
+        >
+          <div className="flex items-center gap-1.5 mb-2 border-b border-white/10 pb-1.5 text-amber-400 font-extrabold uppercase text-[10px] tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            Metric Info &amp; Formula
+          </div>
+          <p className="text-[11px] text-slate-200 dark:text-slate-200 leading-snug font-medium mb-2.5">
+            {description}
+          </p>
+          <div className="bg-slate-950/90 p-2.5 rounded-xl border border-white/10 font-mono text-[10px] text-emerald-400 font-semibold leading-relaxed">
+            <span className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5 font-sans">Formula:</span>
+            {formula}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
 // ── Department Wise Estimate Component ───────────────────────────────────────
 const DepartmentWiseEstimate = ({ data }) => {
   const { isDark } = useTheme();
   const [hoveredDept, setHoveredDept] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 
-  const fallbackData = [
-    { department: 'PWD', amount: 70500000, percentage: 83.6, count: 14, color: '#3B82F6' },
-    { department: 'Dept', amount: 8500000, percentage: 10.1, count: 5, color: '#10B981' },
-    { department: 'Civil', amount: 1814000, percentage: 2.1, count: 2, color: '#8B5CF6' },
-    { department: 'PWD Department', amount: 1800000, percentage: 2.1, count: 2, color: '#F97316' },
-    { department: 'Irrigation', amount: 750000, percentage: 0.9, count: 1, color: '#64748B' },
-    { department: 'WRDD', amount: 500000, percentage: 0.6, count: 1, color: '#EF4444' },
-    { department: 'PHE', amount: 500000, percentage: 0.6, count: 1, color: '#14B8A6' }
-  ];
-
   const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#64748B', '#EF4444', '#14B8A6', '#EC4899', '#F59E0B'];
 
   const items = React.useMemo(() => {
-    const raw = (data && data.length > 0) ? data : fallbackData;
+    const raw = (data && data.length > 0) ? data : [];
     return raw.map((item, idx) => ({
       ...item,
       color: item.color || DEFAULT_COLORS[idx % DEFAULT_COLORS.length]
@@ -1260,7 +1349,7 @@ const DepartmentWiseEstimate = ({ data }) => {
     if (hoveredDept) {
       const popoverHeight = 100;
       const popoverWidth = 240;
-      
+
       let yPos = e.clientY - popoverHeight - 15;
       if (yPos < 20) {
         yPos = Math.min(window.innerHeight - popoverHeight - 20, e.clientY + 20);
@@ -1273,7 +1362,7 @@ const DepartmentWiseEstimate = ({ data }) => {
 
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-center mb-3">
+      <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
             Department Wise Estimate Amount
@@ -1282,6 +1371,10 @@ const DepartmentWiseEstimate = ({ data }) => {
             Breakdown of estimated costs across operational departments
           </p>
         </div>
+        <ChartInfoTooltip
+          description="Distribution of estimated project expenditure allocated across operational departments."
+          formula="Dept Share % = (Sum of Approved Estimates in Dept / Total Portfolio Estimate) × 100"
+        />
       </div>
 
       <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
@@ -1315,11 +1408,10 @@ const DepartmentWiseEstimate = ({ data }) => {
           {items.map((item, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between gap-2 text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
-                hoveredDept?.department === item.department
+              className={`flex items-center justify-between gap-2 text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${hoveredDept?.department === item.department
                   ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]'
                   : 'hover:bg-slate-500/10 border border-transparent'
-              }`}
+                }`}
               onMouseEnter={(e) => handleMouseEnter(e, item)}
               onMouseLeave={() => setHoveredDept(null)}
             >
@@ -1393,6 +1485,8 @@ const DepartmentWiseEstimate = ({ data }) => {
 const MetricDonutCard = ({
   title,
   subtitle,
+  description,
+  formula,
   centerLabel,
   centerValue,
   buckets = [],
@@ -1464,7 +1558,7 @@ const MetricDonutCard = ({
     const rect = e.currentTarget.getBoundingClientRect();
     const popoverHeight = 280;
     const popoverWidth = 320;
-    
+
     // Always keep popover inside visible screen viewport
     let yPos = rect.top - popoverHeight - 10;
     if (yPos < 20) {
@@ -1481,7 +1575,7 @@ const MetricDonutCard = ({
     if (hoveredBucket) {
       const popoverHeight = 280;
       const popoverWidth = 320;
-      
+
       // Hover popover appears above the cursor when in bottom half of screen
       let yPos = e.clientY - popoverHeight - 15;
       if (yPos < 20) {
@@ -1496,7 +1590,7 @@ const MetricDonutCard = ({
 
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
             {title}
@@ -1507,13 +1601,15 @@ const MetricDonutCard = ({
             </p>
           )}
         </div>
+        {description && formula && (
+          <ChartInfoTooltip description={description} formula={formula} />
+        )}
       </div>
 
       <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2 flex-1">
         {/* Donut Graphic with Center Text - Proportioned dynamically */}
-        <div className={`relative shrink-0 flex items-center justify-center ${
-          isModal ? 'w-56 h-56 sm:w-72 sm:h-72' : 'w-40 h-40 sm:w-44 sm:h-44'
-        }`}>
+        <div className={`relative shrink-0 flex items-center justify-center ${isModal ? 'w-56 h-56 sm:w-72 sm:h-72' : 'w-40 h-40 sm:w-44 sm:h-44'
+          }`}>
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
             {slices.map((slice, idx) => (
               <path
@@ -1549,11 +1645,10 @@ const MetricDonutCard = ({
           {slices.map((item, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between gap-3 text-xs font-semibold py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
-                hoveredBucket?.label === item.label
+              className={`flex items-center justify-between gap-3 text-xs font-semibold py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${hoveredBucket?.label === item.label
                   ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]'
                   : 'hover:bg-slate-500/10 border border-transparent'
-              }`}
+                }`}
               onMouseEnter={(e) => handleMouseEnter(e, item)}
               onMouseLeave={() => setHoveredBucket(null)}
             >
@@ -1737,7 +1832,7 @@ const KeyFinancialIndicators = ({ data }) => {
 
   return (
     <div className="chart-panel h-full flex flex-col justify-between p-5">
-      <div className="flex justify-between items-center mb-3">
+      <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>
             Key Financial Indicators
@@ -1746,6 +1841,10 @@ const KeyFinancialIndicators = ({ data }) => {
             Summary of statutory withholdings
           </p>
         </div>
+        <ChartInfoTooltip
+          description="Summary of statutory withholdings and security deposits retained across projects."
+          formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
+        />
       </div>
 
       <div className="flex flex-col justify-between my-auto gap-3">
@@ -1818,6 +1917,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     {
       id: 'work_orders',
       title: 'TOTAL WORK ORDERS',
+      description: 'Total active and completed work orders in portfolio.',
+      formula: 'Count(projects)',
       titleColor: '#60a5fa',
       topGlow: 'linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0) 80%)',
       value: data?.totalWorkOrders?.total ?? 0,
@@ -1827,6 +1928,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     {
       id: 'wo_value',
       title: 'TOTAL WO VALUE',
+      description: 'Consolidated monetary value of all awarded work orders.',
+      formula: 'Sum(work_order_value)',
       titleColor: '#34d399',
       topGlow: 'linear-gradient(90deg, #10b981 0%, rgba(16,185,129,0) 80%)',
       value: formatCr(data?.totalWOValue ?? 0),
@@ -1835,7 +1938,13 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'estimate',
+<<<<<<< HEAD
       title: 'TOTAL ESTIMATE',
+=======
+      title: 'TOTAL ESTIMATE AMOUNT',
+      description: 'Aggregated cost estimate value of final approved sheets.',
+      formula: 'Sum(estimate_amount where status = \'Final Approved\')',
+>>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#c084fc',
       topGlow: 'linear-gradient(90deg, #a855f7 0%, rgba(168,85,247,0) 80%)',
       value: formatCr(data?.totalEstimateAmount?.amount ?? 0),
@@ -1844,7 +1953,13 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'requisition',
+<<<<<<< HEAD
       title: 'TOTAL REQUISITION',
+=======
+      title: 'TOTAL REQUISITION (ZO → HO)',
+      description: 'Total site fund requisitions requested from Zonal Offices.',
+      formula: 'Sum(approved_amount where status = \'Approved\')',
+>>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#fb923c',
       topGlow: 'linear-gradient(90deg, #f97316 0%, rgba(249,115,22,0) 80%)',
       value: formatCr(data?.totalRequisition?.amount ?? 0),
@@ -1853,7 +1968,13 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'approved',
+<<<<<<< HEAD
       title: 'TOTAL APPROVED',
+=======
+      title: 'TOTAL APPROVED (HO → ZO)',
+      description: 'Total funds authorized and allocated from Head Office to Zones.',
+      formula: 'Sum(approve_ho_amount where status = \'Approved\')',
+>>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#fbbf24',
       topGlow: 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0) 80%)',
       value: formatCr(data?.totalApproved?.amount ?? 0),
@@ -1862,7 +1983,13 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'zo_balance',
+<<<<<<< HEAD
       title: 'ZO BALANCE',
+=======
+      title: 'ZO AVAILABLE BALANCE',
+      description: 'Liquid fund balance currently available across all Zonal Office ledgers.',
+      formula: 'Sum(available_balance)',
+>>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#38bdf8',
       topGlow: 'linear-gradient(90deg, #0284c7 0%, rgba(2,132,199,0) 80%)',
       value: formatCr(data?.zoAvailableBalance ?? 0),
@@ -1871,7 +1998,13 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'refund',
+<<<<<<< HEAD
       title: 'TOTAL REFUND',
+=======
+      title: 'TOTAL REFUND AMOUNT',
+      description: 'Unspent excess funds returned from Zonal Offices to Head Office.',
+      formula: 'Sum(transaction_type = \'RETURN\')',
+>>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#2dd4bf',
       topGlow: 'linear-gradient(90deg, #14b8a6 0%, rgba(20,184,166,0) 80%)',
       value: formatCr(data?.totalRefundAmount ?? 0),
@@ -1881,6 +2014,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     {
       id: 'gross_bill',
       title: 'GROSS BILL AMOUNT',
+      description: 'Gross contractor billings submitted across all work orders.',
+      formula: 'Sum(gross_bill)',
       titleColor: '#f87171',
       topGlow: 'linear-gradient(90deg, #ef4444 0%, rgba(239,68,68,0) 80%)',
       value: formatCr(data?.grossBillAmount?.amount ?? 0),
@@ -1890,6 +2025,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     {
       id: 'agency_payment',
       title: 'AGENCY PAYMENT',
+      description: 'Net payments disbursed to contractors after statutory withholdings.',
+      formula: 'Sum(agency_payment)',
       titleColor: '#818cf8',
       topGlow: 'linear-gradient(90deg, #6366f1 0%, rgba(99,102,241,0) 80%)',
       value: formatCr(data?.agencyPayment?.amount ?? 0),
@@ -1899,6 +2036,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     {
       id: 'due_bill',
       title: 'DUE BILL AMOUNT',
+      description: 'Pending unbilled work order value exposure remaining in portfolio.',
+      formula: 'Total WO Value - Gross Bill Amount',
       titleColor: '#ec4899',
       topGlow: 'linear-gradient(90deg, #db2777 0%, rgba(219,39,119,0) 80%)',
       value: formatCr(dueBillAmt),
@@ -1912,12 +2051,20 @@ const ExecutiveKpiStrip = ({ data }) => {
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
+<<<<<<< HEAD
           className={`relative p-3 sm:p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
             isDark 
               ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' 
               : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
           }`}
           style={{ minHeight: '125px' }}
+=======
+          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark
+              ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20'
+              : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
+            }`}
+          style={{ minHeight: '135px' }}
+>>>>>>> c8a0731 (analytics thik thak)
         >
           {/* Colored Top Glow Accent Line */}
           <div
@@ -1925,6 +2072,7 @@ const ExecutiveKpiStrip = ({ data }) => {
             style={{ background: kpi.topGlow }}
           />
 
+<<<<<<< HEAD
           {/* Title */}
           <p
             className="text-[9px] sm:text-[9.5px] font-black tracking-wider uppercase leading-snug line-clamp-2"
@@ -1939,15 +2087,37 @@ const ExecutiveKpiStrip = ({ data }) => {
             <span className={`text-sm sm:text-base lg:text-lg font-bold font-mono tracking-tight whitespace-nowrap ${
               isDark ? 'text-slate-100' : 'text-slate-900'
             }`}>
+=======
+          {/* Title with Top-Left Info Icon */}
+          <div className="flex items-center gap-1.5 mb-1">
+            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
+            <p
+              className="text-[9.5px] font-black tracking-wider uppercase leading-snug"
+              style={{ color: kpi.titleColor }}
+            >
+              {kpi.title}
+            </p>
+          </div>
+
+          {/* Main Value */}
+          <div className="my-auto py-1">
+            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'
+              }`}>
+>>>>>>> c8a0731 (analytics thik thak)
               {kpi.value}
             </span>
           </div>
 
           {/* Subtext */}
           {kpi.subtext ? (
+<<<<<<< HEAD
             <p className={`text-[8.5px] sm:text-[9px] font-medium leading-tight truncate ${
               isDark ? 'text-slate-400/80' : 'text-slate-600'
             }`} title={kpi.subtext}>
+=======
+            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'
+              }`}>
+>>>>>>> c8a0731 (analytics thik thak)
               {kpi.subtext}
             </p>
           ) : (
@@ -1972,11 +2142,11 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
   const filtered = data.filter(p => {
     const q = search.toLowerCase().trim();
     const matchesSearch = !q ||
-                          (p.work_order_no || '').toLowerCase().includes(q) ||
-                          (p.site_details || '').toLowerCase().includes(q) ||
-                          (p.department || '').toLowerCase().includes(q) ||
-                          (p.zone || '').toLowerCase().includes(q) ||
-                          (p.district || '').toLowerCase().includes(q);
+      (p.work_order_no || '').toLowerCase().includes(q) ||
+      (p.site_details || '').toLowerCase().includes(q) ||
+      (p.department || '').toLowerCase().includes(q) ||
+      (p.zone || '').toLowerCase().includes(q) ||
+      (p.district || '').toLowerCase().includes(q);
     const matchesZone = !selectedZone || (p.zone || '').toLowerCase().trim() === selectedZone.toLowerCase().trim();
     const matchesDept = !deptFilter || (p.department || '').toLowerCase().trim() === deptFilter.toLowerCase().trim();
     return matchesSearch && matchesZone && matchesDept;
@@ -2017,9 +2187,15 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
   return (
     <div className="relative w-full glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/10 mb-8 text-xs">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
-          <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density project tracking and performance telemetry</p>
+        <div className="flex items-center gap-2">
+          <ChartInfoTooltip
+            description="High-density project tracking telemetry table with real-time health score metrics."
+            formula="Health Score = 100 - (Days Since DPR × 2) - (Budget Overrun %)"
+          />
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
+            <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density project tracking and performance telemetry</p>
+          </div>
         </div>
         <div className="flex gap-2">
           <button
@@ -2099,8 +2275,8 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
           <tbody className="divide-y divide-white/5">
             {paginated.map((row, idx) => {
               const scoreBg = row.health_score >= 80 ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-500/20' :
-                              row.health_score >= 60 ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20' :
-                              'bg-rose-900/20 text-rose-400 border border-rose-500/20';
+                row.health_score >= 60 ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20' :
+                  'bg-rose-900/20 text-rose-400 border border-rose-500/20';
 
               return (
                 <tr key={idx} className="hover:bg-white/5 transition-colors">
@@ -2116,11 +2292,10 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
                     <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${scoreBg}`}>{Math.round(row.health_score)}</span>
                   </td>
                   <td className="py-3.5 text-right">
-                    <span className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                      row.health_status === 'Critical' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
-                      row.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                      'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                    }`}>{row.health_status || 'Healthy'}</span>
+                    <span className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${row.health_status === 'Critical' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' :
+                        row.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      }`}>{row.health_status || 'Healthy'}</span>
                   </td>
                 </tr>
               );
@@ -2296,537 +2471,523 @@ const HoDashboard = () => {
 
   return (
     <>
-          {/* Toast Notification */}
-          {alertMsg && (
-            <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-md flex items-center gap-3 border transition-all duration-300 ${
-              alertType === 'success' 
-                ? 'bg-emerald-950/80 border-emerald-500/30 text-emerald-400' 
-                : 'bg-rose-950/80 border-rose-500/30 text-rose-400'
-            }`}>
-              <span className="text-sm font-bold tracking-wide">{alertMsg}</span>
-              <button onClick={() => setAlertMsg(null)} className="text-slate-400 hover:text-white">&times;</button>
-            </div>
-          )}
+      {/* Toast Notification */}
+      {alertMsg && (
+        <div className={`fixed top-6 right-6 z-50 px-6 py-4 rounded-2xl shadow-xl backdrop-blur-md flex items-center gap-3 border transition-all duration-300 ${alertType === 'success'
+            ? 'bg-emerald-950/80 border-emerald-500/30 text-emerald-400'
+            : 'bg-rose-950/80 border-rose-500/30 text-rose-400'
+          }`}>
+          <span className="text-sm font-bold tracking-wide">{alertMsg}</span>
+          <button onClick={() => setAlertMsg(null)} className="text-slate-400 hover:text-white">&times;</button>
+        </div>
+      )}
 
-          {/* Header Row */}
-          <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
-            <div>
-              <div className="flex items-center gap-2.5 mb-2">
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{
-                    background: '#f0a843',
-                    boxShadow: '0 0 8px #f0a843, 0 0 18px rgba(240,168,67,0.35)',
-                    animation: 'pulse 2.5s ease-in-out infinite'
-                  }}
-                />
-                <span className="font-mono text-[10px] uppercase tracking-[3px] text-amber-500">Executive Analytics</span>
-              </div>
-              <h1
-                className="text-3xl font-extrabold tracking-tight mt-1 text-slate-900 dark:text-slate-100"
-                style={{
-                  color: 'var(--title-color, inherit)',
-                  letterSpacing: '-0.04em'
-                }}
-              >
-                Portfolio Performance Analytics
-              </h1>
-              <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Consolidated portfolio KPIs, zonal performance benchmarking, and cost leakage anomalies.</p>
-            </div>
-
-            <div className="flex flex-col items-end gap-2.5">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshMutation.isPending}
-                className={`px-5 py-2.5 rounded-xl border border-transparent text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all duration-300 ${
-                  refreshMutation.isPending
-                    ? 'bg-white/5 border-white/10 text-slate-400 cursor-not-allowed'
-                    : 'bg-white hover:bg-white/90 text-slate-950 shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.5)] hover:-translate-y-0.5'
-                }`}
-              >
-                <svg className={`w-3.5 h-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
-                </svg>
-                {refreshMutation.isPending ? 'Refreshing...' : 'Refresh Views'}
-              </button>
-            </div>
-          </div>
-
-          {/* Project Status & Date Range Filter Toolbar */}
-          <div className="glass-panel p-4 rounded-2xl mb-8 flex flex-col xl:flex-row gap-4 items-center justify-between border border-white/10 shadow-lg">
-            {/* Project Status Filter Tabs */}
-            <div className="flex items-center gap-2 flex-wrap w-full xl:w-auto">
-              <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 mr-1">Project Status:</span>
-              {[
-                { id: 'all', label: 'All Projects' },
-                { id: 'Running', label: 'Running' },
-                { id: 'Closed', label: 'Closed' },
-                { id: 'Complete Under Maintenance', label: 'Under Maintenance' }
-              ].map(status => (
-                <button
-                  key={status.id}
-                  onClick={() => setProjectStatusFilter(status.id)}
-                  className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer ${
-                    projectStatusFilter === status.id
-                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
-                      : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  {status.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Date Range Controls */}
-            <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start xl:justify-end">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Preset:</span>
-                {[
-                  { id: 'all', label: 'All Time' },
-                  { id: 'month', label: 'This Month' },
-                  { id: 'quarter', label: '3 Months' },
-                  { id: 'half', label: '6 Months' }
-                ].map(p => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleDatePreset(p.id)}
-                    className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase transition-all border cursor-pointer ${
-                      datePreset === p.id
-                        ? 'bg-white text-slate-950 border-white'
-                        : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2 border-l border-white/10 pl-3">
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">From:</span>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setDatePreset('custom');
-                    }}
-                    className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
-                  />
-                </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-[9px] font-bold text-slate-400 uppercase">To:</span>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
-                      setDatePreset('custom');
-                    }}
-                    className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Actionable Insights Strip — continuously moving marquee ticker with theme-aware fade edges */}
-          {(stalledProjects.length > 0 || lowRunwayZones.length > 0) && (
-            <div className="relative mb-8 overflow-hidden">
-              {/* Theme-aware fade masks (prevents dark blackish overlay in light mode) */}
-              <div
-                className={`pointer-events-none absolute left-0 top-0 bottom-0 w-16 z-10 transition-colors ${
-                  isDark
-                    ? 'bg-gradient-to-r from-[#0b0e14] to-transparent'
-                    : 'bg-gradient-to-r from-slate-50 to-transparent'
-                }`}
-              />
-              <div
-                className={`pointer-events-none absolute right-0 top-0 bottom-0 w-16 z-10 transition-colors ${
-                  isDark
-                    ? 'bg-gradient-to-l from-[#0b0e14] to-transparent'
-                    : 'bg-gradient-to-l from-slate-50 to-transparent'
-                }`}
-              />
-
-              {/* Continuous Moving Ticker Track (pauses on hover) */}
-              <div className="flex overflow-hidden">
-                <div className="animate-marquee gap-3 py-1 px-4">
-                  {/* Ticker items batch 1 */}
-                  {lowRunwayZones.map((z, idx) => (
-                    <div
-                      key={`z1-${idx}`}
-                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
-                        isDark
-                          ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
-                          : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                      {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
-                    </div>
-                  ))}
-                  {stalledProjects.slice(0, 5).map((p, idx) => (
-                    <div
-                      key={`p1-${idx}`}
-                      onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
-                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
-                        isDark
-                          ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
-                          : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                      {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
-                    </div>
-                  ))}
-
-                  {/* Duplicate items for seamless continuous looping marquee */}
-                  {lowRunwayZones.map((z, idx) => (
-                    <div
-                      key={`z2-${idx}`}
-                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
-                        isDark
-                          ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
-                          : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                      {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
-                    </div>
-                  ))}
-                  {stalledProjects.slice(0, 5).map((p, idx) => (
-                    <div
-                      key={`p2-${idx}`}
-                      onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
-                      className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${
-                        isDark
-                          ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
-                          : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
-                      {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Executive 9-KPI Strip */}
-          <div className="flex items-center gap-3 mb-3">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} />
-
-          {/* ── Section: Performance Overview ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Performance Overview</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          {/* ── Row 1: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('physical_progress')}>
-              <div style={{ minHeight: '520px' }} className="h-full">
-                <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
-              </div>
-            </ZoomCard>
-            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
-              <div style={{ minHeight: '520px' }} className="h-full">
-                <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
-              </div>
-            </ZoomCard>
-            <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
-              <div style={{ minHeight: '520px' }} className="h-full">
-                <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
-              </div>
-            </ZoomCard>
-          </div>
-
-          {/* ── Section: Fund Flow & Risk ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Fund Flow &amp; Risk</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          {/* ── Row 2: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
-                <FundFlowWaterfall data={chartRes?.waterfallData || []} />
-              </div>
-            </ZoomCard>
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
-              <div style={{ minHeight: '480px' }} className="h-full">
-                <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
-              </div>
-            </ZoomCard>
-          </div>
-
-          {/* ── Section: Zonal Intelligence ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Zonal Intelligence</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          {/* ── Row 3: Zonal Performance Heatmap (full-width) ─────────────── */}
-          <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
-            <ZonalPerformanceHeatmap
-              data={chartRes?.zonalHeatmap || []}
-              onSelectZone={setSelectedZone}
-              selectedZone={selectedZone}
+      {/* Header Row */}
+      <div className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5 mb-2">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{
+                background: '#f0a843',
+                boxShadow: '0 0 8px #f0a843, 0 0 18px rgba(240,168,67,0.35)',
+                animation: 'pulse 2.5s ease-in-out infinite'
+              }}
             />
-          </ZoomCard>
+            <span className="font-mono text-[10px] uppercase tracking-[3px] text-amber-500">Executive Analytics</span>
+          </div>
+          <h1
+            className="text-3xl font-extrabold tracking-tight mt-1 text-slate-900 dark:text-slate-100"
+            style={{
+              color: 'var(--title-color, inherit)',
+              letterSpacing: '-0.04em'
+            }}
+          >
+            Portfolio Performance Analytics
+          </h1>
+          <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">Consolidated portfolio KPIs, zonal performance benchmarking, and cost leakage anomalies.</p>
+        </div>
 
-          {/* ── Section: Trends & Projections ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Trends &amp; Projections</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          {/* ── Row 4: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('runway')}>
-              <div style={{ minHeight: '420px' }} className="h-full">
-                <PredictiveRunwayLines
-                  trendData={chartRes?.runwayTrend || []}
-                  runwayData={insightsRes?.runwayData || []}
-                />
-              </div>
-            </ZoomCard>
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
-              <div style={{ minHeight: '420px' }} className="h-full">
-                <SCurveProgress data={chartRes?.sCurveData || []} />
-              </div>
-            </ZoomCard>
-            <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('revision')}>
-              <div style={{ minHeight: '420px' }} className="h-full">
-                <InvestmentRecoveryPlot projects={projectsList} />
-              </div>
-            </ZoomCard>
-          </div>
+        <div className="flex flex-col items-end gap-2.5">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshMutation.isPending}
+            className={`px-5 py-2.5 rounded-xl border border-transparent text-xs font-black uppercase tracking-widest flex items-center gap-2 transition-all duration-300 ${refreshMutation.isPending
+                ? 'bg-white/5 border-white/10 text-slate-400 cursor-not-allowed'
+                : 'bg-white hover:bg-white/90 text-slate-950 shadow-[0_4px_16px_rgba(0,0,0,0.4)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.5)] hover:-translate-y-0.5'
+              }`}
+          >
+            <svg className={`w-3.5 h-3.5 ${refreshMutation.isPending ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18" />
+            </svg>
+            {refreshMutation.isPending ? 'Refreshing...' : 'Refresh Views'}
+          </button>
+        </div>
+      </div>
 
-          {/* ── Section: Project Health Summary ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Project Health Summary</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
-          </div>
-          {/* ── Row 5: Quick Executive Summary KPI Strip (6 premium tiles) ──── */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {/* Project Status & Date Range Filter Toolbar */}
+      <div className="glass-panel p-4 rounded-2xl mb-8 flex flex-col xl:flex-row gap-4 items-center justify-between border border-white/10 shadow-lg">
+        {/* Project Status Filter Tabs */}
+        <div className="flex items-center gap-2 flex-wrap w-full xl:w-auto">
+          <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 mr-1">Project Status:</span>
+          {[
+            { id: 'all', label: 'All Projects' },
+            { id: 'Running', label: 'Running' },
+            { id: 'Closed', label: 'Closed' },
+            { id: 'Complete Under Maintenance', label: 'Under Maintenance' }
+          ].map(status => (
+            <button
+              key={status.id}
+              onClick={() => setProjectStatusFilter(status.id)}
+              className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer ${projectStatusFilter === status.id
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md shadow-amber-500/20'
+                  : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:text-white'
+                }`}
+            >
+              {status.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date Range Controls */}
+        <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-start xl:justify-end">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] uppercase font-black tracking-widest text-slate-400">Preset:</span>
             {[
-              {
-                label: 'Active Work Orders',
-                value: projectsList.length,
-                subtext: 'Total ongoing',
-                color: 'text-sky-400',
-                border: 'border-sky-500/20 hover:border-sky-500/40',
-                glow: 'shadow-sky-500/5',
-                bgIcon: 'bg-sky-500/10 text-sky-400',
-                filterFn: null, // All projects
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                )
-              },
-              {
-                label: 'Healthy',
-                value: projectsList.filter(p => p.health_status === 'Healthy').length,
-                subtext: 'On track',
-                color: 'text-emerald-400',
-                border: 'border-emerald-500/20 hover:border-emerald-500/40',
-                glow: 'shadow-emerald-500/5',
-                bgIcon: 'bg-emerald-500/10 text-emerald-400',
-                filterFn: p => p.health_status === 'Healthy',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                )
-              },
-              {
-                label: 'Warning',
-                value: projectsList.filter(p => p.health_status === 'Warning').length,
-                subtext: 'Needs review',
-                color: 'text-amber-400',
-                border: 'border-amber-500/20 hover:border-amber-500/40',
-                glow: 'shadow-amber-500/5',
-                bgIcon: 'bg-amber-500/10 text-amber-400',
-                filterFn: p => p.health_status === 'Warning',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                )
-              },
-              {
-                label: 'Critical',
-                value: projectsList.filter(p => p.health_status === 'Critical').length,
-                subtext: 'Action required',
-                color: 'text-rose-400',
-                border: 'border-rose-500/20 hover:border-rose-500/40',
-                glow: 'shadow-rose-500/5',
-                bgIcon: 'bg-rose-500/10 text-rose-400',
-                filterFn: p => p.health_status === 'Critical',
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                )
-              },
-              {
-                label: 'Avg Progress',
-                value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projectsList.length) : 0}%`,
-                subtext: 'Portfolio progress',
-                color: 'text-indigo-400',
-                border: 'border-indigo-500/20 hover:border-indigo-500/40',
-                glow: 'shadow-indigo-500/5',
-                bgIcon: 'bg-indigo-500/10 text-indigo-400',
-                filterFn: null, // Shows all projects sorted by progress
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                )
-              },
-              {
-                label: 'Avg Health',
-                value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.health_score || 0), 0) / projectsList.length) : 0}`,
-                subtext: 'Health score',
-                color: 'text-violet-400',
-                border: 'border-violet-500/20 hover:border-violet-500/40',
-                glow: 'shadow-violet-500/5',
-                bgIcon: 'bg-violet-500/10 text-violet-400',
-                filterFn: null, // Shows all projects sorted by health
-                icon: (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                )
-              },
-            ].map(({ label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
-              <div
-                key={label}
-                onClick={() => {
-                  const filtered = filterFn ? projectsList.filter(filterFn) : projectsList;
-                  setKpiDetailModal({
-                    title: label,
-                    color,
-                    projects: filtered
-                  });
-                }}
-                className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${border} ${glow} ${
-                  isDark ? 'bg-slate-900/40 text-slate-100' : 'bg-white/80 border-slate-200 shadow-sm text-slate-900'
-                } flex flex-col justify-between group cursor-pointer`}
+              { id: 'all', label: 'All Time' },
+              { id: 'month', label: 'This Month' },
+              { id: 'quarter', label: '3 Months' },
+              { id: 'half', label: '6 Months' }
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => handleDatePreset(p.id)}
+                className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase transition-all border cursor-pointer ${datePreset === p.id
+                    ? 'bg-white text-slate-950 border-white'
+                    : 'bg-white/5 border-white/10 text-slate-400 hover:text-slate-200'
+                  }`}
               >
-                {/* Background subtle grid pattern overlay - theme aware */}
-                <div className={`absolute inset-0 pointer-events-none ${
-                  isDark 
-                    ? 'opacity-5 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:8px_8px]' 
-                    : 'opacity-10 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:8px_8px]'
-                }`} />
-
-                <div className="flex items-center justify-between mb-3 relative z-10">
-                  <div className={`p-2 rounded-xl ${bgIcon} transition-transform duration-300 group-hover:scale-110`}>
-                    {icon}
-                  </div>
-                  <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${
-                    isDark ? 'text-slate-500 group-hover:text-slate-300' : 'text-slate-500 group-hover:text-slate-700'
-                  }`}>
-                    {subtext}
-                  </span>
-                </div>
-
-                <div className="relative z-10 mt-1">
-                  <div className={`text-3xl font-black tabular-nums tracking-tight ${color} group-hover:brightness-125 transition-all`}>
-                    {value}
-                  </div>
-                  <div className={`text-[10px] font-black uppercase tracking-widest mt-1 flex items-center justify-between ${
-                    isDark ? 'text-slate-400' : 'text-slate-600'
-                  }`}>
-                    <span>{label}</span>
-                    <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity font-bold">View →</span>
-                  </div>
-                </div>
-              </div>
+                {p.label}
+              </button>
             ))}
           </div>
 
-          {/* ── Section: Work Order Telemetry ── */}
-          <div className="flex items-center gap-3 mb-3 mt-2">
-            <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Work Order Telemetry</span>
-            <div className="flex-1 h-px bg-white/[0.045]" />
+          <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">From:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  setDatePreset('custom');
+                }}
+                className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase">To:</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setDatePreset('custom');
+                }}
+                className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
           </div>
-          {/* ── Row 6: Full-width Work Order Telemetry Table ──────────────── */}
-          <div className="mb-6">
-            <WorkOrderTelemetryTable
-              data={projectsList}
-              selectedZone={selectedZone}
-              onSelectZone={setSelectedZone}
+        </div>
+      </div>
+
+      {/* Actionable Insights Strip — continuously moving marquee ticker with theme-aware fade edges */}
+      {(stalledProjects.length > 0 || lowRunwayZones.length > 0) && (
+        <div className="relative mb-8 overflow-hidden">
+          {/* Theme-aware fade masks (prevents dark blackish overlay in light mode) */}
+          <div
+            className={`pointer-events-none absolute left-0 top-0 bottom-0 w-16 z-10 transition-colors ${isDark
+                ? 'bg-gradient-to-r from-[#0b0e14] to-transparent'
+                : 'bg-gradient-to-r from-slate-50 to-transparent'
+              }`}
+          />
+          <div
+            className={`pointer-events-none absolute right-0 top-0 bottom-0 w-16 z-10 transition-colors ${isDark
+                ? 'bg-gradient-to-l from-[#0b0e14] to-transparent'
+                : 'bg-gradient-to-l from-slate-50 to-transparent'
+              }`}
+          />
+
+          {/* Continuous Moving Ticker Track (pauses on hover) */}
+          <div className="flex overflow-hidden">
+            <div className="animate-marquee gap-3 py-1 px-4">
+              {/* Ticker items batch 1 */}
+              {lowRunwayZones.map((z, idx) => (
+                <div
+                  key={`z1-${idx}`}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isDark
+                      ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
+                      : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
+                    }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                  {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                </div>
+              ))}
+              {stalledProjects.slice(0, 5).map((p, idx) => (
+                <div
+                  key={`p1-${idx}`}
+                  onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${isDark
+                      ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
+                    }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
+                </div>
+              ))}
+
+              {/* Duplicate items for seamless continuous looping marquee */}
+              {lowRunwayZones.map((z, idx) => (
+                <div
+                  key={`z2-${idx}`}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${isDark
+                      ? 'border-rose-500/30 bg-rose-950/20 text-rose-400'
+                      : 'border-rose-300 bg-rose-50 text-rose-700 shadow-sm'
+                    }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                  {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                </div>
+              ))}
+              {stalledProjects.slice(0, 5).map((p, idx) => (
+                <div
+                  key={`p2-${idx}`}
+                  onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
+                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl border text-[10px] font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer transition-colors ${isDark
+                      ? 'border-amber-500/30 bg-amber-950/20 text-amber-400 hover:border-amber-500/50'
+                      : 'border-amber-300 bg-amber-50 text-amber-800 shadow-sm hover:border-amber-400'
+                    }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                  {p.work_order_no} — No DPR for {p.days_since_last_progress_report}d ({p.physical_progress}% done)
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Executive 9-KPI Strip */}
+      <div className="flex items-center gap-3 mb-3">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} />
+
+      {/* ── Section: Performance Overview ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Performance Overview</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 1: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
+        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('physical_progress')}>
+          <div style={{ minHeight: '520px' }} className="h-full">
+            <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
+          <div style={{ minHeight: '520px' }} className="h-full">
+            <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
+          <div style={{ minHeight: '520px' }} className="h-full">
+            <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
+          </div>
+        </ZoomCard>
+      </div>
+
+      {/* ── Section: Fund Flow & Risk ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Fund Flow &amp; Risk</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 2: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <FundFlowWaterfall data={chartRes?.waterfallData || []} />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
+          </div>
+        </ZoomCard>
+      </div>
+
+      {/* ── Section: Zonal Intelligence ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Zonal Intelligence</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 3: Zonal Performance Heatmap (full-width) ─────────────── */}
+      <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
+        <ZonalPerformanceHeatmap
+          data={chartRes?.zonalHeatmap || []}
+          onSelectZone={setSelectedZone}
+          selectedZone={selectedZone}
+        />
+      </ZoomCard>
+
+      {/* ── Section: Trends & Projections ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Trends &amp; Projections</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 4: Runway (1/3) + S-Curve (1/3) + Revision Heatmap (1/3) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('runway')}>
+          <div style={{ minHeight: '420px' }} className="h-full">
+            <PredictiveRunwayLines
+              trendData={chartRes?.runwayTrend || []}
+              runwayData={insightsRes?.runwayData || []}
             />
           </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
+          <div style={{ minHeight: '420px' }} className="h-full">
+            <SCurveProgress data={chartRes?.sCurveData || []} />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('revision')}>
+          <div style={{ minHeight: '420px' }} className="h-full">
+            <InvestmentRecoveryPlot projects={projectsList} />
+          </div>
+        </ZoomCard>
+      </div>
 
-          {/* ── Fullscreen Chart Zoom Modal (Dynamic Class Component) ───────── */}
-          {zoomedChart === 'physical_progress' && (
-            <ChartModal title="Physical Work Progress Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
-              <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} isModal={true} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'je_visit' && (
-            <ChartModal title="JE Visit Frequency Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
-              <JeVisitFrequency data={chartRes?.jeVisitFrequencyMetrics} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'department' && (
-            <ChartModal title="Department Wise Estimate Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
-              <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'key_financials' && (
-            <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
-              <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'bubble' && (
-            <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'fundflow' && (
-            <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <FundFlowWaterfall data={chartRes?.waterfallData || []} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'zonal' && (
-            <ChartModal title="Zonal Performance Heatmap Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <ZonalPerformanceHeatmap data={chartRes?.zonalHeatmap || []} onSelectZone={setSelectedZone} selectedZone={selectedZone} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'runway' && (
-            <ChartModal title="Predictive Cash Runway & Projections" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <PredictiveRunwayLines trendData={chartRes?.runwayTrend || []} runwayData={insightsRes?.runwayData || []} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'scurve' && (
-            <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <SCurveProgress data={chartRes?.sCurveData || []} />
-            </ChartModal>
-          )}
-          {zoomedChart === 'revision' && (
-            <ChartModal title="Investment & Bill Recovery Realization" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-              <InvestmentRecoveryPlot projects={projectsList} isModal={true} />
-            </ChartModal>
-          )}
+      {/* ── Section: Project Health Summary ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Project Health Summary</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 5: Quick Executive Summary KPI Strip (6 premium tiles) ──── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        {[
+          {
+            label: 'Active Work Orders',
+            value: projectsList.length,
+            subtext: 'Total ongoing',
+            color: 'text-sky-400',
+            border: 'border-sky-500/20 hover:border-sky-500/40',
+            glow: 'shadow-sky-500/5',
+            bgIcon: 'bg-sky-500/10 text-sky-400',
+            filterFn: null, // All projects
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            )
+          },
+          {
+            label: 'Healthy',
+            value: projectsList.filter(p => p.health_status === 'Healthy').length,
+            subtext: 'On track',
+            color: 'text-emerald-400',
+            border: 'border-emerald-500/20 hover:border-emerald-500/40',
+            glow: 'shadow-emerald-500/5',
+            bgIcon: 'bg-emerald-500/10 text-emerald-400',
+            filterFn: p => p.health_status === 'Healthy',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )
+          },
+          {
+            label: 'Warning',
+            value: projectsList.filter(p => p.health_status === 'Warning').length,
+            subtext: 'Needs review',
+            color: 'text-amber-400',
+            border: 'border-amber-500/20 hover:border-amber-500/40',
+            glow: 'shadow-amber-500/5',
+            bgIcon: 'bg-amber-500/10 text-amber-400',
+            filterFn: p => p.health_status === 'Warning',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            )
+          },
+          {
+            label: 'Critical',
+            value: projectsList.filter(p => p.health_status === 'Critical').length,
+            subtext: 'Action required',
+            color: 'text-rose-400',
+            border: 'border-rose-500/20 hover:border-rose-500/40',
+            glow: 'shadow-rose-500/5',
+            bgIcon: 'bg-rose-500/10 text-rose-400',
+            filterFn: p => p.health_status === 'Critical',
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            )
+          },
+          {
+            label: 'Avg Progress',
+            value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projectsList.length) : 0}%`,
+            subtext: 'Portfolio progress',
+            color: 'text-indigo-400',
+            border: 'border-indigo-500/20 hover:border-indigo-500/40',
+            glow: 'shadow-indigo-500/5',
+            bgIcon: 'bg-indigo-500/10 text-indigo-400',
+            filterFn: null, // Shows all projects sorted by progress
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+            )
+          },
+          {
+            label: 'Avg Health',
+            value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.health_score || 0), 0) / projectsList.length) : 0}`,
+            subtext: 'Health score',
+            color: 'text-violet-400',
+            border: 'border-violet-500/20 hover:border-violet-500/40',
+            glow: 'shadow-violet-500/5',
+            bgIcon: 'bg-violet-500/10 text-violet-400',
+            filterFn: null, // Shows all projects sorted by health
+            icon: (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            )
+          },
+        ].map(({ label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
+          <div
+            key={label}
+            onClick={() => {
+              const filtered = filterFn ? projectsList.filter(filterFn) : projectsList;
+              setKpiDetailModal({
+                title: label,
+                color,
+                projects: filtered
+              });
+            }}
+            className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${border} ${glow} ${isDark ? 'bg-slate-900/40 text-slate-100' : 'bg-white/80 border-slate-200 shadow-sm text-slate-900'
+              } flex flex-col justify-between group cursor-pointer`}
+          >
+            {/* Background subtle grid pattern overlay - theme aware */}
+            <div className={`absolute inset-0 pointer-events-none ${isDark
+                ? 'opacity-5 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:8px_8px]'
+                : 'opacity-10 bg-[radial-gradient(#000_1px,transparent_1px)] [background-size:8px_8px]'
+              }`} />
 
-          {/* ── KPI Details Modal ─────────────────────────────────────────── */}
-          {kpiDetailModal && (
-            <KpiDetailsModal
-              title={kpiDetailModal.title}
-              colorClass={kpiDetailModal.color}
-              projects={kpiDetailModal.projects}
-              onClose={() => setKpiDetailModal(null)}
-              navigate={navigate}
-            />
-          )}
+            <div className="flex items-center justify-between mb-3 relative z-10">
+              <div className={`p-2 rounded-xl ${bgIcon} transition-transform duration-300 group-hover:scale-110`}>
+                {icon}
+              </div>
+              <span className={`text-[9px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-slate-500 group-hover:text-slate-300' : 'text-slate-500 group-hover:text-slate-700'
+                }`}>
+                {subtext}
+              </span>
+            </div>
+
+            <div className="relative z-10 mt-1">
+              <div className={`text-3xl font-black tabular-nums tracking-tight ${color} group-hover:brightness-125 transition-all`}>
+                {value}
+              </div>
+              <div className={`text-[10px] font-black uppercase tracking-widest mt-1 flex items-center justify-between ${isDark ? 'text-slate-400' : 'text-slate-600'
+                }`}>
+                <span>{label}</span>
+                <span className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity font-bold">View →</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Section: Work Order Telemetry ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Work Order Telemetry</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 6: Full-width Work Order Telemetry Table ──────────────── */}
+      <div className="mb-6">
+        <WorkOrderTelemetryTable
+          data={projectsList}
+          selectedZone={selectedZone}
+          onSelectZone={setSelectedZone}
+        />
+      </div>
+
+      {/* ── Fullscreen Chart Zoom Modal (Dynamic Class Component) ───────── */}
+      {zoomedChart === 'physical_progress' && (
+        <ChartModal title="Physical Work Progress Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+          <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} isModal={true} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'je_visit' && (
+        <ChartModal title="JE Visit Frequency Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+          <JeVisitFrequency data={chartRes?.jeVisitFrequencyMetrics} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'department' && (
+        <ChartModal title="Department Wise Estimate Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
+          <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'key_financials' && (
+        <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+          <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'bubble' && (
+        <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <BubbleRiskMatrix data={chartRes?.bubbleMatrix || []} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'fundflow' && (
+        <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <FundFlowWaterfall data={chartRes?.waterfallData || []} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'zonal' && (
+        <ChartModal title="Zonal Performance Heatmap Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <ZonalPerformanceHeatmap data={chartRes?.zonalHeatmap || []} onSelectZone={setSelectedZone} selectedZone={selectedZone} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'runway' && (
+        <ChartModal title="Predictive Cash Runway & Projections" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <PredictiveRunwayLines trendData={chartRes?.runwayTrend || []} runwayData={insightsRes?.runwayData || []} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'scurve' && (
+        <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <SCurveProgress data={chartRes?.sCurveData || []} />
+        </ChartModal>
+      )}
+      {zoomedChart === 'revision' && (
+        <ChartModal title="Investment & Bill Recovery Realization" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+          <InvestmentRecoveryPlot projects={projectsList} isModal={true} />
+        </ChartModal>
+      )}
+
+      {/* ── KPI Details Modal ─────────────────────────────────────────── */}
+      {kpiDetailModal && (
+        <KpiDetailsModal
+          title={kpiDetailModal.title}
+          colorClass={kpiDetailModal.color}
+          projects={kpiDetailModal.projects}
+          onClose={() => setKpiDetailModal(null)}
+          navigate={navigate}
+        />
+      )}
 
     </>
   );
