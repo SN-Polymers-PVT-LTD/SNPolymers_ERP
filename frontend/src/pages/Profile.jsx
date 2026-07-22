@@ -509,20 +509,30 @@ const Profile = () => {
   );
 };
 const AdminControlRoom = ({ roleData, formatCurrency, pageTransactions, setPageTransactions, txPageSize }) => {
-  const [filterType, setFilterType] = useState('value'); // 'value', 'progress', 'physical_progress', 'requisitions_spend', 'progress_activity'
+  const [filterType, setFilterType] = useState('value');
 
   const getSortedProjects = () => {
     const projects = [...(roleData.enrichedProjects || [])];
     if (filterType === 'value') {
-      return projects.sort((a, b) => b.work_order_value - a.work_order_value).slice(0, 5);
+      return projects.sort((a, b) => (b.work_order_value || 0) - (a.work_order_value || 0)).slice(0, 5);
+    } else if (filterType === 'lowest_value') {
+      return projects.sort((a, b) => (a.work_order_value || 0) - (b.work_order_value || 0)).slice(0, 5);
     } else if (filterType === 'progress') {
-      return projects.sort((a, b) => b.estimate_sheets_count - a.estimate_sheets_count).slice(0, 5);
+      return projects.sort((a, b) => (b.estimate_sheets_count || 0) - (a.estimate_sheets_count || 0)).slice(0, 5);
+    } else if (filterType === 'least_estimates') {
+      return projects.sort((a, b) => (a.estimate_sheets_count || 0) - (b.estimate_sheets_count || 0)).slice(0, 5);
     } else if (filterType === 'physical_progress') {
-      return projects.sort((a, b) => b.max_physical_progress - a.max_physical_progress).slice(0, 5);
+      return projects.sort((a, b) => (b.max_physical_progress || 0) - (a.max_physical_progress || 0)).slice(0, 5);
+    } else if (filterType === 'lowest_completion') {
+      return projects.sort((a, b) => (a.max_physical_progress || 0) - (b.max_physical_progress || 0)).slice(0, 5);
     } else if (filterType === 'requisitions_spend') {
-      return projects.sort((a, b) => b.requisitions_total_amount - a.requisitions_total_amount).slice(0, 5);
+      return projects.sort((a, b) => (b.requisitions_total_amount || 0) - (a.requisitions_total_amount || 0)).slice(0, 5);
+    } else if (filterType === 'lowest_spend') {
+      return projects.sort((a, b) => (a.requisitions_total_amount || 0) - (b.requisitions_total_amount || 0)).slice(0, 5);
     } else if (filterType === 'progress_activity') {
-      return projects.sort((a, b) => b.progress_reports_count - a.progress_reports_count).slice(0, 5);
+      return projects.sort((a, b) => (b.progress_reports_count || 0) - (a.progress_reports_count || 0)).slice(0, 5);
+    } else if (filterType === 'least_reports') {
+      return projects.sort((a, b) => (a.progress_reports_count || 0) - (b.progress_reports_count || 0)).slice(0, 5);
     }
     return projects.slice(0, 5);
   };
@@ -562,7 +572,7 @@ const AdminControlRoom = ({ roleData, formatCurrency, pageTransactions, setPageT
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-4 shrink-0">
               <div>
                 <h3 className="text-sm uppercase font-bold tracking-widest text-slate-300">Ongoing Work Zones</h3>
-                <p className="text-[10px] text-slate-500 font-medium">Top 5 priority work orders</p>
+                <p className="text-[10px] text-slate-500 font-medium">Filtered priority work orders</p>
               </div>
               <div>
                 <select
@@ -571,10 +581,15 @@ const AdminControlRoom = ({ roleData, formatCurrency, pageTransactions, setPageT
                   className="bg-slate-200 dark:bg-neutral-950 border border-slate-300 dark:border-white/10 rounded-xl px-2 py-1 text-[10px] text-slate-800 dark:text-slate-200 focus:outline-none w-full"
                 >
                   <option value="value" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Highest Value</option>
+                  <option value="lowest_value" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Lowest Value</option>
                   <option value="progress" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Most Estimates</option>
+                  <option value="least_estimates" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Least Estimates</option>
                   <option value="physical_progress" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Highest Completion</option>
+                  <option value="lowest_completion" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Lowest Completion</option>
                   <option value="requisitions_spend" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Highest Spend</option>
+                  <option value="lowest_spend" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Lowest Spend</option>
                   <option value="progress_activity" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Most Active Reports</option>
+                  <option value="least_reports" className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100">Least Active Reports</option>
                 </select>
               </div>
             </div>
@@ -589,11 +604,11 @@ const AdminControlRoom = ({ roleData, formatCurrency, pageTransactions, setPageT
                         <div className="text-[10px] text-slate-500 font-medium truncate mt-0.5">{p.site_details}</div>
                       </div>
                       <div className="text-right shrink-0">
-                        {filterType === 'value' && <div className="text-xs font-bold text-amber-500">{formatCurrency(p.work_order_value || 0)}</div>}
-                        {filterType === 'progress' && <div className="text-xs font-bold text-sky-400">{p.estimate_sheets_count || 0} Estimates</div>}
-                        {filterType === 'physical_progress' && <div className="text-xs font-bold text-emerald-400">{p.max_physical_progress || 0}% Done</div>}
-                        {filterType === 'requisitions_spend' && <div className="text-xs font-bold text-indigo-400">{formatCurrency(p.requisitions_total_amount || 0)}</div>}
-                        {filterType === 'progress_activity' && <div className="text-xs font-bold text-sky-400">{p.progress_reports_count || 0} Reports</div>}
+                        {(filterType === 'value' || filterType === 'lowest_value') && <div className="text-xs font-bold text-amber-500">{formatCurrency(p.work_order_value || 0)}</div>}
+                        {(filterType === 'progress' || filterType === 'least_estimates') && <div className="text-xs font-bold text-sky-400">{p.estimate_sheets_count || 0} Estimates</div>}
+                        {(filterType === 'physical_progress' || filterType === 'lowest_completion') && <div className="text-xs font-bold text-emerald-400">{p.max_physical_progress || 0}% Done</div>}
+                        {(filterType === 'requisitions_spend' || filterType === 'lowest_spend') && <div className="text-xs font-bold text-indigo-400">{formatCurrency(p.requisitions_total_amount || 0)}</div>}
+                        {(filterType === 'progress_activity' || filterType === 'least_reports') && <div className="text-xs font-bold text-sky-400">{p.progress_reports_count || 0} Reports</div>}
                       </div>
                     </div>
                   </div>

@@ -80,6 +80,7 @@ scores_calculated AS (
         pm.zone,
         pm.district,
         pm.state,
+        pm.department,
         pm.status,
         pm.work_order_value,
         pm.project_start_date,

@@ -905,13 +905,13 @@ const DepartmentWiseEstimate = ({ data }) => {
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
 
   const fallbackData = [
-    { department: 'PWD', amount: 70500000, percentage: 83.6, color: '#3B82F6' },
-    { department: 'Dept', amount: 8500000, percentage: 10.1, color: '#10B981' },
-    { department: 'Civil', amount: 1814000, percentage: 2.1, color: '#8B5CF6' },
-    { department: 'PWD Department', amount: 1800000, percentage: 2.1, color: '#F97316' },
-    { department: 'Irrigation', amount: 750000, percentage: 0.9, color: '#64748B' },
-    { department: 'WRDD', amount: 500000, percentage: 0.6, color: '#EF4444' },
-    { department: 'PHE', amount: 500000, percentage: 0.6, color: '#14B8A6' }
+    { department: 'PWD', amount: 70500000, percentage: 83.6, color: '#3B82F6', work_order_count: 212 },
+    { department: 'Dept', amount: 8500000, percentage: 10.1, color: '#10B981', work_order_count: 25 },
+    { department: 'Civil', amount: 1814000, percentage: 2.1, color: '#8B5CF6', work_order_count: 5 },
+    { department: 'PWD Department', amount: 1800000, percentage: 2.1, color: '#F97316', work_order_count: 5 },
+    { department: 'Irrigation', amount: 750000, percentage: 0.9, color: '#64748B', work_order_count: 3 },
+    { department: 'WRDD', amount: 500000, percentage: 0.6, color: '#EF4444', work_order_count: 2 },
+    { department: 'PHE', amount: 500000, percentage: 0.6, color: '#14B8A6', work_order_count: 1 }
   ];
 
   const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#64748B', '#EF4444', '#14B8A6', '#EC4899', '#F59E0B'];
@@ -1108,6 +1108,14 @@ const DepartmentWiseEstimate = ({ data }) => {
             </span>
             <span className="font-bold text-xs font-mono text-slate-200">
               {hoveredDept.percentage}%
+            </span>
+          </div>
+          <div className="flex items-baseline justify-between gap-3 mt-0.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Work Orders:
+            </span>
+            <span className="font-bold text-xs font-mono text-emerald-400">
+              {hoveredDept.work_order_count !== undefined ? hoveredDept.work_order_count : (hoveredDept.workOrders?.length ?? 'N/A')}
             </span>
           </div>
         </div>,
@@ -1634,6 +1642,10 @@ const ExecutiveKpiStrip = ({ data }) => {
     return `₹ ${Number(amt).toLocaleString('en-IN')}`;
   };
 
+  const woVal = data?.dueBill?.woValue ?? data?.totalWOValue ?? 125000000;
+  const grossBillAmt = data?.dueBill?.grossBillAmount ?? data?.grossBillAmount?.amount ?? 86500000;
+  const dueBillAmt = data?.dueBill?.amount ?? (woVal - grossBillAmt);
+
   const kpis = [
     {
       id: 'work_orders',
@@ -1715,11 +1727,20 @@ const ExecutiveKpiStrip = ({ data }) => {
       value: formatCr(data?.agencyPayment?.amount ?? 82000000),
       isCurrency: true,
       subtext: `${data?.agencyPayment?.pctOfGrossBill ?? 94.8}% of Gross Bill`,
+    },
+    {
+      id: 'due_bill',
+      title: 'DUE BILL AMOUNT',
+      titleColor: '#ec4899',
+      topGlow: 'linear-gradient(90deg, #db2777 0%, rgba(219,39,119,0) 80%)',
+      value: formatCr(dueBillAmt),
+      isCurrency: true,
+      subtext: `${data?.dueBill?.pctOfWOValue ?? (woVal > 0 ? ((dueBillAmt / woVal) * 100).toFixed(1) : 75.6)}% of WO Value`,
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-9 gap-3 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-10 gap-3 mb-6">
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
@@ -1780,15 +1801,21 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
 
   // Filter list
   const filtered = data.filter(p => {
-    const matchesSearch = (p.work_order_no || '').toLowerCase().includes(search.toLowerCase()) ||
-                          (p.site_details || '').toLowerCase().includes(search.toLowerCase());
-    const matchesZone = !selectedZone || p.zone === selectedZone;
-    const matchesDept = !deptFilter || p.department === deptFilter;
+    const q = search.toLowerCase().trim();
+    const matchesSearch = !q ||
+                          (p.work_order_no || '').toLowerCase().includes(q) ||
+                          (p.site_details || '').toLowerCase().includes(q) ||
+                          (p.department || '').toLowerCase().includes(q) ||
+                          (p.zone || '').toLowerCase().includes(q) ||
+                          (p.district || '').toLowerCase().includes(q);
+    const matchesZone = !selectedZone || (p.zone || '').toLowerCase().trim() === selectedZone.toLowerCase().trim();
+    const matchesDept = !deptFilter || (p.department || '').toLowerCase().trim() === deptFilter.toLowerCase().trim();
     return matchesSearch && matchesZone && matchesDept;
   });
 
-  // Unique departments for filtering
-  const depts = Array.from(new Set(data.map(p => p.department).filter(Boolean)));
+  // Unique departments & zones for filtering
+  const depts = Array.from(new Set(data.map(p => p.department).filter(Boolean))).sort();
+  const zones = Array.from(new Set(data.map(p => p.zone).filter(Boolean))).sort();
 
   // Sort list
   const sorted = [...filtered].sort((a, b) => {
@@ -1837,7 +1864,7 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
       </div>
 
       {/* Filters Toolbar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 items-center">
         <input
           type="text"
           placeholder="Search work order or site..."
@@ -1855,16 +1882,33 @@ const WorkOrderTelemetryTable = ({ data, selectedZone, onSelectZone }) => {
             <option key={d} value={d}>{d}</option>
           ))}
         </select>
-        <div className="flex items-center gap-2">
-          <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">Zone:</span>
-          {selectedZone ? (
-            <span className="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 font-bold uppercase tracking-wider flex items-center gap-1.5">
-              {selectedZone}
-              <button onClick={() => onSelectZone(null)} className="hover:text-white font-extrabold">&times;</button>
-            </span>
-          ) : (
-            <span className="text-slate-400 font-bold italic">All Zones</span>
+        <select
+          value={selectedZone || ''}
+          onChange={(e) => { onSelectZone(e.target.value || null); setPage(1); }}
+          className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 focus:outline-none focus:border-white/20 transition"
+        >
+          <option value="">All Zones</option>
+          {zones.map(z => (
+            <option key={z} value={z}>{z}</option>
+          ))}
+        </select>
+        <div className="flex items-center justify-between sm:justify-end gap-2">
+          {(search || deptFilter || selectedZone) && (
+            <button
+              onClick={() => {
+                setSearch('');
+                setDeptFilter('');
+                onSelectZone(null);
+                setPage(1);
+              }}
+              className="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition"
+            >
+              Reset Filters
+            </button>
           )}
+          <span className="text-[10px] text-slate-500 font-bold font-mono">
+            {filtered.length} / {data.length} WOs
+          </span>
         </div>
       </div>
 

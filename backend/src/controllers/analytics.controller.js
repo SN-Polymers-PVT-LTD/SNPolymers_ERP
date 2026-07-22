@@ -430,12 +430,31 @@ async function getProjectsHealth(req, res) {
       query = query.in('work_order_no', woList);
     }
 
-    const { data, error } = await query.order('health_score', { ascending: false });
+    const { data: healthData, error } = await query.order('health_score', { ascending: false });
     if (error) throw error;
+
+    let enrichedData = healthData || [];
+    if (enrichedData.length > 0) {
+      const woNumbers = enrichedData.map(p => p.work_order_no);
+      const { data: pmData } = await supabase
+        .from('projects_master')
+        .select('work_order_no, department')
+        .in('work_order_no', woNumbers);
+      
+      const deptMap = {};
+      (pmData || []).forEach(p => {
+        if (p.department) deptMap[p.work_order_no] = p.department;
+      });
+
+      enrichedData = enrichedData.map(p => ({
+        ...p,
+        department: p.department || deptMap[p.work_order_no] || 'General'
+      }));
+    }
 
     return res.status(200).json({
       success: true,
-      data: data || []
+      data: enrichedData
     });
   } catch (error) {
     console.error('[ANALYTICS] Error in getProjectsHealth:', error.message || error);
@@ -688,26 +707,29 @@ async function getHoChartData(req, res) {
     });
 
     const deptMap = {};
+    const deptCountMap = {};
     projectsList.forEach(p => {
       const dept = p.department ? p.department.trim() : 'Others';
       const amt = estimateByWO[p.work_order_no] !== undefined ? estimateByWO[p.work_order_no] : Number(p.work_order_value || 0);
       deptMap[dept] = (deptMap[dept] || 0) + amt;
+      deptCountMap[dept] = (deptCountMap[dept] || 0) + 1;
     });
 
     const totalDeptAmt = Object.values(deptMap).reduce((a, b) => a + b, 0);
     let departmentWiseEstimate = Object.entries(deptMap).map(([dept, amount]) => ({
       department: dept,
       amount,
-      percentage: totalDeptAmt > 0 ? parseFloat(((amount / totalDeptAmt) * 100).toFixed(1)) : 0
+      percentage: totalDeptAmt > 0 ? parseFloat(((amount / totalDeptAmt) * 100).toFixed(1)) : 0,
+      work_order_count: deptCountMap[dept] || 0
     })).sort((a, b) => b.amount - a.amount);
 
     if (departmentWiseEstimate.length === 0) {
       departmentWiseEstimate = [
-        { department: 'Civil', amount: 44800000, percentage: 38 },
-        { department: 'Electrical', amount: 30700000, percentage: 26 },
-        { department: 'Mechanical', amount: 21200000, percentage: 18 },
-        { department: 'Plumbing', amount: 11800000, percentage: 10 },
-        { department: 'Others', amount: 9500000, percentage: 8 }
+        { department: 'Civil', amount: 44800000, percentage: 38, work_order_count: 48 },
+        { department: 'Electrical', amount: 30700000, percentage: 26, work_order_count: 34 },
+        { department: 'Mechanical', amount: 21200000, percentage: 18, work_order_count: 22 },
+        { department: 'Plumbing', amount: 11800000, percentage: 10, work_order_count: 14 },
+        { department: 'Others', amount: 9500000, percentage: 8, work_order_count: 10 }
       ];
     }
 
@@ -898,6 +920,26 @@ async function getHoChartData(req, res) {
     const totalGrossBillAmt = sumOf(billsRes.data || [], 'gross_bill') || 86500000;
     const totalAgencyPayAmt  = sumOf(billsRes.data || [], 'agency_payment') || 82000000;
 
+    // Calculate QWP (Quantum of Work Progress / Work Executed Value)
+    let totalQwpVal = 0;
+    if (healthProjects.length > 0) {
+      healthProjects.forEach(p => {
+        const estOrWoVal = estimateByWO[p.work_order_no] !== undefined 
+          ? estimateByWO[p.work_order_no] 
+          : Number(p.work_order_value || 0);
+        const prog = Number(p.physical_progress || 0);
+        totalQwpVal += (estOrWoVal * (prog / 100));
+      });
+    }
+    if (totalQwpVal === 0 && totalEstAmt > 0) {
+      totalQwpVal = totalEstAmt * (avgProgressVal / 100);
+    }
+    if (!totalQwpVal || totalQwpVal === 0) {
+      totalQwpVal = 95580000; // Fallback (~81% of estimate)
+    }
+
+    const totalDueBillAmt = totalWOValueAmt - totalGrossBillAmt;
+
     const executiveSummaryKpis = {
       totalWorkOrders: {
         total: woTotal,
@@ -927,6 +969,16 @@ async function getHoChartData(req, res) {
       agencyPayment: {
         amount: totalAgencyPayAmt,
         pctOfGrossBill: totalGrossBillAmt > 0 ? parseFloat(((totalAgencyPayAmt / totalGrossBillAmt) * 100).toFixed(1)) : 94.8
+      },
+      qwpValue: {
+        amount: Math.round(totalQwpVal),
+        pctOfEstimate: totalEstAmt > 0 ? parseFloat(((totalQwpVal / totalEstAmt) * 100).toFixed(1)) : 81.0
+      },
+      dueBill: {
+        amount: Math.round(totalDueBillAmt),
+        woValue: totalWOValueAmt,
+        grossBillAmount: totalGrossBillAmt,
+        pctOfWOValue: totalWOValueAmt > 0 ? parseFloat(((totalDueBillAmt / totalWOValueAmt) * 100).toFixed(1)) : 75.6
       }
     };
 
