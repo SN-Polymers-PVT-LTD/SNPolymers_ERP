@@ -1938,13 +1938,9 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'estimate',
-<<<<<<< HEAD
-      title: 'TOTAL ESTIMATE',
-=======
       title: 'TOTAL ESTIMATE AMOUNT',
       description: 'Aggregated cost estimate value of final approved sheets.',
       formula: 'Sum(estimate_amount where status = \'Final Approved\')',
->>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#c084fc',
       topGlow: 'linear-gradient(90deg, #a855f7 0%, rgba(168,85,247,0) 80%)',
       value: formatCr(data?.totalEstimateAmount?.amount ?? 0),
@@ -1953,13 +1949,9 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'requisition',
-<<<<<<< HEAD
-      title: 'TOTAL REQUISITION',
-=======
       title: 'TOTAL REQUISITION (ZO → HO)',
       description: 'Total site fund requisitions requested from Zonal Offices.',
       formula: 'Sum(approved_amount where status = \'Approved\')',
->>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#fb923c',
       topGlow: 'linear-gradient(90deg, #f97316 0%, rgba(249,115,22,0) 80%)',
       value: formatCr(data?.totalRequisition?.amount ?? 0),
@@ -1968,13 +1960,9 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'approved',
-<<<<<<< HEAD
-      title: 'TOTAL APPROVED',
-=======
       title: 'TOTAL APPROVED (HO → ZO)',
       description: 'Total funds authorized and allocated from Head Office to Zones.',
       formula: 'Sum(approve_ho_amount where status = \'Approved\')',
->>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#fbbf24',
       topGlow: 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0) 80%)',
       value: formatCr(data?.totalApproved?.amount ?? 0),
@@ -1983,13 +1971,9 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'zo_balance',
-<<<<<<< HEAD
-      title: 'ZO BALANCE',
-=======
       title: 'ZO AVAILABLE BALANCE',
       description: 'Liquid fund balance currently available across all Zonal Office ledgers.',
       formula: 'Sum(available_balance)',
->>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#38bdf8',
       topGlow: 'linear-gradient(90deg, #0284c7 0%, rgba(2,132,199,0) 80%)',
       value: formatCr(data?.zoAvailableBalance ?? 0),
@@ -1998,13 +1982,9 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'refund',
-<<<<<<< HEAD
-      title: 'TOTAL REFUND',
-=======
       title: 'TOTAL REFUND AMOUNT',
       description: 'Unspent excess funds returned from Zonal Offices to Head Office.',
       formula: 'Sum(transaction_type = \'RETURN\')',
->>>>>>> c8a0731 (analytics thik thak)
       titleColor: '#2dd4bf',
       topGlow: 'linear-gradient(90deg, #14b8a6 0%, rgba(20,184,166,0) 80%)',
       value: formatCr(data?.totalRefundAmount ?? 0),
@@ -2051,20 +2031,12 @@ const ExecutiveKpiStrip = ({ data }) => {
       {kpis.map((kpi) => (
         <div
           key={kpi.id}
-<<<<<<< HEAD
-          className={`relative p-3 sm:p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
-            isDark 
-              ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' 
-              : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-          }`}
-          style={{ minHeight: '125px' }}
-=======
-          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark
+          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${
+            isDark
               ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20'
               : 'bg-white border-slate-200 shadow-sm hover:shadow-md'
-            }`}
+          }`}
           style={{ minHeight: '135px' }}
->>>>>>> c8a0731 (analytics thik thak)
         >
           {/* Colored Top Glow Accent Line */}
           <div
@@ -2072,10 +2044,14 @@ const ExecutiveKpiStrip = ({ data }) => {
             style={{ background: kpi.topGlow }}
           />
 
-<<<<<<< HEAD
+          {/* Top Right Corner Info Button */}
+          <div className="absolute top-2.5 right-2.5 z-10">
+            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
+          </div>
+
           {/* Title */}
           <p
-            className="text-[9px] sm:text-[9.5px] font-black tracking-wider uppercase leading-snug line-clamp-2"
+            className="text-[9.5px] font-black tracking-wider uppercase leading-snug pr-6"
             style={{ color: kpi.titleColor }}
             title={kpi.title}
           >
@@ -2084,40 +2060,18 @@ const ExecutiveKpiStrip = ({ data }) => {
 
           {/* Main Value */}
           <div className="my-auto py-1">
-            <span className={`text-sm sm:text-base lg:text-lg font-bold font-mono tracking-tight whitespace-nowrap ${
+            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${
               isDark ? 'text-slate-100' : 'text-slate-900'
             }`}>
-=======
-          {/* Title with Top-Left Info Icon */}
-          <div className="flex items-center gap-1.5 mb-1">
-            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
-            <p
-              className="text-[9.5px] font-black tracking-wider uppercase leading-snug"
-              style={{ color: kpi.titleColor }}
-            >
-              {kpi.title}
-            </p>
-          </div>
-
-          {/* Main Value */}
-          <div className="my-auto py-1">
-            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'
-              }`}>
->>>>>>> c8a0731 (analytics thik thak)
               {kpi.value}
             </span>
           </div>
 
           {/* Subtext */}
           {kpi.subtext ? (
-<<<<<<< HEAD
-            <p className={`text-[8.5px] sm:text-[9px] font-medium leading-tight truncate ${
+            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${
               isDark ? 'text-slate-400/80' : 'text-slate-600'
-            }`} title={kpi.subtext}>
-=======
-            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'
-              }`}>
->>>>>>> c8a0731 (analytics thik thak)
+            }`}>
               {kpi.subtext}
             </p>
           ) : (
