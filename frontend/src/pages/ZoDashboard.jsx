@@ -1569,22 +1569,22 @@ const JeLeaderboard = ({ projects, selectedZoName }) => {
 };
 
 /* ─── Executive KPI Strip (10 tiles) ─────────────────────────────── */
-const ExecutiveKpiStrip = ({ projects }) => {
+const ExecutiveKpiStrip = ({ projects, summaryKpis }) => {
   const { isDark } = useTheme();
 
-  const totalWO = projects.length;
-  const running = projects.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
-  const completed = projects.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
-  const pending = projects.filter(p => p.status === 'Pending').length;
-  const totalWOVal = projects.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-  const totalEst = projects.reduce((a, p) => a + Number(p.estimate_amount || 0), 0);
-  const totalReq = projects.reduce((a, p) => a + Number(p.requisition_amount || 0), 0);
-  const approvedReq = projects.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
-  const zoBalance = projects.reduce((a, p) => a + Number(p.balance || 0), 0);
-  const refund = projects.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
-  const grossBill = projects.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-  const agencyPay = projects.reduce((a, p) => a + Number(p.agency_paid || 0), 0);
-  const dueBill = Math.max(0, totalWOVal - grossBill);
+  const totalWO = summaryKpis?.totalWorkOrders?.total ?? projects.length;
+  const running = summaryKpis?.totalWorkOrders?.running ?? projects.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
+  const completed = summaryKpis?.totalWorkOrders?.completed ?? projects.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
+  const pending = summaryKpis?.totalWorkOrders?.pending ?? projects.filter(p => p.status === 'Pending').length;
+  const totalWOVal = summaryKpis?.totalWOValue ?? projects.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
+  const totalEst = summaryKpis?.totalEstimateAmount?.amount ?? projects.reduce((a, p) => a + Number(p.estimate_amount || p.work_order_value || 0), 0);
+  const totalReq = summaryKpis?.totalRequisition?.amount ?? projects.reduce((a, p) => a + Number(p.requisition_amount || p.approved_requisitions_amount || 0), 0);
+  const approvedReq = summaryKpis?.totalApproved?.amount ?? projects.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
+  const zoBalance = summaryKpis?.zoAvailableBalance ?? projects.reduce((a, p) => a + Number(p.balance || p.available_balance || 0), 0);
+  const refund = summaryKpis?.totalRefundAmount ?? projects.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
+  const grossBill = summaryKpis?.grossBillAmount?.amount ?? projects.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
+  const agencyPay = summaryKpis?.agencyPayment?.amount ?? projects.reduce((a, p) => a + Number(p.agency_paid || p.agency_payment || 0), 0);
+  const dueBill = summaryKpis?.dueBill?.amount ?? Math.max(0, totalWOVal - grossBill);
 
   const kpis = [
     { id: 'wo', title: 'TOTAL WORK ORDERS', description: 'Total active and completed work orders in zone.', formula: 'Count(zonal_projects)', color: '#60a5fa', glow: 'linear-gradient(90deg, #3b82f6, transparent)', value: totalWO, subtext: `Running: ${running} | Completed: ${completed}\nPending: ${pending}` },
@@ -2468,7 +2468,7 @@ const ZoDashboard = () => {
         </span>
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
-      <ExecutiveKpiStrip projects={filteredProjects} />
+      <ExecutiveKpiStrip projects={filteredProjects} summaryKpis={chartRes?.executiveSummaryKpis} />
 
       {/* ── Section: Performance Overview ── */}
       <SectionLabel>Performance Overview {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
