@@ -651,7 +651,18 @@ async function getHoChartData(req, res) {
     // === Strict Filtering Logic ===
     let allProjects = projectsRes.data || [];
     if (project_status && project_status !== 'all') {
-      allProjects = allProjects.filter(p => p.status === project_status);
+      const normStatus = project_status.toLowerCase().trim();
+      allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
+    }
+    if (zone) {
+      const targetZone = zone.toLowerCase().trim();
+      allProjects = allProjects.filter(p => {
+        const pZone = (p.zone || p.zo_user_id || p.area_code || '').toLowerCase().trim();
+        return pZone === targetZone;
+      });
+    }
+    if (work_order_no) {
+      allProjects = allProjects.filter(p => p.work_order_no === work_order_no);
     }
     const allowedWoSet = new Set(allProjects.map(p => p.work_order_no));
 
@@ -687,7 +698,7 @@ async function getHoChartData(req, res) {
       health_status: p.health_status,
       anomaly_score: p.health_status === 'Critical' ? 4 : p.health_status === 'Warning' ? 2 : 0
     }));
-    if (zone) bubbleMatrix = bubbleMatrix.filter(p => p.zone === zone);
+    if (zone) bubbleMatrix = bubbleMatrix.filter(p => (p.zone || '').toLowerCase().trim() === zone.toLowerCase().trim());
     if (work_order_no) bubbleMatrix = bubbleMatrix.filter(p => p.work_order_no === work_order_no);
 
     // === Build waterfallData ===
@@ -703,14 +714,28 @@ async function getHoChartData(req, res) {
     ];
 
     // === Build zonalHeatmap ===
-    const zonalHeatmap = (zoneRes.data || []).map(z => ({
-      zone: z.zone,
-      health_score: Number(z.average_health_score || 0),
-      budget_util: Number(z.budget_utilization_pct || 0),
-      total_projects: Number(z.total_projects || 0),
-      delayed_projects: Number(z.delayed_projects || 0),
-      projects_at_risk: Number(z.projects_at_risk || 0)
-    }));
+    let zonalHeatmap = (zoneRes.data || []).map(z => {
+      const zName = (z.zone || '').toLowerCase().trim();
+      const zoneHealth = filteredHealth.filter(p => (p.zone || '').toLowerCase().trim() === zName);
+      const zoneTotalProjects = zoneHealth.length;
+      const avgHealthScore = zoneTotalProjects > 0
+        ? Math.round(zoneHealth.reduce((a, p) => a + Number(p.health_score || 0), 0) / zoneTotalProjects)
+        : Number(z.average_health_score || 0);
+      const delayedProjects = zoneHealth.filter(p => Number(p.days_since_last_progress_report || 0) > 7).length;
+      const riskProjects = zoneHealth.filter(p => p.health_status === 'Critical' || p.health_status === 'Warning').length;
+
+      return {
+        zone: z.zone,
+        health_score: avgHealthScore,
+        budget_util: Number(z.budget_utilization_pct || 0),
+        total_projects: zoneTotalProjects,
+        delayed_projects: delayedProjects,
+        projects_at_risk: riskProjects
+      };
+    });
+    if (zone) {
+      zonalHeatmap = zonalHeatmap.filter(z => (z.zone || '').toLowerCase().trim() === zone.toLowerCase().trim());
+    }
 
     // === Build revisionHeatmap ===
     const revisionMap = {};
@@ -807,7 +832,7 @@ async function getHoChartData(req, res) {
     }
 
     // === Build physicalProgressMetrics & jeVisitFrequencyMetrics ===
-    const healthProjects = healthRes.data || [];
+    const healthProjects = filteredHealth;
     
     // 1. Physical Progress buckets
     const progBuckets = {
@@ -950,16 +975,16 @@ async function getHoChartData(req, res) {
     };
 
     // === Build keyFinancialIndicators ===
-    const totalEmd = (projectsRes.data || []).reduce((acc, p) => acc + Number(p.earnest_money_deposit || 0), 0) ||
-      (billsRes.data || []).reduce((acc, b) => acc + Number(b.earnest_money_deposit || 0), 0);
+    const totalEmd = (allProjects || []).reduce((acc, p) => acc + Number(p.earnest_money_deposit || 0), 0) ||
+      (filteredBills || []).reduce((acc, b) => acc + Number(b.earnest_money_deposit || 0), 0);
     
-    const totalSd = (billsRes.data || []).reduce((acc, b) => acc + Number(b.security_deposit_amount || 0), 0);
+    const totalSd = (filteredBills || []).reduce((acc, b) => acc + Number(b.security_deposit_amount || 0), 0);
     
-    let totalItTds = (billsRes.data || []).reduce((acc, b) => acc + Number(b.it_tds || 0), 0);
-    let totalSgst  = (billsRes.data || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
-    let totalCgst  = (billsRes.data || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
+    let totalItTds = (filteredBills || []).reduce((acc, b) => acc + Number(b.it_tds || 0), 0);
+    let totalSgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
+    let totalCgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
 
-    const totalGross = (billsRes.data || []).reduce((acc, b) => acc + Number(b.gross_bill || 0), 0);
+    const totalGross = (filteredBills || []).reduce((acc, b) => acc + Number(b.gross_bill || 0), 0);
     if (totalItTds === 0 && totalGross > 0) totalItTds = totalGross * 0.02;
     if (totalSgst === 0 && totalGross > 0) totalSgst = totalGross * 0.09;
     if (totalCgst === 0 && totalGross > 0) totalCgst = totalGross * 0.09;
@@ -977,9 +1002,9 @@ async function getHoChartData(req, res) {
 
     // === Build executiveSummaryKpis ===
     const woTotal = projectsList.length;
-    const woRunning = projectsList.filter(p => p.status === 'Running' || p.status === 'Ongoing').length;
-    const woCompleted = projectsList.filter(p => p.status === 'Completed' || p.status === 'Closed').length;
-    const woPending = projectsList.filter(p => p.status === 'Pending' || p.status === 'Draft' || p.status === 'Complete Under Maintenance').length;
+    const woRunning = projectsList.filter(p => (p.status || '').toLowerCase() === 'running' || (p.status || '').toLowerCase() === 'ongoing').length;
+    const woCompleted = projectsList.filter(p => (p.status || '').toLowerCase() === 'completed' || (p.status || '').toLowerCase() === 'closed').length;
+    const woPending = projectsList.filter(p => (p.status || '').toLowerCase() === 'pending' || (p.status || '').toLowerCase() === 'draft' || (p.status || '').toLowerCase() === 'complete under maintenance').length;
 
     const totalWOValueAmt = sumOf(projectsList, 'work_order_value');
     const totalEstAmt = sumOf(finalEstimates, 'estimate_amount');
@@ -1064,7 +1089,8 @@ async function getHoChartData(req, res) {
       physicalProgressMetrics,
       jeVisitFrequencyMetrics,
       keyFinancialIndicators,
-      executiveSummaryKpis
+      executiveSummaryKpis,
+      projectsList
     });
   } catch (error) {
     console.error('[ANALYTICS] Error in getHoChartData:', error.message || error);

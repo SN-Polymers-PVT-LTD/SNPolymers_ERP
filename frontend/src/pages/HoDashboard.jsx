@@ -2466,10 +2466,11 @@ const HoDashboard = () => {
 
   // Fetch executive chart data
   const { data: chartRes } = useQuery({
-    queryKey: ['hoChartData', activeView, projectStatusFilter, startDate, endDate],
+    queryKey: ['hoChartData', activeView, projectStatusFilter, startDate, endDate, selectedZone],
     queryFn: async () => {
       const res = await getHoChartData({
         view: activeView,
+        zone: selectedZone || undefined,
         project_status: projectStatusFilter,
         start_date: startDate || undefined,
         end_date: endDate || undefined
@@ -2491,6 +2492,37 @@ const HoDashboard = () => {
     }
   });
   const projectsList = projectsRes?.data || [];
+
+  /* ── Filtered Projects & Stalled Ticker ── */
+  const filteredProjects = useMemo(() => {
+    let list = chartRes?.projectsList || projectsList;
+    if (selectedZone) {
+      list = list.filter(p => {
+        const pZone = (p.zone || p.area_code || p.zo_user_id || '').toLowerCase().trim();
+        const sel = selectedZone.toLowerCase().trim();
+        return pZone === sel;
+      });
+    }
+    if (projectStatusFilter && projectStatusFilter !== 'all') {
+      list = list.filter(p => (p.status || '').toLowerCase().trim() === projectStatusFilter.toLowerCase().trim());
+    }
+    return list;
+  }, [chartRes?.projectsList, projectsList, selectedZone, projectStatusFilter]);
+
+  const filteredStalledProjects = useMemo(() => {
+    let list = stalledProjects;
+    if (selectedZone) {
+      list = list.filter(p => {
+        const pZone = (p.zone || p.area_code || p.zo_user_id || '').toLowerCase().trim();
+        const sel = selectedZone.toLowerCase().trim();
+        return pZone === sel;
+      });
+    }
+    if (projectStatusFilter && projectStatusFilter !== 'all') {
+      list = list.filter(p => (p.status || '').toLowerCase().trim() === projectStatusFilter.toLowerCase().trim());
+    }
+    return list;
+  }, [stalledProjects, selectedZone, projectStatusFilter]);
 
 
   // 1. Fetch HO KPIs
@@ -2749,7 +2781,7 @@ const HoDashboard = () => {
                   {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
                 </div>
               ))}
-              {stalledProjects.slice(0, 5).map((p, idx) => (
+              {filteredStalledProjects.slice(0, 5).map((p, idx) => (
                 <div
                   key={`p2-${idx}`}
                   onClick={() => navigate(`/projects/${p.work_order_no}/digital-twin`)}
@@ -2863,7 +2895,7 @@ const HoDashboard = () => {
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('revision')}>
           <div style={{ minHeight: '420px' }} className="h-full">
             <InvestmentRecoveryPlot
-              projects={projectsList}
+              projects={filteredProjects}
               agencyPaymentAmount={chartRes?.executiveSummaryKpis?.agencyPayment?.amount}
             />
           </div>
@@ -2880,7 +2912,7 @@ const HoDashboard = () => {
         {[
           {
             label: 'Active Work Orders',
-            value: projectsList.length,
+            value: filteredProjects.length,
             subtext: 'Total ongoing',
             color: 'text-sky-400',
             border: 'border-sky-500/20 hover:border-sky-500/40',
@@ -2895,7 +2927,7 @@ const HoDashboard = () => {
           },
           {
             label: 'Healthy',
-            value: projectsList.filter(p => p.health_status === 'Healthy').length,
+            value: filteredProjects.filter(p => p.health_status === 'Healthy').length,
             subtext: 'On track',
             color: 'text-emerald-400',
             border: 'border-emerald-500/20 hover:border-emerald-500/40',
@@ -2910,7 +2942,7 @@ const HoDashboard = () => {
           },
           {
             label: 'Warning',
-            value: projectsList.filter(p => p.health_status === 'Warning').length,
+            value: filteredProjects.filter(p => p.health_status === 'Warning').length,
             subtext: 'Needs review',
             color: 'text-amber-400',
             border: 'border-amber-500/20 hover:border-amber-500/40',
@@ -2925,7 +2957,7 @@ const HoDashboard = () => {
           },
           {
             label: 'Critical',
-            value: projectsList.filter(p => p.health_status === 'Critical').length,
+            value: filteredProjects.filter(p => p.health_status === 'Critical').length,
             subtext: 'Action required',
             color: 'text-rose-400',
             border: 'border-rose-500/20 hover:border-rose-500/40',
@@ -2940,7 +2972,7 @@ const HoDashboard = () => {
           },
           {
             label: 'Avg Progress',
-            value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projectsList.length) : 0}%`,
+            value: `${filteredProjects.length ? Math.round(filteredProjects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / filteredProjects.length) : 0}%`,
             subtext: 'Portfolio progress',
             color: 'text-indigo-400',
             border: 'border-indigo-500/20 hover:border-indigo-500/40',
@@ -2955,7 +2987,7 @@ const HoDashboard = () => {
           },
           {
             label: 'Avg Health',
-            value: `${projectsList.length ? Math.round(projectsList.reduce((a, p) => a + Number(p.health_score || 0), 0) / projectsList.length) : 0}`,
+            value: `${filteredProjects.length ? Math.round(filteredProjects.reduce((a, p) => a + Number(p.health_score || 0), 0) / filteredProjects.length) : 0}`,
             subtext: 'Health score',
             color: 'text-violet-400',
             border: 'border-violet-500/20 hover:border-violet-500/40',
@@ -2972,7 +3004,7 @@ const HoDashboard = () => {
           <div
             key={label}
             onClick={() => {
-              const filtered = filterFn ? projectsList.filter(filterFn) : projectsList;
+              const filtered = filterFn ? filteredProjects.filter(filterFn) : filteredProjects;
               setKpiDetailModal({
                 title: label,
                 color,
@@ -3020,7 +3052,7 @@ const HoDashboard = () => {
       {/* ── Row 6: Full-width Work Order Telemetry Table ──────────────── */}
       <div className="mb-6">
         <WorkOrderTelemetryTable
-          data={projectsList}
+          data={filteredProjects}
           selectedZone={selectedZone}
           onSelectZone={setSelectedZone}
         />
@@ -3083,7 +3115,7 @@ const HoDashboard = () => {
           onClose={() => setZoomedChart(null)}
         >
           <InvestmentRecoveryPlot
-            projects={projectsList}
+            projects={filteredProjects}
             agencyPaymentAmount={chartRes?.executiveSummaryKpis?.agencyPayment?.amount}
             isModal={true}
           />

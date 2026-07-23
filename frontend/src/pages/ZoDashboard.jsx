@@ -2208,27 +2208,41 @@ const ZoDashboard = () => {
   const stalledProjects = insights.stalledProjects || [];
   const lowRunwayZones = (insights.runwayData || []).filter(z => z.runway_days !== null && z.runway_days < 21);
 
-  /* ── Strictly Filter Projects by Selected ZO Name ── */
+  /* ── Strictly Filter Projects by Selected ZO Name & Project Status ── */
   const filteredProjects = useMemo(() => {
-    if (!selectedZo) return projectsList;
-    return projectsList.filter(p => {
-      const pZo = (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim();
-      const sel = selectedZo.toLowerCase().trim();
-      const selName = (zoNameMap[selectedZo] || '').toLowerCase().trim();
-      return pZo === sel || pZo === selName;
-    });
-  }, [projectsList, selectedZo, zoNameMap]);
+    let list = chartRes?.projectsList || projectsList;
+    if (selectedZo) {
+      list = list.filter(p => {
+        const pZo = (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim();
+        const sel = selectedZo.toLowerCase().trim();
+        const selName = (zoNameMap[selectedZo] || '').toLowerCase().trim();
+        return pZo === sel || pZo === selName;
+      });
+    }
+    if (projectStatusFilter && projectStatusFilter !== 'all') {
+      const normStatus = projectStatusFilter.toLowerCase().trim();
+      list = list.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
+    }
+    return list;
+  }, [chartRes?.projectsList, projectsList, selectedZo, projectStatusFilter, zoNameMap]);
 
-  /* ── Filter Ticker by Selected ZO Name ── */
+  /* ── Filter Ticker by Selected ZO Name & Status ── */
   const filteredStalledProjects = useMemo(() => {
-    if (!selectedZo) return stalledProjects;
-    return stalledProjects.filter(p => {
-      const pZo = (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim();
-      const sel = selectedZo.toLowerCase().trim();
-      const selName = (zoNameMap[selectedZo] || '').toLowerCase().trim();
-      return pZo === sel || pZo === selName;
-    });
-  }, [stalledProjects, selectedZo, zoNameMap]);
+    let list = stalledProjects;
+    if (selectedZo) {
+      list = list.filter(p => {
+        const pZo = (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim();
+        const sel = selectedZo.toLowerCase().trim();
+        const selName = (zoNameMap[selectedZo] || '').toLowerCase().trim();
+        return pZo === sel || pZo === selName;
+      });
+    }
+    if (projectStatusFilter && projectStatusFilter !== 'all') {
+      const normStatus = projectStatusFilter.toLowerCase().trim();
+      list = list.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
+    }
+    return list;
+  }, [stalledProjects, selectedZo, projectStatusFilter, zoNameMap]);
 
   const filteredLowRunwayZones = useMemo(() => {
     const valid = lowRunwayZones.filter(z => {
