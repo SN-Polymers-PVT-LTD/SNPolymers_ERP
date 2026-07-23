@@ -963,7 +963,7 @@ const SCurveProgress = ({ projects }) => {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h3 className="chart-title">S-Curve Performance Progress</h3>
-          <p className="chart-subtitle">Planned linear trajectory vs actual DPR submissions</p>
+          <p className="chart-subtitle">Planned sigmoidal S-curve target vs actual DPR submissions</p>
         </div>
       </div>
       <div className="relative flex-1 flex flex-col justify-center">

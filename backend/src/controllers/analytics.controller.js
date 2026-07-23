@@ -494,11 +494,22 @@ async function getProjectsHealth(req, res) {
   }
 }
 
+let lastRefreshTime = 0;
+
 /**
  * POST /api/v1/auth/analytics/refresh
  * Explicitly triggers view updates from backend (restriced to HO/admin)
  */
 async function triggerRefresh(req, res) {
+  const now = Date.now();
+  if (now - lastRefreshTime < 30000) {
+    return res.status(429).json({
+      success: false,
+      message: 'Analytics views refresh was triggered recently. Please wait 30 seconds before triggering again.'
+    });
+  }
+  lastRefreshTime = now;
+
   // Respond immediately to prevent client-side HTTP timeouts
   res.status(202).json({
     success: true,
@@ -623,6 +634,11 @@ async function getHoChartData(req, res) {
     const { view = 'all', zone, work_order_no, project_status, start_date, end_date } = req.query;
     const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 
+    let effectiveZone = zone;
+    if (req.user.role === 'zo') {
+      effectiveZone = req.user.mobile_number;
+    }
+
     const sumOf = (arr, key) =>
       (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
 
@@ -667,8 +683,8 @@ async function getHoChartData(req, res) {
       const normStatus = project_status.toLowerCase().trim();
       allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
     }
-    if (zone) {
-      const targetZone = zone.toLowerCase().trim();
+    if (effectiveZone) {
+      const targetZone = effectiveZone.toLowerCase().trim();
       allProjects = allProjects.filter(p => {
         const pZoUserId = (p.zo_user_id || '').toLowerCase().trim();
         const pZone = (p.zone || '').toLowerCase().trim();
@@ -876,16 +892,6 @@ async function getHoChartData(req, res) {
       percentage: totalDeptAmt > 0 ? parseFloat(((obj.amount / totalDeptAmt) * 100).toFixed(1)) : 0
     })).sort((a, b) => b.amount - a.amount);
 
-    if (departmentWiseEstimate.length === 0) {
-      departmentWiseEstimate = [
-        { department: 'Civil', amount: 44800000, count: 15, percentage: 38 },
-        { department: 'Electrical', amount: 30700000, count: 10, percentage: 26 },
-        { department: 'Mechanical', amount: 21200000, count: 8, percentage: 18 },
-        { department: 'Plumbing', amount: 11800000, count: 4, percentage: 10 },
-        { department: 'Others', amount: 9500000, count: 3, percentage: 8 }
-      ];
-    }
-
     // === Build physicalProgressMetrics & jeVisitFrequencyMetrics ===
     const healthProjects = filteredHealth;
     
@@ -1035,24 +1041,19 @@ async function getHoChartData(req, res) {
     
     const totalSd = (filteredBills || []).reduce((acc, b) => acc + Number(b.security_deposit_amount || 0), 0);
     
-    let totalItTds = (filteredBills || []).reduce((acc, b) => acc + Number(b.it_tds || 0), 0);
-    let totalSgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
-    let totalCgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
-
-    const totalGross = (filteredBills || []).reduce((acc, b) => acc + Number(b.gross_bill || 0), 0);
-    if (totalItTds === 0 && totalGross > 0) totalItTds = totalGross * 0.02;
-    if (totalSgst === 0 && totalGross > 0) totalSgst = totalGross * 0.09;
-    if (totalCgst === 0 && totalGross > 0) totalCgst = totalGross * 0.09;
+    const totalItTds = (filteredBills || []).reduce((acc, b) => acc + Number(b.it_tds || 0), 0);
+    const totalSgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
+    const totalCgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
 
     const totalNotUtilized = (zoBalRes.data || []).reduce((acc, b) => acc + Number(b.available_balance || 0), 0);
 
     const keyFinancialIndicators = {
-      emdAmount: totalEmd || 3200000,
-      securityDeposit: totalSd || 4200000,
-      itTds: totalItTds || 8400000,
-      sgst: totalSgst || 3680000,
-      cgst: totalCgst || 3680000,
-      notUtilized: totalNotUtilized || 900000
+      emdAmount: totalEmd,
+      securityDeposit: totalSd,
+      itTds: totalItTds,
+      sgst: totalSgst,
+      cgst: totalCgst,
+      notUtilized: totalNotUtilized
     };
 
     // === Build executiveSummaryKpis ===

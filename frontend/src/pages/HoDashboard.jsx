@@ -735,7 +735,22 @@ const SCurveProgress = ({ data }) => {
     }).join(' ');
   };
 
-  const plannedPoints = `${PAD},${H - PAD} ${W - PAD},${PAD}`;
+  const plannedPoints = useMemo(() => {
+    const steps = 30;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const rawS = 1 / (1 + Math.exp(-7 * (t - 0.5)));
+      const s0 = 1 / (1 + Math.exp(3.5));
+      const s1 = 1 / (1 + Math.exp(-3.5));
+      const progress = ((rawS - s0) / (s1 - s0)) * 100;
+      
+      const x = PAD + t * (W - 2 * PAD);
+      const y = (H - PAD) - (progress / 100) * (H - 2 * PAD);
+      pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+    }
+    return pts.join(' ');
+  }, [PAD, W, H]);
 
   return (
     <div className="chart-panel h-full">
