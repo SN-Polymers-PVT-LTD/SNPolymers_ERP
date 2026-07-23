@@ -639,7 +639,7 @@ async function getHoChartData(req, res) {
         supabase.from('zo_fund_ledger').select('zo_user_id, transaction_type, amount, created_at').gte('created_at', twelveMonthsAgo).order('created_at', { ascending: true }),
         supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
         supabase.from('zone_performance_mv').select('*'),
-        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status'),
+        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id'),
         supabase.from('zo_balances').select('available_balance')
       ]);
 
@@ -648,8 +648,21 @@ async function getHoChartData(req, res) {
       if (r.error) throw r.error;
     }
 
+    // === Enrich projects_master with zone data from project_health_mv ===
+    const healthZoneMap = {};
+    (healthRes.data || []).forEach(h => {
+      healthZoneMap[h.work_order_no] = {
+        zone: h.zone || '',
+        zo_user_id: h.zo_user_id || '',
+      };
+    });
+
     // === Strict Filtering Logic ===
-    let allProjects = projectsRes.data || [];
+    let allProjects = (projectsRes.data || []).map(p => ({
+      ...p,
+      zone: (healthZoneMap[p.work_order_no] || {}).zone || '',
+      zo_user_id: p.zo_user_id || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '',
+    }));
     if (project_status && project_status !== 'all') {
       const normStatus = project_status.toLowerCase().trim();
       allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
@@ -657,8 +670,9 @@ async function getHoChartData(req, res) {
     if (zone) {
       const targetZone = zone.toLowerCase().trim();
       allProjects = allProjects.filter(p => {
-        const pZone = (p.zone || p.zo_user_id || p.area_code || '').toLowerCase().trim();
-        return pZone === targetZone;
+        const pZoUserId = (p.zo_user_id || '').toLowerCase().trim();
+        const pZone = (p.zone || '').toLowerCase().trim();
+        return pZoUserId === targetZone || pZone === targetZone;
       });
     }
     if (work_order_no) {
