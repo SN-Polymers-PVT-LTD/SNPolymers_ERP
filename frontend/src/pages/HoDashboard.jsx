@@ -830,10 +830,7 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
     const woValue = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
     const investment = pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0), 0);
     const grossBilled = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-    let billReceived = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
-    if (!billReceived && agencyPaymentAmount) {
-      billReceived = Number(agencyPaymentAmount);
-    }
+    const billReceived = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
 
     const pendingRecovery = Math.max(0, investment - billReceived);
     const surplusRecovery = Math.max(0, billReceived - investment);

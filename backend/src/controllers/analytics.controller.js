@@ -777,7 +777,12 @@ async function getHoChartData(req, res) {
       return { zo_user_id, history };
     });
 
-    // === Build departmentWiseEstimate & projectsList with agency_payment ===
+    // === Build departmentWiseEstimate & projectsList with full joined telemetry ===
+    const reqsByWo = {};
+    filteredReqs.filter(r => r.requisition_status === 'Approved').forEach(r => {
+      reqsByWo[r.work_order_no] = (reqsByWo[r.work_order_no] || 0) + Number(r.approved_amount || 0);
+    });
+
     const billsByWo = {};
     filteredBills.forEach(b => {
       if (!billsByWo[b.work_order_no]) {
@@ -787,11 +792,32 @@ async function getHoChartData(req, res) {
       billsByWo[b.work_order_no].gross_bill += Number(b.gross_bill || 0);
     });
 
-    const projectsList = allProjects.map(p => ({
-      ...p,
-      agency_payment: billsByWo[p.work_order_no]?.agency_payment || 0,
-      gross_billed: billsByWo[p.work_order_no]?.gross_bill || 0,
-    }));
+    const healthMap = {};
+    (healthRes.data || []).forEach(h => {
+      healthMap[h.work_order_no] = h;
+    });
+
+    const projectsList = allProjects.map(p => {
+      const h = healthMap[p.work_order_no] || {};
+      const reqAmt = reqsByWo[p.work_order_no] !== undefined 
+        ? reqsByWo[p.work_order_no] 
+        : Number(h.approved_requisitions_amount || 0);
+      return {
+        ...p,
+        site_details: h.site_details || p.site_details || 'Site Project',
+        physical_progress: Number(h.physical_progress !== undefined && h.physical_progress !== null ? h.physical_progress : (p.physical_progress || 0)),
+        health_status: h.health_status || p.health_status || 'Healthy',
+        health_score: Number(h.health_score || p.health_score || 0),
+        zone: h.zone || p.zone || p.area_code || '',
+        zo_user_id: h.zo_user_id || p.zo_user_id || '',
+        approved_requisitions_amount: reqAmt,
+        requisition_amount: reqAmt,
+        approved_amount: reqAmt,
+        agency_payment: billsByWo[p.work_order_no]?.agency_payment || 0,
+        agency_paid: billsByWo[p.work_order_no]?.agency_payment || 0,
+        gross_billed: billsByWo[p.work_order_no]?.gross_bill || 0,
+      };
+    });
 
     const estimateByWO = {};
     filteredEstimates.forEach(e => {
