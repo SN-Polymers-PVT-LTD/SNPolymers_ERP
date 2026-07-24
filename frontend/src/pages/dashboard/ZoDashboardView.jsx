@@ -83,7 +83,7 @@ const ZoDashboardView = () => {
 
   const balanceData = balanceRes?.balances?.[0] || balanceRes?.balance || {
     available_balance: 0,
-    assigned_credit_limit: 2000000,
+    assigned_credit_limit: 0,
     zo_name: myZoName
   };
 
