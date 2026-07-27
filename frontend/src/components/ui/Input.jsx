@@ -43,6 +43,12 @@ const Input = React.forwardRef(({
           ref={ref}
           type={type}
           required={required}
+          onWheel={(e) => {
+            if (type === 'number') {
+              e.target.blur();
+            }
+            if (props.onWheel) props.onWheel(e);
+          }}
           className={`w-full glass-input focus:ring-0 outline-none font-semibold text-slate-100 transition duration-200 ${inputSizeClass} ${paddingLeftClass} ${paddingRightClass} ${errorClass} ${className}`}
           {...props}
         />

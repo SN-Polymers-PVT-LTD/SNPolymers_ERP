@@ -60,6 +60,16 @@ const queryClient = new QueryClient({
 });
 
 function App() {
+  React.useEffect(() => {
+    const handleWheel = () => {
+      if (document.activeElement && document.activeElement.type === 'number') {
+        document.activeElement.blur();
+      }
+    };
+    window.addEventListener('wheel', handleWheel, { passive: true });
+    return () => window.removeEventListener('wheel', handleWheel);
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
