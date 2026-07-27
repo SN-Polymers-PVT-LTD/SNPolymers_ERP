@@ -169,7 +169,7 @@ const HoDashboardView = () => {
     const pendingFrAmt = fundRequests
       .filter(f => (f.request_status || '').toLowerCase() === 'pending')
       .reduce((sum, f) => sum + Number(f.zo_fr_amount || 0), 0);
-    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requested_amount || r.net_payable_amount || 0), 0);
+    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requisition_amount || r.requested_amount || r.net_payable_amount || 0), 0);
     const inFlightTotal = pendingFrAmt + pendingReqAmt;
 
     // Disbursed / Approved
@@ -284,7 +284,7 @@ const HoDashboardView = () => {
                           <div className="text-xs font-bold text-slate-200 truncate mt-0.5">{req.work_order_no} — {req.site_details || 'Site Location'}</div>
                         </div>
                         <div className="text-right shrink-0">
-                          <div className="text-xs font-bold text-rose-400 font-mono">{formatINR(req.requested_amount || req.approved_amount)}</div>
+                          <div className="text-xs font-bold text-rose-400 font-mono">{formatINR(req.requisition_amount || req.requested_amount || req.approved_amount || 0)}</div>
                           <span className="text-[8px] font-bold uppercase text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20">Pending</span>
                         </div>
                       </div>

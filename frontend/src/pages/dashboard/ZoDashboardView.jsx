@@ -80,7 +80,7 @@ const ZoDashboardView = () => {
       return status.includes('pending');
     });
 
-    const sum = pendingItems.reduce((acc, r) => acc + Number(r.net_payable_amount || r.requested_amount || r.amount || 0), 0);
+    const sum = pendingItems.reduce((acc, r) => acc + Number(r.requisition_amount || r.net_payable_amount || r.requested_amount || r.amount || 0), 0);
     return { count: pendingItems.length, amount: sum };
   }, [requisitionsList]);
 
