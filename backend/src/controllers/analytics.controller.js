@@ -930,7 +930,7 @@ async function getHoChartData(req, res) {
     const deptMap = {};
     projectsList.forEach(p => {
       const dept = p.department ? p.department.trim() : 'Others';
-      const amt = estimateByWO[p.work_order_no] !== undefined ? estimateByWO[p.work_order_no] : Number(p.work_order_value || 0);
+      const amt = approvedEstimateByWO[p.work_order_no] !== undefined ? approvedEstimateByWO[p.work_order_no] : Number(p.work_order_value || 0);
       if (!deptMap[dept]) {
         deptMap[dept] = { amount: 0, count: 0 };
       }
@@ -1132,8 +1132,8 @@ async function getHoChartData(req, res) {
     let totalQwpVal = 0;
     if (filteredHealth.length > 0) {
       filteredHealth.forEach(p => {
-        const estOrWoVal = estimateByWO[p.work_order_no] !== undefined 
-          ? estimateByWO[p.work_order_no] 
+        const estOrWoVal = approvedEstimateByWO[p.work_order_no] !== undefined 
+          ? approvedEstimateByWO[p.work_order_no] 
           : Number(p.work_order_value || 0);
         const prog = Number(p.physical_progress || 0);
         totalQwpVal += (estOrWoVal * (prog / 100));
