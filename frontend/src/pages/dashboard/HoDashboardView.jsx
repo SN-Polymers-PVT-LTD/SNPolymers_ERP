@@ -124,12 +124,12 @@ const HoDashboardView = () => {
     const rawProjects = projectsRes?.projects || [];
     return rawProjects.map(p => {
       const h = healthMap[p.work_order_no];
-      const progVal = h?.physical_progress !== undefined && h?.physical_progress !== null 
-        ? h.physical_progress 
+      const progVal = h?.physical_progress !== undefined && h?.physical_progress !== null
+        ? h.physical_progress
         : h?.physical_work_progress;
 
-      const prog = progVal !== undefined && progVal !== null 
-        ? Number(progVal) 
+      const prog = progVal !== undefined && progVal !== null
+        ? Number(progVal)
         : Number(p.physical_progress || 0);
       return {
         ...p,
@@ -169,7 +169,7 @@ const HoDashboardView = () => {
     const pendingFrAmt = fundRequests
       .filter(f => (f.request_status || '').toLowerCase() === 'pending')
       .reduce((sum, f) => sum + Number(f.zo_fr_amount || 0), 0);
-    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requisition_amount || r.requested_amount || r.net_payable_amount || 0), 0);
+    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requested_amount || r.net_payable_amount || 0), 0);
     const inFlightTotal = pendingFrAmt + pendingReqAmt;
 
     // Disbursed / Approved
@@ -367,18 +367,6 @@ const HoDashboardView = () => {
                 </div>
               </div>
 
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] shrink-0" />
-                  <div>
-                    <div className="text-xs uppercase font-bold tracking-wider text-slate-200">Capital Moved (30 Days)</div>
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">Disbursed to ZO and Field accounts</div>
-                  </div>
-                </div>
-                <div className="text-base font-extrabold text-emerald-400 font-mono shrink-0">
-                  {formatINR(capitalFlow.movedTotal)}
-                </div>
-              </div>
 
               <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Capital Velocity Pipeline</div>
@@ -469,7 +457,7 @@ const HoDashboardView = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                
+
                 {/* Stage 1: Draft Estimates */}
                 <div className="group relative bg-white/2 border border-white/5 rounded-2xl p-4 transition-all duration-300 hover:bg-amber-500/5 hover:border-amber-500/30 cursor-pointer">
                   <div className="flex items-center justify-between">
@@ -482,7 +470,7 @@ const HoDashboardView = () => {
                   <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">In preparation by JEs</span>
 
                   {/* Hover Tooltip Card (Opens Downwards) */}
-                  <div 
+                  <div
                     className="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute left-0 right-0 top-full mt-2 z-50 p-3.5 rounded-2xl border space-y-1.5"
                     style={{
                       backgroundColor: isDark ? '#0f172a' : '#ffffff',
@@ -519,7 +507,7 @@ const HoDashboardView = () => {
                   <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">ZO / HO technical audit</span>
 
                   {/* Hover Tooltip Card (Opens Downwards) */}
-                  <div 
+                  <div
                     className="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute left-0 right-0 top-full mt-2 z-50 p-3.5 rounded-2xl border space-y-1.5"
                     style={{
                       backgroundColor: isDark ? '#0f172a' : '#ffffff',
@@ -558,7 +546,7 @@ const HoDashboardView = () => {
                   <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">On-site work active</span>
 
                   {/* Hover Tooltip Card (Opens Upwards to avoid bottom clipping) */}
-                  <div 
+                  <div
                     className="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute left-0 right-0 bottom-full mb-2 z-50 p-3.5 rounded-2xl border space-y-1.5"
                     style={{
                       backgroundColor: isDark ? '#0f172a' : '#ffffff',
@@ -591,15 +579,15 @@ const HoDashboardView = () => {
                   </div>
                   <div className="text-base sm:text-lg font-mono font-black text-purple-600 dark:text-purple-400 mt-2 truncate" title={
                     formatINR(
-                      Math.max(0, 
-                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
+                      Math.max(0,
+                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
                         (capitalFlow.requisitionsDisbursed || 0)
                       )
                     )
                   }>
                     {formatINR(
-                      Math.max(0, 
-                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
+                      Math.max(0,
+                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
                         (capitalFlow.requisitionsDisbursed || 0)
                       )
                     )}
@@ -607,7 +595,7 @@ const HoDashboardView = () => {
                   <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">Unbilled WO value pending realization</span>
 
                   {/* Hover Tooltip Card (Opens Upwards to avoid bottom clipping) */}
-                  <div 
+                  <div
                     className="pointer-events-none opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 absolute left-0 right-0 bottom-full mb-2 z-50 p-3.5 rounded-2xl border space-y-1.5"
                     style={{
                       backgroundColor: isDark ? '#0f172a' : '#ffffff',
@@ -635,8 +623,8 @@ const HoDashboardView = () => {
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Unbilled Exposure:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#c084fc' : '#7e22ce' }}>
                         {formatINR(
-                          Math.max(0, 
-                            (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
+                          Math.max(0,
+                            (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
                             (capitalFlow.requisitionsDisbursed || 0)
                           )
                         )}
