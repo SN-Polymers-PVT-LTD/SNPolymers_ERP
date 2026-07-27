@@ -718,7 +718,7 @@ const PredictiveRunwayLines = ({ trendData, runwayData }) => {
           {(trendData || []).map((t, idx) => (
             <div key={idx} className="flex items-center gap-1.5">
               <span className="w-3 h-1.5 rounded-full" style={{ backgroundColor: lineColors[idx % lineColors.length] }}></span>
-              <span>{t.zo_user_id}</span>
+              <span>{t.zo_name || t.zo_user_id}</span>
             </div>
           ))}
         </div>
@@ -2808,7 +2808,7 @@ const HoDashboard = () => {
                     }`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                  {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                  {z.zo_name || z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
                 </div>
               ))}
               {stalledProjects.slice(0, 5).map((p, idx) => (
@@ -2835,7 +2835,7 @@ const HoDashboard = () => {
                     }`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
-                  {z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
+                  {z.zo_name || z.zone || z.zo_user_id} — Balance depletes in {z.runway_days} days
                 </div>
               ))}
               {filteredStalledProjects.slice(0, 5).map((p, idx) => (

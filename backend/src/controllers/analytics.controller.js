@@ -954,7 +954,8 @@ async function getHoChartData(req, res) {
         running += tx.amount;
         return { date: tx.date, balance: running };
       });
-      return { zo_user_id, history };
+      const zo_name = zoNameMap[zo_user_id] || zo_user_id;
+      return { zo_user_id, zo_name, history };
     });
 
     // === Build departmentWiseEstimate & projectsList with full joined telemetry ===
