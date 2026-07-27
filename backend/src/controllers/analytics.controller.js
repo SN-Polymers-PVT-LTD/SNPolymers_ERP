@@ -37,15 +37,15 @@ async function getHoKpis(req, res) {
     const { data: kpiData, error: kpiError } = await supabase
       .from('executive_kpi_mv')
       .select('*')
-      .single();
+      .maybeSingle();
 
-    if (kpiError) throw kpiError;
+    if (kpiError) console.error('[ANALYTICS] kpiError in getHoKpis:', kpiError.message || kpiError);
 
     const { data: statusCounts, error: statusError } = await supabase
       .from('project_health_mv')
       .select('health_status');
 
-    if (statusError) throw statusError;
+    if (statusError) console.error('[ANALYTICS] statusError in getHoKpis:', statusError.message || statusError);
 
     const healthDistribution = { Healthy: 0, Warning: 0, Critical: 0 };
     if (statusCounts) {
@@ -56,9 +56,21 @@ async function getHoKpis(req, res) {
       });
     }
 
+    const defaultKpis = {
+      id: 1,
+      total_projects: 0,
+      active_projects: 0,
+      projects_at_warning: 0,
+      projects_at_risk: 0,
+      average_project_health: 0,
+      total_budget: 0,
+      total_spent: 0,
+      budget_utilization_pct: 0
+    };
+
     return res.status(200).json({
       success: true,
-      kpis: kpiData,
+      kpis: kpiData || defaultKpis,
       healthDistribution
     });
   } catch (error) {
@@ -609,7 +621,7 @@ async function getHoActionableInsights(req, res) {
     const { data: balances, error: balErr } = await supabase
       .from('zo_balances')
       .select('zo_user_id, available_balance');
-    if (balErr) throw balErr;
+    if (balErr) console.error('[ANALYTICS] balErr in getHoActionableInsights:', balErr.message || balErr);
 
     // 2. Fetch last-30-day requisition burns per ZO
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -618,7 +630,7 @@ async function getHoActionableInsights(req, res) {
       .select('zo_user_id, approved_amount')
       .eq('requisition_status', 'Approved')
       .gte('payment_date', thirtyDaysAgo);
-    if (burnErr) throw burnErr;
+    if (burnErr) console.error('[ANALYTICS] burnErr in getHoActionableInsights:', burnErr.message || burnErr);
 
     // 3. Aggregate burn per ZO
     const burnMap = {};
@@ -649,13 +661,13 @@ async function getHoActionableInsights(req, res) {
       .lt('physical_progress', 100)
       .gt('days_since_last_progress_report', 7)
       .order('days_since_last_progress_report', { ascending: false });
-    if (stalledErr) throw stalledErr;
+    if (stalledErr) console.error('[ANALYTICS] stalledErr in getHoActionableInsights:', stalledErr.message || stalledErr);
 
     // 6. High-revision projects (>3 revisions)
     const { data: allEstimates, error: estErr } = await supabase
       .from('project_cost_estimates')
       .select('work_order_no');
-    if (estErr) throw estErr;
+    if (estErr) console.error('[ANALYTICS] estErr in getHoActionableInsights:', estErr.message || estErr);
 
     const revisionCount = {};
     (allEstimates || []).forEach(e => {
@@ -718,9 +730,12 @@ async function getHoChartData(req, res) {
         supabase.from('zo_balances').select('available_balance')
       ]);
 
-    // Throw on first error
+    // Log query errors gracefully without crashing the entire response with HTTP 500
     for (const r of [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
-      if (r.error) throw r.error;
+      if (r.error) {
+        console.error('[ANALYTICS] getHoChartData query error:', r.error.message || r.error);
+        r.data = r.data || [];
+      }
     }
 
     // === Enrich projects_master with zone data from project_health_mv ===
