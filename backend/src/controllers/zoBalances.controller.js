@@ -60,30 +60,52 @@ async function getZonalBalances(req, res) {
       });
     }
 
-    let dbQuery = supabase
+    // Single ZO user view
+    if (req.user.role === 'zo') {
+      const zoId = req.user.mobile_number;
+      const { data: bRow } = await supabase.from('zo_balances').select('*').eq('zo_user_id', zoId).maybeSingle();
+      const userMap = await resolveDisplayNames([zoId]);
+      return res.status(200).json({
+        success: true,
+        balances: [{
+          zo_user_id: zoId,
+          zo_name: userMap[zoId] || req.user.display_name || zoId,
+          available_balance: Number(bRow?.available_balance || 0),
+          updated_at: bRow?.updated_at || new Date().toISOString()
+        }]
+      });
+    }
+
+    // HO / Admin view: Fetch ALL authorized ZO users + merge balances
+    const { data: zoUsers, error: usersErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .eq('role', 'zo')
+      .eq('is_active', true)
+      .order('display_name', { ascending: true });
+
+    if (usersErr) throw usersErr;
+
+    const { data: balances, error: balErr } = await supabase
       .from('zo_balances')
       .select('*');
 
-    if (req.user.role === 'zo') {
-      dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
-    }
+    if (balErr) throw balErr;
 
-    const { data: balances, error } = await dbQuery.order('zo_user_id', { ascending: true });
+    const balanceMap = {};
+    (balances || []).forEach(b => {
+      balanceMap[b.zo_user_id] = b;
+    });
 
-    if (error) throw error;
-
-    const enriched = [];
-    if (balances && balances.length > 0) {
-      const mobiles = balances.map(b => b.zo_user_id);
-      const userMap = await resolveDisplayNames(mobiles);
-
-      balances.forEach(b => {
-        enriched.push({
-          ...b,
-          zo_name: userMap[b.zo_user_id] || b.zo_user_id
-        });
-      });
-    }
+    const enriched = (zoUsers || []).map(u => {
+      const b = balanceMap[u.mobile_number];
+      return {
+        zo_user_id: u.mobile_number,
+        zo_name: u.display_name || u.mobile_number,
+        available_balance: Number(b?.available_balance || 0),
+        updated_at: b?.updated_at || new Date().toISOString()
+      };
+    });
 
     return res.status(200).json({
       success: true,
