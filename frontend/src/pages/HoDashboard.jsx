@@ -740,10 +740,19 @@ const SCurveProgress = ({ data }) => {
   const getPoints = (pointsList) => {
     if (!pointsList || pointsList.length === 0) return '';
     const sorted = [...pointsList].sort((a, b) => new Date(a.date) - new Date(b.date));
-    return sorted.map((p, idx) => {
-      const x = PAD + (idx / Math.max(1, sorted.length - 1)) * (W - 2 * PAD);
+    
+    // Ensure at least 2 points for smooth line rendering from 0% baseline
+    const firstDate = new Date(sorted[0].date);
+    const startDate = new Date(firstDate.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const pts = sorted.length === 1 
+      ? [{ date: startDate, progress: 0 }, ...sorted]
+      : sorted;
+
+    const count = pts.length;
+    return pts.map((p, idx) => {
+      const x = PAD + (idx / Math.max(1, count - 1)) * (W - 2 * PAD);
       const y = (H - PAD) - (Number(p.progress || 0) / 100) * (H - 2 * PAD);
-      return `${x},${y}`;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
   };
 

@@ -884,8 +884,21 @@ async function getHoChartData(req, res) {
     const dprByWO = {};
     filteredDpr.forEach(d => {
       if (!dprByWO[d.work_order_no]) dprByWO[d.work_order_no] = [];
-      dprByWO[d.work_order_no].push({ date: d.login_date, progress: Number(d.physical_work_progress || 0) });
+      const dt = d.site_visit_date || d.login_date || d.created_at;
+      dprByWO[d.work_order_no].push({ date: dt, progress: Number(d.physical_work_progress || 0) });
     });
+
+    allProjects.forEach(p => {
+      const prog = Number((healthMap[p.work_order_no] || {}).physical_progress || p.physical_progress || 0);
+      if (!dprByWO[p.work_order_no] || dprByWO[p.work_order_no].length === 0) {
+        if (prog > 0) {
+          dprByWO[p.work_order_no] = [
+            { date: p.created_at || new Date().toISOString(), progress: prog }
+          ];
+        }
+      }
+    });
+
     const sCurveData = Object.entries(dprByWO).map(([wo, actuals]) => ({
       work_order_no: wo,
       actuals
