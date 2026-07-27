@@ -1671,6 +1671,15 @@ const MetricDonutCard = ({
       // eslint-disable-next-line react-hooks/immutability
       currentCumulativeAngle += angle;
 
+      if (angle >= 359.9) {
+        const fullCirclePathData = `M ${center} ${center - outerRadius} A ${outerRadius} ${outerRadius} 0 1 1 ${center - 0.01} ${center - outerRadius} L ${center - 0.01} ${center - innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 ${center} ${center - innerRadius} Z`;
+        return {
+          ...bucket,
+          pct: Math.round(pct),
+          pathData: fullCirclePathData
+        };
+      }
+
       const startRad = (startAngle - 90) * (Math.PI / 180);
       const endRad = (endAngle - 90) * (Math.PI / 180);
 
