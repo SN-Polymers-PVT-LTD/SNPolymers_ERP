@@ -811,6 +811,9 @@ async function getHoChartData(req, res) {
         ? Number(e.estimate_amount || 0) 
         : Number(e.last_approved_amount || 0)
     }));
+    const approvedFunds  = filteredFundReqs.filter(f => f.request_status === 'Approved');
+    const approvedReqs   = filteredReqs.filter(r => r.requisition_status === 'Approved');
+
     // Fetch completed excess fund returns to HO
     let totalExcessReturned = 0;
     try {
@@ -819,8 +822,9 @@ async function getHoChartData(req, res) {
         .select('requested_amount, status, zo_user_id')
         .eq('status', 'Completed');
 
-      if (zo_user_id) {
-        fundReturnsQuery = fundReturnsQuery.eq('zo_user_id', zo_user_id);
+      const targetZoFilter = effectiveZone || req.query?.zo_user_id;
+      if (targetZoFilter) {
+        fundReturnsQuery = fundReturnsQuery.eq('zo_user_id', targetZoFilter);
       }
 
       const { data: completedReturns } = await fundReturnsQuery;
