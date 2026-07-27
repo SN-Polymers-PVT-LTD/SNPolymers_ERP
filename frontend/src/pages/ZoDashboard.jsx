@@ -842,8 +842,8 @@ const STAGE_METADATA_MAP = {
 
 const FundFlowWaterfall = ({ projects }) => {
   const c = useChartColors();
-  const W = 600, H = 360, PAD_LEFT = 180, PAD_RIGHT = 120, PAD_Y = 40;
-  const barH = 22, gap = 16;
+  const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
+  const barH = 22, gap = 20;
 
   const rows = useMemo(() => {
     const p = projects || [];
@@ -870,8 +870,8 @@ const FundFlowWaterfall = ({ projects }) => {
   const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
 
   return (
-    <div className="chart-panel h-full">
-      <div className="flex justify-between items-start mb-2">
+    <div className="chart-panel h-full flex flex-col justify-between">
+      <div className="flex justify-between items-start mb-2 shrink-0">
         <div>
           <h3 className="chart-title">Fund Flow Pipeline</h3>
           <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
@@ -881,8 +881,8 @@ const FundFlowWaterfall = ({ projects }) => {
           formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
         />
       </div>
-      <div className="relative mt-6">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+      <div className="relative mt-2 flex-1 flex items-center justify-center">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[85vh]" preserveAspectRatio="xMidYMid meet">
           <defs>
             {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
@@ -902,13 +902,13 @@ const FundFlowWaterfall = ({ projects }) => {
             const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
             return (
               <g key={i}>
-                <text x={PAD_LEFT - 12} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">{d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}</text>
-                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={4} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
-                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="8" fontWeight="bold">{fmtCr(d.amount)}</text>
+                <text x={PAD_LEFT - 14} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="9" fontWeight="bold" letterSpacing="0.5">{d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}</text>
+                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={5} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
+                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="9" fontWeight="extrabold" className="font-mono">{fmtCr(d.amount)}</text>
                 {i > 0 && diff > 0 && !d.isRefund && (
                   <g>
                     <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
-                    <text x={PAD_LEFT + scale(prev) + 6} y={y - 4} fill={c.isDark ? '#94a3b8' : '#64748b'} fontSize="7" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>
+                    <text x={PAD_LEFT + scale(prev) + 8} y={y - 5} fill={c.isDark ? '#cbd5e1' : '#475569'} fontSize="8" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>
                   </g>
                 )}
               </g>
