@@ -436,7 +436,7 @@ const HoDashboardView = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
                   <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Junior Eng (JE)</span>
-                  <span className="text-xl font-mono font-black text-amber-500 mt-1">{overview?.userCounts?.je || roleData.stats?.totalUsers || 0}</span>
+                  <span className="text-xl font-mono font-black text-amber-500 mt-1">{overview?.userCounts?.je || 0}</span>
                 </div>
                 <div className="bg-white/5 border border-white/5 rounded-2xl p-4 flex flex-col justify-between">
                   <span className="text-[9px] uppercase font-bold text-slate-500 tracking-wider">Zonal Offices (ZO)</span>
