@@ -167,25 +167,34 @@ const HoDashboardView = () => {
   const capitalFlow = useMemo(() => {
     // In-flight: pending fund requests + pending requisitions
     const pendingFrAmt = fundRequests
-      .filter(f => (f.request_status || '').toLowerCase() === 'pending')
-      .reduce((sum, f) => sum + Number(f.zo_fr_amount || 0), 0);
-    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requested_amount || r.net_payable_amount || 0), 0);
+      .filter(f => (f.request_status || f.status || '').toLowerCase() === 'pending')
+      .reduce((sum, f) => sum + Number(f.zo_fr_amount || f.amount || f.request_amount || 0), 0);
+
+    const pendingReqAmt = pendingRequisitions
+      .reduce((sum, r) => sum + Number(r.requisition_amount || r.requested_amount || r.net_payable_amount || 0), 0);
+
     const inFlightTotal = pendingFrAmt + pendingReqAmt;
 
     // Disbursed / Approved
     const approvedFrAmt = fundRequests
-      .filter(f => (f.request_status || '').toLowerCase() === 'approved')
-      .reduce((sum, f) => sum + Number(f.approve_ho_amount || f.zo_fr_amount || 0), 0);
-    const approvedReqAmt = requisitionStats.approvedSum;
+      .filter(f => (f.request_status || f.status || '').toLowerCase() === 'approved')
+      .reduce((sum, f) => sum + Number(f.approve_ho_amount || f.zo_fr_amount || f.amount || 0), 0);
+
+    const approvedReqAmt = requisitions
+      .filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved')
+      .reduce((sum, r) => sum + Number(r.approved_amount || r.requisition_amount || r.net_payable_amount || 0), 0);
+
     const movedTotal = approvedFrAmt + approvedReqAmt;
 
     return {
       inFlightTotal,
+      pendingFrAmt,
+      pendingReqAmt,
       movedTotal,
       zonalDisbursals: approvedFrAmt,
       requisitionsDisbursed: approvedReqAmt
     };
-  }, [fundRequests, pendingRequisitions, requisitionStats]);
+  }, [fundRequests, pendingRequisitions, requisitions]);
 
   // Sorted work orders for Ongoing Work Zones
   const topProjects = useMemo(() => {
@@ -354,16 +363,23 @@ const HoDashboardView = () => {
               Cash Distribution Breakdown
             </h2>
             <div className="space-y-4">
-              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] shrink-0" />
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] shrink-0 mt-1 sm:mt-0" />
                   <div>
                     <div className="text-xs uppercase font-bold tracking-wider text-slate-200">In-Flight / Pending Approvals</div>
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">Fund requests &amp; pending requisitions</div>
+                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">
+                      Pending Requisitions: <strong className="text-amber-400 font-mono font-bold">{formatINR(capitalFlow.pendingReqAmt)}</strong>
+                      <span className="mx-1 text-slate-600">|</span>
+                      Pending Fund Requests: <span className="font-mono text-slate-300">{formatINR(capitalFlow.pendingFrAmt)}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-base font-extrabold text-amber-400 font-mono shrink-0">
-                  {formatINR(capitalFlow.inFlightTotal)}
+                <div className="text-right shrink-0">
+                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Pending</div>
+                  <div className="text-base font-extrabold text-amber-400 font-mono">
+                    {formatINR(capitalFlow.inFlightTotal)}
+                  </div>
                 </div>
               </div>
 
