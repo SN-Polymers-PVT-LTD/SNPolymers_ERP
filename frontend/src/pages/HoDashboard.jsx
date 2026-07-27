@@ -1503,15 +1503,15 @@ const DepartmentWiseEstimate = ({ data }) => {
       <div className="flex justify-between items-start mb-3">
         <div>
           <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-            Department Wise Estimate Amount
+            Department Wise Work Order Value
           </h3>
           <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Breakdown of estimated costs across operational departments
+            Breakdown of work order values across operational departments
           </p>
         </div>
         <ChartInfoTooltip
-          description="Distribution of estimated project expenditure allocated across operational departments."
-          formula="Dept Share % = (Sum of Approved Estimates in Dept / Total Portfolio Estimate) × 100"
+          description="Distribution of total work order value allocated across operational departments."
+          formula="Dept Share % = (Sum of Work Order Values in Dept / Total Portfolio WO Value) × 100"
         />
       </div>
 
@@ -1543,7 +1543,7 @@ const DepartmentWiseEstimate = ({ data }) => {
           {/* Center Label inside donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Total Estimate
+              Total WO Value
             </span>
             <span className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
               {formatAmount(totalAmount)}
@@ -1598,7 +1598,7 @@ const DepartmentWiseEstimate = ({ data }) => {
 
           <div className="flex items-baseline justify-between gap-3 mt-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Estimated Amount:
+              Work Order Value:
             </span>
             <span className="font-black text-sm font-mono text-amber-400">
               {formatAmount(hoveredDept.amount)}
@@ -1616,7 +1616,7 @@ const DepartmentWiseEstimate = ({ data }) => {
           )}
           <div className="flex items-baseline justify-between gap-3 mt-0.5">
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-              Share of Estimate:
+              Share of WO Value:
             </span>
             <span className="font-bold text-xs font-mono text-slate-200">
               {hoveredDept.percentage}%
@@ -3095,7 +3095,7 @@ const HoDashboard = () => {
         </ChartModal>
       )}
       {zoomedChart === 'department' && (
-        <ChartModal title="Department Wise Estimate Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Department Wise Work Order Value Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
           <DepartmentWiseEstimate data={chartRes?.departmentWiseEstimate || []} />
         </ChartModal>
       )}

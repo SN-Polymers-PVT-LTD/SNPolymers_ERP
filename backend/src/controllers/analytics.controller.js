@@ -930,7 +930,7 @@ async function getHoChartData(req, res) {
     const deptMap = {};
     projectsList.forEach(p => {
       const dept = p.department ? p.department.trim() : 'Others';
-      const amt = approvedEstimateByWO[p.work_order_no] !== undefined ? approvedEstimateByWO[p.work_order_no] : Number(p.work_order_value || 0);
+      const amt = Number(p.work_order_value || 0);
       if (!deptMap[dept]) {
         deptMap[dept] = { amount: 0, count: 0 };
       }

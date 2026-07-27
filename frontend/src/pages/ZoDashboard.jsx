@@ -675,29 +675,39 @@ const DepartmentWiseEstimate = ({ projects }) => {
       <div className="flex justify-between items-center mb-3">
         <div className="flex items-center gap-2">
           <ChartInfoTooltip
-            description="Distribution of estimated project expenditure allocated across operational departments."
-            formula="Dept Share % = (Sum of Approved Estimates in Dept / Total Zonal Estimate) × 100"
+            description="Distribution of total work order value allocated across operational departments."
+            formula="Dept Share % = (Sum of Work Order Values in Dept / Total Zonal WO Value) × 100"
           />
           <div>
-            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Estimate Amount</h3>
-            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of estimated costs across operational departments</p>
+            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Work Order Value</h3>
+            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of work order values across operational departments</p>
           </div>
         </div>
       </div>
       <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
-        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto">
+        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto flex items-center justify-center">
           {items.length === 0 ? (
             <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-500 uppercase tracking-wider text-center p-4">No projects for selected ZO Name</div>
           ) : (
-            <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
-              {slices.map((slice, idx) => slice.pathData && (
-                <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group"
-                  onMouseEnter={(e) => handleMouseEnter(e, slice)} onMouseLeave={() => setHoveredDept(null)}>
-                  <path d={slice.pathData} fill={slice.color} stroke={isDark ? '#0f172a' : '#ffffff'} strokeWidth="2.5"
-                    style={{ transform: hoveredDept?.department === slice.department ? 'scale(1.04)' : 'scale(1)', transformOrigin: '100px 100px' }} />
-                </g>
-              ))}
-            </svg>
+            <>
+              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
+                {slices.map((slice, idx) => slice.pathData && (
+                  <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group"
+                    onMouseEnter={(e) => handleMouseEnter(e, slice)} onMouseLeave={() => setHoveredDept(null)}>
+                    <path d={slice.pathData} fill={slice.color} stroke={isDark ? '#0f172a' : '#ffffff'} strokeWidth="2.5"
+                      style={{ transform: hoveredDept?.department === slice.department ? 'scale(1.04)' : 'scale(1)', transformOrigin: '100px 100px' }} />
+                  </g>
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Total WO Value
+                </span>
+                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
+                  {fmtCr(totalAmount)}
+                </span>
+              </div>
+            </>
           )}
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full pt-2 border-t border-white/5">
@@ -722,7 +732,7 @@ const DepartmentWiseEstimate = ({ projects }) => {
             <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">{hoveredDept.department}</span>
           </div>
           <div className="flex items-baseline justify-between gap-3 mt-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Estimated Amount:</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Work Order Value:</span>
             <span className="font-black text-sm font-mono text-amber-400">{fmtCr(hoveredDept.amount)}</span>
           </div>
           {hoveredDept.count !== undefined && (
@@ -732,7 +742,7 @@ const DepartmentWiseEstimate = ({ projects }) => {
             </div>
           )}
           <div className="flex items-baseline justify-between gap-3 mt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Share of Estimate:</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Share of WO Value:</span>
             <span className="font-bold text-xs font-mono text-slate-200">{hoveredDept.percentage}%</span>
           </div>
         </div>,
@@ -2729,7 +2739,7 @@ const ZoDashboard = () => {
         </ChartModal>
       )}
       {zoomedChart === 'department' && (
-        <ChartModal title={`Department Wise Estimate Breakdown — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title={`Department Wise Work Order Value Breakdown — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} onClose={() => setZoomedChart(null)}>
           <DepartmentWiseEstimate projects={filteredProjects} />
         </ChartModal>
       )}
