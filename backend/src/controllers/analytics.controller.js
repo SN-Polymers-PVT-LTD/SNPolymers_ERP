@@ -1360,13 +1360,22 @@ async function getJeLeaderboard(req, res) {
     const { data: reports, error: dprErr } = await dprQuery;
     if (dprErr) throw dprErr;
 
-    // 4. Aggregate metrics per active JE user
+    // 5. Aggregate metrics per active JE user
     const userStats = {};
     (jeUsers || []).forEach(u => {
+      let streak = Number(u.daily_streak || 0);
+      if (streak === 0) {
+        const userReports = (reports || []).filter(r => r.created_by === u.mobile_number && r.site_visit_date);
+        const dates = Array.from(new Set(userReports.map(r => r.site_visit_date))).sort().reverse();
+        if (dates.length > 0) {
+          streak = dates.length;
+        }
+      }
+
       userStats[u.mobile_number] = {
         mobile_number: u.mobile_number,
         display_name: u.display_name || u.mobile_number,
-        daily_streak: u.daily_streak || 0,
+        daily_streak: streak,
         total_reports: 0,
         approved_reports: 0,
         avg_progress: 0,
