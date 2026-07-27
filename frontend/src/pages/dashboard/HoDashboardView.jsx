@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import authApi from '../../api/authApi';
 import { getFundRequests } from '../../api/fundRequests';
 import { getZonalBalances } from '../../api/zoBalancesApi';
+import { getProjectsHealth } from '../../api/analyticsApi';
 import { useTheme } from '../../components/ThemeContext';
 import { useAuth } from '../../components/AuthContext';
 
@@ -79,7 +80,7 @@ const HoDashboardView = () => {
     return `${((appCount / requisitions.length) * 100).toFixed(1)}%`;
   }, [requisitions]);
 
-  // 4. Fetch all projects
+  // 4. Fetch all projects and project health data (which includes latest_progress from project_health_mv)
   const { data: projectsRes } = useQuery({
     queryKey: ['dashboardProjects'],
     queryFn: async () => {
@@ -89,7 +90,51 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const projects = projectsRes?.projects || [];
+  const { data: healthRes } = useQuery({
+    queryKey: ['projectsHealthData'],
+    queryFn: async () => {
+      const res = await getProjectsHealth();
+      return res.data;
+    },
+    staleTime: 30000
+  });
+
+  const healthMap = useMemo(() => {
+    const map = {};
+    (healthRes?.data || []).forEach(h => {
+      map[h.work_order_no] = h;
+    });
+    return map;
+  }, [healthRes]);
+
+  const estimateCountMap = useMemo(() => {
+    const map = {};
+    estimates.forEach(e => {
+      if (e.work_order_no) {
+        map[e.work_order_no] = (map[e.work_order_no] || 0) + 1;
+      }
+    });
+    return map;
+  }, [estimates]);
+
+  const projects = useMemo(() => {
+    const rawProjects = projectsRes?.projects || [];
+    return rawProjects.map(p => {
+      const h = healthMap[p.work_order_no];
+      const progVal = h?.physical_progress !== undefined && h?.physical_progress !== null 
+        ? h.physical_progress 
+        : h?.physical_work_progress;
+
+      const prog = progVal !== undefined && progVal !== null 
+        ? Number(progVal) 
+        : Number(p.physical_progress || 0);
+      return {
+        ...p,
+        physical_progress: prog,
+        estimates_count: estimateCountMap[p.work_order_no] || 0
+      };
+    });
+  }, [projectsRes, healthMap, estimateCountMap]);
 
   // 5. Fetch Fund Requests for HO Capital Flow Telemetry
   const { data: fundRequestsRes } = useQuery({
@@ -147,9 +192,9 @@ const HoDashboardView = () => {
     } else if (filterType === 'lowest_value') {
       return list.sort((a, b) => (a.work_order_value || 0) - (b.work_order_value || 0)).slice(0, 5);
     } else if (filterType === 'progress') {
-      return list.sort((a, b) => (b.approved_estimate_amount || 0) - (a.approved_estimate_amount || 0)).slice(0, 5);
+      return list.sort((a, b) => (b.estimates_count || 0) - (a.estimates_count || 0)).slice(0, 5);
     } else if (filterType === 'least_estimates') {
-      return list.sort((a, b) => (a.approved_estimate_amount || 0) - (b.approved_estimate_amount || 0)).slice(0, 5);
+      return list.sort((a, b) => (a.estimates_count || 0) - (b.estimates_count || 0)).slice(0, 5);
     } else if (filterType === 'physical_progress') {
       return list.sort((a, b) => (b.physical_progress || 0) - (a.physical_progress || 0)).slice(0, 5);
     } else if (filterType === 'lowest_completion') {
@@ -286,8 +331,8 @@ const HoDashboardView = () => {
                           </div>
                           <div className="text-right shrink-0">
                             {(filterType === 'value' || filterType === 'lowest_value') && <div className="text-xs font-bold text-amber-500 font-mono">{formatINR(p.work_order_value || 0)}</div>}
-                            {(filterType === 'progress' || filterType === 'least_estimates') && <div className="text-xs font-bold text-sky-400">{p.estimate_sheets_count || 0} Estimates</div>}
-                            {(filterType === 'physical_progress' || filterType === 'lowest_completion') && <div className="text-xs font-bold text-emerald-400">{p.max_physical_progress || 0}% Done</div>}
+                            {(filterType === 'progress' || filterType === 'least_estimates') && <div className="text-xs font-bold text-sky-400">{p.estimates_count || 0} Estimates</div>}
+                            {(filterType === 'physical_progress' || filterType === 'lowest_completion') && <div className="text-xs font-bold text-emerald-400">{p.physical_progress || 0}% Done</div>}
                           </div>
                         </div>
                       </div>
