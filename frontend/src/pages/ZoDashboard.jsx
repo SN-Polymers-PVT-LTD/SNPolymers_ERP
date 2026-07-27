@@ -840,15 +840,17 @@ const STAGE_METADATA_MAP = {
   'agency paid':            { gradId: 'ff-teal',    color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
 };
 
-const FundFlowWaterfall = ({ projects }) => {
+const FundFlowWaterfall = ({ data, projects }) => {
   const c = useChartColors();
   const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
   const barH = 22, gap = 20;
 
   const rows = useMemo(() => {
+    if (data && data.length > 0) return data;
+
     const p = projects || [];
     const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
-    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_amount || 0), 0);
+    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_ho_amount || pr.ho_allocated_amount || pr.approve_ho_amount || pr.approved_amount || 0), 0);
     const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
     const netAllocated = Math.max(0, grossAllocated - excessReturned);
     const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
@@ -864,7 +866,7 @@ const FundFlowWaterfall = ({ projects }) => {
       { stage: 'Gross Billed',            amount: billed },
       { stage: 'Agency Paid',             amount: paid },
     ];
-  }, [projects]);
+  }, [data, projects]);
 
   const maxVal = Math.max(1, ...rows.map(d => Number(d.amount || 0)));
   const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
@@ -2667,7 +2669,7 @@ const ZoDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
           <div style={{ minHeight: '480px' }} className="h-full">
-            <FundFlowWaterfall projects={filteredProjects} />
+            <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
           </div>
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
@@ -2770,7 +2772,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'fundflow' && (
         <ChartModal title={`Fund Flow Pipeline Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <FundFlowWaterfall projects={filteredProjects} />
+          <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
         </ChartModal>
       )}
       {zoomedChart === 'scurve' && (

@@ -707,7 +707,7 @@ async function getHoChartData(req, res) {
         supabase.from('project_health_mv').select(
           'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
         ),
-        supabase.from('fund_requests').select('approve_ho_amount, request_status, work_order_no, created_at'),
+        supabase.from('fund_requests').select('approve_ho_amount, request_status, work_order_no, created_at, zo_user_id'),
         supabase.from('requisitions').select('approved_amount, requisition_status, work_order_no, zo_user_id, payment_date, created_at'),
         supabase.from('ra_final_bills').select('gross_bill, agency_payment, work_order_no, security_deposit_amount, it_tds, sgst, cgst, earnest_money_deposit, created_at'),
         supabase.from('zo_fund_ledger').select('zo_user_id, transaction_type, amount, created_at').gte('created_at', twelveMonthsAgo).order('created_at', { ascending: true }),
@@ -777,7 +777,11 @@ async function getHoChartData(req, res) {
     // Filter raw data arrays by allowed work orders and date ranges
     let filteredHealth = (healthRes.data || []).filter(p => allowedWoSet.has(p.work_order_no));
     let filteredEstimates = (estimatesRes.data || []).filter(e => allowedWoSet.has(e.work_order_no) && isWithinDateRange(e.created_at));
-    let filteredFundReqs = (fundReqsRes.data || []).filter(f => allowedWoSet.has(f.work_order_no) && isWithinDateRange(f.created_at));
+    let filteredFundReqs = (fundReqsRes.data || []).filter(f => {
+      const matchWo = !f.work_order_no || allowedWoSet.has(f.work_order_no);
+      const matchZo = !effectiveZone || (f.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+      return matchWo && matchZo && isWithinDateRange(f.created_at);
+    });
     let filteredReqs = (reqsRes.data || []).filter(r => allowedWoSet.has(r.work_order_no) && isWithinDateRange(r.payment_date || r.created_at));
     let filteredBills = (billsRes.data || []).filter(b => allowedWoSet.has(b.work_order_no) && isWithinDateRange(b.created_at));
     let filteredLedger = (ledgerRes.data || []).filter(l => isWithinDateRange(l.created_at));
