@@ -1425,6 +1425,11 @@ const DepartmentWiseEstimate = ({ data }) => {
       // eslint-disable-next-line react-hooks/immutability
       currentCumulativeAngle += angle;
 
+      if (angle >= 359.9) {
+        const fullCirclePathData = `M ${center} ${center - outerRadius} A ${outerRadius} ${outerRadius} 0 1 1 ${center - 0.01} ${center - outerRadius} L ${center - 0.01} ${center - innerRadius} A ${innerRadius} ${innerRadius} 0 1 0 ${center} ${center - innerRadius} Z`;
+        return { ...slice, pct: '100.0', pathData: fullCirclePathData };
+      }
+
       const startRad = (startAngle - 90) * (Math.PI / 180);
       const endRad = (endAngle - 90) * (Math.PI / 180);
 
@@ -1511,8 +1516,8 @@ const DepartmentWiseEstimate = ({ data }) => {
       </div>
 
       <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
-        {/* Donut Graphic */}
-        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto">
+        {/* Donut Graphic with Center Text */}
+        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto flex items-center justify-center">
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
             {donutSlices.map((slice, idx) => (
               <g
@@ -1534,6 +1539,16 @@ const DepartmentWiseEstimate = ({ data }) => {
               </g>
             ))}
           </svg>
+
+          {/* Center Label inside donut */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Total Estimate
+            </span>
+            <span className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
+              {formatAmount(totalAmount)}
+            </span>
+          </div>
         </div>
 
         {/* 2-Column Grid Legend Index (Clean & Compact) */}
