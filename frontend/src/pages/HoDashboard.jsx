@@ -1069,35 +1069,35 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
 
             <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${
               metrics.surplusRecovery > 0
-                ? (isDark ? 'bg-amber-950/40 border-amber-500/30' : 'bg-amber-50 border-amber-300')
+                ? (isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300')
                 : (isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200')
             }`}>
               <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className={`text-[9px] font-extrabold uppercase tracking-wider truncate ${metrics.surplusRecovery > 0 ? 'text-amber-400' : 'text-sky-400'}`}>Disbursement vs Investment</p>
+                <p className={`text-[9px] font-extrabold uppercase tracking-wider truncate ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>Agency Realization vs Investment</p>
                 <div className="flex items-center gap-1 shrink-0">
                   <span className={`text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
                     metrics.surplusRecovery > 0
-                      ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                      ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
                       : 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
-                  }`}>Paid / Inv</span>
+                  }`}>Realized / Inv</span>
                   <ChartInfoTooltip
                     description={metrics.surplusRecovery > 0
-                      ? '⚠ Over-disbursement: Agency payments exceed approved requisition investment. This may indicate payments released outside the requisition approval chain — flag for compliance audit.'
-                      : 'Ratio of net agency payments against approved requisition investment. Shows what fraction of the investment pool has been disbursed to agencies.'}
-                    formula="Disbursement vs Investment % = (Net Agency Payments / Approved Requisitions) × 100"
+                      ? 'Ratio of net agency payments received from client departments against approved site requisition investment. Shows revenue realization relative to invested capital.'
+                      : 'Ratio of net agency payments received against approved requisition investment.'}
+                    formula="Realization vs Investment % = (Net Agency Payments / Approved Requisitions) × 100"
                   />
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-1">
-                <p className={`text-base sm:text-lg font-black font-mono ${metrics.surplusRecovery > 0 ? 'text-amber-400' : 'text-sky-400'}`}>{metrics.recoveryAgainstInvestPct}%</p>
+                <p className={`text-base sm:text-lg font-black font-mono ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>{metrics.recoveryAgainstInvestPct}%</p>
                 {metrics.surplusRecovery > 0 && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 whitespace-nowrap">⚠ Over-Disbursed</span>
+                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">✓ Surplus Realized</span>
                 )}
               </div>
               <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Paid: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong>
+                <span className="truncate">Realized: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong>
                   {metrics.surplusRecovery > 0
-                    ? <span className="text-amber-400 font-bold"> (+{fmtCr(metrics.surplusRecovery)} over)</span>
+                    ? <span className="text-emerald-400 font-bold"> (+{fmtCr(metrics.surplusRecovery)} surplus)</span>
                     : <span className="text-rose-400 font-bold"> (Pend: {fmtCr(metrics.pendingRecovery)})</span>
                   }
                 </span>
