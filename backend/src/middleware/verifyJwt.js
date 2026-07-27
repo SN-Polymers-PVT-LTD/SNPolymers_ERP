@@ -85,4 +85,24 @@ async function verifyJwt(req, res, next) {
   }
 }
 
+async function verifyJwtOptional(req, res, next) {
+  const accessToken = req.cookies.accessToken;
+  if (accessToken) {
+    try {
+      const decoded = jwt.verify(accessToken, JWT_SECRET);
+      req.user = {
+        id: decoded.user_id,
+        mobile_number: decoded.mobile_number,
+        role: decoded.role,
+        permissions: decoded.permissions
+      };
+      req.sessionId = decoded.session_id;
+    } catch {
+      // Ignore token validation failure in optional mode
+    }
+  }
+  next();
+}
+
+verifyJwt.verifyJwtOptional = verifyJwtOptional;
 module.exports = verifyJwt;

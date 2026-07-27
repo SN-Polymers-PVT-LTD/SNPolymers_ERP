@@ -14,7 +14,7 @@ router.post('/verify-otp', otpVerifyLimiter, validateRequest(verifyOtpSchema), v
 router.post('/refresh', refreshTokenLimiter, refreshTokens);
 
 // Authenticated routes
-router.post('/logout', verifyJwt, logout);
+router.post('/logout', verifyJwt.verifyJwtOptional, logout);
 router.get('/me', verifyJwt, getMe);
 router.get('/profile', verifyJwt, getProfileData);
 

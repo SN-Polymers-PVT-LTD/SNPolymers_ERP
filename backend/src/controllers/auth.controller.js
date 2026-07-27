@@ -198,30 +198,33 @@ async function logout(req, res) {
     const sessionId = req.sessionId;
     const user = req.user;
 
-    // 1. Close Session in DB
-    const closedSession = await closeSession(sessionId);
-    const durationFormatted = formatDuration(closedSession.duration_seconds);
-
-    // 2. Clear Token Cookies
+    if (sessionId) {
+      try {
+        const closedSession = await closeSession(sessionId);
+        if (closedSession && user) {
+          const durationFormatted = formatDuration(closedSession.duration_seconds || 0);
+          notifyAdminLogout({
+            mobileNumber: user.mobile_number,
+            displayName: user.displayName || user.display_name,
+            durationFormatted,
+            logoutTime: closedSession.logout_at
+          });
+        }
+      } catch (e) {
+        console.warn('[Logout] Session cleanup warning:', e.message);
+      }
+    }
+  } catch (error) {
+    logError('logout', error);
+  } finally {
+    // Always clear token cookies regardless of token status
     res.clearCookie('accessToken', cookieOptions);
     res.clearCookie('refreshToken', cookieOptions);
     res.clearCookie('token', cookieOptions);
-
-    // 3. Trigger Admin Notification (async)
-    notifyAdminLogout({
-      mobileNumber: user.mobile_number,
-      displayName: user.displayName,
-      durationFormatted,
-      logoutTime: closedSession.logout_at
-    });
-
     return res.status(200).json({
       success: true,
       message: 'Logged out successfully.'
     });
-  } catch (error) {
-    logError('logout', error);
-    return res.status(500).json({ success: false, message: 'Failed to logout.' });
   }
 }
 

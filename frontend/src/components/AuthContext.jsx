@@ -27,8 +27,13 @@ export const AuthProvider = ({ children }) => {
       checkAuth();
     });
 
-    const handleAuthFailure = () => {
+    const handleAuthFailure = async () => {
       setUser(null);
+      try {
+        await authApi.post('/logout');
+      } catch {
+        // Ignore logout errors on expired sessions
+      }
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }
