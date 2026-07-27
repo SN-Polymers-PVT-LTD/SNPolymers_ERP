@@ -60,16 +60,33 @@ async function getProjects(req, res) {
       dbQuery = dbQuery.in('work_order_no', mappedWOs.length > 0 ? mappedWOs : ['dummy_work_order_no']);
     }
 
+    // Fetch latest health & physical progress from project_health_mv
+    const { data: healthData } = await supabase
+      .from('project_health_mv')
+      .select('work_order_no, physical_progress, days_since_last_progress_report, health_score, health_status');
+
+    const healthMap = {};
+    (healthData || []).forEach(h => {
+      healthMap[h.work_order_no] = h;
+    });
+
     if (!hasPagination) {
       const { data: projects, error } = await dbQuery
         .order('work_order_no', { ascending: true });
 
       if (error) throw error;
 
-      const enriched = (projects || []).map(p => ({
-        ...p,
-        approved_estimate_amount: estimateAmountMap[p.work_order_no] || 0
-      }));
+      const enriched = (projects || []).map(p => {
+        const h = healthMap[p.work_order_no] || {};
+        return {
+          ...p,
+          approved_estimate_amount: estimateAmountMap[p.work_order_no] || 0,
+          physical_progress: Number(h.physical_progress !== undefined && h.physical_progress !== null ? h.physical_progress : 0),
+          days_since_last_progress_report: Number(h.days_since_last_progress_report || 0),
+          health_score: Number(h.health_score || 0),
+          health_status: h.health_status || 'Healthy'
+        };
+      });
 
       return res.status(200).json({ success: true, projects: enriched });
     }
@@ -85,10 +102,17 @@ async function getProjects(req, res) {
 
     if (error) throw error;
 
-    const enriched = (projects || []).map(p => ({
-      ...p,
-      approved_estimate_amount: estimateAmountMap[p.work_order_no] || 0
-    }));
+    const enriched = (projects || []).map(p => {
+      const h = healthMap[p.work_order_no] || {};
+      return {
+        ...p,
+        approved_estimate_amount: estimateAmountMap[p.work_order_no] || 0,
+        physical_progress: Number(h.physical_progress !== undefined && h.physical_progress !== null ? h.physical_progress : 0),
+        days_since_last_progress_report: Number(h.days_since_last_progress_report || 0),
+        health_score: Number(h.health_score || 0),
+        health_status: h.health_status || 'Healthy'
+      };
+    });
 
     return res.status(200).json({
       success: true,

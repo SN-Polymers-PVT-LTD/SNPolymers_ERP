@@ -205,6 +205,11 @@ async function createProgressReport(req, res) {
       console.error('Failed to update daily streak:', streakErr);
     }
 
+    // Refresh materialized views in background to update physical progress instantly
+    supabase.rpc('refresh_analytics_views').catch(err => {
+      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+    });
+
     return res.status(201).json({
       success: true,
       report: newReport,
@@ -470,6 +475,11 @@ async function addAuthorityRemarks(req, res) {
         console.error(`[DAILY PROGRESS] Telegram action notification failed: ${err.message}`);
       });
     }
+
+    // Refresh materialized views in background to update physical progress instantly
+    supabase.rpc('refresh_analytics_views').catch(err => {
+      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+    });
 
     return res.status(200).json({
       success: true,
