@@ -12,6 +12,15 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('[ErrorBoundary caught error]:', error, errorInfo);
+    const msg = error?.message || String(error);
+    if (msg.includes('Failed to fetch') || msg.includes('module script') || msg.includes('text/html') || msg.includes('Importing a module script failed')) {
+      const lastReload = sessionStorage.getItem('last_chunk_reload');
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem('last_chunk_reload', String(now));
+        window.location.reload();
+      }
+    }
   }
 
   handleReset = () => {
