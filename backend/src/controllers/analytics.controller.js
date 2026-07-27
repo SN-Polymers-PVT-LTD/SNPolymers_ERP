@@ -37,15 +37,15 @@ async function getHoKpis(req, res) {
     const { data: kpiData, error: kpiError } = await supabase
       .from('executive_kpi_mv')
       .select('*')
-      .maybeSingle();
+      .single();
 
-    if (kpiError) console.error('[ANALYTICS] kpiError in getHoKpis:', kpiError.message || kpiError);
+    if (kpiError) throw kpiError;
 
     const { data: statusCounts, error: statusError } = await supabase
       .from('project_health_mv')
       .select('health_status');
 
-    if (statusError) console.error('[ANALYTICS] statusError in getHoKpis:', statusError.message || statusError);
+    if (statusError) throw statusError;
 
     const healthDistribution = { Healthy: 0, Warning: 0, Critical: 0 };
     if (statusCounts) {
@@ -56,21 +56,9 @@ async function getHoKpis(req, res) {
       });
     }
 
-    const defaultKpis = {
-      id: 1,
-      total_projects: 0,
-      active_projects: 0,
-      projects_at_warning: 0,
-      projects_at_risk: 0,
-      average_project_health: 0,
-      total_budget: 0,
-      total_spent: 0,
-      budget_utilization_pct: 0
-    };
-
     return res.status(200).json({
       success: true,
-      kpis: kpiData || defaultKpis,
+      kpis: kpiData,
       healthDistribution
     });
   } catch (error) {
@@ -621,7 +609,7 @@ async function getHoActionableInsights(req, res) {
     const { data: balances, error: balErr } = await supabase
       .from('zo_balances')
       .select('zo_user_id, available_balance');
-    if (balErr) console.error('[ANALYTICS] balErr in getHoActionableInsights:', balErr.message || balErr);
+    if (balErr) throw balErr;
 
     // 2. Fetch last-30-day requisition burns per ZO
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -630,7 +618,7 @@ async function getHoActionableInsights(req, res) {
       .select('zo_user_id, approved_amount')
       .eq('requisition_status', 'Approved')
       .gte('payment_date', thirtyDaysAgo);
-    if (burnErr) console.error('[ANALYTICS] burnErr in getHoActionableInsights:', burnErr.message || burnErr);
+    if (burnErr) throw burnErr;
 
     // 3. Aggregate burn per ZO
     const burnMap = {};
@@ -661,13 +649,13 @@ async function getHoActionableInsights(req, res) {
       .lt('physical_progress', 100)
       .gt('days_since_last_progress_report', 7)
       .order('days_since_last_progress_report', { ascending: false });
-    if (stalledErr) console.error('[ANALYTICS] stalledErr in getHoActionableInsights:', stalledErr.message || stalledErr);
+    if (stalledErr) throw stalledErr;
 
     // 6. High-revision projects (>3 revisions)
     const { data: allEstimates, error: estErr } = await supabase
       .from('project_cost_estimates')
       .select('work_order_no');
-    if (estErr) console.error('[ANALYTICS] estErr in getHoActionableInsights:', estErr.message || estErr);
+    if (estErr) throw estErr;
 
     const revisionCount = {};
     (allEstimates || []).forEach(e => {
@@ -730,12 +718,9 @@ async function getHoChartData(req, res) {
         supabase.from('zo_balances').select('available_balance')
       ]);
 
-    // Log query errors gracefully without crashing the entire response with HTTP 500
+    // Throw on first error
     for (const r of [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
-      if (r.error) {
-        console.error('[ANALYTICS] getHoChartData query error:', r.error.message || r.error);
-        r.data = r.data || [];
-      }
+      if (r.error) throw r.error;
     }
 
     // === Enrich projects_master with zone data from project_health_mv ===
@@ -797,7 +782,7 @@ async function getHoChartData(req, res) {
       budget_utilization_pct: p.work_order_value > 0
         ? parseFloat(((Number(p.approved_requisitions_amount) / Number(p.work_order_value)) * 100).toFixed(1))
         : 0,
-      days_since_dpr: Number(p.days_since_last_progress_report !== undefined && p.days_since_last_progress_report !== null ? p.days_since_last_progress_report : 999),
+      days_since_dpr: Number(p.days_since_last_progress_report || 0),
       health_score: Number(p.health_score || 0),
       health_status: p.health_status,
       anomaly_score: p.health_status === 'Critical' ? 4 : p.health_status === 'Warning' ? 2 : 0

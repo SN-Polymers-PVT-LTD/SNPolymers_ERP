@@ -21,13 +21,13 @@ router.post(
 
 router.get(
   '/eligible-jes',
-  requireRole(['admin', 'ho', 'zo']),
+  requireRole(['admin', 'ho']),
   getEligibleJEs
 );
 
 router.get(
   '/eligible-zos',
-  requireRole(['admin', 'ho', 'zo']),
+  requireRole(['admin', 'ho']),
   getEligibleZOs
 );
 
