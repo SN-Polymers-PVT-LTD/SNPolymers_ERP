@@ -106,7 +106,11 @@ const JeDashboardView = () => {
   const approvedEstsCount = estimates.filter(e => (e.estimate_status || '').toLowerCase().includes('approved')).length;
   const pendingEstsCount = estimates.filter(e => !(e.estimate_status || '').toLowerCase().includes('approved')).length;
 
-  const streakCount = user?.daily_streak || 0;
+  const streakCount = useMemo(() => {
+    if (user?.daily_streak && Number(user.daily_streak) > 0) return Number(user.daily_streak);
+    const dates = Array.from(new Set(dprReports.map(r => r.site_visit_date).filter(Boolean))).sort().reverse();
+    return dates.length > 0 ? dates.length : 0;
+  }, [user, dprReports]);
 
   return (
     <div className="space-y-8 pb-12">

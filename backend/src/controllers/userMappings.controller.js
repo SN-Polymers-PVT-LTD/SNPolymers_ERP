@@ -163,6 +163,8 @@ async function getUserMappings(req, res) {
 
     if (req.user.role === 'zo') {
       dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
+    } else if (req.user.role === 'je') {
+      dbQuery = dbQuery.eq('je_user_id', req.user.mobile_number);
     }
 
     const { data: mappings, error } = await dbQuery.order('assigned_at', { ascending: false });
