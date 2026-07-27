@@ -195,7 +195,9 @@ const ZonalBalances = () => {
             </div>
           ) : (
             (() => {
+              const UNMAPPED_EXCLUDED_MOBILES = ['+919679080000', '+918276071523'];
               const filteredBalances = balances.filter(b => {
+                if (UNMAPPED_EXCLUDED_MOBILES.includes(b.zo_user_id)) return false;
                 const matchesSearch =
                   b.zo_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   b.zo_user_id?.includes(searchQuery);
