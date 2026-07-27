@@ -812,17 +812,22 @@ async function getHoChartData(req, res) {
         : Number(e.last_approved_amount || 0)
     }));
     // Fetch completed excess fund returns to HO
-    let fundReturnsQuery = supabase
-      .from('excess_fund_returns')
-      .select('actual_returned_amount, requested_amount, status, zo_user_id')
-      .eq('status', 'Completed');
+    let totalExcessReturned = 0;
+    try {
+      let fundReturnsQuery = supabase
+        .from('excess_fund_returns')
+        .select('requested_amount, status, zo_user_id')
+        .eq('status', 'Completed');
 
-    if (zo_user_id) {
-      fundReturnsQuery = fundReturnsQuery.eq('zo_user_id', zo_user_id);
+      if (zo_user_id) {
+        fundReturnsQuery = fundReturnsQuery.eq('zo_user_id', zo_user_id);
+      }
+
+      const { data: completedReturns } = await fundReturnsQuery;
+      totalExcessReturned = (completedReturns || []).reduce((sum, r) => sum + Number(r.requested_amount || 0), 0);
+    } catch (refundErr) {
+      console.warn('Failed to query excess_fund_returns for waterfallData:', refundErr?.message);
     }
-
-    const { data: completedReturns } = await fundReturnsQuery;
-    const totalExcessReturned = (completedReturns || []).reduce((sum, r) => sum + Number(r.actual_returned_amount || r.requested_amount || 0), 0);
 
     const grossHoAllocated = sumOf(approvedFunds, 'approve_ho_amount');
     const netHoAllocated = Math.max(0, grossHoAllocated - totalExcessReturned);
