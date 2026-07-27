@@ -413,7 +413,7 @@ const KpiDetailsModal = ({ title, colorClass, projects, getZoDisplayName, onClos
                   </tr>
                 </thead>
                 <tbody className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
-                  {projects.map((p, idx) => {
+                  {(projects || []).map((p, idx) => {
                     const scoreBadge = p.health_score >= 80
                       ? isDark ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 font-extrabold'
                       : p.health_score >= 60
@@ -1733,19 +1733,20 @@ const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
 /* ─── Executive KPI Strip (10 tiles) ─────────────────────────────── */
 const ExecutiveKpiStrip = ({ projects, summaryKpis }) => {
   const { isDark } = useTheme();
+  const pList = projects || [];
 
-  const totalWO = summaryKpis?.totalWorkOrders?.total ?? projects.length;
-  const running = summaryKpis?.totalWorkOrders?.running ?? projects.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
-  const completed = summaryKpis?.totalWorkOrders?.completed ?? projects.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
-  const pending = summaryKpis?.totalWorkOrders?.pending ?? projects.filter(p => p.status === 'Pending').length;
-  const totalWOVal = summaryKpis?.totalWOValue ?? projects.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-  const totalEst = summaryKpis?.totalEstimateAmount?.amount ?? projects.reduce((a, p) => a + Number(p.estimate_amount || p.work_order_value || 0), 0);
-  const totalReq = summaryKpis?.totalRequisition?.amount ?? projects.reduce((a, p) => a + Number(p.requisition_amount || p.approved_requisitions_amount || 0), 0);
-  const approvedReq = summaryKpis?.totalApproved?.amount ?? projects.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
-  const zoBalance = summaryKpis?.zoAvailableBalance ?? projects.reduce((a, p) => a + Number(p.balance || p.available_balance || 0), 0);
-  const refund = summaryKpis?.totalRefundAmount ?? projects.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
-  const grossBill = summaryKpis?.grossBillAmount?.amount ?? projects.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-  const agencyPay = summaryKpis?.agencyPayment?.amount ?? projects.reduce((a, p) => a + Number(p.agency_paid || p.agency_payment || 0), 0);
+  const totalWO = summaryKpis?.totalWorkOrders?.total ?? pList.length;
+  const running = summaryKpis?.totalWorkOrders?.running ?? pList.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
+  const completed = summaryKpis?.totalWorkOrders?.completed ?? pList.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
+  const pending = summaryKpis?.totalWorkOrders?.pending ?? pList.filter(p => p.status === 'Pending').length;
+  const totalWOVal = summaryKpis?.totalWOValue ?? pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
+  const totalEst = summaryKpis?.totalEstimateAmount?.amount ?? pList.reduce((a, p) => a + Number(p.estimate_amount || p.work_order_value || 0), 0);
+  const totalReq = summaryKpis?.totalRequisition?.amount ?? pList.reduce((a, p) => a + Number(p.requisition_amount || p.approved_requisitions_amount || 0), 0);
+  const approvedReq = summaryKpis?.totalApproved?.amount ?? pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
+  const zoBalance = summaryKpis?.zoAvailableBalance ?? pList.reduce((a, p) => a + Number(p.balance || p.available_balance || 0), 0);
+  const refund = summaryKpis?.totalRefundAmount ?? pList.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
+  const grossBill = summaryKpis?.grossBillAmount?.amount ?? pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
+  const agencyPay = summaryKpis?.agencyPayment?.amount ?? pList.reduce((a, p) => a + Number(p.agency_paid || p.agency_payment || 0), 0);
   const dueBill = summaryKpis?.dueBill?.amount ?? Math.max(0, totalWOVal - grossBill);
 
   const kpis = [
@@ -1796,7 +1797,8 @@ const WorkOrderTelemetryTable = ({ data, availableZos, selectedZo, onSelectZo, g
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
 
-  const filtered = data.filter(p => {
+  const pList = data || [];
+  const filtered = pList.filter(p => {
     const q = search.toLowerCase().trim();
     const matchSearch = !q || (p.work_order_no || '').toLowerCase().includes(q) || (p.site_details || '').toLowerCase().includes(q) || (p.department || '').toLowerCase().includes(q) || (p.zo_name || p.zo_user_id || p.zone || '').toLowerCase().includes(q) || (p.district || '').toLowerCase().includes(q);
     const matchZo = !selectedZo || (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim() === selectedZo.toLowerCase().trim();
@@ -1804,7 +1806,7 @@ const WorkOrderTelemetryTable = ({ data, availableZos, selectedZo, onSelectZo, g
     return matchSearch && matchZo && matchDept;
   });
 
-  const depts = Array.from(new Set(data.map(p => p.department).filter(Boolean))).sort();
+  const depts = Array.from(new Set(pList.map(p => p.department).filter(Boolean))).sort();
 
   const sorted = [...filtered].sort((a, b) => {
     const aVal = a[sortField] ?? 0, bVal = b[sortField] ?? 0;
