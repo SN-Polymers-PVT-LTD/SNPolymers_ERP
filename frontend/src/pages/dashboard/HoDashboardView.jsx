@@ -49,7 +49,10 @@ const HoDashboardView = () => {
 
   const estimates = estimatesRes?.estimates || [];
   const pendingEstimatesCount = useMemo(() => {
-    return estimates.filter(e => e.estimate_status === 'Under HO Review' || e.estimate_status === 'Under ZO Review').length;
+    return estimates.filter(e => {
+      const st = (e.estimate_status || '').toLowerCase().trim();
+      return ['submitted', 'under zo review', 'zo revision requested', 'zo approved', 'under ho review', 'ho revision requested', 'estimate reopened'].includes(st);
+    }).length;
   }, [estimates]);
 
   // 3. Fetch payment requisitions
@@ -531,13 +534,13 @@ const HoDashboardView = () => {
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>HO Review Pending:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
-                        {estimates.filter(e => e.estimate_status === 'Under HO Review').length || 0}
+                        {estimates.filter(e => ['under ho review', 'zo approved'].includes((e.estimate_status || '').toLowerCase().trim())).length || 0}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>ZO Review Pending:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
-                        {estimates.filter(e => e.estimate_status === 'Under ZO Review').length || 0}
+                        {estimates.filter(e => ['under zo review', 'submitted', 'estimate reopened', 'zo revision requested', 'ho revision requested'].includes((e.estimate_status || '').toLowerCase().trim())).length || 0}
                       </span>
                     </div>
                   </div>
