@@ -733,7 +733,18 @@ async function getHoChartData(req, res) {
       if (estimatesRes.error) throw estimatesRes.error;
     }
 
-    // === Enrich projects_master with zone data from project_health_mv ===
+    // === Fetch ZO User Display Names ===
+    const { data: zoAuthUsers } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .eq('role', 'zo');
+
+    const zoNameMap = {};
+    (zoAuthUsers || []).forEach(u => {
+      zoNameMap[u.mobile_number] = u.display_name;
+    });
+
+    // === Enrich projects_master with zone and zo_name data ===
     const healthZoneMap = {};
     (healthRes.data || []).forEach(h => {
       healthZoneMap[h.work_order_no] = {
@@ -743,11 +754,19 @@ async function getHoChartData(req, res) {
     });
 
     // === Strict Filtering Logic ===
-    let allProjects = (projectsRes.data || []).map(p => ({
-      ...p,
-      zone: (healthZoneMap[p.work_order_no] || {}).zone || '',
-      zo_user_id: p.zo_user_id || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '',
-    }));
+    let allProjects = (projectsRes.data || []).map(p => {
+      const pZoUserId = p.zo_user_id || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '';
+      const rawZone = p.zone || (healthZoneMap[p.work_order_no] || {}).zone || '';
+      const zoDisplayName = zoNameMap[pZoUserId] || zoNameMap[rawZone] || rawZone || 'Zonal Officer';
+      return {
+        ...p,
+        zo_user_id: pZoUserId,
+        raw_zone: rawZone,
+        zone: zoDisplayName,
+        zo_name: zoDisplayName
+      };
+    });
+
     if (project_status && !project_status.toLowerCase().includes('all')) {
       const normStatus = project_status.toLowerCase().trim();
       allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
@@ -756,8 +775,9 @@ async function getHoChartData(req, res) {
       const targetZone = effectiveZone.toLowerCase().trim();
       allProjects = allProjects.filter(p => {
         const pZoUserId = (p.zo_user_id || '').toLowerCase().trim();
-        const pZone = (p.zone || '').toLowerCase().trim();
-        return pZoUserId === targetZone || pZone === targetZone;
+        const pZoName = (p.zo_name || '').toLowerCase().trim();
+        const pRawZone = (p.raw_zone || '').toLowerCase().trim();
+        return pZoUserId === targetZone || pZoName === targetZone || pRawZone === targetZone;
       });
     }
     if (work_order_no) {
@@ -852,8 +872,9 @@ async function getHoChartData(req, res) {
 
     // === Build zonalHeatmap ===
     let zonalHeatmap = (zoneRes.data || []).map(z => {
-      const zName = (z.zone || '').toLowerCase().trim();
-      const zoneHealth = filteredHealth.filter(p => (p.zone || '').toLowerCase().trim() === zName);
+      const rawZoneName = (z.zone || '').toLowerCase().trim();
+      const zoDisplayName = zoNameMap[z.zo_user_id] || zoNameMap[z.zone] || z.zone;
+      const zoneHealth = filteredHealth.filter(p => (p.raw_zone || p.zone || '').toLowerCase().trim() === rawZoneName || (p.zo_name || '').toLowerCase().trim() === zoDisplayName.toLowerCase().trim());
       const zoneTotalProjects = zoneHealth.length;
       const avgHealthScore = zoneTotalProjects > 0
         ? Math.round(zoneHealth.reduce((a, p) => a + Number(p.health_score || 0), 0) / zoneTotalProjects)
@@ -862,7 +883,7 @@ async function getHoChartData(req, res) {
       const riskProjects = zoneHealth.filter(p => p.health_status === 'Critical' || p.health_status === 'Warning').length;
 
       return {
-        zone: z.zone,
+        zone: zoDisplayName,
         health_score: avgHealthScore,
         budget_util: Number(z.budget_utilization_pct || 0),
         total_projects: zoneTotalProjects,
