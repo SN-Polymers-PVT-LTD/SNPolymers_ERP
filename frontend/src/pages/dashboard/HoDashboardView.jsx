@@ -2,6 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import authApi from '../../api/authApi';
+import { getFundRequests } from '../../api/fundRequests';
+import { getZonalBalances } from '../../api/zoBalancesApi';
 import { useTheme } from '../../components/ThemeContext';
 import { useAuth } from '../../components/AuthContext';
 
@@ -21,19 +23,7 @@ const HoDashboardView = () => {
   const isAdmin = user?.role === 'admin';
   const [filterType, setFilterType] = useState('value');
 
-  // 1. Fetch profile/role data for enriched control room info (projects, capital flow, stats)
-  const { data: profileRes } = useQuery({
-    queryKey: ['profileData'],
-    queryFn: async () => {
-      const res = await authApi.get('/profile');
-      return res.data;
-    },
-    staleTime: 30000
-  });
-
-  const roleData = profileRes?.roleData || {};
-
-  // 2. Fetch dashboard overview
+  // 1. Fetch dashboard overview
   const { data: overviewRes } = useQuery({
     queryKey: ['dashboardOverview'],
     queryFn: async () => {
@@ -46,7 +36,7 @@ const HoDashboardView = () => {
   const overview = overviewRes?.overview || { totalProjects: 0, running: 0, closed: 0, maintenance: 0 };
   const activities = overviewRes?.recentActivity || [];
 
-  // 3. Fetch cost estimates
+  // 2. Fetch cost estimates
   const { data: estimatesRes } = useQuery({
     queryKey: ['estimates', { limit: 100 }],
     queryFn: async () => {
@@ -61,7 +51,7 @@ const HoDashboardView = () => {
     return estimates.filter(e => e.estimate_status === 'Under HO Review' || e.estimate_status === 'Under ZO Review').length;
   }, [estimates]);
 
-  // 4. Fetch payment requisitions
+  // 3. Fetch payment requisitions
   const { data: requisitionsRes } = useQuery({
     queryKey: ['dashboardRequisitions'],
     queryFn: async () => {
@@ -73,54 +63,100 @@ const HoDashboardView = () => {
 
   const requisitions = requisitionsRes?.requisitions || [];
   const pendingRequisitions = useMemo(() => {
-    return requisitions.filter(r => r.requisition_status === 'Pending');
+    return requisitions.filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'pending');
   }, [requisitions]);
 
   const requisitionStats = useMemo(() => {
     const approvedSum = requisitions
-      .filter(r => r.requisition_status === 'Approved')
-      .reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+      .filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved')
+      .reduce((sum, r) => sum + Number(r.approved_amount || r.net_payable_amount || 0), 0);
     return { approvedSum, pendingCount: pendingRequisitions.length };
   }, [requisitions, pendingRequisitions]);
 
   const approvalRate = useMemo(() => {
     if (!requisitions.length) return '0%';
-    const appCount = requisitions.filter(r => r.requisition_status === 'Approved').length;
+    const appCount = requisitions.filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved').length;
     return `${((appCount / requisitions.length) * 100).toFixed(1)}%`;
   }, [requisitions]);
 
-  // 5. Fetch all projects
+  // 4. Fetch all projects
   const { data: projectsRes } = useQuery({
     queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
     },
-    staleTime: 120000
+    staleTime: 60000
   });
 
   const projects = projectsRes?.projects || [];
 
+  // 5. Fetch Fund Requests for HO Capital Flow Telemetry
+  const { data: fundRequestsRes } = useQuery({
+    queryKey: ['hoFundRequests'],
+    queryFn: async () => {
+      const res = await getFundRequests();
+      return res.data;
+    },
+    staleTime: 30000
+  });
+
+  const fundRequests = fundRequestsRes?.fundRequests || [];
+
+  // 6. Fetch Zonal Balances
+  const { data: balancesRes } = useQuery({
+    queryKey: ['hoZonalBalances'],
+    queryFn: async () => {
+      const res = await getZonalBalances();
+      return res.data;
+    },
+    staleTime: 30000
+  });
+
+  const zonalBalances = balancesRes?.balances || [];
+
+  // Compute Live Capital Flow Telemetry
+  const capitalFlow = useMemo(() => {
+    // In-flight: pending fund requests + pending requisitions
+    const pendingFrAmt = fundRequests
+      .filter(f => (f.request_status || '').toLowerCase() === 'pending')
+      .reduce((sum, f) => sum + Number(f.zo_fr_amount || 0), 0);
+    const pendingReqAmt = pendingRequisitions.reduce((sum, r) => sum + Number(r.requested_amount || r.net_payable_amount || 0), 0);
+    const inFlightTotal = pendingFrAmt + pendingReqAmt;
+
+    // Disbursed / Approved
+    const approvedFrAmt = fundRequests
+      .filter(f => (f.request_status || '').toLowerCase() === 'approved')
+      .reduce((sum, f) => sum + Number(f.approve_ho_amount || f.zo_fr_amount || 0), 0);
+    const approvedReqAmt = requisitionStats.approvedSum;
+    const movedTotal = approvedFrAmt + approvedReqAmt;
+
+    return {
+      inFlightTotal,
+      movedTotal,
+      zonalDisbursals: approvedFrAmt,
+      requisitionsDisbursed: approvedReqAmt
+    };
+  }, [fundRequests, pendingRequisitions, requisitionStats]);
+
   // Sorted work orders for Ongoing Work Zones
   const topProjects = useMemo(() => {
-    const list = [...(roleData.enrichedProjects || projects || [])];
+    const list = [...projects];
     if (filterType === 'value') {
       return list.sort((a, b) => (b.work_order_value || 0) - (a.work_order_value || 0)).slice(0, 5);
     } else if (filterType === 'lowest_value') {
       return list.sort((a, b) => (a.work_order_value || 0) - (b.work_order_value || 0)).slice(0, 5);
     } else if (filterType === 'progress') {
-      return list.sort((a, b) => (b.estimate_sheets_count || 0) - (a.estimate_sheets_count || 0)).slice(0, 5);
+      return list.sort((a, b) => (b.approved_estimate_amount || 0) - (a.approved_estimate_amount || 0)).slice(0, 5);
     } else if (filterType === 'least_estimates') {
-      return list.sort((a, b) => (a.estimate_sheets_count || 0) - (b.estimate_sheets_count || 0)).slice(0, 5);
+      return list.sort((a, b) => (a.approved_estimate_amount || 0) - (b.approved_estimate_amount || 0)).slice(0, 5);
     } else if (filterType === 'physical_progress') {
-      return list.sort((a, b) => (b.max_physical_progress || 0) - (a.max_physical_progress || 0)).slice(0, 5);
+      return list.sort((a, b) => (b.physical_progress || 0) - (a.physical_progress || 0)).slice(0, 5);
     } else if (filterType === 'lowest_completion') {
-      return list.sort((a, b) => (a.max_physical_progress || 0) - (b.max_physical_progress || 0)).slice(0, 5);
-    } else if (filterType === 'requisitions_spend') {
-      return list.sort((a, b) => (a.requisitions_total_amount || 0) - (b.requisitions_total_amount || 0)).slice(0, 5);
+      return list.sort((a, b) => (a.physical_progress || 0) - (b.physical_progress || 0)).slice(0, 5);
     }
     return list.slice(0, 5);
-  }, [roleData.enrichedProjects, projects, filterType]);
+  }, [projects, filterType]);
 
   const kpis = [
     { label: 'Requisitions Awaiting Approval', value: pendingRequisitions.length, change: 'Requires operator action', color: 'text-rose-500', glow: 'shadow-[0_0_15px_rgba(244,63,94,0.05)]' },
@@ -275,11 +311,11 @@ const HoDashboardView = () => {
                   <div className="w-3 h-3 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] shrink-0" />
                   <div>
                     <div className="text-xs uppercase font-bold tracking-wider text-slate-200">In-Flight / Pending Approvals</div>
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">Fund requests & pending requisitions</div>
+                    <div className="text-[10px] text-slate-400 font-medium mt-0.5">Fund requests &amp; pending requisitions</div>
                   </div>
                 </div>
                 <div className="text-base font-extrabold text-amber-400 font-mono shrink-0">
-                  {formatINR(roleData.capitalFlow?.inFlight?.total || 0)}
+                  {formatINR(capitalFlow.inFlightTotal)}
                 </div>
               </div>
 
@@ -292,7 +328,7 @@ const HoDashboardView = () => {
                   </div>
                 </div>
                 <div className="text-base font-extrabold text-emerald-400 font-mono shrink-0">
-                  {formatINR(roleData.capitalFlow?.recentMoved?.total || 0)}
+                  {formatINR(capitalFlow.movedTotal)}
                 </div>
               </div>
 
@@ -302,19 +338,19 @@ const HoDashboardView = () => {
                   <div>
                     <div className="flex justify-between items-center text-[10px] mb-1">
                       <span className="font-semibold text-slate-300">Zonal Office Disbursals</span>
-                      <span className="font-mono font-bold text-slate-100">{formatINR(roleData.capitalFlow?.recentMoved?.zonalAllocations || 0)}</span>
+                      <span className="font-mono font-bold text-slate-100">{formatINR(capitalFlow.zonalDisbursals)}</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${(roleData.capitalFlow?.recentMoved?.total || 0) > 0 ? Math.round(((roleData.capitalFlow?.recentMoved?.zonalAllocations || 0) / roleData.capitalFlow.recentMoved.total) * 100) : 0}%` }} />
+                      <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${capitalFlow.movedTotal > 0 ? Math.round((capitalFlow.zonalDisbursals / capitalFlow.movedTotal) * 100) : 0}%` }} />
                     </div>
                   </div>
                   <div>
                     <div className="flex justify-between items-center text-[10px] mb-1">
                       <span className="font-semibold text-slate-300">Site Requisitions Paid</span>
-                      <span className="font-mono font-bold text-slate-100">{formatINR(roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0)}</span>
+                      <span className="font-mono font-bold text-slate-100">{formatINR(capitalFlow.requisitionsDisbursed)}</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div className="h-full bg-sky-500 rounded-full" style={{ width: `${(roleData.capitalFlow?.recentMoved?.total || 0) > 0 ? Math.round(((roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0) / roleData.capitalFlow.recentMoved.total) * 100) : 0}%` }} />
+                      <div className="h-full bg-sky-500 rounded-full" style={{ width: `${capitalFlow.movedTotal > 0 ? Math.round((capitalFlow.requisitionsDisbursed / capitalFlow.movedTotal) * 100) : 0}%` }} />
                     </div>
                   </div>
                 </div>
@@ -509,14 +545,14 @@ const HoDashboardView = () => {
                     formatINR(
                       Math.max(0, 
                         (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
-                        (roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0)
+                        (capitalFlow.requisitionsDisbursed || 0)
                       )
                     )
                   }>
                     {formatINR(
                       Math.max(0, 
                         (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
-                        (roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0)
+                        (capitalFlow.requisitionsDisbursed || 0)
                       )
                     )}
                   </div>
@@ -544,7 +580,7 @@ const HoDashboardView = () => {
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Gross Billed Amount:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#34d399' : '#059669' }}>
-                        {formatINR(roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0)}
+                        {formatINR(capitalFlow.requisitionsDisbursed || 0)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] pt-0.5 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
@@ -553,7 +589,7 @@ const HoDashboardView = () => {
                         {formatINR(
                           Math.max(0, 
                             (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) - 
-                            (roleData.capitalFlow?.recentMoved?.requisitionsDisbursed || 0)
+                            (capitalFlow.requisitionsDisbursed || 0)
                           )
                         )}
                       </span>

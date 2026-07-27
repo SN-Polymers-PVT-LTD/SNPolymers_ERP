@@ -3,15 +3,8 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
 import authApi from '../../api/authApi';
-
-const formatINR = (value) => {
-  const num = Number(value) || 0;
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0
-  }).format(num);
-};
+import { getProgressReports } from '../../api/dailyProgressApi';
+import { getUserMappings } from '../../api/userMappingsApi';
 
 const JeDashboardView = () => {
   const { user } = useAuth();
@@ -23,7 +16,7 @@ const JeDashboardView = () => {
       const res = await authApi.get('/projects');
       return res.data;
     },
-    staleTime: 60000
+    staleTime: 30000
   });
 
   const projects = projectsRes?.projects || [];
@@ -52,17 +45,32 @@ const JeDashboardView = () => {
 
   const requisitions = requisitionsRes?.requisitions || [];
 
-  // 4. Fetch profile for roleData (recentReports & zoDetails)
-  const { data: profileRes } = useQuery({
-    queryKey: ['profileData'],
+  // 4. Fetch JE's Daily Progress Reports
+  const { data: dprRes } = useQuery({
+    queryKey: ['jeDprReports'],
     queryFn: async () => {
-      const res = await authApi.get('/profile');
+      const res = await getProgressReports({ limit: 50 });
       return res.data;
     },
     staleTime: 30000
   });
 
-  const roleData = profileRes?.roleData || {};
+  const dprReports = dprRes?.reports || [];
+
+  // 5. Fetch User Mappings for assigned ZO Office details
+  const { data: mappingsRes } = useQuery({
+    queryKey: ['jeZoUserMappings'],
+    queryFn: async () => {
+      const res = await getUserMappings();
+      return res.data;
+    },
+    staleTime: 60000
+  });
+
+  const activeZoMapping = useMemo(() => {
+    const list = mappingsRes?.mappings || [];
+    return list.find(m => m.je_user_id === user?.mobile_number && m.is_active);
+  }, [mappingsRes, user]);
 
   // Map everything to a unified projects list for the JE
   const mappedProjects = useMemo(() => {
@@ -70,18 +78,35 @@ const JeDashboardView = () => {
       const matchingEst = estimates.find(e => e.work_order_no === p.work_order_no);
       const reqCount = requisitions.filter(r => r.work_order_no === p.work_order_no).length;
 
+      // Find latest DPR for this work order
+      const projectDprs = dprReports.filter(d => d.work_order_no === p.work_order_no);
+      const latestDpr = projectDprs.length > 0
+        ? projectDprs.reduce((max, curr) => (Number(curr.physical_work_progress || 0) > Number(max.physical_work_progress || 0) ? curr : max), projectDprs[0])
+        : null;
+
+      const physicalProg = latestDpr ? Number(latestDpr.physical_work_progress || 0) : Number(p.physical_progress || 0);
+
+      const lastLoggedText = latestDpr?.site_visit_date 
+        ? `logged ${new Date(latestDpr.site_visit_date).toLocaleDateString('en-IN')}` 
+        : 'no logs yet';
+
       return {
         wo: p.work_order_no,
         location: p.site_details || 'Site Location',
-        progress: p.status === 'Closed' ? 100 : p.status === 'Complete Under Maintenance' ? 100 : 78,
+        progress: physicalProg,
         estimates: matchingEst?.estimate_status || 'Under ZO Review',
         requisitions: reqCount,
-        lastLogged: 'logged today'
+        lastLogged: lastLoggedText
       };
     });
-  }, [projects, estimates, requisitions]);
+  }, [projects, estimates, requisitions, dprReports]);
 
-  const streakCount = user?.daily_streak || roleData.stats?.daily_streak || 0;
+  // Derive stats
+  const totalDprs = dprReports.length;
+  const approvedEstsCount = estimates.filter(e => (e.estimate_status || '').toLowerCase().includes('approved')).length;
+  const pendingEstsCount = estimates.filter(e => !(e.estimate_status || '').toLowerCase().includes('approved')).length;
+
+  const streakCount = user?.daily_streak || 0;
 
   return (
     <div className="space-y-8 pb-12">
@@ -155,7 +180,7 @@ const JeDashboardView = () => {
             )}
           </div>
 
-          {/* Your Reports (Ported from Profile) */}
+          {/* Your Reports */}
           <div className="glass-panel p-6 rounded-3xl border border-white/5">
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">Your Performance Reports</h2>
             
@@ -163,15 +188,15 @@ const JeDashboardView = () => {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Total Reports</span>
-                <span className="text-2xl font-bold text-slate-100 font-mono">{roleData.stats?.totalReports || 0}</span>
+                <span className="text-2xl font-bold text-slate-100 font-mono">{totalDprs}</span>
               </div>
               <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Approved Estimates</span>
-                <span className="text-2xl font-bold text-emerald-400 font-mono">{roleData.stats?.approvedCount || 0}</span>
+                <span className="text-2xl font-bold text-emerald-400 font-mono">{approvedEstsCount}</span>
               </div>
               <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Pending Review</span>
-                <span className="text-2xl font-bold text-amber-500 font-mono">{roleData.stats?.pendingCount || 0}</span>
+                <span className="text-2xl font-bold text-amber-500 font-mono">{pendingEstsCount}</span>
               </div>
             </div>
 
@@ -179,7 +204,7 @@ const JeDashboardView = () => {
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4 border-b border-white/5 pb-2">
               Recent Daily Progress Submissions
             </h3>
-            {roleData.recentReports?.length > 0 ? (
+            {dprReports.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
@@ -191,7 +216,7 @@ const JeDashboardView = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-slate-300">
-                    {roleData.recentReports.map((report) => (
+                    {dprReports.slice(0, 5).map((report) => (
                       <tr key={report.report_id}>
                         <td className="py-2.5 font-bold text-slate-100">
                           {new Date(report.site_visit_date).toLocaleDateString('en-IN', { timeZone: 'UTC' })}
@@ -233,21 +258,21 @@ const JeDashboardView = () => {
               <Link to="/daily-progress" className="flex items-center justify-between p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider">Log Site Progress</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Upload daily logs & site photos</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Upload daily logs &amp; site photos</div>
                 </div>
                 <span className="text-sm font-black">&rarr;</span>
               </Link>
               <Link to="/estimates" className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 text-slate-300 hover:text-amber-400 transition">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider">Create Cost Estimate</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Draft materials & measurements</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Draft materials &amp; measurements</div>
                 </div>
                 <span className="text-sm font-black">&rarr;</span>
               </Link>
               <Link to="/requisitions" className="flex items-center justify-between p-3.5 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 text-slate-300 hover:text-amber-400 transition">
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider">Submit Requisition</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Declare GST & vendor bill</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">Declare GST &amp; vendor bill</div>
                 </div>
                 <span className="text-sm font-black">&rarr;</span>
               </Link>
@@ -259,15 +284,15 @@ const JeDashboardView = () => {
             <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4 border-b border-white/5 pb-2">
               Assigned Zonal Office
             </h2>
-            {roleData.zoDetails ? (
+            {activeZoMapping ? (
               <div className="space-y-3">
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase">Officer Name</div>
-                  <div className="text-sm font-bold text-slate-100">{roleData.zoDetails.display_name}</div>
+                  <div className="text-sm font-bold text-slate-100">{activeZoMapping.zo_name}</div>
                 </div>
                 <div>
                   <div className="text-[10px] text-slate-500 font-bold uppercase">Contact Number</div>
-                  <div className="text-sm font-semibold text-slate-300 font-mono">{roleData.zoDetails.mobile_number}</div>
+                  <div className="text-sm font-semibold text-slate-300 font-mono">{activeZoMapping.zo_user_id}</div>
                 </div>
               </div>
             ) : (
