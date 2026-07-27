@@ -1212,7 +1212,7 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
     });
 
     return {
-      totalProjects,
+      totalProjects: totalProjectsCount,
       woValue,
       investment,
       grossBilled,
