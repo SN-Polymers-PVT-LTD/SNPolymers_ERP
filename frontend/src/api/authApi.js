@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || defaultApiUrl;
 const authApi = axios.create({
   baseURL: API_URL,
   withCredentials: true, // enable carrying cookies (httpOnly session token)
-  timeout: 15000, // 15 seconds timeout to prevent indefinite hangs
+  timeout: 60000, // 60 seconds timeout to accommodate Render free-tier cold starts
   headers: {
     'Content-Type': 'application/json',
   },

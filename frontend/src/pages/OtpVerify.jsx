@@ -101,7 +101,11 @@ const OtpVerify = () => {
         }, 1200);
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Verification rejected. Check code or expiry.');
+      if (err.code === 'ECONNABORTED' || err.message?.includes('timeout')) {
+        setError('Server is spinning up (Render cold-start delay). Please wait 10 seconds and try again.');
+      } else {
+        setError(err.response?.data?.message || 'Verification rejected. Check code or expiry.');
+      }
     } finally {
       setLoading(false);
     }
