@@ -12,8 +12,8 @@ export const getZonalBalances = (params) => authApi.get('/zo-balances', { params
  * @param {number} page
  * @param {number} limit
  */
-export const getZonalLedger = (page = 1, limit = 20) =>
-  authApi.get(`/zo-balances/ledger?page=${page}&limit=${limit}`);
+export const getZonalLedger = (page = 1, limit = 20, zo_user_id = '') =>
+  authApi.get(`/zo-balances/ledger?page=${page}&limit=${limit}${zo_user_id ? `&zo_user_id=${encodeURIComponent(zo_user_id)}` : ''}`);
 
 /**
  * Trigger manual reconciliation of zonal balances against transaction ledger (Admin and HO only)
