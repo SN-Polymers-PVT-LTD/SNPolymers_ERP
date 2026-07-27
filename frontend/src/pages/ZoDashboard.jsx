@@ -468,6 +468,14 @@ const buildDonutSlices = (items, totalCount, getCount) => {
     const endAngle = acc + angle;
     acc += angle;
 
+    if (angle < 0.01) return { ...item, pct: 0, pathData: null };
+
+    // Handle 100% full circle donut slice (where start and end points overlap)
+    if (angle >= 359.9) {
+      const fullCirclePathData = `M ${cx} ${cx - OR} A ${OR} ${OR} 0 1 1 ${cx - 0.01} ${cx - OR} L ${cx - 0.01} ${cx - IR} A ${IR} ${IR} 0 1 0 ${cx} ${cx - IR} Z`;
+      return { ...item, pct: Math.round(pct), pathData: fullCirclePathData };
+    }
+
     const sr = (startAngle - 90) * (Math.PI / 180);
     const er = (endAngle - 90) * (Math.PI / 180);
     const x1 = cx + OR * Math.cos(sr), y1 = cx + OR * Math.sin(sr);
@@ -475,7 +483,6 @@ const buildDonutSlices = (items, totalCount, getCount) => {
     const x3 = cx + IR * Math.cos(er), y3 = cx + IR * Math.sin(er);
     const x4 = cx + IR * Math.cos(sr), y4 = cx + IR * Math.sin(sr);
     const largeArc = angle > 180 ? 1 : 0;
-    if (angle < 0.01) return { ...item, pct: 0, pathData: null };
     const pathData = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${OR} ${OR} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${x3.toFixed(2)} ${y3.toFixed(2)} A ${IR} ${IR} 0 ${largeArc} 0 ${x4.toFixed(2)} ${y4.toFixed(2)} Z`;
     return { ...item, pct: Math.round(pct), pathData };
   });
@@ -2242,7 +2249,7 @@ const ZoDashboard = () => {
     const balList = balancesRes?.balances || (balancesRes?.balance ? [balancesRes.balance] : []);
     balList.forEach(b => {
       const id = b.zo_user_id || b.zo_name;
-      const name = b.zo_name || b.zo_user_id || id;
+      const name = b.zo_name || map.get(id) || b.zo_user_id || id;
       if (id) map.set(id, name);
     });
 
