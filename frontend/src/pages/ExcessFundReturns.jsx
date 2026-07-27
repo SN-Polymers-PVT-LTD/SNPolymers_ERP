@@ -546,11 +546,13 @@ const ExcessFundReturns = () => {
               required
             >
               <option value="" className="bg-neutral-900 text-slate-500">Select a ZO...</option>
-              {eligibleZOs.map((zo) => (
-                <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100">
-                  {zo.display_name} ({zo.mobile_number})
-                </option>
-              ))}
+              {eligibleZOs
+                .filter((zo) => zo.available_balance === undefined || zo.available_balance > 0)
+                .map((zo) => (
+                  <option key={zo.mobile_number} value={zo.mobile_number} className="bg-neutral-900 text-slate-100 font-semibold">
+                    {zo.display_name} ({zo.mobile_number}){zo.available_balance !== undefined ? ` — Available: ₹${Number(zo.available_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : ''}
+                  </option>
+                ))}
             </select>
           </div>
 
