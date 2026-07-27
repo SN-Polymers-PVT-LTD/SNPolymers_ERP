@@ -2127,8 +2127,8 @@ const ExecutiveKpiStrip = ({ data }) => {
     },
     {
       id: 'requisition',
-      title: 'TOTAL REQUISITION (JE → ZO)',
-      description: 'Total site fund requisitions requested by Junior Engineers from Zonal Offices.',
+      title: 'TOTAL REQUISITION (ZO → JE)',
+      description: 'Total site fund requisitions processed for Junior Engineers by Zonal Offices.',
       formula: 'Sum(approved_amount where status = \'Approved\')',
       titleColor: '#fb923c',
       topGlow: 'linear-gradient(90deg, #f97316 0%, rgba(249,115,22,0) 80%)',
