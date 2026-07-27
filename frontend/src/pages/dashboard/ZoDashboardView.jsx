@@ -58,17 +58,20 @@ const ZoDashboardView = () => {
 
   const projects = projectsRes?.data || [];
   const requisitionsList = requisitionsRes?.requisitions || requisitionsRes?.data || [];
-  const myZoName = user?.assigned_zone || user?.zo_name || user?.display_name || user?.name || 'Zonal Office';
+  const myZoName = user?.display_name || user?.assigned_zone || user?.zo_name || user?.name || 'Zonal Office';
+  const myZoId = user?.mobile_number || user?.zo_user_id || '';
 
   // Filter projects for logged-in ZO
   const filteredProjects = useMemo(() => {
     if (!user?.role || user.role !== 'zo') return projects;
-    const q = myZoName.toLowerCase().trim();
+    const mob = (myZoId || '').toLowerCase().trim();
+    const name = (myZoName || '').toLowerCase().trim();
     return projects.filter(p => {
-      const zName = (p.zo_name || p.zo_user_id || p.zone || '').toLowerCase().trim();
-      return zName === q || zName.includes(q) || q.includes(zName);
+      const pZoId = (p.zo_user_id || '').toLowerCase().trim();
+      const zName = (p.zo_name || p.zone || '').toLowerCase().trim();
+      return (mob && pZoId === mob) || (name && (zName === name || zName.includes(name) || name.includes(zName)));
     });
-  }, [projects, myZoName, user]);
+  }, [projects, myZoName, myZoId, user]);
 
   // Compute Pending Payment Requisitions for this ZO
   const pendingReqStats = useMemo(() => {

@@ -502,20 +502,45 @@ async function getProjectsHealth(req, res) {
     let enrichedData = healthData || [];
     if (enrichedData.length > 0) {
       const woNumbers = enrichedData.map(p => p.work_order_no);
-      const { data: pmData } = await supabase
-        .from('projects_master')
-        .select('work_order_no, department')
-        .in('work_order_no', woNumbers);
-      
+      const [pmRes, woMapRes] = await Promise.all([
+        supabase.from('projects_master').select('work_order_no, department').in('work_order_no', woNumbers),
+        supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true).in('work_order_no', woNumbers)
+      ]);
+
       const deptMap = {};
-      (pmData || []).forEach(p => {
+      (pmRes.data || []).forEach(p => {
         if (p.department) deptMap[p.work_order_no] = p.department;
       });
 
-      enrichedData = enrichedData.map(p => ({
-        ...p,
-        department: p.department || deptMap[p.work_order_no] || 'General'
-      }));
+      const jeMobileMap = {};
+      const jeMobiles = [];
+      (woMapRes.data || []).forEach(m => {
+        jeMobileMap[m.work_order_no] = m.je_user_id;
+        if (m.je_user_id) jeMobiles.push(m.je_user_id);
+      });
+
+      const userMap = {};
+      if (jeMobiles.length > 0) {
+        const { data: users } = await supabase
+          .from('authorised_users')
+          .select('mobile_number, display_name')
+          .in('mobile_number', Array.from(new Set(jeMobiles)));
+        (users || []).forEach(u => {
+          userMap[u.mobile_number] = u.display_name;
+        });
+      }
+
+      enrichedData = enrichedData.map(p => {
+        const jeMobile = jeMobileMap[p.work_order_no];
+        const jeName = jeMobile ? (userMap[jeMobile] || jeMobile) : undefined;
+        return {
+          ...p,
+          department: p.department || deptMap[p.work_order_no] || 'General',
+          je_user_id: p.je_user_id || jeMobile,
+          je_name: p.je_name || jeName,
+          assigned_je: p.assigned_je || jeName
+        };
+      });
     }
 
     return res.status(200).json({
