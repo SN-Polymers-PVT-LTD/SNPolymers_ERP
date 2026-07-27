@@ -825,7 +825,7 @@ const EstimateView = () => {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400 font-semibold">Budget Variance</span>
                     <span className={`font-mono font-bold ${isOverBudget ? 'text-rose-500' : 'text-emerald-500'}`}>
-                      {isOverBudget ? '+' : ''}{formatINR(budgetVariance)}
+                      {isOverBudget ? '+' : ''}{formatINR(Math.abs(budgetVariance))}
                       <span className="text-[10px] ml-1 font-sans">
                         ({isOverBudget ? 'Exceeds' : 'Under'} {variancePercent.toFixed(1)}%)
                       </span>
