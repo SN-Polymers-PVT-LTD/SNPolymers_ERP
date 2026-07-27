@@ -886,7 +886,7 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
 
   const metrics = React.useMemo(() => {
     const pList = projects || [];
-    const totalProjects = pList.length || 1;
+    const totalProjectsCount = pList.length;
     const woValue = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
     const investment = pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0), 0);
     const grossBilled = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
@@ -928,7 +928,7 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
 
     const bands = rawBands.map(b => ({
       ...b,
-      pct: ((b.count / totalProjects) * 100).toFixed(1),
+      pct: totalProjectsCount > 0 ? ((b.count / totalProjectsCount) * 100).toFixed(1) : '0.0',
     }));
 
     const woItems = pList.map(p => {
