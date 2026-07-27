@@ -1959,25 +1959,8 @@ const ZoHomedashboardOverview = ({ selectedZoName, projects, balancesRes, isDark
   const availBal = activeBal.available_balance ?? 0;
   const limitBal = activeBal.assigned_credit_limit ?? activeBal.allocated_amount ?? 0;
 
-  // Calculate JE productivity list from leaderboardRes or fallback projects
+  // Calculate JE productivity list from projects fallback
   const jeStats = useMemo(() => {
-    if (leaderboardRes?.leaderboard && leaderboardRes.leaderboard.length > 0) {
-      return leaderboardRes.leaderboard.map(j => {
-        const count = j.total_reports > 0 ? Math.max(1, Math.ceil(j.total_reports / 5)) : 1;
-        const avg = j.avg_progress || 0;
-        let status = 'Active';
-        if (avg >= 70) status = 'Excellent';
-        else if (avg < 40) status = 'Warning';
-        return {
-          name: j.display_name || j.mobile_number,
-          count,
-          streak: Number(j.daily_streak || j.streak || 0),
-          avg,
-          status
-        };
-      });
-    }
-
     const map = new Map();
     (projects || []).forEach(p => {
       const jeName = p.je_name || p.assigned_je || p.assigned_to || 'Unassigned JE';
@@ -2000,7 +1983,7 @@ const ZoHomedashboardOverview = ({ selectedZoName, projects, balancesRes, isDark
       else if (avg < 40) status = 'Warning';
       return { ...je, avg, status, streak };
     }).sort((a, b) => b.count - a.count);
-  }, [projects, leaderboardRes]);
+  }, [projects]);
 
   return (
     <div className={`p-6 rounded-3xl border mb-8 transition-all ${isDark ? 'bg-[#0f141f]/80 border-white/10 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-xl'}`}>
