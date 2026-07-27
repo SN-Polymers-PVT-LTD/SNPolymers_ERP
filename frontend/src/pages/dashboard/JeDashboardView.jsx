@@ -68,9 +68,28 @@ const JeDashboardView = () => {
   });
 
   const activeZoMapping = useMemo(() => {
-    const list = mappingsRes?.mappings || [];
-    return list.find(m => m.je_user_id === user?.mobile_number && m.is_active);
-  }, [mappingsRes, user]);
+    const list = mappingsRes?.mappings || (Array.isArray(mappingsRes) ? mappingsRes : []);
+    if (list.length > 0) {
+      const mob = (user?.mobile_number || '').replace(/\D/g, '');
+      const match = list.find(m => {
+        const jMob = (m.je_user_id || '').replace(/\D/g, '');
+        return (jMob && mob && jMob === mob) || m.je_user_id === user?.mobile_number;
+      });
+      if (match) return match;
+      return list.find(m => m.is_active !== false) || list[0];
+    }
+
+    // Fallback from assigned project ZO metadata
+    const projWithZo = projects.find(p => p.zo_name || p.zo_user_id || p.zone);
+    if (projWithZo) {
+      return {
+        zo_name: projWithZo.zo_name || projWithZo.zone || 'Zonal Office',
+        zo_user_id: projWithZo.zo_user_id || 'N/A'
+      };
+    }
+
+    return null;
+  }, [mappingsRes, user, projects]);
 
   // Map everything to a unified projects list for the JE
   const mappedProjects = useMemo(() => {
