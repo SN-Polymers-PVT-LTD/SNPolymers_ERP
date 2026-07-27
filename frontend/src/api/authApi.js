@@ -35,12 +35,13 @@ authApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (
-      error.response &&
-      error.response.status === 401 &&
-      error.response.data?.code === 'ACCESS_TOKEN_EXPIRED' &&
-      !originalRequest._retry
-    ) {
+    if (error.response && error.response.status === 401 && !originalRequest._retry) {
+      // If /me or /refresh returns 401, session is completely expired -> trigger auth-failure
+      if (originalRequest.url?.includes('/me') || originalRequest.url?.includes('/refresh') || originalRequest.url?.includes('/login')) {
+        window.dispatchEvent(new Event('auth-failure'));
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -57,20 +58,14 @@ authApi.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Use basic axios for refresh to bypass interceptor
         await axios.post(`${API_URL}/refresh`, {}, { withCredentials: true });
-        
         processQueue(null);
         isRefreshing = false;
-        
         return authApi(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
         isRefreshing = false;
-        
-        // Dispatch event so AuthContext or Router can handle logout
         window.dispatchEvent(new Event('auth-failure'));
-        
         return Promise.reject(refreshError);
       }
     }

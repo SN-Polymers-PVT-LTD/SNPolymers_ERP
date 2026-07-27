@@ -2316,13 +2316,15 @@ const ZoDashboard = () => {
 
   /* ── Auto-lock ZO for ZO role ── */
   useEffect(() => {
-    if (isZoRole) {
+    if (isZoRole && user) {
+      const assignedZone = (user?.assigned_zone || '').toLowerCase();
+      const mobNumber = (user?.mobile_number || '').toLowerCase();
       if (availableZos.length > 0) {
         const match = availableZos.find(z => 
           z.id.toLowerCase() === (myZoId || '').toLowerCase() || 
           z.name.toLowerCase() === (myZoId || '').toLowerCase() ||
-          (user?.assigned_zone && z.name.toLowerCase().includes(user.assigned_zone.toLowerCase())) ||
-          (user?.mobile_number && z.id.toLowerCase() === user.mobile_number.toLowerCase())
+          (assignedZone && z.name.toLowerCase().includes(assignedZone)) ||
+          (mobNumber && z.id.toLowerCase() === mobNumber)
         );
         if (match) {
           if (selectedZo !== match.id) setSelectedZo(match.id);
@@ -2333,7 +2335,7 @@ const ZoDashboard = () => {
         setSelectedZo(myZoId);
       }
     }
-  }, [isZoRole, myZoId, availableZos, selectedZo, user?.assigned_zone, user?.mobile_number]);
+  }, [isZoRole, myZoId, availableZos, selectedZo, user]);
 
   const zoNameMap = useMemo(() => {
     const m = {};
