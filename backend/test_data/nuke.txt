@@ -21,4 +21,19 @@ TRUNCATE TABLE
   otp_requests
 CASCADE;
 
+-- 2. Reset user daily streaks and last report dates
+UPDATE public.authorised_users 
+SET daily_streak = 0, 
+    last_report_date = NULL;
+
+-- 3. Refresh materialized views to clear cached data
+REFRESH MATERIALIZED VIEW public.project_health_mv;
+REFRESH MATERIALIZED VIEW public.approval_sla_mv;
+REFRESH MATERIALIZED VIEW public.estimate_accuracy_mv;
+REFRESH MATERIALIZED VIEW public.material_variance_mv;
+REFRESH MATERIALIZED VIEW public.resource_utilization_mv;
+REFRESH MATERIALIZED VIEW public.zone_performance_mv;
+REFRESH MATERIALIZED VIEW public.budget_leakage_mv;
+REFRESH MATERIALIZED VIEW public.executive_kpi_mv;
+
 -- This is FOR DEVELOPEMENT DB ONLY . DO NOT USE THIS IN PROD L NOOBS 

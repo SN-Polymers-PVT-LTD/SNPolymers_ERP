@@ -1031,7 +1031,7 @@ const SCurveProgress = ({ projects, sCurveData = [] }) => {
       });
     }
 
-    const sigmoidalPlanned = [10, 25, 42, 58, 74, 88];
+    const sigmoidalPlanned = [2, 12, 35, 65, 88, 98];
     const avgProg = projects?.length
       ? Math.round(projects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projects.length)
       : 0;
@@ -1938,17 +1938,20 @@ const ZoHomedashboardOverview = ({ selectedZoName, projects, balancesRes, isDark
     (projects || []).forEach(p => {
       const jeName = p.je_name || p.assigned_je || 'Unassigned JE';
       if (!map.has(jeName)) {
-        map.set(jeName, { name: jeName, count: 0, totalProgress: 0 });
+        map.set(jeName, { name: jeName, count: 0, totalProgress: 0, streak: p.daily_streak || p.je_daily_streak || 0 });
       }
       const item = map.get(jeName);
       item.count += 1;
       item.totalProgress += Number(p.physical_progress || 0);
+      if (p.daily_streak || p.je_daily_streak) {
+        item.streak = Math.max(item.streak, p.daily_streak || p.je_daily_streak || 0);
+      }
     });
 
     return Array.from(map.values()).map(je => {
       const avg = je.count > 0 ? Math.round(je.totalProgress / je.count) : 0;
       let status = 'Active';
-      let streak = Math.max(1, Math.min(15, Math.round(je.count * 3)));
+      let streak = je.streak || 0;
       if (avg >= 70) status = 'Excellent';
       else if (avg < 40) status = 'Warning';
       return { ...je, avg, status, streak };
