@@ -702,12 +702,11 @@ async function getHoChartData(req, res) {
       (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
 
     // === Parallel fetch all chart sources ===
-    const [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes] =
+    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes] =
       await Promise.all([
         supabase.from('project_health_mv').select(
           'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
         ),
-        supabase.from('project_cost_estimates').select('work_order_no, estimate_amount, estimate_status, estimate_revision, created_at'),
         supabase.from('fund_requests').select('approve_ho_amount, request_status, work_order_no, created_at'),
         supabase.from('requisitions').select('approved_amount, requisition_status, work_order_no, zo_user_id, payment_date, created_at'),
         supabase.from('ra_final_bills').select('gross_bill, agency_payment, work_order_no, security_deposit_amount, it_tds, sgst, cgst, earnest_money_deposit, created_at'),
@@ -719,8 +718,19 @@ async function getHoChartData(req, res) {
       ]);
 
     // Throw on first error
-    for (const r of [healthRes, estimatesRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
+    for (const r of [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
       if (r.error) throw r.error;
+    }
+
+    let estimatesRes = await supabase
+      .from('project_cost_estimates')
+      .select('work_order_no, estimate_amount, estimate_status, estimate_revision, created_at, last_approved_amount');
+
+    if (estimatesRes.error) {
+      estimatesRes = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no, estimate_amount, estimate_status, estimate_revision, created_at');
+      if (estimatesRes.error) throw estimatesRes.error;
     }
 
     // === Enrich projects_master with zone data from project_health_mv ===
@@ -793,8 +803,14 @@ async function getHoChartData(req, res) {
     // === Build waterfallData ===
     const finalEstimates = filteredEstimates.filter(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
-      return st === 'final approved';
-    });
+      const lastAmt = Number(e.last_approved_amount || 0);
+      return st === 'final approved' || lastAmt > 0;
+    }).map(e => ({
+      ...e,
+      estimate_amount: (e.estimate_status || '').toLowerCase().trim() === 'final approved' 
+        ? Number(e.estimate_amount || 0) 
+        : Number(e.last_approved_amount || 0)
+    }));
     const approvedFunds  = filteredFundReqs.filter(f => f.request_status === 'Approved');
     const approvedReqs   = filteredReqs.filter(r => r.requisition_status === 'Approved');
     const waterfallData = [
@@ -893,9 +909,13 @@ async function getHoChartData(req, res) {
     filteredEstimates.forEach(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
       const amt = Number(e.estimate_amount || 0);
+      const lastAmt = Number(e.last_approved_amount || 0);
+
       if (st === 'final approved') {
-        if (!approvedEstimateByWO[e.work_order_no] || amt > approvedEstimateByWO[e.work_order_no]) {
-          approvedEstimateByWO[e.work_order_no] = amt;
+        approvedEstimateByWO[e.work_order_no] = amt;
+      } else if (lastAmt > 0) {
+        if (!approvedEstimateByWO[e.work_order_no]) {
+          approvedEstimateByWO[e.work_order_no] = lastAmt;
         }
       }
     });

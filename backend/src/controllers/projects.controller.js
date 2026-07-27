@@ -14,21 +14,36 @@ async function getProjects(req, res) {
     let selectQuery = '*, zo_user:authorised_users!zo_user_id(display_name)';
     let dbQuery = supabase.from('projects_master').select(selectQuery, hasPagination ? { count: 'exact' } : {});
 
-    // Fetch all final approved estimate amounts to map them
-    const { data: approvedEsts, error: estError } = await supabase
+    // Fetch all final approved and last approved estimate amounts to map them
+    let approvedEstsRes = await supabase
       .from('project_cost_estimates')
-      .select('work_order_no, estimate_amount')
-      .eq('estimate_status', 'Final Approved');
+      .select('work_order_no, estimate_amount, estimate_status, last_approved_amount');
 
-    if (estError) throw estError;
+    if (approvedEstsRes.error) {
+      approvedEstsRes = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no, estimate_amount, estimate_status');
+      if (approvedEstsRes.error) throw approvedEstsRes.error;
+    }
+
+    const approvedEsts = approvedEstsRes.data || [];
 
     const estimateAmountMap = {};
     (approvedEsts || []).forEach(e => {
-      estimateAmountMap[e.work_order_no] = Number(e.estimate_amount || 0);
+      const st = (e.estimate_status || '').toLowerCase().trim();
+      const amt = Number(e.estimate_amount || 0);
+      const lastAmt = Number(e.last_approved_amount || 0);
+      if (st === 'final approved') {
+        estimateAmountMap[e.work_order_no] = amt;
+      } else if (lastAmt > 0) {
+        if (!estimateAmountMap[e.work_order_no]) {
+          estimateAmountMap[e.work_order_no] = lastAmt;
+        }
+      }
     });
 
     if (query.has_approved_estimate === 'true') {
-      const approvedWOs = (approvedEsts || []).map(e => e.work_order_no);
+      const approvedWOs = Object.keys(estimateAmountMap);
       dbQuery = dbQuery.in('work_order_no', approvedWOs.length > 0 ? approvedWOs : ['dummy_work_order_no']);
     }
 

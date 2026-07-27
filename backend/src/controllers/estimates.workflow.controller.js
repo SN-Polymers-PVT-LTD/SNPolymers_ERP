@@ -380,8 +380,13 @@ async function submitReview(req, res) {
       });
     }
 
-    // Trigger Telegram notification if Final Approved
+    // Trigger Telegram notification and update last_approved_amount if Final Approved
     if (updatedEstimate.estimate_status === ESTIMATE_STATUS.FINAL_APPROVED) {
+      await supabase
+        .from('project_cost_estimates')
+        .update({ last_approved_amount: updatedEstimate.estimate_amount })
+        .eq('estimate_id', id);
+
       const { notifyAllEstimateFinalApproved } = require('../services/telegram.service');
       notifyAllEstimateFinalApproved(updatedEstimate).catch(err => {
         console.error(`Telegram notification failed: ${err.message}`);
@@ -741,11 +746,15 @@ async function reopenEstimate(req, res) {
 
     // We do not reset existing item-level approvals or remarks to preserve immutable decisions.
 
+    // Preserve existing approved estimate amount in last_approved_amount if not already set
+    const prevApprovedAmount = estimate.last_approved_amount || (estimate.estimate_status === ESTIMATE_STATUS.FINAL_APPROVED ? estimate.estimate_amount : null);
+
     // Update estimate header: status to Estimate Reopened and nullify approvals/remarks
     const { data: updatedEstimate, error: updateError } = await supabase
       .from('project_cost_estimates')
       .update({
         estimate_status: ESTIMATE_STATUS.ESTIMATE_REOPENED,
+        last_approved_amount: prevApprovedAmount,
         zo_approved_by: null,
         zo_approval_date: null,
         zo_remarks: null,
