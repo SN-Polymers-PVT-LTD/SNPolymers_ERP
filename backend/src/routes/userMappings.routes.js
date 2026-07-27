@@ -33,7 +33,7 @@ router.get(
 
 router.get(
   '/',
-  requireRole(['admin', 'ho', 'zo']),
+  requireRole(['admin', 'ho', 'zo', 'je']),
   getUserMappings
 );
 
