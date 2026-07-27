@@ -793,7 +793,7 @@ async function getHoChartData(req, res) {
     // === Build waterfallData ===
     const finalEstimates = filteredEstimates.filter(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
-      return st.includes('approved');
+      return st === 'final approved';
     });
     const approvedFunds  = filteredFundReqs.filter(f => f.request_status === 'Approved');
     const approvedReqs   = filteredReqs.filter(r => r.requisition_status === 'Approved');
@@ -893,7 +893,7 @@ async function getHoChartData(req, res) {
     filteredEstimates.forEach(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
       const amt = Number(e.estimate_amount || 0);
-      if (st === 'final approved' || st === 'approved') {
+      if (st === 'final approved') {
         if (!approvedEstimateByWO[e.work_order_no] || amt > approvedEstimateByWO[e.work_order_no]) {
           approvedEstimateByWO[e.work_order_no] = amt;
         }
@@ -905,9 +905,7 @@ async function getHoChartData(req, res) {
       const reqAmt = reqsByWo[p.work_order_no] !== undefined 
         ? reqsByWo[p.work_order_no] 
         : Number(h.approved_requisitions_amount || 0);
-      const estAmt = approvedEstimateByWO[p.work_order_no] !== undefined 
-        ? approvedEstimateByWO[p.work_order_no]
-        : Number(h.approved_estimate_amount || 0);
+      const estAmt = approvedEstimateByWO[p.work_order_no] || 0;
       return {
         ...p,
         site_details: h.site_details || p.site_details || 'Site Project',
