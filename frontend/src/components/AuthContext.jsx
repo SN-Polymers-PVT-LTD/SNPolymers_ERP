@@ -29,6 +29,9 @@ export const AuthProvider = ({ children }) => {
 
     const handleAuthFailure = () => {
       setUser(null);
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     };
 
     window.addEventListener('auth-failure', handleAuthFailure);
