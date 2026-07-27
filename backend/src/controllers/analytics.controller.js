@@ -889,20 +889,14 @@ async function getHoChartData(req, res) {
       healthMap[h.work_order_no] = h;
     });
 
-    const estimateByWO = {};
+    const approvedEstimateByWO = {};
     filteredEstimates.forEach(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
       const amt = Number(e.estimate_amount || 0);
-      if (st.includes('approved')) {
-        if (!estimateByWO[e.work_order_no] || amt > estimateByWO[e.work_order_no]) {
-          estimateByWO[e.work_order_no] = amt;
+      if (st === 'final approved' || st === 'approved') {
+        if (!approvedEstimateByWO[e.work_order_no] || amt > approvedEstimateByWO[e.work_order_no]) {
+          approvedEstimateByWO[e.work_order_no] = amt;
         }
-      }
-    });
-    filteredEstimates.forEach(e => {
-      const amt = Number(e.estimate_amount || 0);
-      if (!estimateByWO[e.work_order_no] || amt > estimateByWO[e.work_order_no]) {
-        estimateByWO[e.work_order_no] = amt;
       }
     });
 
@@ -911,9 +905,9 @@ async function getHoChartData(req, res) {
       const reqAmt = reqsByWo[p.work_order_no] !== undefined 
         ? reqsByWo[p.work_order_no] 
         : Number(h.approved_requisitions_amount || 0);
-      const estAmt = estimateByWO[p.work_order_no] !== undefined && estimateByWO[p.work_order_no] > 0
-        ? estimateByWO[p.work_order_no]
-        : Number(p.work_order_value || 0);
+      const estAmt = approvedEstimateByWO[p.work_order_no] !== undefined 
+        ? approvedEstimateByWO[p.work_order_no]
+        : Number(h.approved_estimate_amount || 0);
       return {
         ...p,
         site_details: h.site_details || p.site_details || 'Site Project',
@@ -923,6 +917,7 @@ async function getHoChartData(req, res) {
         zone: h.zone || p.zone || p.area_code || '',
         zo_user_id: h.zo_user_id || p.zo_user_id || '',
         estimate_amount: estAmt,
+        approved_estimate_amount: estAmt,
         approved_requisitions_amount: reqAmt,
         requisition_amount: reqAmt,
         approved_amount: reqAmt,

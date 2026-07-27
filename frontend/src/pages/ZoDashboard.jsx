@@ -827,7 +827,7 @@ const FundFlowWaterfall = ({ projects }) => {
   const rows = useMemo(() => {
     const p = projects || [];
     const totalWOVal = p.reduce((a, pr) => a + Number(pr.work_order_value || 0), 0);
-    const est = p.reduce((a, pr) => a + Number(pr.estimate_amount || 0), 0);
+    const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
     const allocated = p.reduce((a, pr) => a + Number(pr.approved_amount || 0), 0);
     const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
     const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
