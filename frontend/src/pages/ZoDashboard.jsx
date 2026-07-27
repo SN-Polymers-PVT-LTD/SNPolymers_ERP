@@ -829,6 +829,14 @@ const KeyFinancialIndicators = ({ projects, data }) => {
 };
 
 /* ─── Fund Flow Waterfall ─────────────────────────────────────────── */
+const STAGE_METADATA = [
+  { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
+  { gradId: 'ff-sky', color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
+  { gradId: 'ff-amber', color1: '#d97706', color2: '#f59e0b', diffLabel: 'In-Flight Site WIP' },
+  { gradId: 'ff-indigo', color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'Unbilled Work' },
+  { gradId: 'ff-teal', color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
+];
+
 const FundFlowWaterfall = ({ projects }) => {
   const c = useChartColors();
   const W = 600, H = 300, PAD_LEFT = 180, PAD_RIGHT = 100, PAD_Y = 40;
@@ -860,40 +868,39 @@ const FundFlowWaterfall = ({ projects }) => {
       <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="chart-title">Fund Flow Pipeline</h3>
-          <p className="chart-subtitle">Capital flow drop-off from cost estimate to agency payment</p>
+          <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
         </div>
         <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund flow drop-off from cost estimate to agency payment."
-          formula="Stage Drop-off = Current Stage Amount - Subsequent Stage Amount"
+          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, site requisitions, billing, and vendor settlement."
+          formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
         />
       </div>
       <div className="relative mt-6">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <linearGradient id="zo-emer" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#059669" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-            </linearGradient>
-            <linearGradient id="zo-rose" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#dc2626" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-              <stop offset="100%" stopColor="#f43f5e" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-            </linearGradient>
+            {STAGE_METADATA.map((m) => (
+              <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
+                <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />
+              </linearGradient>
+            ))}
           </defs>
           {rows.map((d, i) => {
             const bW = scale(d.amount);
             const y = PAD_Y + i * (barH + gap);
             const prev = i > 0 ? Number(rows[i - 1].amount || 0) : d.amount;
             const diff = prev - d.amount;
-            const isDrop = diff > 0;
+            const meta = STAGE_METADATA[i % STAGE_METADATA.length];
+            const prevMeta = i > 0 ? STAGE_METADATA[(i - 1) % STAGE_METADATA.length] : meta;
             return (
               <g key={i}>
                 <text x={PAD_LEFT - 12} y={y + 16} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">{d.stage.toUpperCase()}</text>
-                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={4} fill={isDrop && i > 0 ? 'url(#zo-rose)' : 'url(#zo-emer)'} className="transition-all duration-300 hover:fill-opacity-90" />
+                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={4} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
                 <text x={PAD_LEFT + bW + 10} y={y + 16} fill={c.labelStrong} fontSize="8" fontWeight="bold">{fmtCr(d.amount)}</text>
-                {i > 0 && isDrop && (
+                {i > 0 && diff > 0 && (
                   <g>
-                    <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.dropOffConnector} strokeWidth="1" strokeDasharray="2 2" />
-                    <text x={PAD_LEFT + scale(prev) + 6} y={y - 4} fill={c.isDark ? '#f43f5e' : '#be123c'} fontSize="7" fontWeight="900">-{fmtCr(diff)}</text>
+                    <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
+                    <text x={PAD_LEFT + scale(prev) + 6} y={y - 4} fill={c.isDark ? '#94a3b8' : '#64748b'} fontSize="7" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>
                   </g>
                 )}
               </g>

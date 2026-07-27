@@ -387,9 +387,17 @@ const BubbleRiskMatrix = ({ data }) => {
   );
 };
 
+const STAGE_METADATA = [
+  { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
+  { gradId: 'ff-sky', color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
+  { gradId: 'ff-amber', color1: '#d97706', color2: '#f59e0b', diffLabel: 'In-Flight Site WIP' },
+  { gradId: 'ff-indigo', color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'Unbilled Work' },
+  { gradId: 'ff-teal', color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
+];
+
 const FundFlowWaterfall = ({ data }) => {
   const c = useChartColors();
-  const W = 600, H = 300, PAD_LEFT = 180, PAD_RIGHT = 100, PAD_Y = 40;
+  const W = 600, H = 300, PAD_LEFT = 180, PAD_RIGHT = 120, PAD_Y = 40;
   const barHeight = 24;
   const gap = 16;
 
@@ -402,11 +410,11 @@ const FundFlowWaterfall = ({ data }) => {
       <div className="flex justify-between items-start mb-2">
         <div>
           <h3 className="chart-title">Fund Flow Pipeline</h3>
-          <p className="chart-subtitle">Capital flow drop-off from cost estimate to agency payment</p>
+          <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
         </div>
         <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund flow drop-off from cost estimate to agency payment."
-          formula="Stage Drop-off = Current Stage Amount - Subsequent Stage Amount"
+          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, site requisitions, billing, and vendor settlement."
+          formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
         />
       </div>
 
@@ -417,7 +425,8 @@ const FundFlowWaterfall = ({ data }) => {
             const y = PAD_Y + i * (barHeight + gap);
             const prevAmount = i > 0 ? Number(data[i - 1].amount || 0) : d.amount;
             const diff = prevAmount - d.amount;
-            const isDropOff = diff > 0;
+            const meta = STAGE_METADATA[i % STAGE_METADATA.length];
+            const prevMeta = i > 0 ? STAGE_METADATA[(i - 1) % STAGE_METADATA.length] : meta;
 
             return (
               <g key={i}>
@@ -433,7 +442,7 @@ const FundFlowWaterfall = ({ data }) => {
                   width={Math.max(2, barW)}
                   height={barHeight}
                   rx={4}
-                  fill={isDropOff && i > 0 ? 'url(#rose-gradient)' : 'url(#emerald-gradient)'}
+                  fill={`url(#${meta.gradId})`}
                   className="transition-all duration-300 hover:fill-opacity-90"
                 />
 
@@ -442,20 +451,20 @@ const FundFlowWaterfall = ({ data }) => {
                   {formatINR(d.amount)}
                 </text>
 
-                {/* Drop-off Connection Line and Indicator */}
-                {i > 0 && isDropOff && (
+                {/* Uncommitted / Retention Stage Connector */}
+                {i > 0 && diff > 0 && (
                   <g>
                     {/* Connector line */}
                     <path
                       d={`M ${PAD_LEFT + scale(prevAmount)} ${y - gap} L ${PAD_LEFT + scale(prevAmount)} ${y} L ${PAD_LEFT + barW} ${y}`}
                       fill="none"
-                      stroke={c.dropOffConnector}
+                      stroke={c.isDark ? '#475569' : '#94a3b8'}
                       strokeWidth="1"
                       strokeDasharray="2 2"
                     />
-                    {/* Drop-off amount */}
-                    <text x={PAD_LEFT + scale(prevAmount) + 6} y={y - 4} fill={c.isDark ? '#f43f5e' : '#be123c'} fontSize="7" fontWeight="black" className="font-mono">
-                      -{formatINR(diff)}
+                    {/* Stage transition explanation */}
+                    <text x={PAD_LEFT + scale(prevAmount) + 6} y={y - 4} fill={c.isDark ? '#94a3b8' : '#64748b'} fontSize="7" fontWeight="bold" className="font-mono">
+                      {prevMeta.diffLabel}: {formatINR(diff)}
                     </text>
                   </g>
                 )}
@@ -465,14 +474,12 @@ const FundFlowWaterfall = ({ data }) => {
 
           {/* Gradients Definitions */}
           <defs>
-            <linearGradient id="emerald-gradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#059669" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-              <stop offset="100%" stopColor="#10b981" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-            </linearGradient>
-            <linearGradient id="rose-gradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#dc2626" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-              <stop offset="100%" stopColor="#f43f5e" stopOpacity={c.isDark ? '0.8' : '0.9'} />
-            </linearGradient>
+            {STAGE_METADATA.map((m) => (
+              <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
+                <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />
+              </linearGradient>
+            ))}
           </defs>
         </svg>
       </div>
