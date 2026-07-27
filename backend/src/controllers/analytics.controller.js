@@ -714,7 +714,7 @@ async function getHoChartData(req, res) {
         supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
         supabase.from('zone_performance_mv').select('*'),
         supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id'),
-        supabase.from('zo_balances').select('available_balance')
+        supabase.from('zo_balances').select('zo_user_id, available_balance')
       ]);
 
     // Throw on first error
@@ -1180,10 +1180,12 @@ async function getHoChartData(req, res) {
     const totalEstAmt = sumOf(finalEstimates, 'estimate_amount');
     const totalReqAmt = sumOf(approvedReqs, 'approved_amount');
     const totalHoApprAmt = sumOf(approvedFunds, 'approve_ho_amount');
-    const totalZoBalAmt = sumOf(zoBalRes.data || [], 'available_balance');
-
-    const refundsList = (filteredLedger || []).filter(tx => tx.transaction_type === 'RETURN');
-    const totalRefundAmt = sumOf(refundsList, 'amount');
+    const filteredZoBalances = (zoBalRes.data || []).filter(b => {
+      if (!effectiveZone) return true;
+      return (b.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+    });
+    const totalZoBalAmt = sumOf(filteredZoBalances, 'available_balance');
+    const totalRefundAmt = Math.abs(totalExcessReturned);
 
     const totalGrossBillAmt = sumOf(filteredBills, 'gross_bill');
     const totalAgencyPayAmt  = sumOf(filteredBills, 'agency_payment');
