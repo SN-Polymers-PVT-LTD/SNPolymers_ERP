@@ -743,14 +743,33 @@ const DepartmentWiseEstimate = ({ projects }) => {
 };
 
 /* ─── Key Financial Indicators ────────────────────────────────────── */
-const KeyFinancialIndicators = ({ projects }) => {
+const KeyFinancialIndicators = ({ projects, data }) => {
   const { isDark } = useTheme();
 
-  const emd = useMemo(() => (projects || []).reduce((a, p) => a + Number(p.earnest_money_deposit || 0), 0), [projects]);
-  const sd = useMemo(() => (projects || []).reduce((a, p) => a + Number(p.security_deposit_amount || 0), 0), [projects]);
-  const itTds = useMemo(() => (projects || []).reduce((a, p) => a + Number(p.it_tds || 0), 0), [projects]);
-  const sgst = useMemo(() => (projects || []).reduce((a, p) => a + Number(p.sgst || 0), 0), [projects]);
-  const cgst = useMemo(() => (projects || []).reduce((a, p) => a + Number(p.cgst || 0), 0), [projects]);
+  const emd = useMemo(() => {
+    if (data?.emdAmount !== undefined && data?.emdAmount !== null && data.emdAmount > 0) return Number(data.emdAmount);
+    return (projects || []).reduce((a, p) => a + Number(p.earnest_money_deposit || 0), 0);
+  }, [projects, data]);
+
+  const sd = useMemo(() => {
+    if (data?.securityDeposit !== undefined && data?.securityDeposit !== null && data.securityDeposit > 0) return Number(data.securityDeposit);
+    return (projects || []).reduce((a, p) => a + Number(p.security_deposit_amount || p.security_deposit || 0), 0);
+  }, [projects, data]);
+
+  const itTds = useMemo(() => {
+    if (data?.itTds !== undefined && data?.itTds !== null && data.itTds > 0) return Number(data.itTds);
+    return (projects || []).reduce((a, p) => a + Number(p.it_tds || 0), 0);
+  }, [projects, data]);
+
+  const sgst = useMemo(() => {
+    if (data?.sgst !== undefined && data?.sgst !== null && data.sgst > 0) return Number(data.sgst);
+    return (projects || []).reduce((a, p) => a + Number(p.sgst || 0), 0);
+  }, [projects, data]);
+
+  const cgst = useMemo(() => {
+    if (data?.cgst !== undefined && data?.cgst !== null && data.cgst > 0) return Number(data.cgst);
+    return (projects || []).reduce((a, p) => a + Number(p.cgst || 0), 0);
+  }, [projects, data]);
 
   const items = useMemo(() => [
     { label: 'EMD Amount',        value: emd, color: '#10b981', bgColor: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
@@ -2610,7 +2629,7 @@ const ZoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
           <div style={{ minHeight: '520px' }} className="h-full">
-            <KeyFinancialIndicators projects={filteredProjects} />
+            <KeyFinancialIndicators projects={filteredProjects} data={chartRes?.keyFinancialIndicators} />
           </div>
         </ZoomCard>
       </div>
