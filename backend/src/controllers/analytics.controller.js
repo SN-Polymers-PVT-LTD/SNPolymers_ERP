@@ -1319,14 +1319,34 @@ async function getJeLeaderboard(req, res) {
       dateThreshold = d.toISOString().slice(0, 10);
     } // lifetime has dateThreshold = null
 
-    // 2. Fetch only ACTIVE JE users
-    const { data: jeUsers, error: userErr } = await supabase
+    // 2. Determine target ZO and fetch mapped JEs if ZO specified
+    let effectiveZone = req.query.zone || req.query.zo_user_id;
+    if (req.user && req.user.role === 'zo') {
+      effectiveZone = req.user.mobile_number;
+    }
+
+    let allowedJeSet = null;
+    if (effectiveZone) {
+      const { data: mappings } = await supabase
+        .from('je_zo_mappings')
+        .select('je_user_id')
+        .eq('zo_user_id', effectiveZone)
+        .eq('is_active', true);
+      allowedJeSet = new Set((mappings || []).map(m => m.je_user_id));
+    }
+
+    // 3. Fetch only ACTIVE JE users
+    let { data: jeUsers, error: userErr } = await supabase
       .from('authorised_users')
       .select('mobile_number, display_name, role, daily_streak, is_active, created_at')
       .eq('role', 'je')
       .eq('is_active', true);
 
     if (userErr) throw userErr;
+
+    if (allowedJeSet) {
+      jeUsers = (jeUsers || []).filter(u => allowedJeSet.has(u.mobile_number));
+    }
 
     // 3. Fetch progress reports
     let dprQuery = supabase

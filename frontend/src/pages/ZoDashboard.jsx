@@ -1628,7 +1628,7 @@ const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
   const rowsPerPage = 5;
 
   const jes = useMemo(() => {
-    if (leaderboardData && leaderboardData.length > 0) {
+    if (Array.isArray(leaderboardData)) {
       return leaderboardData.map(j => ({
         name: j.display_name || j.mobile_number,
         projects: j.total_reports > 0 ? Math.max(1, Math.ceil(j.total_reports / 5)) : 1,
@@ -1653,7 +1653,7 @@ const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
   }, [projects, leaderboardData]);
 
   const ranked = useMemo(() => {
-    if (leaderboardData && leaderboardData.length > 0) {
+    if (Array.isArray(leaderboardData)) {
       return jes;
     }
     return [...jes].sort((a, b) => (b.reports * 2 + b.streak * 5 + b.projects) - (a.reports * 2 + a.streak * 5 + a.projects));
