@@ -9,6 +9,7 @@ import {
   getProjectsHealth,
   getHoActionableInsights,
   getHoChartData,
+  getJeLeaderboard,
   refreshAnalyticsViews,
 } from '../api/analyticsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
@@ -869,16 +870,41 @@ const FundFlowWaterfall = ({ projects }) => {
 };
 
 /* ─── Bubble Risk Matrix ──────────────────────────────────────────── */
-const BubbleRiskMatrix = ({ projects }) => {
+const BubbleRiskMatrix = ({ projects, bubbleMatrixData = [] }) => {
   const [tooltip, setTooltip] = useState(null);
   const c = useChartColors();
   const W = 600, H = 380, PAD = 58;
   const toX = (v) => PAD + (Math.min(v, 140) / 140) * (W - 2 * PAD);
   const toY = (v) => (H - PAD) - (Math.min(v, 100) / 100) * (H - 2 * PAD);
 
-  const bubbles = (projects && projects.length > 0)
-    ? projects.map(p => ({ work_order_no: p.work_order_no, site_details: p.site_details, budget_utilization_pct: p.budget_utilization_pct || 70, physical_progress: p.physical_progress || 0, days_since_dpr: p.days_since_last_progress_report || 5, health_status: p.health_status || 'Healthy' }))
-    : [];
+  const bubbles = useMemo(() => {
+    if (bubbleMatrixData && bubbleMatrixData.length > 0) {
+      return bubbleMatrixData.map(b => ({
+        work_order_no: b.work_order_no,
+        site_details: b.site_details || 'Site Project',
+        budget_utilization_pct: Number(b.budget_utilization_pct || 0),
+        physical_progress: Number(b.physical_progress || 0),
+        days_since_dpr: Number(b.days_since_dpr || 0),
+        health_status: b.health_status || 'Healthy'
+      }));
+    }
+    if (projects && projects.length > 0) {
+      return projects.map(p => {
+        const woVal = Number(p.work_order_value || 0);
+        const reqVal = Number(p.approved_requisitions_amount || p.approved_amount || 0);
+        const budgetUtil = woVal > 0 ? (reqVal / woVal) * 100 : 0;
+        return {
+          work_order_no: p.work_order_no,
+          site_details: p.site_details || 'Site Project',
+          budget_utilization_pct: budgetUtil,
+          physical_progress: Number(p.physical_progress || 0),
+          days_since_dpr: Number(p.days_since_last_progress_report || 0),
+          health_status: p.health_status || 'Healthy'
+        };
+      });
+    }
+    return [];
+  }, [projects, bubbleMatrixData]);
 
   return (
     <div className="chart-panel h-full flex flex-col">
@@ -911,7 +937,7 @@ const BubbleRiskMatrix = ({ projects }) => {
             {[0, 35, 70, 105, 140].map(v => <text key={v} x={toX(v)} y={H - PAD + 14} textAnchor="middle" fill={c.labelMuted} fontSize="7">{v}%</text>)}
             {[0, 25, 50, 75, 100].map(v => <text key={v} x={PAD - 8} y={toY(v) + 3} textAnchor="end" fill={c.labelMuted} fontSize="7">{v}%</text>)}
             {bubbles.map((d, i) => {
-              const r = Math.min(20, 6 + Number(d.days_since_dpr || 0) / 4);
+              const r = Math.min(20, Math.max(5, 6 + Number(d.days_since_dpr || 0) / 4));
               const fill = d.health_status === 'Critical' ? '#ef4444' : d.health_status === 'Warning' ? '#f59e0b' : '#10b981';
               return (
                 <circle key={i} cx={toX(d.budget_utilization_pct || 0)} cy={toY(d.physical_progress || 0)} r={r}
@@ -931,7 +957,7 @@ const BubbleRiskMatrix = ({ projects }) => {
             <p className="font-extrabold truncate chart-tooltip-title">{tooltip.site_details || 'Site Project'}</p>
             <p className="chart-tooltip-mono text-[9px] mt-0.5">{tooltip.work_order_no}</p>
             <div className="mt-2 space-y-1 pt-1.5 chart-tooltip-divider">
-              <p className="chart-tooltip-label">Budget Spent: <span className="text-amber-600 font-extrabold">{tooltip.budget_utilization_pct?.toFixed(1)}%</span></p>
+              <p className="chart-tooltip-label">Budget Spent: <span className="text-amber-600 font-extrabold">{(Number(tooltip.budget_utilization_pct) || 0).toFixed(1)}%</span></p>
               <p className="chart-tooltip-label">Physical Progress: <span className="text-emerald-600 font-extrabold">{tooltip.physical_progress}%</span></p>
               <p className="chart-tooltip-label">Last DPR Visit: <span className={tooltip.days_since_dpr > 7 ? 'text-rose-600 font-extrabold' : 'chart-tooltip-normal'}>{tooltip.days_since_dpr}d ago</span></p>
             </div>
@@ -943,18 +969,73 @@ const BubbleRiskMatrix = ({ projects }) => {
 };
 
 /* ─── S-Curve Progress ────────────────────────────────────────────── */
-const SCurveProgress = ({ projects }) => {
+const SCurveProgress = ({ projects, sCurveData = [] }) => {
   const c = useChartColors();
   const W = 600, H = 330, PAD_TOP = 40, PAD_BOT = 60, PAD_SIDE = 50;
-  const months = ['Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
-  const planned = [10, 25, 42, 58, 74, 88];
-  const actual = useMemo(() => {
-    if (!projects?.length) return [0, 0, 0, 0, 0, 0];
-    const avg = Math.round(projects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projects.length);
-    return [Math.round(avg * 0.08), Math.round(avg * 0.21), Math.round(avg * 0.38), Math.round(avg * 0.55), Math.round(avg * 0.72), avg];
-  }, [projects]);
 
-  const toX = (i) => PAD_SIDE + (i / (months.length - 1)) * (W - 2 * PAD_SIDE);
+  const { months, planned, actual } = useMemo(() => {
+    let rawTimeline = [];
+    if (sCurveData && sCurveData.length > 0) {
+      const datesSet = new Set();
+      sCurveData.forEach(s => {
+        (s.actuals || []).forEach(a => {
+          if (a.date) datesSet.add(a.date.slice(0, 7));
+        });
+      });
+      rawTimeline = Array.from(datesSet).sort();
+    }
+
+    if (rawTimeline.length < 3) {
+      const dateList = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mStr = d.toLocaleString('en-US', { month: 'short' });
+        dateList.push(mStr);
+      }
+      rawTimeline = dateList;
+    } else {
+      rawTimeline = rawTimeline.slice(-6).map(ym => {
+        const parts = ym.split('-');
+        if (parts.length === 2) {
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
+          return d.toLocaleString('en-US', { month: 'short' });
+        }
+        return ym;
+      });
+    }
+
+    const sigmoidalPlanned = [10, 25, 42, 58, 74, 88];
+    const avgProg = projects?.length
+      ? Math.round(projects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projects.length)
+      : 0;
+
+    let computedActual = [];
+    if (sCurveData && sCurveData.length > 0) {
+      const stepCount = rawTimeline.length;
+      computedActual = rawTimeline.map((_, idx) => {
+        const factor = (idx + 1) / stepCount;
+        return Math.round(avgProg * Math.pow(factor, 1.2));
+      });
+    } else {
+      computedActual = [
+        Math.round(avgProg * 0.1),
+        Math.round(avgProg * 0.25),
+        Math.round(avgProg * 0.45),
+        Math.round(avgProg * 0.65),
+        Math.round(avgProg * 0.85),
+        avgProg
+      ];
+    }
+
+    return {
+      months: rawTimeline,
+      planned: sigmoidalPlanned,
+      actual: computedActual
+    };
+  }, [projects, sCurveData]);
+
+  const toX = (i) => PAD_SIDE + (i / Math.max(1, months.length - 1)) * (W - 2 * PAD_SIDE);
   const toY = (v) => (H - PAD_BOT) - (v / 100) * (H - PAD_TOP - PAD_BOT);
   const pts = (arr) => arr.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
 
@@ -1488,25 +1569,43 @@ const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = f
 };
 
 /* ─── JE Leaderboard (paginated) ─────────────────────────────────── */
-const JeLeaderboard = ({ projects, selectedZoName }) => {
+const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
   const { isDark } = useTheme();
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
 
   const jes = useMemo(() => {
+    if (leaderboardData && leaderboardData.length > 0) {
+      return leaderboardData.map(j => ({
+        name: j.display_name || j.mobile_number,
+        projects: j.total_reports > 0 ? Math.max(1, Math.ceil(j.total_reports / 5)) : 1,
+        reports: Number(j.total_reports || 0),
+        streak: Number(j.daily_streak || 0),
+        score: Number(j.score || 0)
+      }));
+    }
+
     const map = {};
     (projects || []).forEach(p => {
       const name = p.assigned_je || p.je_user_id || p.assigned_to;
       if (name) {
-        if (!map[name]) map[name] = { name, projects: 0, reports: 0, streak: Math.floor(Math.random() * 15) + 1 };
+        if (!map[name]) {
+          map[name] = { name, projects: 0, reports: 0, streak: Number(p.daily_streak || 0) };
+        }
         map[name].projects += 1;
-        map[name].reports += Number(p.total_dpr_count || 12);
+        map[name].reports += Number(p.total_dpr_count || 1);
       }
     });
     return Object.values(map);
-  }, [projects]);
+  }, [projects, leaderboardData]);
 
-  const ranked = useMemo(() => [...jes].sort((a, b) => (b.reports * 2 + b.streak * 5 + b.projects) - (a.reports * 2 + a.streak * 5 + a.projects)), [jes]);
+  const ranked = useMemo(() => {
+    if (leaderboardData && leaderboardData.length > 0) {
+      return jes;
+    }
+    return [...jes].sort((a, b) => (b.reports * 2 + b.streak * 5 + b.projects) - (a.reports * 2 + a.streak * 5 + a.projects));
+  }, [jes, leaderboardData]);
+
   const totalPages = Math.ceil(ranked.length / rowsPerPage) || 1;
   const paged = ranked.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
@@ -2040,7 +2139,7 @@ const ZoDashboard = () => {
   const { user } = useAuth();
 
   const isZoRole = user?.role === 'zo';
-  const myZoId = user?.assigned_zone || user?.zo_name || user?.zone_name || user?.name || user?.mobile_number || user?.username || user?.user_id || user?.id;
+  const myZoId = user?.mobile_number || user?.zo_user_id || user?.assigned_zone || user?.zo_name || user?.display_name || user?.name || user?.id;
 
   const [alertMsg, setAlertMsg] = useState(null);
   const [alertType, setAlertType] = useState('success');
@@ -2096,6 +2195,14 @@ const ZoDashboard = () => {
         start_date: startDate || undefined,
         end_date: endDate || undefined
       });
+      return res.data;
+    }
+  });
+
+  const { data: leaderboardRes } = useQuery({
+    queryKey: ['jeLeaderboard', selectedZo],
+    queryFn: async () => {
+      const res = await getJeLeaderboard({ timeframe: 'weekly', zone: selectedZo || undefined });
       return res.data;
     }
   });
@@ -2158,7 +2265,8 @@ const ZoDashboard = () => {
         const match = availableZos.find(z => 
           z.id.toLowerCase() === (myZoId || '').toLowerCase() || 
           z.name.toLowerCase() === (myZoId || '').toLowerCase() ||
-          (user?.assigned_zone && z.name.toLowerCase().includes(user.assigned_zone.toLowerCase()))
+          (user?.assigned_zone && z.name.toLowerCase().includes(user.assigned_zone.toLowerCase())) ||
+          (user?.mobile_number && z.id.toLowerCase() === user.mobile_number.toLowerCase())
         );
         if (match) {
           if (selectedZo !== match.id) setSelectedZo(match.id);
@@ -2169,7 +2277,7 @@ const ZoDashboard = () => {
         setSelectedZo(myZoId);
       }
     }
-  }, [isZoRole, myZoId, availableZos, selectedZo, user?.assigned_zone]);
+  }, [isZoRole, myZoId, availableZos, selectedZo, user?.assigned_zone, user?.mobile_number]);
 
   const zoNameMap = useMemo(() => {
     const m = {};
@@ -2510,7 +2618,7 @@ const ZoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
           <div style={{ minHeight: '480px' }} className="h-full">
-            <BubbleRiskMatrix projects={filteredProjects} />
+            <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
           </div>
         </ZoomCard>
       </div>
@@ -2519,10 +2627,10 @@ const ZoDashboard = () => {
       <SectionLabel>Trends &amp; Projections {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
-          <SCurveProgress projects={filteredProjects} />
+          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('jeleaderboard')}>
-          <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} />
+          <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} leaderboardData={leaderboardRes?.leaderboard} />
         </ZoomCard>
       </div>
 
@@ -2603,7 +2711,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'bubble' && (
         <ChartModal title={`Bubble Risk Matrix Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <BubbleRiskMatrix projects={filteredProjects} />
+          <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
         </ChartModal>
       )}
       {zoomedChart === 'fundflow' && (
@@ -2613,7 +2721,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'scurve' && (
         <ChartModal title={`S-Curve Performance Progress — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <SCurveProgress projects={filteredProjects} />
+          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
         </ChartModal>
       )}
       {zoomedChart === 'revision' && (
@@ -2633,7 +2741,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'jeleaderboard' && (
         <ChartModal title={`JE Leaderboard — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="80vw" height="80vh" maxWidth="80vw" maxHeight="80vh" onClose={() => setZoomedChart(null)}>
-          <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} />
+          <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} leaderboardData={leaderboardRes?.leaderboard} />
         </ChartModal>
       )}
 

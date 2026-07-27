@@ -13,3 +13,5 @@ export const refreshAnalyticsViews  = ()       => authApi.post('/analytics/refre
 export const getProjectsHealth      = ()       => authApi.get('/analytics/projects');
 export const getHoActionableInsights = ()       => authApi.get('/analytics/ho/actionable-insights');
 export const getHoChartData          = (params) => authApi.get('/analytics/ho/chart-data', { params });
+export const getJeLeaderboard        = (params) => authApi.get('/analytics/je-leaderboard', { params });
+

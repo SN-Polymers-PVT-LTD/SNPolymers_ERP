@@ -8,7 +8,7 @@ This directory contains the user interface for the S.N. Polymers **Integrated Di
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 frontend/
@@ -35,7 +35,7 @@ frontend/
 
 ---
 
-## ⚡ Setup & Launch
+##  Setup & Launch
 
 ### 1. Install Dependencies
 Ensure you are in `/frontend` directory:
@@ -63,10 +63,12 @@ Production assets will compile inside the `/dist` directory.
 
 ---
 
-## 🛡️ Routing Strategy & Auth Guards
+## Routing Strategy & Auth Guards
 
 The application implements a secure routing hierarchy to block unauthorized workspace exploration:
 
 - **Public Routes:** `Home (/)`, `Login (/login)`, `OtpVerify (/verify-otp)`.
 - **Protected User Console:** `/dashboard` requires users to have an approved active account.
 - **Admin Console:** `/admin` and `/admin/logs` require users to have administrative roles.
+
+
