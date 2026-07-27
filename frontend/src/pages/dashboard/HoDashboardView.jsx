@@ -369,7 +369,7 @@ const HoDashboardView = () => {
 
 
               <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Capital Velocity Pipeline</div>
+                <div className="text-xs font-bold uppercase tracking-wider text-slate-300">Capital Velocity Pipeline (30 Days)</div>
                 <div className="space-y-3">
                   <div>
                     <div className="flex justify-between items-center text-[10px] mb-1">
