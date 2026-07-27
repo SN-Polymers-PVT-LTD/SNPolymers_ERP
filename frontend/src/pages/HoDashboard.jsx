@@ -387,18 +387,21 @@ const BubbleRiskMatrix = ({ data }) => {
   );
 };
 
-const STAGE_METADATA = [
-  { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
-  { gradId: 'ff-sky', color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
-  { gradId: 'ff-amber', color1: '#d97706', color2: '#f59e0b', diffLabel: 'In-Flight Site WIP' },
-  { gradId: 'ff-indigo', color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'Unbilled Work' },
-  { gradId: 'ff-teal', color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
-];
+const STAGE_METADATA_MAP = {
+  'final approved estimate': { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
+  'ho allocated (gross)':    { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'Excess Refunded to HO' },
+  'excess returned to ho':   { gradId: 'ff-mint',    color1: '#10b981', color2: '#34d399', diffLabel: '↩ Refunded Back to HO' },
+  'ho allocated (net)':      { gradId: 'ff-amber',   color1: '#d97706', color2: '#f59e0b', diffLabel: 'Net ZO Retained Balance' },
+  'ho allocated':            { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
+  'requisitions approved':  { gradId: 'ff-indigo',  color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'In-Flight Site WIP' },
+  'gross billed':           { gradId: 'ff-blue',    color1: '#2563eb', color2: '#60a5fa', diffLabel: 'Unbilled Work' },
+  'agency paid':            { gradId: 'ff-teal',    color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
+};
 
 const FundFlowWaterfall = ({ data }) => {
   const c = useChartColors();
-  const W = 600, H = 300, PAD_LEFT = 180, PAD_RIGHT = 120, PAD_Y = 40;
-  const barHeight = 24;
+  const W = 600, H = 360, PAD_LEFT = 180, PAD_RIGHT = 120, PAD_Y = 40;
+  const barHeight = 22;
   const gap = 16;
 
   // Find max value for scaling
@@ -413,7 +416,7 @@ const FundFlowWaterfall = ({ data }) => {
           <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
         </div>
         <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, site requisitions, billing, and vendor settlement."
+          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
           formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
         />
       </div>
@@ -425,14 +428,16 @@ const FundFlowWaterfall = ({ data }) => {
             const y = PAD_Y + i * (barHeight + gap);
             const prevAmount = i > 0 ? Number(data[i - 1].amount || 0) : d.amount;
             const diff = prevAmount - d.amount;
-            const meta = STAGE_METADATA[i % STAGE_METADATA.length];
-            const prevMeta = i > 0 ? STAGE_METADATA[(i - 1) % STAGE_METADATA.length] : meta;
+            const key = (d.stage || '').toLowerCase().trim();
+            const meta = STAGE_METADATA_MAP[key] || { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Stage Delta' };
+            const prevKey = i > 0 ? (data[i - 1].stage || '').toLowerCase().trim() : key;
+            const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
 
             return (
               <g key={i}>
                 {/* Stage Label */}
-                <text x={PAD_LEFT - 12} y={y + 16} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">
-                  {d.stage.toUpperCase()}
+                <text x={PAD_LEFT - 12} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">
+                  {d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}
                 </text>
 
                 {/* Flow Bar */}
@@ -447,12 +452,12 @@ const FundFlowWaterfall = ({ data }) => {
                 />
 
                 {/* Amount Label */}
-                <text x={PAD_LEFT + barW + 10} y={y + 16} fill={c.labelStrong} fontSize="8" fontWeight="bold" className="font-mono">
+                <text x={PAD_LEFT + barW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="8" fontWeight="bold" className="font-mono">
                   {formatINR(d.amount)}
                 </text>
 
-                {/* Uncommitted / Retention Stage Connector */}
-                {i > 0 && diff > 0 && (
+                {/* Uncommitted / Retention / Refund Stage Connector */}
+                {i > 0 && diff > 0 && !d.isRefund && (
                   <g>
                     {/* Connector line */}
                     <path
@@ -474,7 +479,7 @@ const FundFlowWaterfall = ({ data }) => {
 
           {/* Gradients Definitions */}
           <defs>
-            {STAGE_METADATA.map((m) => (
+            {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
                 <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />

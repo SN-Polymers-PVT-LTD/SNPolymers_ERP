@@ -829,31 +829,37 @@ const KeyFinancialIndicators = ({ projects, data }) => {
 };
 
 /* ─── Fund Flow Waterfall ─────────────────────────────────────────── */
-const STAGE_METADATA = [
-  { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
-  { gradId: 'ff-sky', color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
-  { gradId: 'ff-amber', color1: '#d97706', color2: '#f59e0b', diffLabel: 'In-Flight Site WIP' },
-  { gradId: 'ff-indigo', color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'Unbilled Work' },
-  { gradId: 'ff-teal', color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
-];
+const STAGE_METADATA_MAP = {
+  'final approved estimate': { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
+  'ho allocated (gross)':    { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'Excess Refunded to HO' },
+  'excess returned to ho':   { gradId: 'ff-mint',    color1: '#10b981', color2: '#34d399', diffLabel: '↩ Refunded Back to HO' },
+  'ho allocated (net)':      { gradId: 'ff-amber',   color1: '#d97706', color2: '#f59e0b', diffLabel: 'Net ZO Retained Balance' },
+  'ho allocated':            { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
+  'requisitions approved':  { gradId: 'ff-indigo',  color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'In-Flight Site WIP' },
+  'gross billed':           { gradId: 'ff-blue',    color1: '#2563eb', color2: '#60a5fa', diffLabel: 'Unbilled Work' },
+  'agency paid':            { gradId: 'ff-teal',    color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
+};
 
 const FundFlowWaterfall = ({ projects }) => {
   const c = useChartColors();
-  const W = 600, H = 300, PAD_LEFT = 180, PAD_RIGHT = 100, PAD_Y = 40;
-  const barH = 24, gap = 16;
+  const W = 600, H = 360, PAD_LEFT = 180, PAD_RIGHT = 120, PAD_Y = 40;
+  const barH = 22, gap = 16;
 
   const rows = useMemo(() => {
     const p = projects || [];
-    const totalWOVal = p.reduce((a, pr) => a + Number(pr.work_order_value || 0), 0);
     const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
-    const allocated = p.reduce((a, pr) => a + Number(pr.approved_amount || 0), 0);
+    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_amount || 0), 0);
+    const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
+    const netAllocated = Math.max(0, grossAllocated - excessReturned);
     const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
     const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
     const paid = p.reduce((a, pr) => a + Number(pr.agency_paid || 0), 0);
 
     return [
       { stage: 'Final Approved Estimate', amount: est },
-      { stage: 'HO Allocated',            amount: allocated },
+      { stage: 'HO Allocated (Gross)',    amount: grossAllocated },
+      { stage: 'Excess Returned to HO',   amount: excessReturned, isRefund: true },
+      { stage: 'HO Allocated (Net)',      amount: netAllocated },
       { stage: 'Requisitions Approved',   amount: reqApproved },
       { stage: 'Gross Billed',            amount: billed },
       { stage: 'Agency Paid',             amount: paid },
@@ -871,14 +877,14 @@ const FundFlowWaterfall = ({ projects }) => {
           <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
         </div>
         <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, site requisitions, billing, and vendor settlement."
+          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
           formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
         />
       </div>
       <div className="relative mt-6">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
           <defs>
-            {STAGE_METADATA.map((m) => (
+            {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
                 <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />
@@ -890,14 +896,16 @@ const FundFlowWaterfall = ({ projects }) => {
             const y = PAD_Y + i * (barH + gap);
             const prev = i > 0 ? Number(rows[i - 1].amount || 0) : d.amount;
             const diff = prev - d.amount;
-            const meta = STAGE_METADATA[i % STAGE_METADATA.length];
-            const prevMeta = i > 0 ? STAGE_METADATA[(i - 1) % STAGE_METADATA.length] : meta;
+            const key = (d.stage || '').toLowerCase().trim();
+            const meta = STAGE_METADATA_MAP[key] || { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Stage Delta' };
+            const prevKey = i > 0 ? (rows[i - 1].stage || '').toLowerCase().trim() : key;
+            const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
             return (
               <g key={i}>
-                <text x={PAD_LEFT - 12} y={y + 16} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">{d.stage.toUpperCase()}</text>
+                <text x={PAD_LEFT - 12} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="0.5">{d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}</text>
                 <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={4} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
-                <text x={PAD_LEFT + bW + 10} y={y + 16} fill={c.labelStrong} fontSize="8" fontWeight="bold">{fmtCr(d.amount)}</text>
-                {i > 0 && diff > 0 && (
+                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="8" fontWeight="bold">{fmtCr(d.amount)}</text>
+                {i > 0 && diff > 0 && !d.isRefund && (
                   <g>
                     <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
                     <text x={PAD_LEFT + scale(prev) + 6} y={y - 4} fill={c.isDark ? '#94a3b8' : '#64748b'} fontSize="7" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>

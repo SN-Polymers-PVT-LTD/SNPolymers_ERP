@@ -811,14 +811,30 @@ async function getHoChartData(req, res) {
         ? Number(e.estimate_amount || 0) 
         : Number(e.last_approved_amount || 0)
     }));
-    const approvedFunds  = filteredFundReqs.filter(f => f.request_status === 'Approved');
-    const approvedReqs   = filteredReqs.filter(r => r.requisition_status === 'Approved');
+    // Fetch completed excess fund returns to HO
+    let fundReturnsQuery = supabase
+      .from('excess_fund_returns')
+      .select('actual_returned_amount, requested_amount, status, zo_user_id')
+      .eq('status', 'Completed');
+
+    if (zo_user_id) {
+      fundReturnsQuery = fundReturnsQuery.eq('zo_user_id', zo_user_id);
+    }
+
+    const { data: completedReturns } = await fundReturnsQuery;
+    const totalExcessReturned = (completedReturns || []).reduce((sum, r) => sum + Number(r.actual_returned_amount || r.requested_amount || 0), 0);
+
+    const grossHoAllocated = sumOf(approvedFunds, 'approve_ho_amount');
+    const netHoAllocated = Math.max(0, grossHoAllocated - totalExcessReturned);
+
     const waterfallData = [
       { stage: 'Final Approved Estimate', amount: sumOf(finalEstimates, 'estimate_amount') },
-      { stage: 'HO Allocated',           amount: sumOf(approvedFunds,  'approve_ho_amount') },
-      { stage: 'Requisitions Approved',  amount: sumOf(approvedReqs,   'approved_amount') },
-      { stage: 'Gross Billed',           amount: sumOf(filteredBills,  'gross_bill') },
-      { stage: 'Agency Paid',            amount: sumOf(filteredBills,  'agency_payment') }
+      { stage: 'HO Allocated (Gross)',    amount: grossHoAllocated },
+      { stage: 'Excess Returned to HO',   amount: totalExcessReturned, isRefund: true },
+      { stage: 'HO Allocated (Net)',      amount: netHoAllocated },
+      { stage: 'Requisitions Approved',   amount: sumOf(approvedReqs,   'approved_amount') },
+      { stage: 'Gross Billed',            amount: sumOf(filteredBills,  'gross_bill') },
+      { stage: 'Agency Paid',             amount: sumOf(filteredBills,  'agency_payment') }
     ];
 
     // === Build zonalHeatmap ===
