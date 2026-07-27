@@ -782,7 +782,7 @@ async function getHoChartData(req, res) {
       budget_utilization_pct: p.work_order_value > 0
         ? parseFloat(((Number(p.approved_requisitions_amount) / Number(p.work_order_value)) * 100).toFixed(1))
         : 0,
-      days_since_dpr: Number(p.days_since_last_progress_report || 0),
+      days_since_dpr: Number(p.days_since_last_progress_report !== undefined && p.days_since_last_progress_report !== null ? p.days_since_last_progress_report : 999),
       health_score: Number(p.health_score || 0),
       health_status: p.health_status,
       anomaly_score: p.health_status === 'Critical' ? 4 : p.health_status === 'Warning' ? 2 : 0
