@@ -76,21 +76,48 @@ async function getZonalBalances(req, res) {
       });
     }
 
-    // HO / Admin view: Fetch ALL authorized ZO users + merge balances
-    const { data: zoUsers, error: usersErr } = await supabase
-      .from('authorised_users')
-      .select('mobile_number, display_name')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .order('display_name', { ascending: true });
+    // HO / Admin view: Fetch ONLY ZO users with active work order or balance mappings
+    const { data: mappedProjects } = await supabase
+      .from('projects_master')
+      .select('zo_user_id')
+      .not('zo_user_id', 'is', null);
 
-    if (usersErr) throw usersErr;
+    const { data: mappedWos } = await supabase
+      .from('work_order_mappings')
+      .select('zo_user_id')
+      .eq('is_active', true);
+
+    const { data: mappedJes } = await supabase
+      .from('je_zo_mappings')
+      .select('zo_user_id')
+      .eq('is_active', true);
 
     const { data: balances, error: balErr } = await supabase
       .from('zo_balances')
       .select('*');
 
     if (balErr) throw balErr;
+
+    const mappedZoIds = Array.from(new Set([
+      ...(mappedProjects || []).map(p => p.zo_user_id).filter(Boolean),
+      ...(mappedWos || []).map(w => w.zo_user_id).filter(Boolean),
+      ...(mappedJes || []).map(j => j.zo_user_id).filter(Boolean),
+      ...(balances || []).map(b => b.zo_user_id).filter(Boolean)
+    ]));
+
+    if (mappedZoIds.length === 0) {
+      return res.status(200).json({ success: true, balances: [] });
+    }
+
+    const { data: zoUsers, error: usersErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .eq('role', 'zo')
+      .eq('is_active', true)
+      .in('mobile_number', mappedZoIds)
+      .order('display_name', { ascending: true });
+
+    if (usersErr) throw usersErr;
 
     const balanceMap = {};
     (balances || []).forEach(b => {
