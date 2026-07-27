@@ -748,7 +748,7 @@ async function getHoChartData(req, res) {
       zone: (healthZoneMap[p.work_order_no] || {}).zone || '',
       zo_user_id: p.zo_user_id || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '',
     }));
-    if (project_status && project_status !== 'all') {
+    if (project_status && !project_status.toLowerCase().includes('all')) {
       const normStatus = project_status.toLowerCase().trim();
       allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
     }
@@ -889,7 +889,7 @@ async function getHoChartData(req, res) {
     });
 
     allProjects.forEach(p => {
-      const prog = Number((healthMap[p.work_order_no] || {}).physical_progress || p.physical_progress || 0);
+      const prog = Number(p.physical_progress || 0);
       if (!dprByWO[p.work_order_no] || dprByWO[p.work_order_no].length === 0) {
         if (prog > 0) {
           dprByWO[p.work_order_no] = [
