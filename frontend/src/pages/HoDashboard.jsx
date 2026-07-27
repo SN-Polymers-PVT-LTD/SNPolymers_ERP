@@ -633,23 +633,41 @@ const PredictiveRunwayLines = ({ trendData, runwayData }) => {
   const maxBalance = Math.max(10000, ...allTxs.map(h => Number(h.balance || 0)), ...(runwayData || []).map(r => Number(r.available_balance || 0)));
 
   const getPoints = (history, rData) => {
-    if (!history || history.length === 0) return '';
-    const points = history.map((h, idx) => {
-      const x = PAD + (idx / 120) * (W - 2 * PAD);
-      const y = (H - PAD) - ((h.balance || 0) / maxBalance) * (H - 2 * PAD);
-      return `${x},${y}`;
-    });
-    if (rData) {
-      const startBal = rData.available_balance || 0;
-      const burn = rData.daily_burn || 0;
-      for (let i = 1; i <= 60; i++) {
-        const projBal = Math.max(0, startBal - burn * i);
-        const x = PAD + ((history.length + i) / 120) * (W - 2 * PAD);
-        const y = (H - PAD) - (projBal / maxBalance) * (H - 2 * PAD);
-        points.push(`${x},${y}`);
-      }
+    const todayMs = Date.now();
+    const msPerDay = 86400000;
+    const historicalHalf = (W / 2) - PAD;
+    const futureHalf = (W - PAD) - (W / 2);
+    const pts = [];
+
+    if (history && history.length > 0) {
+      const sortedHistory = [...history].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      sortedHistory.forEach((h) => {
+        const dTime = new Date(h.date).getTime();
+        const daysAgo = Math.min(60, Math.max(0, (todayMs - dTime) / msPerDay));
+        const x = (W / 2) - (daysAgo / 60) * historicalHalf;
+        const y = (H - PAD) - (Math.max(0, Number(h.balance || 0)) / maxBalance) * (H - 2 * PAD);
+        pts.push(`${x},${y}`);
+      });
     }
-    return points.join(' ');
+
+    const currentBal = rData ? Number(rData.available_balance || 0) : (history?.length ? Number(history[history.length - 1].balance || 0) : 0);
+    const todayY = (H - PAD) - (Math.max(0, currentBal) / maxBalance) * (H - 2 * PAD);
+
+    if (pts.length === 0) {
+      pts.push(`${PAD},${todayY}`);
+    }
+    pts.push(`${W / 2},${todayY}`);
+
+    const burn = rData ? Number(rData.daily_burn || 0) : 0;
+    for (let i = 1; i <= 60; i += 2) {
+      const projBal = Math.max(0, currentBal - burn * i);
+      const x = (W / 2) + (i / 60) * futureHalf;
+      const y = (H - PAD) - (projBal / maxBalance) * (H - 2 * PAD);
+      pts.push(`${x},${y}`);
+    }
+
+    return pts.join(' ');
   };
 
   const lineColors = ['#3b82f6', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
