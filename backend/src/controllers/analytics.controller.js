@@ -702,7 +702,7 @@ async function getHoChartData(req, res) {
       (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
 
     // === Parallel fetch all chart sources ===
-    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes] =
+    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes, woMappingsRes, jeZoMappingsRes] =
       await Promise.all([
         supabase.from('project_health_mv').select(
           'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
@@ -714,7 +714,9 @@ async function getHoChartData(req, res) {
         supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
         supabase.from('zone_performance_mv').select('*'),
         supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id'),
-        supabase.from('zo_balances').select('zo_user_id, available_balance')
+        supabase.from('zo_balances').select('zo_user_id, available_balance'),
+        supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true),
+        supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true)
       ]);
 
     // Throw on first error
@@ -733,7 +735,13 @@ async function getHoChartData(req, res) {
       if (estimatesRes.error) throw estimatesRes.error;
     }
 
-    // === Fetch ZO User Display Names ===
+    // === Fetch Mappings & ZO User Display Names ===
+    const woJeMap = {};
+    (woMappingsRes?.data || []).forEach(w => { woJeMap[w.work_order_no] = w.je_user_id; });
+
+    const jeZoMap = {};
+    (jeZoMappingsRes?.data || []).forEach(j => { jeZoMap[j.je_user_id] = j.zo_user_id; });
+
     const { data: zoAuthUsers } = await supabase
       .from('authorised_users')
       .select('mobile_number, display_name')
@@ -744,7 +752,7 @@ async function getHoChartData(req, res) {
       zoNameMap[u.mobile_number] = u.display_name;
     });
 
-    // === Enrich projects_master with zone and zo_name data ===
+    // === Enrich projects_master with zone and zo_name data via JE-ZO mapping ===
     const healthZoneMap = {};
     (healthRes.data || []).forEach(h => {
       healthZoneMap[h.work_order_no] = {
@@ -755,13 +763,14 @@ async function getHoChartData(req, res) {
 
     // === Strict Filtering Logic ===
     let allProjects = (projectsRes.data || []).map(p => {
-      const pZoUserId = p.zo_user_id || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '';
-      const rawZone = p.zone || (healthZoneMap[p.work_order_no] || {}).zone || '';
-      const zoDisplayName = zoNameMap[pZoUserId] || zoNameMap[rawZone] || rawZone || 'Zonal Officer';
+      const assignedJe = woJeMap[p.work_order_no];
+      const mappedZoId = p.zo_user_id || (assignedJe ? jeZoMap[assignedJe] : null) || (healthZoneMap[p.work_order_no] || {}).zo_user_id || '';
+      const zoDisplayName = zoNameMap[mappedZoId] || 'Unassigned ZO';
+
       return {
         ...p,
-        zo_user_id: pZoUserId,
-        raw_zone: rawZone,
+        zo_user_id: mappedZoId,
+        assigned_je: assignedJe,
         zone: zoDisplayName,
         zo_name: zoDisplayName
       };
