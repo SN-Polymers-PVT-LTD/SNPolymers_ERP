@@ -29,9 +29,15 @@ class ErrorBoundary extends React.Component {
           <h2 className="text-base font-bold uppercase tracking-wider text-slate-100 mb-2">
             Temporary Loading Issue
           </h2>
-          <p className="text-xs text-slate-400 max-w-md mb-6 leading-relaxed">
+          <p className="text-xs text-slate-400 max-w-md mb-3 leading-relaxed">
             The page encountered a temporary synchronization glitch during navigation.
           </p>
+          {this.state.error && (
+            <div className="mb-6 p-3 rounded-xl bg-rose-950/50 border border-rose-500/30 text-rose-300 font-mono text-[11px] max-w-xl text-left overflow-auto max-h-32">
+              <span className="font-bold uppercase text-rose-400 block mb-1">Diagnostic Detail:</span>
+              {this.state.error.message || String(this.state.error)}
+            </div>
+          )}
           <button
             onClick={this.handleReset}
             className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20 transition-all hover:scale-105 active:scale-95 cursor-pointer"
