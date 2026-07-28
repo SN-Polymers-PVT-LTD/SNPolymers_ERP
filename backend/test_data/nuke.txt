@@ -21,12 +21,16 @@ TRUNCATE TABLE
   otp_requests
 CASCADE;
 
--- 2. Reset user daily streaks and last report dates
+-- 2. Remove users with NULL or empty Telegram ID
+DELETE FROM public.authorised_users 
+WHERE telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '';
+
+-- 3. Reset user daily streaks and last report dates
 UPDATE public.authorised_users 
 SET daily_streak = 0, 
     last_report_date = NULL;
 
--- 3. Refresh materialized views to clear cached data
+-- 4. Refresh materialized views to clear cached data
 REFRESH MATERIALIZED VIEW public.project_health_mv;
 REFRESH MATERIALIZED VIEW public.approval_sla_mv;
 REFRESH MATERIALIZED VIEW public.estimate_accuracy_mv;
