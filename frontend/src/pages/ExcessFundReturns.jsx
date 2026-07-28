@@ -7,11 +7,11 @@ import {
   acceptReturnRequest,
   rejectReturnRequest,
   modifyReturnRequest,
-  actionOnReturnRequest
+  actionOnReturnRequest,
+  getTargetZOs
 } from '../api/fundReturnsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getProjects } from '../api/projectsApi';
-import { getEligibleZOs } from '../api/userMappingsApi';
 
 const ExcessFundReturns = () => {
   const { user } = useAuth();
@@ -84,8 +84,8 @@ const ExcessFundReturns = () => {
           setZoBalance(ownBalObj ? Number(ownBalObj.available_balance) : 0.00);
         }
       } else {
-        // Fetch eligible ZOs
-        const zoRes = await getEligibleZOs();
+        // Fetch target ZOs with positive available balance for excess return request
+        const zoRes = await getTargetZOs();
         if (zoRes.data?.success) setEligibleZOs(zoRes.data.zos || []);
       }
     } catch (err) {

@@ -257,46 +257,16 @@ async function getEligibleJEs(req, res) {
 
 /**
  * GET /api/v1/auth/user-mappings/eligible-zos
- * Returns all active ZOs.
+ * Returns all active ZOs without financial balance filtering.
  */
 async function getEligibleZOs(req, res) {
   try {
-    // Only return ZOs with positive available balance (> 0)
-    const { data: positiveBalances, error: balErr } = await supabase
-      .from('zo_balances')
-      .select('zo_user_id, available_balance')
-      .gt('available_balance', 0);
-
-    if (balErr) throw balErr;
-
-    const positiveZoMobiles = (positiveBalances || []).map(b => b.zo_user_id);
-
-    if (positiveZoMobiles.length === 0) {
-      return res.status(200).json({ success: true, zos: [] });
-    }
-
-    const { data: zos, error } = await supabase
-      .from('authorised_users')
-      .select('mobile_number, display_name')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .in('mobile_number', positiveZoMobiles)
-      .order('display_name', { ascending: true });
-
-    if (error) throw error;
-
-    const balMap = {};
-    positiveBalances.forEach(b => { balMap[b.zo_user_id] = b.available_balance; });
-
-    const enriched = (zos || []).map(z => ({
-      ...z,
-      available_balance: Number(balMap[z.mobile_number] || 0)
-    }));
-
-    return res.status(200).json({ success: true, zos: enriched });
+    const zoService = require('../services/zo.service');
+    const zos = await zoService.getAllActiveZOs();
+    return res.status(200).json({ success: true, zos });
   } catch (error) {
-    console.error(`getEligibleZOs failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to retrieve eligible Zonal Office users.' });
+    console.error(`getUserMappings getEligibleZOs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Zonal Office users.' });
   }
 }
 

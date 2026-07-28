@@ -160,8 +160,27 @@ async function getExcessFundReturns(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/excess-fund-returns/target-zos
+ * Retrieves target ZOs with positive available balance (> 0) for excess fund return requests.
+ */
+async function getTargetZOs(req, res) {
+  try {
+    const zoService = require('../services/zo.service');
+    const zos = await zoService.getTargetZOsForExcessReturns();
+    return res.status(200).json({
+      success: true,
+      zos
+    });
+  } catch (error) {
+    console.error(`getTargetZOs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve target Zonal Offices for excess returns.' });
+  }
+}
+
 module.exports = {
   createExcessFundReturn,
   actionExcessFundReturn,
-  getExcessFundReturns
+  getExcessFundReturns,
+  getTargetZOs
 };
