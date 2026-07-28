@@ -755,5 +755,74 @@ describe('Milestone 4 — Cost Estimates Submission & Revision Workflow API', ()
         .update({ estimate_status: 'Draft' })
         .eq('estimate_id', createdEstimateId);
     });
+
+    test('Test 15: Submitting a reopened estimate preserves all line-item decisions and remarks intact', async () => {
+      expect(createdEstimateId).not.toBeNull();
+
+      // Setup estimate item with explicit ZO and HO decisions & remarks
+      const testItemId = crypto.randomUUID();
+      await supabase.from('project_cost_estimate_items').insert({
+        item_id: testItemId,
+        estimate_id: createdEstimateId,
+        material_main_head: 'Raw Materials',
+        material_sub_head: 'Cement',
+        material_details: 'Reopened Decision Item',
+        unit: 'Bag',
+        qty: 5,
+        rate: 400,
+        amount: 2000.00,
+        rate_reference: 'Ref',
+        zo_office_approve: 'Approve',
+        zo_remarks: 'ZO Approved test remark',
+        ho_office_approve: 'Not Approve',
+        ho_remarks: 'HO Disapproved test remark'
+      });
+
+      // Transition estimate status to Estimate Reopened and insert open log
+      await supabase
+        .from('project_cost_estimates')
+        .update({ estimate_status: 'Estimate Reopened' })
+        .eq('estimate_id', createdEstimateId);
+
+      const logId = crypto.randomUUID();
+      await supabase.from('estimate_revision_log').insert({
+        id: logId,
+        estimate_id: createdEstimateId,
+        revision_cycle: 1,
+        stage: 'HO',
+        requested_by: mobileAdmin,
+        revision_deadline: '9999-12-31T23:59:59.000Z'
+      });
+
+      const { submitEstimate } = require('../../../src/controllers/estimates.workflow.controller');
+      const res = mockRes();
+      await submitEstimate({
+        params: { id: createdEstimateId },
+        user: { mobile_number: mobileJE_Owner, role: 'je' }
+      }, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.jsonData.success).toBe(true);
+
+      // Verify item decisions & remarks are 100% preserved
+      const { data: itemData } = await supabase
+        .from('project_cost_estimate_items')
+        .select('*')
+        .eq('item_id', testItemId)
+        .single();
+
+      expect(itemData.zo_office_approve).toBe('Approve');
+      expect(itemData.zo_remarks).toBe('ZO Approved test remark');
+      expect(itemData.ho_office_approve).toBe('Not Approve');
+      expect(itemData.ho_remarks).toBe('HO Disapproved test remark');
+
+      // Cleanup
+      await supabase.from('project_cost_estimate_items').delete().eq('item_id', testItemId);
+      await supabase.from('estimate_revision_log').delete().eq('id', logId);
+      await supabase
+        .from('project_cost_estimates')
+        .update({ estimate_status: 'Draft' })
+        .eq('estimate_id', createdEstimateId);
+    });
   });
 });
