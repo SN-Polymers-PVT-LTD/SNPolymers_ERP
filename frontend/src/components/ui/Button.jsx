@@ -18,13 +18,13 @@ const Button = ({
 
   // Variant styles
   const variants = {
-    primary: 'bg-white hover:bg-slate-100 text-slate-950 shadow-md disabled:bg-white/50 disabled:text-slate-950/50',
-    secondary: 'text-slate-400 hover:text-slate-200 disabled:opacity-40',
-    glass: 'glass-input hover:border-white/20 text-slate-400 hover:text-slate-200 disabled:opacity-50',
-    danger: 'bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 hover:border-red-500/30 disabled:opacity-50',
-    success: 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/30 disabled:opacity-50',
+    primary: 'bg-slate-900 text-slate-100 dark:bg-white hover:dark:bg-slate-100 dark:text-slate-950 shadow-md disabled:opacity-50',
+    secondary: 'text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200 disabled:opacity-40',
+    glass: 'glass-input hover:border-slate-300 dark:hover:border-white/20 text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200 disabled:opacity-50',
+    danger: 'bg-red-500/10 border border-red-500/30 dark:border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500/20 disabled:opacity-50',
+    success: 'bg-emerald-500/10 border border-emerald-500/30 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50',
     amber: 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md shadow-amber-500/20 disabled:bg-amber-500/50 disabled:text-slate-950/50',
-    ghost: 'p-1.5 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/5 text-slate-400 hover:text-slate-200 disabled:opacity-40',
+    ghost: 'p-1.5 rounded-lg hover:bg-slate-200/50 dark:hover:bg-white/5 border border-transparent text-slate-700 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-200 disabled:opacity-40',
   };
 
   // Size styles

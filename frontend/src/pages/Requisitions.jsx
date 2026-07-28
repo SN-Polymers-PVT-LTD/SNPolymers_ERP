@@ -286,24 +286,34 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
     ? requisitionAmount - Number(approvedAmount)
     : null;
 
+  const [requisitionDetail, setRequisitionDetail] = useState(requisition);
+
   useEffect(() => {
     const loadMetrics = async () => {
       setLoadingMetrics(true);
       setError('');
       try {
-        const balanceRes = await getZonalBalances();
+        const [balanceRes, capacityRes, detailRes] = await Promise.all([
+          getZonalBalances().catch(() => ({ data: { balances: [] } })),
+          getMainHeadCapacity(requisition.work_order_no, requisition.material_main_head).catch(() => ({ data: null })),
+          getRequisitionById(requisition.requisition_id).catch(() => ({ data: null }))
+        ]);
+
         const balanceList = balanceRes.data?.balances || [];
         if (balanceList.length > 0) {
           setZoBalance(Number(balanceList[0].available_balance));
         }
 
-        const capacityRes = await getMainHeadCapacity(requisition.work_order_no, requisition.material_main_head);
         if (capacityRes.data) {
           setCapacityMetrics({
             mainHeadEstimate: Number(capacityRes.data.mainHeadEstimate),
             cumulativeApproved: Number(capacityRes.data.cumulativeApproved),
             remainingCapacity: Number(capacityRes.data.remainingCapacity)
           });
+        }
+
+        if (detailRes.data?.requisition) {
+          setRequisitionDetail(detailRes.data.requisition);
         }
       } catch (err) {
         console.error('Failed to load metrics for action validation:', err);
@@ -416,10 +426,48 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Material Head</p>
             <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.material_main_head}</p>
           </div>
-          <div className="col-span-2 border-t border-white/5 pt-2 flex justify-between text-[11px] text-slate-400 font-semibold">
+          <div className="col-span-2 border-t border-white/5 pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-[11px] text-slate-400 font-semibold">
             <span>Approver: {approverName}</span>
             <span>Date: {systemDateStr}</span>
           </div>
+          {((requisitionDetail.requisition_pdf_signed_url || requisition.requisition_pdf_signed_url || requisition.requisition_pdf_url) || 
+            (requisitionDetail.gst_bill_pdf_signed_url || requisition.gst_bill_pdf_signed_url || requisition.gst_bill_pdf_url)) && (
+            <div className="col-span-2 border-t border-white/5 pt-2 flex flex-wrap gap-2">
+              {(requisitionDetail.requisition_pdf_signed_url || requisition.requisition_pdf_signed_url) ? (
+                <a
+                  href={requisitionDetail.requisition_pdf_signed_url || requisition.requisition_pdf_signed_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-[10px] uppercase tracking-wider font-extrabold border border-amber-500/30 transition inline-flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  View Requisition PDF
+                </a>
+              ) : requisition.requisition_pdf_url && (
+                <span className="text-[10px] text-slate-500 italic py-1">Loading Requisition PDF...</span>
+              )}
+
+              {(requisitionDetail.gst_bill === 'Yes' || requisition.gst_bill === 'Yes') && (
+                (requisitionDetail.gst_bill_pdf_signed_url || requisition.gst_bill_pdf_signed_url) ? (
+                  <a
+                    href={requisitionDetail.gst_bill_pdf_signed_url || requisition.gst_bill_pdf_signed_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 rounded-xl text-[10px] uppercase tracking-wider font-extrabold border border-indigo-500/30 transition inline-flex items-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    View GST Bill PDF
+                  </a>
+                ) : (requisitionDetail.gst_bill_pdf_url || requisition.gst_bill_pdf_url) && (
+                  <span className="text-[10px] text-slate-500 italic py-1">Loading GST Bill PDF...</span>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Choice */}

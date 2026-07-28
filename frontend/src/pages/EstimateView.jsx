@@ -801,8 +801,10 @@ const EstimateView = () => {
                               <select
                                 value={dec?.source_of_purchase || ''}
                                 onChange={(e) => handleDecisionChange(item.item_id, 'source_of_purchase', e.target.value)}
-                                className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-slate-300"
-                                disabled={submitting}
+                                className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-slate-300 ${
+                                  Boolean(item.ho_office_approve) ? 'opacity-60 cursor-not-allowed' : ''
+                                }`}
+                                disabled={submitting || Boolean(item.ho_office_approve)}
                               >
                                 <option value="" className="bg-slate-900 text-slate-300">Select Source</option>
                                 {purchaseOptions.map(o => (
@@ -929,7 +931,7 @@ const EstimateView = () => {
                     {estimate.je_remarks && (
                       <div>
                         <span className="text-slate-500 block">Remarks</span>
-                        <span className="text-slate-300 italic block mt-0.5">"{estimate.je_remarks}"</span>
+                        <span className="text-slate-300 italic block mt-0.5">{estimate.je_remarks}</span>
                       </div>
                     )}
                   </div>
@@ -958,7 +960,7 @@ const EstimateView = () => {
                     {estimate.zo_remarks && (
                       <div>
                         <span className="text-slate-500 block">Remarks</span>
-                        <span className="text-slate-300 italic block mt-0.5 font-sans">"{estimate.zo_remarks}"</span>
+                        <span className="text-slate-300 italic block mt-0.5 font-sans">{estimate.zo_remarks}</span>
                       </div>
                     )}
                   </div>
@@ -987,7 +989,7 @@ const EstimateView = () => {
                     {estimate.ho_remarks && (
                       <div>
                         <span className="text-slate-500 block">Remarks</span>
-                        <span className="text-slate-300 italic block mt-0.5 font-sans">"{estimate.ho_remarks}"</span>
+                        <span className="text-slate-300 italic block mt-0.5 font-sans">{estimate.ho_remarks}</span>
                       </div>
                     )}
                   </div>
