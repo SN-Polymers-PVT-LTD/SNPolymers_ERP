@@ -727,8 +727,16 @@ const EstimateView = () => {
                                 <select
                                   value={dec?.approve_status || ''}
                                   onChange={(e) => handleDecisionChange(item.item_id, 'approve_status', e.target.value)}
-                                  className="w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs"
-                                  disabled={submitting}
+                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs ${
+                                    (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
+                                      ? 'opacity-60 cursor-not-allowed'
+                                      : ''
+                                  }`}
+                                  disabled={
+                                    submitting ||
+                                    (isCurrentlyInZOReview && Boolean(item.zo_office_approve)) ||
+                                    (isCurrentlyInHOReview && Boolean(item.ho_office_approve))
+                                  }
                                 >
                                   <option value="">Decide</option>
                                   <option value="Approve">Approve</option>
@@ -740,12 +748,25 @@ const EstimateView = () => {
                                   type="text"
                                   placeholder={isRejected ? 'Remarks mandatory' : 'Optional comments'}
                                   value={dec?.remarks || ''}
-                                  onClick={() => openRemarksModal(item.item_id, dec?.remarks || '', isRejected ? 'Remarks mandatory' : 'Optional comments')}
+                                  onClick={() => {
+                                    const isLocked = (isCurrentlyInZOReview && Boolean(item.zo_office_approve)) || (isCurrentlyInHOReview && Boolean(item.ho_office_approve));
+                                    if (!isLocked) {
+                                      openRemarksModal(item.item_id, dec?.remarks || '', isRejected ? 'Remarks mandatory' : 'Optional comments');
+                                    }
+                                  }}
                                   readOnly
-                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs cursor-pointer hover:bg-white/10 transition-colors ${
+                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs transition-colors ${
+                                    (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
+                                      ? 'opacity-60 cursor-not-allowed'
+                                      : 'cursor-pointer hover:bg-white/10'
+                                  } ${
                                     isRejected && !dec?.remarks?.trim() ? 'border border-red-500/50 bg-red-950/10' : ''
                                   }`}
-                                  disabled={submitting}
+                                  disabled={
+                                    submitting ||
+                                    (isCurrentlyInZOReview && Boolean(item.zo_office_approve)) ||
+                                    (isCurrentlyInHOReview && Boolean(item.ho_office_approve))
+                                  }
                                 />
                               </td>
                             </>
@@ -1199,9 +1220,9 @@ const EstimateView = () => {
               <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-xs dark:text-red-200 text-red-800">
                 <div className="font-bold flex items-center gap-1.5 mb-1 dark:text-red-400 text-red-700">
                   <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                  Warning: Status Reset
+                  Warning: Workflow Reopening
                 </div>
-                Are you sure you want to reopen this estimate? This will reset all ZO/HO approvals and remarks, and place it in the "Estimate Reopened" status. The JE will be able to add new line items and resubmit.
+                Are you sure you want to reopen this estimate? This will transition it to "Estimate Reopened" status. All existing line-item decisions and remarks will be preserved while allowing the JE to add new line items and resubmit.
               </div>
             </div>
           </Modal>
