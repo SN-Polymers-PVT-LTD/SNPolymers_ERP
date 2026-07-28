@@ -688,4 +688,72 @@ describe('Milestone 4 — Cost Estimates Submission & Revision Workflow API', ()
         .eq('estimate_id', createdEstimateId);
     });
   });
+
+  describe('Workflow Invariant Guardrails & hasRejectedItems Unit Tests', () => {
+    const { hasRejectedItems } = require('../../../src/workflow/estimate-rules');
+    const { submitReview } = require('../../../src/controllers/estimates.workflow.controller');
+
+    test('Test 13a: hasRejectedItems detects disapproved ZO item', () => {
+      const items = [
+        { zo_office_approve: 'Approve' },
+        { zo_office_approve: 'Not Approve' }
+      ];
+      expect(hasRejectedItems(items, 'Under ZO Review')).toBe(true);
+    });
+
+    test('Test 13b: hasRejectedItems returns false when all items are Approved', () => {
+      const items = [
+        { zo_office_approve: 'Approve' },
+        { zo_office_approve: 'Approve' }
+      ];
+      expect(hasRejectedItems(items, 'Under ZO Review')).toBe(false);
+    });
+
+    test('Test 13c: hasRejectedItems returns false on empty items list', () => {
+      expect(hasRejectedItems([], 'Under ZO Review')).toBe(false);
+    });
+
+    test('Test 14: submitReview blocks final approval with 422 when an item is marked Not Approve', async () => {
+      expect(createdEstimateId).not.toBeNull();
+
+      // Transition estimate to Under ZO Review
+      await supabase
+        .from('project_cost_estimates')
+        .update({ estimate_status: 'Under ZO Review' })
+        .eq('estimate_id', createdEstimateId);
+
+      // Insert item marked Not Approve
+      const itemId = crypto.randomUUID();
+      await supabase.from('project_cost_estimate_items').insert({
+        item_id: itemId,
+        estimate_id: createdEstimateId,
+        material_main_head: 'Raw Materials',
+        material_sub_head: 'Cement',
+        material_details: 'Test Cement Guardrail',
+        unit: 'Bag',
+        qty: 10,
+        rate: 450,
+        amount: 4500.00,
+        rate_reference: 'Ref',
+        zo_office_approve: 'Not Approve'
+      });
+
+      const res = mockRes();
+      await submitReview({
+        params: { id: createdEstimateId },
+        user: { mobile_number: mobileZO, role: 'zo' },
+        body: { remarks: 'Final approval attempt' }
+      }, res);
+
+      expect(res.statusCode).toBe(422);
+      expect(res.jsonData.message).toContain('Final review cannot be submitted while one or more items are marked Not Approve');
+
+      // Cleanup test item & reset status
+      await supabase.from('project_cost_estimate_items').delete().eq('item_id', itemId);
+      await supabase
+        .from('project_cost_estimates')
+        .update({ estimate_status: 'Draft' })
+        .eq('estimate_id', createdEstimateId);
+    });
+  });
 });

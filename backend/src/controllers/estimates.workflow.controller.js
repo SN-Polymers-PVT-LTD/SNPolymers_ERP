@@ -293,6 +293,8 @@ async function reviewEstimate(req, res) {
   }
 }
 
+const { hasRejectedItems } = require('../workflow/estimate-rules');
+
 /**
  * POST /api/v1/auth/estimates/:id/submit-review
  * Submits the final review decision for ZO or HO.
@@ -308,6 +310,21 @@ async function submitReview(req, res) {
     const estimate = await getEstimateById(id);
     if (!estimate) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
+    }
+
+    // Pre-flight check: Verify items do not contain any disapproved rows
+    const { data: items, error: itemsError } = await supabase
+      .from('project_cost_estimate_items')
+      .select('zo_office_approve, ho_office_approve')
+      .eq('estimate_id', id);
+
+    if (itemsError) throw itemsError;
+
+    if (hasRejectedItems(items, estimate.estimate_status)) {
+      return res.status(422).json({
+        success: false,
+        message: 'Final review cannot be submitted while one or more items are marked Not Approve. Use Request Revision or update the affected items.'
+      });
     }
 
     // Stage Guard

@@ -48,29 +48,36 @@ const CancelConfirmModal = ({ requisitionNo, isCancelling, onConfirm, onClose })
   <Modal
     isOpen={true}
     onClose={onClose}
-    title="Confirm Cancel"
+    title="Cancel Requisition"
+    subtitle="Permanent Action Warning"
     size="sm"
     footer={
       <>
         <Button variant="secondary" onClick={onClose} disabled={isCancelling} size="sm">
-          Cancel
+          Keep Requisition
         </Button>
-        <Button variant="danger" onClick={onConfirm} loading={isCancelling} size="sm">
-          Yes, Cancel
+        <Button variant="danger" onClick={onConfirm} loading={isCancelling} size="sm" className="shadow-lg shadow-red-500/20">
+          Confirm Cancellation
         </Button>
       </>
     }
   >
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center bg-red-500/10">
-        <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
+    <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/20 text-left space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-red-500/10 border border-red-500/20 shrink-0">
+          <svg className="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <div>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-red-400">Irreversible Deletion Guard</h4>
+          <p className="text-[10px] text-slate-400 mt-0.5">This requisition will be permanently archived and marked as Cancelled.</p>
+        </div>
+      </div>
+      <div className="pt-2 border-t border-white/5 text-xs text-slate-300">
+        Requisition Reference: <span className="font-mono font-extrabold text-amber-400">{requisitionNo}</span>
       </div>
     </div>
-    <p className="text-xs text-slate-400 mb-2">
-      Are you sure you want to cancel requisition <span className="font-mono font-bold text-slate-200">{requisitionNo}</span>? This action is permanent.
-    </p>
   </Modal>
 );
 
@@ -385,9 +392,16 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
       size="md"
     >
       {error && (
-        <div className="mb-4 p-4 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-          {error}
+        <div className="mb-4 p-4 bg-red-950/40 border border-red-500/30 rounded-2xl text-xs text-red-300 flex items-start gap-3 shadow-lg shadow-red-950/50 animate-fadeIn">
+          <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/30">
+            <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-400 block">Financial Validation Alert</span>
+            <span className="font-semibold text-red-200 leading-relaxed">{error}</span>
+          </div>
         </div>
       )}
 
@@ -950,9 +964,16 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       size="md"
     >
       {error && (
-        <div className="mb-4 p-4 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-          {error}
+        <div className="mb-4 p-4 bg-red-950/40 border border-red-500/30 rounded-2xl text-xs text-red-300 flex items-start gap-3 shadow-lg shadow-red-950/50 animate-fadeIn">
+          <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/30">
+            <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div className="space-y-0.5">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-400 block">Requisition Validation Guard</span>
+            <span className="font-semibold text-red-200 leading-relaxed">{error}</span>
+          </div>
         </div>
       )}
 
@@ -1513,15 +1534,29 @@ const Requisitions = () => {
 
         {/* Notifications */}
         {displayError && (
-          <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-5 flex items-center gap-2.5 animate-pulse text-left">
-            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-            {displayError}
+          <div className="p-4 bg-red-950/40 border border-red-500/30 rounded-2xl text-xs text-red-300 mb-5 flex items-start gap-3 shadow-lg shadow-red-950/40 animate-fadeIn text-left">
+            <div className="w-6 h-6 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-red-500/30">
+              <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-400 block">System Alert</span>
+              <span className="font-semibold text-red-200 leading-relaxed">{displayError}</span>
+            </div>
           </div>
         )}
         {success && (
-          <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-5 flex items-center gap-2.5 text-left">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            {success}
+          <div className="p-4 bg-emerald-950/40 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 mb-5 flex items-start gap-3 shadow-lg shadow-emerald-950/40 animate-fadeIn text-left">
+            <div className="w-6 h-6 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-emerald-500/30">
+              <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 block">Success Confirmation</span>
+              <span className="font-semibold text-emerald-200 leading-relaxed">{success}</span>
+            </div>
           </div>
         )}
 

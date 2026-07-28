@@ -140,6 +140,14 @@ const EstimateView = () => {
     }, 0);
   }, [items, rowDecisions, estimate]);
 
+  const canSubmitReview = useMemo(() => {
+    if (!items.length) return false;
+    const allDecided = items.every(item => Boolean(rowDecisions[item.item_id]?.approve_status));
+    if (!allDecided) return false;
+    const hasRejections = items.some(item => rowDecisions[item.item_id]?.approve_status === 'Not Approve');
+    return !hasRejections;
+  }, [items, rowDecisions]);
+
   const handleDecisionChange = (itemId, field, value) => {
     const updated = {
       ...rowDecisions,
@@ -926,6 +934,12 @@ const EstimateView = () => {
                         <span className="text-slate-300 font-mono">{formatDate(estimate.zo_approval_date)}</span>
                       </div>
                     )}
+                    {estimate.zo_remarks && (
+                      <div>
+                        <span className="text-slate-500 block">Remarks</span>
+                        <span className="text-slate-300 italic block mt-0.5 font-sans">"{estimate.zo_remarks}"</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* HO card */}
@@ -947,6 +961,12 @@ const EstimateView = () => {
                       <div>
                         <span className="text-slate-500 block">Approval Date</span>
                         <span className="text-slate-300 font-mono">{formatDate(estimate.ho_approval_date)}</span>
+                      </div>
+                    )}
+                    {estimate.ho_remarks && (
+                      <div>
+                        <span className="text-slate-500 block">Remarks</span>
+                        <span className="text-slate-300 italic block mt-0.5 font-sans">"{estimate.ho_remarks}"</span>
                       </div>
                     )}
                   </div>
@@ -992,7 +1012,7 @@ const EstimateView = () => {
                     type="button"
                     onClick={handleOpenSubmitReviewModal}
                     variant="primary"
-                    disabled={submitting}
+                    disabled={!canSubmitReview || submitting}
                   >
                     Submit Final Review
                   </Button>
