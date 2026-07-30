@@ -24,6 +24,10 @@ import { KpiDetailsModal } from '../components/analytics/ui/KpiDetailsModal';
 import { InvestmentRecoveryPlot } from '../components/analytics/charts/InvestmentRecoveryPlot';
 import { FundFlowWaterfallChart } from '../components/analytics/charts/FundFlowWaterfallChart';
 import { DepartmentWiseEstimateChart } from '../components/analytics/charts/DepartmentWiseEstimateChart';
+import { ExecutiveKpiStrip } from '../components/analytics/ui/ExecutiveKpiStrip';
+import { SCurveProgressChart } from '../components/analytics/charts/SCurveProgressChart';
+import { BubbleRiskMatrixChart } from '../components/analytics/charts/BubbleRiskMatrixChart';
+import { WorkOrderTelemetryTable } from '../components/analytics/charts/WorkOrderTelemetryTable';
 
 /* ─── Section Divider ─────────────────────────────────────────────── */
 const SectionLabel = ({ children }) => (
@@ -32,134 +36,6 @@ const SectionLabel = ({ children }) => (
     <div className="flex-1 h-px bg-white/[0.045]" />
   </div>
 );
-
-/* ─── Paginated ZO Name Selector Component ──────────────────────── */
-const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
-  const { isDark } = useTheme();
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 5;
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredZos = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return availableZos;
-    return availableZos.filter(z => z.name.toLowerCase().includes(q) || z.id.toLowerCase().includes(q));
-  }, [availableZos, search]);
-
-  const totalPages = Math.ceil(filteredZos.length / pageSize) || 1;
-  const pagedZos = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredZos.slice(start, start + pageSize);
-  }, [filteredZos, page, pageSize]);
-
-  const selectedName = selectedZo ? getZoDisplayName(selectedZo) : 'All ZO Names (Entire Portfolio)';
-
-  return (
-    <div className="relative inline-block" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 hover:border-amber-500/50 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider text-amber-400 shadow-sm backdrop-blur-md transition-all cursor-pointer"
-      >
-        <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-        <span className="text-[10px] text-slate-400 font-bold uppercase">ZO Name:</span>
-        <span className="text-slate-100 font-extrabold max-w-[170px] sm:max-w-[200px] truncate">{selectedName}</span>
-        <svg className={`w-3.5 h-3.5 text-amber-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div className={`absolute right-0 mt-2 w-72 rounded-2xl border shadow-2xl z-[600] p-3.5 backdrop-blur-xl transition-all ${isDark ? 'bg-[#0f172a] border-white/10 text-slate-100 shadow-black/90' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'}`}>
-          <div className="mb-2">
-            <input
-              type="text"
-              placeholder="Search ZO name..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500/50 ${isDark ? 'bg-slate-950 border-white/10 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
-            />
-          </div>
-
-          <div
-            onClick={() => { onSelectZo(null); setIsOpen(false); }}
-            className={`flex items-center justify-between p-2 rounded-xl text-xs font-bold cursor-pointer transition ${!selectedZo ? 'bg-amber-500/20 text-amber-300 font-extrabold' : isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
-          >
-            <div className="flex items-center gap-2 truncate">
-              <span>🌐</span>
-              <span className="truncate">All ZO Names (Entire Portfolio)</span>
-            </div>
-            {!selectedZo && <span className="text-amber-400 font-black">✓</span>}
-          </div>
-
-          <div className="h-px bg-white/10 my-1.5" />
-
-          <div className="space-y-1 min-h-[160px]">
-            {pagedZos.map(z => {
-              const isSelected = selectedZo === z.id || selectedZo === z.name;
-              return (
-                <div
-                  key={z.id}
-                  onClick={() => { onSelectZo(z.id); setIsOpen(false); }}
-                  className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold cursor-pointer transition ${isSelected ? 'bg-amber-500/20 text-amber-300 font-extrabold' : isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-400 font-mono text-[9px] font-black flex items-center justify-center border border-amber-500/20 shrink-0">
-                      {z.name.charAt(0).toUpperCase()}
-                    </span>
-                    <span className="truncate">{z.name}</span>
-                  </div>
-                  {isSelected && <span className="text-amber-400 font-black ml-1">✓</span>}
-                </div>
-              );
-            })}
-            {pagedZos.length === 0 && (
-              <div className="py-6 text-center text-xs text-slate-500 italic">No ZOs matching search</div>
-            )}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-white/10 text-[10px] font-mono select-none">
-              <span className="text-slate-400 font-bold">Pg {page} of {totalPages} ({filteredZos.length} ZOs)</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
 
 /* ─── donut path helper ───────────────────────────────────────────── */
 const buildDonutSlices = (items, totalCount, getCount) => {
@@ -403,215 +279,7 @@ const KeyFinancialIndicators = ({ projects, data }) => {
   );
 };
 
-/* ─── Bubble Risk Matrix ──────────────────────────────────────────── */
-const BubbleRiskMatrix = ({ projects, bubbleMatrixData = [] }) => {
-  const [tooltip, setTooltip] = useState(null);
-  const c = useChartColors();
-  const W = 600, H = 380, PAD = 58;
-  const toX = (v) => PAD + (Math.min(v, 140) / 140) * (W - 2 * PAD);
-  const toY = (v) => (H - PAD) - (Math.min(v, 100) / 100) * (H - 2 * PAD);
-
-  const bubbles = useMemo(() => {
-    if (bubbleMatrixData && bubbleMatrixData.length > 0) {
-      return bubbleMatrixData.map(b => ({
-        work_order_no: b.work_order_no,
-        site_details: b.site_details || 'Site Project',
-        budget_utilization_pct: Number(b.budget_utilization_pct || 0),
-        physical_progress: Number(b.physical_progress || 0),
-        days_since_dpr: Number(b.days_since_dpr || 0),
-        health_status: b.health_status || 'Healthy'
-      }));
-    }
-    if (projects && projects.length > 0) {
-      return projects.map(p => {
-        const woVal = Number(p.work_order_value || 0);
-        const reqVal = Number(p.approved_requisitions_amount || p.approved_amount || 0);
-        const budgetUtil = woVal > 0 ? (reqVal / woVal) * 100 : 0;
-        return {
-          work_order_no: p.work_order_no,
-          site_details: p.site_details || 'Site Project',
-          budget_utilization_pct: budgetUtil,
-          physical_progress: Number(p.physical_progress || 0),
-          days_since_dpr: Number(p.days_since_last_progress_report || 0),
-          health_status: p.health_status || 'Healthy'
-        };
-      });
-    }
-    return [];
-  }, [projects, bubbleMatrixData]);
-
-  return (
-    <div className="chart-panel h-full flex flex-col">
-      <div className="flex justify-between items-center mb-3 shrink-0">
-        <div>
-          <h3 className="chart-title">Bubble Risk Matrix</h3>
-          <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
-        </div>
-        <div className="flex gap-3 text-[8px] font-black uppercase tracking-wider chart-label">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Healthy</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Warning</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Critical</span>
-        </div>
-      </div>
-      <div className="relative flex-1 flex items-center justify-center min-h-0">
-        {bubbles.length === 0 ? (
-          <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">No project data for selected ZO Name</div>
-        ) : (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full max-h-[60vh]" preserveAspectRatio="xMidYMid meet">
-            <line x1={toX(70)} y1={PAD} x2={toX(70)} y2={H - PAD} stroke={c.gridLineDash} strokeDasharray="4 4" />
-            <line x1={PAD} y1={toY(50)} x2={W - PAD} y2={toY(50)} stroke={c.gridLineDash} strokeDasharray="4 4" />
-            <text x={PAD + 10} y={PAD + 18} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">EFFICIENT</text>
-            <text x={toX(70) + 10} y={PAD + 18} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">ON TRACK</text>
-            <text x={PAD + 10} y={H - PAD - 10} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">DORMANT</text>
-            <text x={toX(70) + 10} y={H - PAD - 10} fill={c.quadrantCritical} fontSize="8" fontWeight="bold" letterSpacing="1">CRITICAL OVERRUN</text>
-            <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke={c.axisLine} strokeWidth="1" />
-            <text x={W / 2} y={H - 12} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1">BUDGET UTILIZATION %</text>
-            <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke={c.axisLine} strokeWidth="1" />
-            <text x={16} y={H / 2} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1" transform={`rotate(-90, 16, ${H / 2})`}>PHYSICAL PROGRESS %</text>
-            {[0, 35, 70, 105, 140].map(v => <text key={v} x={toX(v)} y={H - PAD + 14} textAnchor="middle" fill={c.labelMuted} fontSize="7">{v}%</text>)}
-            {[0, 25, 50, 75, 100].map(v => <text key={v} x={PAD - 8} y={toY(v) + 3} textAnchor="end" fill={c.labelMuted} fontSize="7">{v}%</text>)}
-            {bubbles.map((d, i) => {
-              const r = Math.min(20, Math.max(5, 6 + Number(d.days_since_dpr || 0) / 4));
-              const fill = d.health_status === 'Critical' ? '#ef4444' : d.health_status === 'Warning' ? '#f59e0b' : '#10b981';
-              return (
-                <circle key={i} cx={toX(d.budget_utilization_pct || 0)} cy={toY(d.physical_progress || 0)} r={r}
-                  fill={fill} fillOpacity={0.75} stroke={fill} strokeWidth={1.5}
-                  className="cursor-pointer transition-all duration-200 hover:fill-opacity-100"
-                  onMouseEnter={(e) => setTooltip({ ...d, x: e.clientX, y: e.clientY })}
-                  onMouseMove={(e) => setTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              );
-            })}
-          </svg>
-        )}
-        {tooltip && (
-          <div className="fixed z-50 chart-tooltip p-3 rounded-2xl text-[10px] pointer-events-none min-w-[180px] shadow-2xl"
-            style={{ top: tooltip.y - 120, left: tooltip.x + 20 }}>
-            <p className="font-extrabold truncate chart-tooltip-title">{tooltip.site_details || 'Site Project'}</p>
-            <p className="chart-tooltip-mono text-[9px] mt-0.5">{tooltip.work_order_no}</p>
-            <div className="mt-2 space-y-1 pt-1.5 chart-tooltip-divider">
-              <p className="chart-tooltip-label">Budget Spent: <span className="text-amber-600 font-extrabold">{(Number(tooltip.budget_utilization_pct) || 0).toFixed(1)}%</span></p>
-              <p className="chart-tooltip-label">Physical Progress: <span className="text-emerald-600 font-extrabold">{tooltip.physical_progress}%</span></p>
-              <p className="chart-tooltip-label">Last DPR Visit: <span className={tooltip.days_since_dpr > 7 ? 'text-rose-600 font-extrabold' : 'chart-tooltip-normal'}>{tooltip.days_since_dpr}d ago</span></p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/* ─── S-Curve Progress ────────────────────────────────────────────── */
-const SCurveProgress = ({ projects, sCurveData = [] }) => {
-  const c = useChartColors();
-  const W = 600, H = 330, PAD_TOP = 40, PAD_BOT = 60, PAD_SIDE = 50;
-
-  const { months, planned, actual } = useMemo(() => {
-    let rawTimeline = [];
-    if (sCurveData && sCurveData.length > 0) {
-      const datesSet = new Set();
-      sCurveData.forEach(s => {
-        (s.actuals || []).forEach(a => {
-          if (a.date) datesSet.add(a.date.slice(0, 7));
-        });
-      });
-      rawTimeline = Array.from(datesSet).sort();
-    }
-
-    if (rawTimeline.length < 3) {
-      const dateList = [];
-      const now = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const mStr = d.toLocaleString('en-US', { month: 'short' });
-        dateList.push(mStr);
-      }
-      rawTimeline = dateList;
-    } else {
-      rawTimeline = rawTimeline.slice(-6).map(ym => {
-        const parts = ym.split('-');
-        if (parts.length === 2) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
-          return d.toLocaleString('en-US', { month: 'short' });
-        }
-        return ym;
-      });
-    }
-
-    const sigmoidalPlanned = [2, 12, 35, 65, 88, 98];
-    const avgProg = projects?.length
-      ? Math.round(projects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projects.length)
-      : 0;
-
-    let computedActual = [];
-    if (sCurveData && sCurveData.length > 0) {
-      const stepCount = rawTimeline.length;
-      computedActual = rawTimeline.map((_, idx) => {
-        const factor = (idx + 1) / stepCount;
-        return Math.round(avgProg * Math.pow(factor, 1.2));
-      });
-    } else {
-      computedActual = [
-        Math.round(avgProg * 0.1),
-        Math.round(avgProg * 0.25),
-        Math.round(avgProg * 0.45),
-        Math.round(avgProg * 0.65),
-        Math.round(avgProg * 0.85),
-        avgProg
-      ];
-    }
-
-    return {
-      months: rawTimeline,
-      planned: sigmoidalPlanned,
-      actual: computedActual
-    };
-  }, [projects, sCurveData]);
-
-  const toX = (i) => PAD_SIDE + (i / Math.max(1, months.length - 1)) * (W - 2 * PAD_SIDE);
-  const toY = (v) => (H - PAD_BOT) - (v / 100) * (H - PAD_TOP - PAD_BOT);
-  const pts = (arr) => arr.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="chart-title">S-Curve Performance Progress</h3>
-          <p className="chart-subtitle">Planned sigmoidal S-curve target vs actual DPR submissions</p>
-        </div>
-        <ChartInfoTooltip
-          description="Cumulative project timeline comparing planned sigmoidal S-curve target with actual DPR physical work progress logs."
-          formula="Actual Progress = Cumulative Avg(DPR Physical Work Progress %)"
-        />
-      </div>
-      <div className="relative flex-1 flex flex-col justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
-          {/* Y Axis Title */}
-          <text x={14} y={H / 2 - 10} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1" transform={`rotate(-90, 14, ${H / 2 - 10})`}>PHYSICAL PROGRESS %</text>
-
-          {/* X Axis Title */}
-          <text x={W / 2} y={H - 6} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1">MONTH TIMELINE / PROJECT DURATION</text>
-
-          {[0, 25, 50, 75, 100].map((v, i) => {
-            const y = toY(v);
-            return <g key={i}><line x1={PAD_SIDE} y1={y} x2={W - PAD_SIDE} y2={y} stroke={c.gridLine} /><text x={PAD_SIDE - 8} y={y + 3} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold">{v}%</text></g>;
-          })}
-          <text x={PAD_SIDE} y={H - PAD_BOT + 16} fill={c.labelNormal} fontSize="8" fontWeight="bold">START DATE</text>
-          <text x={W - PAD_SIDE} y={H - PAD_BOT + 16} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold">COMPLETION</text>
-          {months.map((m, i) => <text key={m} x={toX(i)} y={H - PAD_BOT + 32} textAnchor="middle" fill={c.labelNormal} fontSize="9" fontWeight="bold">{m}</text>)}
-          <polyline fill="none" stroke={c.isDark ? '#f59e0b' : '#d97706'} strokeWidth="2" strokeDasharray="5 4" points={pts(planned)} />
-          <polyline fill="none" stroke={c.isDark ? '#10b981' : '#059669'} strokeWidth="3" points={pts(actual)} />
-          {actual.map((v, i) => <circle key={i} cx={toX(i)} cy={toY(v)} r="4" fill={c.isDark ? '#10b981' : '#059669'} />)}
-        </svg>
-        <div className="flex gap-6 mt-3 text-[9px] font-bold uppercase tracking-widest chart-label justify-center">
-          <div className="flex items-center gap-1.5"><span className="w-3 h-0.5 border-t-2 border-dashed" style={{ borderColor: c.isDark ? '#f59e0b' : '#d97706' }} /><span>Planned Target</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-3 h-1 rounded-sm" style={{ backgroundColor: c.isDark ? '#10b981' : '#059669' }} /><span>Actual Progress</span></div>
-        </div>
-      </div>
-    </div>
-  );
-};
+/* ─── JE Leaderboard (paginated) ─────────────────────────────────── */
 
 /* ─── JE Leaderboard (paginated) ─────────────────────────────────── */
 const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
@@ -715,218 +383,6 @@ const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
               onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
               className="px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed font-bold uppercase tracking-wider text-slate-300 transition cursor-pointer"
             >Next</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── Executive KPI Strip (10 tiles) ─────────────────────────────── */
-const ExecutiveKpiStrip = ({ projects, summaryKpis }) => {
-  const { isDark } = useTheme();
-  const pList = projects || [];
-
-  const totalWO = summaryKpis?.totalWorkOrders?.total ?? pList.length;
-  const running = summaryKpis?.totalWorkOrders?.running ?? pList.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
-  const completed = summaryKpis?.totalWorkOrders?.completed ?? pList.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
-  const pending = summaryKpis?.totalWorkOrders?.pending ?? pList.filter(p => p.status === 'Pending').length;
-  const totalWOVal = summaryKpis?.totalWOValue ?? pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-  const totalEst = summaryKpis?.totalEstimateAmount?.amount ?? pList.reduce((a, p) => a + Number(p.estimate_amount || p.work_order_value || 0), 0);
-  const totalReq = summaryKpis?.totalRequisition?.amount ?? pList.reduce((a, p) => a + Number(p.requisition_amount || p.approved_requisitions_amount || 0), 0);
-  const approvedReq = summaryKpis?.totalApproved?.amount ?? pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
-  const zoBalance = summaryKpis?.zoAvailableBalance ?? pList.reduce((a, p) => a + Number(p.balance || p.available_balance || 0), 0);
-  const refund = summaryKpis?.totalRefundAmount ?? pList.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
-  const grossBill = summaryKpis?.grossBillAmount?.amount ?? pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-  const agencyPay = summaryKpis?.agencyPayment?.amount ?? pList.reduce((a, p) => a + Number(p.agency_paid || p.agency_payment || 0), 0);
-  const dueBill = summaryKpis?.dueBill?.amount ?? Math.max(0, totalWOVal - grossBill);
-
-  const kpis = [
-    { id: 'wo', title: 'TOTAL WORK ORDERS', description: 'Total active and completed work orders in zone.', formula: 'Count(zonal_projects)', color: '#60a5fa', glow: 'linear-gradient(90deg, #3b82f6, transparent)', value: totalWO, subtext: `Running: ${running} | Completed: ${completed}\nPending: ${pending}` },
-    { id: 'woval', title: 'TOTAL WO VALUE', description: 'Consolidated monetary value of all awarded zonal work orders.', formula: 'Sum(work_order_value)', color: '#34d399', glow: 'linear-gradient(90deg, #10b981, transparent)', value: fmtCr(totalWOVal), subtext: null },
-    { id: 'est', title: 'TOTAL ESTIMATE AMOUNT', description: 'Aggregated cost estimate value of final approved sheets in zone.', formula: 'Sum(estimate_amount where status = \'Final Approved\')', color: '#c084fc', glow: 'linear-gradient(90deg, #a855f7, transparent)', value: fmtCr(totalEst), subtext: `${totalWOVal ? ((totalEst / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
-    { id: 'req', title: 'TOTAL REQUISITION (ZO → JE)', description: 'Total site fund requisitions processed for Junior Engineers by Zonal Office.', formula: 'Sum(approved_amount where status = \'Approved\')', color: '#fb923c', glow: 'linear-gradient(90deg, #f97316, transparent)', value: fmtCr(totalReq), subtext: `${totalEst ? ((totalReq / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'app', title: 'TOTAL APPROVED (HO→ZO)', description: 'Total funds authorized and allocated from Head Office to Zone.', formula: 'Sum(approve_ho_amount where status = \'Approved\')', color: '#fbbf24', glow: 'linear-gradient(90deg, #f59e0b, transparent)', value: fmtCr(approvedReq), subtext: `${totalReq ? ((approvedReq / totalReq) * 100).toFixed(1) : 0}% of Requisition` },
-    { id: 'bal', title: 'ZO AVAILABLE BALANCE', description: 'Liquid fund balance currently available in Zonal Office ledger.', formula: 'Sum(available_balance)', color: '#38bdf8', glow: 'linear-gradient(90deg, #0284c7, transparent)', value: fmtCr(zoBalance), subtext: null },
-    { id: 'ref', title: 'TOTAL REFUND AMOUNT', description: 'Unspent excess funds returned from Zonal Office to Head Office.', formula: 'Sum(transaction_type = \'RETURN\')', color: '#2dd4bf', glow: 'linear-gradient(90deg, #14b8a6, transparent)', value: fmtCr(refund), subtext: null },
-    { id: 'gb', title: 'GROSS BILL AMOUNT', description: 'Gross contractor billings submitted across zonal work orders.', formula: 'Sum(gross_bill)', color: '#f87171', glow: 'linear-gradient(90deg, #ef4444, transparent)', value: fmtCr(grossBill), subtext: `${totalEst ? ((grossBill / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'ap', title: 'AGENCY PAYMENT', description: 'Net payments disbursed to contractors after statutory withholdings.', formula: 'Sum(agency_payment)', color: '#818cf8', glow: 'linear-gradient(90deg, #6366f1, transparent)', value: fmtCr(agencyPay), subtext: `${grossBill ? ((agencyPay / grossBill) * 100).toFixed(1) : 0}% of Gross Bill` },
-    { id: 'due', title: 'REMAINING BILL AMOUNT', description: 'Pending unbilled work order value exposure remaining in zone.', formula: 'Total WO Value - Gross Bill Amount', color: '#ec4899', glow: 'linear-gradient(90deg, #db2777, transparent)', value: fmtCr(dueBill), subtext: `${totalWOVal ? ((dueBill / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 mb-6">
-      {kpis.map((kpi) => (
-        <div
-          key={kpi.id}
-          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' : 'bg-white border-slate-200 shadow-sm hover:shadow-md'}`}
-          style={{ minHeight: '130px' }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: kpi.glow }} />
-          <div className="absolute top-2.5 right-2.5 z-10">
-            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
-          </div>
-          <p className="text-[9.5px] font-black tracking-wider uppercase leading-snug pr-6 truncate" style={{ color: kpi.color }} title={kpi.title}>{kpi.title}</p>
-          <div className="my-auto py-1">
-            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{kpi.value}</span>
-          </div>
-          {kpi.subtext ? (
-            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'}`}>{kpi.subtext}</p>
-          ) : <div className="h-3" />}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-/* ─── Work Order Telemetry Table ─────────────────────────────────── */
-const WorkOrderTelemetryTable = ({ data, availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
-  const [sortField, setSortField] = useState('health_score');
-  const [sortAsc, setSortAsc] = useState(false);
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
-
-  const pList = data || [];
-  const filtered = pList.filter(p => {
-    const q = search.toLowerCase().trim();
-    const matchSearch = !q || (p.work_order_no || '').toLowerCase().includes(q) || (p.site_details || '').toLowerCase().includes(q) || (p.department || '').toLowerCase().includes(q) || (p.zo_name || p.zo_user_id || p.zone || '').toLowerCase().includes(q) || (p.district || '').toLowerCase().includes(q);
-    const matchZo = !selectedZo || (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim() === selectedZo.toLowerCase().trim();
-    const matchDept = !deptFilter || (p.department || '').toLowerCase().trim() === deptFilter.toLowerCase().trim();
-    return matchSearch && matchZo && matchDept;
-  });
-
-  const depts = Array.from(new Set(pList.map(p => p.department).filter(Boolean))).sort();
-
-  const sorted = [...filtered].sort((a, b) => {
-    const aVal = a[sortField] ?? 0, bVal = b[sortField] ?? 0;
-    if (aVal < bVal) return sortAsc ? -1 : 1;
-    if (aVal > bVal) return sortAsc ? 1 : -1;
-    return 0;
-  });
-
-  const totalPages = Math.ceil(sorted.length / rowsPerPage) || 1;
-  const paginated = sorted.slice((page - 1) * rowsPerPage, page * rowsPerPage);
-
-  const handleSort = (field) => {
-    if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
-    setPage(1);
-  };
-
-  const handleExport = () => {
-    if (sorted.length === 0) return;
-    exportProjectsToExcel(sorted);
-  };
-
-  return (
-    <div className="relative w-full glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/10 mb-8 text-xs">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="High-density project tracking telemetry table with real-time health score metrics for zonal projects."
-            formula="Health Score = 100 - (Days Since DPR × 2) - (Budget Overrun %)"
-          />
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
-            <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density zonal project tracking and performance telemetry</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            disabled={sorted.length === 0}
-            className="px-3.5 py-2 rounded-xl bg-emerald-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
-          >
-            Export Excel
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 items-center">
-        <input
-          type="text" placeholder="Search work order or site..."
-          value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-white/20 transition"
-        />
-        <select value={deptFilter} onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 focus:outline-none focus:border-white/20 transition">
-          <option value="">All Departments</option>
-          {depts.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-
-        {/* Paginated ZO Selector Component */}
-        <PaginatedZoSelector
-          availableZos={availableZos}
-          selectedZo={selectedZo}
-          onSelectZo={(zoId) => { onSelectZo(zoId); setPage(1); }}
-          getZoDisplayName={getZoDisplayName}
-        />
-
-        <div className="flex items-center justify-between sm:justify-end gap-2">
-          {(search || deptFilter || selectedZo) && (
-            <button onClick={() => { setSearch(''); setDeptFilter(''); onSelectZo(null); setPage(1); }}
-              className="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition cursor-pointer">
-              Reset Filters
-            </button>
-          )}
-          <span className="text-[10px] text-slate-500 font-bold font-mono">{filtered.length} / {data.length} WOs</span>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-white/5 pb-2 text-slate-500 select-none">
-              <th onClick={() => handleSort('work_order_no')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest">WO No {sortField === 'work_order_no' && (sortAsc ? '▲' : '▼')}</th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">ZO Name</th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">Dept</th>
-              <th onClick={() => handleSort('work_order_value')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Value {sortField === 'work_order_value' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('approved_requisitions_amount')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Spent {sortField === 'approved_requisitions_amount' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('physical_progress')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Progress {sortField === 'physical_progress' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('health_score')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Health {sortField === 'health_score' && (sortAsc ? '▲' : '▼')}</th>
-              <th className="py-2.5 text-right text-[9px] font-bold uppercase tracking-widest">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {paginated.map((row, idx) => {
-              const scoreBg = row.health_score >= 80 ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-500/20'
-                : row.health_score >= 60 ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20'
-                : 'bg-rose-900/20 text-rose-400 border border-rose-500/20';
-              const zoDisplayName = getZoDisplayName ? getZoDisplayName(row.zo_name || row.zo_user_id || row.zone) : (row.zo_name || row.zo_user_id || row.zone || 'N/A');
-              return (
-                <tr key={idx} className="hover:bg-white/5 transition-colors">
-                  <td onClick={() => navigate(`/projects/${row.work_order_no}/digital-twin`)} className="py-3.5 font-extrabold text-sky-400 hover:underline cursor-pointer font-mono">{row.work_order_no}</td>
-                  <td className="py-3.5 text-slate-300 font-bold uppercase">{zoDisplayName}</td>
-                  <td className="py-3.5 text-slate-400">{row.department}</td>
-                  <td className="py-3.5 text-center font-mono text-slate-300">{formatINR(row.work_order_value)}</td>
-                  <td className="py-3.5 text-center font-mono text-emerald-400">{formatINR(row.approved_requisitions_amount)}</td>
-                  <td className="py-3.5 text-center"><span className="font-extrabold text-slate-200">{row.physical_progress}%</span></td>
-                  <td className="py-3.5 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${scoreBg}`}>{Math.round(row.health_score)}</span></td>
-                  <td className="py-3.5 text-right">
-                    <span className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${row.health_status === 'Critical' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : row.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>{row.health_status || 'Healthy'}</span>
-                  </td>
-                </tr>
-              );
-            })}
-            {paginated.length === 0 && (
-              <tr><td colSpan="8" className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest">No work orders match current filters</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5 select-none">
-          <span className="text-[10px] text-slate-500 font-bold uppercase">Page {page} of {totalPages} ({sorted.length} records)</span>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider text-slate-300 transition cursor-pointer">
-              Prev
-            </button>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider text-slate-300 transition cursor-pointer">
-              Next
-            </button>
           </div>
         </div>
       )}
@@ -1642,7 +1098,7 @@ const ZoDashboard = () => {
         </span>
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
-      <ExecutiveKpiStrip projects={filteredProjects} summaryKpis={chartRes?.executiveSummaryKpis} />
+      <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} projects={filteredProjects} />
 
       {/* ── Section: Performance Overview ── */}
       <SectionLabel>Performance Overview {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
@@ -1674,7 +1130,7 @@ const ZoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
           <div style={{ minHeight: '480px' }} className="h-full">
-            <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
+            <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
           </div>
         </ZoomCard>
       </div>
@@ -1683,7 +1139,7 @@ const ZoDashboard = () => {
       <SectionLabel>Trends &amp; Projections {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
-          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
+          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} />
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('jeleaderboard')}>
           <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} leaderboardData={leaderboardRes?.leaderboard} />
@@ -1767,7 +1223,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'bubble' && (
         <ChartModal title={`Bubble Risk Matrix Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
+          <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
         </ChartModal>
       )}
       {zoomedChart === 'fundflow' && (
@@ -1777,7 +1233,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'scurve' && (
         <ChartModal title={`S-Curve Performance Progress — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
+          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} />
         </ChartModal>
       )}
       {zoomedChart === 'revision' && (
