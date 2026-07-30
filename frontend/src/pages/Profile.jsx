@@ -16,8 +16,8 @@ const Profile = () => {
     is_active: true,
     daily_streak: 0
   }));
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, _setLoading] = useState(false);
+  const [error, _setError] = useState('');
 
   useEffect(() => {
     let isMounted = true;

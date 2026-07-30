@@ -5,7 +5,6 @@ import { ThemeProvider } from './components/ThemeContext';
 import { ModalProvider } from './components/ModalContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
-import ErrorBoundary from './components/ErrorBoundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Views (Static for auth entrypoints)

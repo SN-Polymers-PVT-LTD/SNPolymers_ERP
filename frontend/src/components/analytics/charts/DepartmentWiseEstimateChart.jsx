@@ -3,11 +3,11 @@ import ReactDOM from 'react-dom';
 import { useTheme } from '../../ThemeContext';
 import { buildDonutSlices } from '../utils/donutGeometry';
 import { ChartInfoTooltip } from '../ui/ChartInfoTooltip';
-import { fmtCr, formatINR } from '../utils/formatters';
+import { fmtCr } from '../utils/formatters';
 
 const DEFAULT_COLORS = ['#3B82F6', '#10B981', '#8B5CF6', '#F97316', '#64748B', '#EF4444', '#14B8A6', '#EC4899', '#F59E0B'];
 
-export const DepartmentWiseEstimateChart = ({ items = [], projects = [] }) => {
+export const DepartmentWiseEstimateChart = ({ items = [], projects = [], isModal = false }) => {
   const { isDark } = useTheme();
   const [hoveredDept, setHoveredDept] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
@@ -82,24 +82,26 @@ export const DepartmentWiseEstimateChart = ({ items = [], projects = [] }) => {
   };
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-start mb-3 shrink-0">
-        <div>
-          <h3
-            className="chart-title text-base sm:text-lg font-extrabold tracking-tight"
-            style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}
-          >
-            Department Wise Work Order Value
-          </h3>
-          <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Breakdown of work order values across operational departments
-          </p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4 relative" : "chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative"} onMouseMove={handleMouseMove}>
+      {!isModal && (
+        <div className="flex justify-between items-start mb-3 shrink-0">
+          <div>
+            <h3
+              className="chart-title text-base sm:text-lg font-extrabold tracking-tight"
+              style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}
+            >
+              Department Wise Work Order Value
+            </h3>
+            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Breakdown of work order values across operational departments
+            </p>
+          </div>
+          <ChartInfoTooltip
+            description="Distribution of total work order value allocated across operational departments."
+            formula="Dept Share % = (Sum of Work Order Values in Dept / Total Portfolio WO Value) × 100"
+          />
         </div>
-        <ChartInfoTooltip
-          description="Distribution of total work order value allocated across operational departments."
-          formula="Dept Share % = (Sum of Work Order Values in Dept / Total Portfolio WO Value) × 100"
-        />
-      </div>
+      )}
 
       <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
         {/* Donut Graphic with Center Text */}

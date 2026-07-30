@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../components/ThemeContext';
-import ModalContext from '../components/ModalContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getHoKpis,
@@ -13,8 +12,7 @@ import {
   getHoChartData,
   getProjectsHealth
 } from '../api/analyticsApi';
-import { exportProjectsToExcel } from '../utils/exportHelpers';
-import { formatINR, fmtCr } from '../components/analytics/utils/formatters';
+import { formatINR } from '../components/analytics/utils/formatters';
 import { useChartColors } from '../components/analytics/utils/chartColors';
 import { ChartInfoTooltip } from '../components/analytics/ui/ChartInfoTooltip';
 import { ChartModal } from '../components/analytics/ui/ChartModal';
@@ -292,7 +290,7 @@ const MetricDonutCard = ({
   centerLabel,
   centerValue,
   buckets = [],
-  fallbackData,
+  _fallbackData,
   isModal = false
 }) => {
   const { isDark } = useTheme();
@@ -320,6 +318,11 @@ const MetricDonutCard = ({
     return activeBuckets.map((bucket) => {
       const pct = totalCount > 0 ? (bucket.count / totalCount) * 100 : bucket.percentage || 0;
       const angle = (pct / 100) * 360;
+
+      if (angle < 0.01) {
+        return { ...bucket, pct: 0, pathData: null };
+      }
+
       const startAngle = currentCumulativeAngle;
       const endAngle = currentCumulativeAngle + angle;
       // eslint-disable-next-line react-hooks/immutability
@@ -400,22 +403,24 @@ const MetricDonutCard = ({
   };
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-            {title}
-          </h3>
-          {subtitle && (
-            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              {subtitle}
-            </p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4 relative" : "chart-panel h-full flex flex-col justify-between p-5 relative"} onMouseMove={handleMouseMove}>
+      {!isModal && (
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
+              {title}
+            </h3>
+            {subtitle && (
+              <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {description && formula && (
+            <ChartInfoTooltip description={description} formula={formula} />
           )}
         </div>
-        {description && formula && (
-          <ChartInfoTooltip description={description} formula={formula} />
-        )}
-      </div>
+      )}
 
       <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2 flex-1">
         {/* Donut Graphic with Center Text - Proportioned dynamically */}
@@ -579,7 +584,7 @@ const JeVisitFrequency = ({ data }) => {
 };
 
 // ── Key Financial Indicators Component ───────────────────────────────────────
-const KeyFinancialIndicators = ({ data }) => {
+const KeyFinancialIndicators = ({ data, isModal = false }) => {
   const { isDark } = useTheme();
 
   const formatFinancialAmount = (amt) => {
@@ -648,28 +653,35 @@ const KeyFinancialIndicators = ({ data }) => {
   ];
 
   // Compute max amount for bar scaling
-  const maxAmount = Math.max(1, ...items.map(i => i.value));
+  const maxAmount = Math.max(1, ...items.map(i => {
+    const v = Number(i.value);
+    return Number.isFinite(v) ? v : 0;
+  }));
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-5">
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>
-            Key Financial Indicators
-          </h3>
-          <p className="chart-subtitle">
-            Summary of statutory withholdings
-          </p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between p-5"}>
+      {!isModal && (
+        <div className="flex justify-between items-start mb-3">
+          <div>
+            <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>
+              Key Financial Indicators
+            </h3>
+            <p className="chart-subtitle">
+              Summary of statutory withholdings
+            </p>
+          </div>
+          <ChartInfoTooltip
+            description="Summary of statutory withholdings and security deposits retained across projects."
+            formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
+          />
         </div>
-        <ChartInfoTooltip
-          description="Summary of statutory withholdings and security deposits retained across projects."
-          formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
-        />
-      </div>
+      )}
 
       <div className="flex flex-col justify-between my-auto gap-3">
         {items.map((item, idx) => {
-          const barWidth = (item.value / maxAmount) * 100;
+          const rawVal = Number(item.value);
+          const safeVal = Number.isFinite(rawVal) ? rawVal : 0;
+          const barWidth = maxAmount > 0 ? Math.min(100, Math.max(0, (safeVal / maxAmount) * 100)) : 0;
           // extract border color from bgColor class for the bar
           const barGradientMap = {
             0: '#10b981', 1: '#0ea5e9', 2: '#f59e0b', 3: '#f43f5e', 4: '#a78bfa', 5: '#14b8a6'
@@ -723,7 +735,7 @@ const HoDashboard = () => {
   const { isDark } = useTheme();
   const [alertMsg, setAlertMsg] = useState(null);
   const [alertType, setAlertType] = useState('success'); // 'success' or 'error'
-  const [activeView, setActiveView] = useState('all'); // 'all' | 'zo' | 'je' | 'wo'
+  const [activeView, _setActiveView] = useState('all'); // 'all' | 'zo' | 'je' | 'wo'
   const [selectedZone, setSelectedZone] = useState(null); // Filter for telemetry table
   const [zoomedChart, setZoomedChart] = useState(null); // null | 'bubble' | 'fundflow' | 'zonal' | 'runway' | 'scurve' | 'revision'
   const [kpiDetailModal, setKpiDetailModal] = useState(null); // null | { title, filterType, projects: [] }
@@ -1372,22 +1384,22 @@ const HoDashboard = () => {
       )}
       {zoomedChart === 'department' && (
         <ChartModal title="Department Wise Work Order Value Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
-          <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} />
+          <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'key_financials' && (
         <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
-          <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
+          <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'bubble' && (
         <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-          <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
+          <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'fundflow' && (
         <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-          <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} />
+          <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'zonal' && (
@@ -1402,7 +1414,7 @@ const HoDashboard = () => {
       )}
       {zoomedChart === 'scurve' && (
         <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} />
+          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'revision' && (

@@ -4,7 +4,7 @@ import { useChartColors } from '../utils/chartColors';
 import { ChartInfoTooltip } from '../ui/ChartInfoTooltip';
 import { toX, toY, calcBubbleRadius } from '../utils/scatterGeometry';
 
-export const BubbleRiskMatrixChart = ({ bubbleMatrixData = [], projects = [] }) => {
+export const BubbleRiskMatrixChart = ({ bubbleMatrixData = [], projects = [], isModal = false }) => {
   const [tooltip, setTooltip] = useState(null);
   const navigate = useNavigate();
   const c = useChartColors();
@@ -45,18 +45,20 @@ export const BubbleRiskMatrixChart = ({ bubbleMatrixData = [], projects = [] }) 
   }, [bubbleMatrixData, projects]);
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between">
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between"}>
       <div className="flex justify-between items-center mb-3 shrink-0 flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Scatter matrix plotting budget utilization vs physical work progress and DPR delay severity."
-            formula="X = Budget Spent %, Y = Physical Progress %, Bubble Radius = Days Since Last DPR"
-          />
-          <div>
-            <h3 className="chart-title">Bubble Risk Matrix</h3>
-            <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
+        {!isModal ? (
+          <div className="flex items-center gap-2">
+            <ChartInfoTooltip
+              description="Scatter matrix plotting budget utilization vs physical work progress and DPR delay severity."
+              formula="X = Budget Spent %, Y = Physical Progress %, Bubble Radius = Days Since Last DPR"
+            />
+            <div>
+              <h3 className="chart-title">Bubble Risk Matrix</h3>
+              <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
+            </div>
           </div>
-        </div>
+        ) : <div />}
 
         <div className="flex gap-3 text-[8px] font-black uppercase tracking-wider chart-label">
           <span className="flex items-center gap-1.5">
@@ -77,7 +79,7 @@ export const BubbleRiskMatrixChart = ({ bubbleMatrixData = [], projects = [] }) 
             No project data available
           </div>
         ) : (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full max-h-[60vh]" preserveAspectRatio="xMidYMid meet">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full drop-shadow-md" preserveAspectRatio="xMidYMid meet">
             {/* Quadrant 50% Grid Lines */}
             <line x1={toX(50, W, PAD)} y1={PAD} x2={toX(50, W, PAD)} y2={H - PAD} stroke={c.gridLineDash} strokeDasharray="4 4" />
             <line x1={PAD} y1={toY(50, H, PAD)} x2={W - PAD} y2={toY(50, H, PAD)} stroke={c.gridLineDash} strokeDasharray="4 4" />

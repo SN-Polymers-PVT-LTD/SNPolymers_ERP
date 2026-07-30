@@ -6,7 +6,7 @@ import { exportProjectsToExcel } from '../../../utils/exportHelpers';
 import { ChartInfoTooltip } from '../ui/ChartInfoTooltip';
 
 /* ─── Inner Paginated ZO Name Selector Component ──────────────────────── */
-const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
+export const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
   const { isDark } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -204,11 +204,26 @@ export const WorkOrderTelemetryTable = ({
     return Array.from(new Set(pList.map((p) => p.zone || p.zo_name).filter(Boolean))).sort();
   }, [pList]);
 
+  const getEffectiveHealthScore = (row) => {
+    if (row.health_score !== undefined && row.health_score !== null && !isNaN(row.health_score)) {
+      return Number(row.health_score);
+    }
+    const days = Number(row.days_since_last_progress_report || 0);
+    const budgetUtil = Number(row.budget_utilization_pct || 0);
+    return Math.min(100, Math.max(0, Math.round(100 - (days * 2) - budgetUtil)));
+  };
+
   // Stable sort list
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      const aVal = a[sortField] ?? 0;
-      const bVal = b[sortField] ?? 0;
+      let aVal, bVal;
+      if (sortField === 'health_score') {
+        aVal = getEffectiveHealthScore(a);
+        bVal = getEffectiveHealthScore(b);
+      } else {
+        aVal = a[sortField] ?? 0;
+        bVal = b[sortField] ?? 0;
+      }
       if (aVal < bVal) return sortAsc ? -1 : 1;
       if (aVal > bVal) return sortAsc ? 1 : -1;
       return 0;
@@ -420,10 +435,7 @@ export const WorkOrderTelemetryTable = ({
           </thead>
           <tbody className="divide-y divide-white/5">
             {paginated.map((row, idx) => {
-              const rawScore =
-                row.health_score ??
-                100 - (Number(row.days_since_last_progress_report || 0) * 2) - Number(row.budget_utilization_pct || 0);
-              const clampedScore = Math.min(100, Math.max(0, Math.round(rawScore)));
+              const clampedScore = getEffectiveHealthScore(row);
 
               const scoreBg =
                 clampedScore >= 80

@@ -1,11 +1,10 @@
-import * as XLSX from 'xlsx';
-import html2pdf from 'html2pdf.js';
-
-export function exportToExcel(estimate, items) {
+export async function exportToExcel(estimate, items) {
   if (!estimate || !items || items.length === 0) {
     alert('No items to export.');
     return;
   }
+
+  const XLSX = await import('xlsx');
 
   // Format line items
   const formattedRows = items.map((item, index) => ({
@@ -38,12 +37,15 @@ export function exportToExcel(estimate, items) {
   XLSX.writeFile(workbook, filename);
 }
 
-export function exportToPDF(elementId, estimateNo) {
+export async function exportToPDF(elementId, estimateNo) {
   const element = document.getElementById(elementId);
   if (!element) {
     alert('Print area element not found.');
     return;
   }
+
+  const html2pdfModule = await import('html2pdf.js');
+  const html2pdf = html2pdfModule.default || html2pdfModule;
 
   const options = {
     margin: [10, 10, 10, 10],
@@ -56,11 +58,13 @@ export function exportToPDF(elementId, estimateNo) {
   html2pdf().set(options).from(element).save();
 }
 
-export function exportMaterialsToExcel(materials) {
+export async function exportMaterialsToExcel(materials) {
   if (!materials || materials.length === 0) {
     alert('No materials to export.');
     return;
   }
+
+  const XLSX = await import('xlsx');
 
   const formattedRows = materials.map((m, index) => ({
     "Sl. No.": index + 1,
@@ -78,11 +82,13 @@ export function exportMaterialsToExcel(materials) {
   XLSX.writeFile(workbook, `Material_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-export function exportProjectsToExcel(projects) {
+export async function exportProjectsToExcel(projects) {
   if (!projects || projects.length === 0) {
     alert('No projects to export.');
     return;
   }
+
+  const XLSX = await import('xlsx');
 
   const formattedRows = projects.map((p, index) => ({
     "Sl. No.": index + 1,
@@ -110,7 +116,7 @@ export function exportProjectsToExcel(projects) {
   XLSX.writeFile(workbook, `Projects_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-export function exportFundRequestsToExcel(requests, dateRange) {
+export async function exportFundRequestsToExcel(requests, dateRange) {
   let list = [...requests];
 
   if (dateRange) {
@@ -138,6 +144,8 @@ export function exportFundRequestsToExcel(requests, dateRange) {
     return;
   }
 
+  const XLSX = await import('xlsx');
+
   const formattedRows = list.map((r, index) => ({
     "Sl. No.": index + 1,
     "Fund Request No.": r.zo_fr_no || '',
@@ -159,11 +167,14 @@ export function exportFundRequestsToExcel(requests, dateRange) {
   XLSX.writeFile(workbook, `Fund_Requests_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
-export function exportAuditLogToExcel(logs) {
+export async function exportAuditLogToExcel(logs) {
   if (!logs || logs.length === 0) {
     alert('No audit logs to export.');
     return;
   }
+
+  const XLSX = await import('xlsx');
+
   const formattedRows = logs.map((log, index) => ({
     "Sl. No.": index + 1,
     "Timestamp": log.timestamp ? new Date(log.timestamp).toLocaleString('en-IN') : '',

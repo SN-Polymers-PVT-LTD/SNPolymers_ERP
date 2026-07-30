@@ -64,7 +64,7 @@ export const ChartModal = ({ title, description, formula, isDark, width = '96vw'
           </div>
 
           {/* Dynamically Scaled Inner Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0 h-full w-full flex flex-col justify-start">
+          <div className="flex-1 min-h-0 h-full w-full flex flex-col justify-between overflow-hidden p-3 sm:p-5">
             {children}
           </div>
         </div>

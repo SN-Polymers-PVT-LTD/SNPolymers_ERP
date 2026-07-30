@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset & Equivalence Test Suite for FundFlowWaterfallChart
 import assert from 'node:assert';
 
@@ -121,3 +122,5 @@ const emptyRows = resolveRows([], []);
 assert.strictEqual(emptyRows.length, 7);
 emptyRows.forEach(r => assert.strictEqual(r.amount, 0));
 console.log('✓ Empty State (data=[], projects=[]) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

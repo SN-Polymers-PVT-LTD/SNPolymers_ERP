@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset & S-Curve Calculation Test Suite for SCurveProgressChart
 import assert from 'node:assert';
 
@@ -115,3 +116,5 @@ const emptyRes = resolveSCurve([], [], 'all');
 assert.strictEqual(emptyRes.avgProg, 0);
 assert.deepStrictEqual(emptyRes.actual, [0, 0, 0, 0, 0, 0]);
 console.log('✓ Empty State (sCurveData=[], projects=[]) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

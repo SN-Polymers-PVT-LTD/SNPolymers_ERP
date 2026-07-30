@@ -53,6 +53,8 @@ export const buildDonutSlices = (items = [], outerRadius = 85, innerRadius = 55,
 
     return {
       ...slice,
+      startAngle,
+      endAngle,
       pct: pct.toFixed(1),
       pathData,
     };

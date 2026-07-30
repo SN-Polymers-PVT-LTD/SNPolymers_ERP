@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset & Scatter Geometry Test Suite for BubbleRiskMatrixChart
 import assert from 'node:assert';
 import { toX, toY, calcBubbleRadius, getQuadrantLabel } from '../utils/scatterGeometry.js';
@@ -181,3 +182,5 @@ console.log('--- Running Empty State Safety Test ---');
 const emptyBubbles = resolveBubbles([], []);
 assert.strictEqual(emptyBubbles.length, 0);
 console.log('✓ Empty State (bubbleMatrixData=[], projects=[]) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

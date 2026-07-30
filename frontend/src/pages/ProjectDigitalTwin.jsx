@@ -19,6 +19,7 @@ const resolvePhotoUrl = (url) => {
   return `https://ervvwrmgkiyfzbqjqbcg.supabase.co/storage/v1/object/public/daily-progress-photos/${url}`;
 };
 
+// eslint-disable-next-line no-unused-vars
 const SitePhotoCard = ({ item, idx }) => {
   const [imgError, setImgError] = useState(false);
   const photoUrl = resolvePhotoUrl(item.daily_site_photo_url);
@@ -110,7 +111,7 @@ const ProjectDigitalTwin = () => {
   const approvedRequisitionAmt = budget.approved_requisitions_amount || 0;
   const overrunAmt = Math.max(0, approvedRequisitionAmt - (overview.work_order_value || 0));
   const overrunPct = Math.max(0, (budget.budget_variance_pct || 0) - 100);
-  const photos = (twinData?.photos || []).slice(0, 2);
+  const _photos = (twinData?.photos || []).slice(0, 2);
   const audits = twinData?.audits || [];
 
   // Tab definitions

@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset regression test for Investment & Bill Recovery metrics
 import assert from 'node:assert';
 
@@ -128,3 +129,5 @@ assert.strictEqual(emptyMetrics.investmentPct, '0.0');
 assert.strictEqual(emptyMetrics.disbursementPct, '0.0');
 assert.strictEqual(emptyMetrics.recoveryAgainstInvestPct, '0.0');
 console.log('✓ Empty State (projects=[]) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

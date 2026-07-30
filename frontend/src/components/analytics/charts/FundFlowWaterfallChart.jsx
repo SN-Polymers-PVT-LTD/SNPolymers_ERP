@@ -14,7 +14,7 @@ const STAGE_METADATA_MAP = {
   'agency paid':            { gradId: 'ff-teal',     color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
 };
 
-export const FundFlowWaterfallChart = ({ data = [], projects = [] }) => {
+export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = false }) => {
   const c = useChartColors();
   const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
   const barH = 22, gap = 20;
@@ -46,21 +46,23 @@ export const FundFlowWaterfallChart = ({ data = [], projects = [] }) => {
   const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-start mb-2 shrink-0">
-        <div>
-          <h3 className="chart-title">Fund Flow Pipeline</h3>
-          <p className="chart-subtitle">Capital Realization &amp; Allocation Lifecycle Pipeline</p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between"}>
+      {!isModal && (
+        <div className="flex justify-between items-start mb-2 shrink-0">
+          <div>
+            <h3 className="chart-title">Fund Flow Pipeline</h3>
+            <p className="chart-subtitle">Capital Realization &amp; Allocation Lifecycle Pipeline</p>
+          </div>
+          <ChartInfoTooltip
+            description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
+            formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
+          />
         </div>
-        <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
-          formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
-        />
-      </div>
-      <div className="relative mt-2 flex-1 flex items-center justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[85vh]" preserveAspectRatio="xMidYMid meet">
+      )}
+      <div className="relative mt-2 flex-1 flex items-center justify-center min-h-0">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full drop-shadow-md" preserveAspectRatio="xMidYMid meet">
           <defs>
-            {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
+            {Object.entries(STAGE_METADATA_MAP).map(([_k, m]) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
                 <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />

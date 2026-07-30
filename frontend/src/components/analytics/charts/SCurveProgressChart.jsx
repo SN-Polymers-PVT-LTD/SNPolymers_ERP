@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useChartColors } from '../utils/chartColors';
 import { ChartInfoTooltip } from '../ui/ChartInfoTooltip';
 
-export const SCurveProgressChart = ({ sCurveData = [], projects = [] }) => {
+export const SCurveProgressChart = ({ sCurveData = [], projects = [], isModal = false }) => {
   const [selectedWo, setSelectedWo] = useState('all');
   const c = useChartColors();
 
@@ -53,12 +53,22 @@ export const SCurveProgressChart = ({ sCurveData = [], projects = [] }) => {
       rawTimeline = dateList;
     } else {
       rawTimeline = rawTimeline.slice(-6).map((ym) => {
-        const parts = ym.split('-');
+        if (!ym) return '';
+        const str = String(ym).trim();
+        const parts = str.split('-');
         if (parts.length === 2) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
-          return d.toLocaleString('en-US', { month: 'short' });
+          const year = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          if (!isNaN(year) && !isNaN(month)) {
+            const d = new Date(year, month, 1);
+            if (!isNaN(d.getTime())) return d.toLocaleString('en-US', { month: 'short' });
+          }
+        } else {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) return d.toLocaleString('en-US', { month: 'short' });
         }
-        return ym;
+        // Intentionally fall back to raw label string for custom/unsupported timeline formats
+        return str;
       });
     }
 
@@ -74,19 +84,11 @@ export const SCurveProgressChart = ({ sCurveData = [], projects = [] }) => {
       ? Math.round(activeProjects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / activeProjects.length)
       : 0;
 
-    let computedActual = [];
     const stepCount = rawTimeline.length;
-    if (activeData && activeData.length > 0) {
-      computedActual = rawTimeline.map((_, idx) => {
-        const factor = (idx + 1) / stepCount;
-        return Math.min(100, Math.round(avgProg * Math.pow(factor, 1.2)));
-      });
-    } else {
-      computedActual = rawTimeline.map((_, idx) => {
-        const factor = (idx + 1) / stepCount;
-        return Math.min(100, Math.round(avgProg * Math.pow(factor, 1.2)));
-      });
-    }
+    const computedActual = rawTimeline.map((_, idx) => {
+      const factor = (idx + 1) / stepCount;
+      return Math.min(100, Math.round(avgProg * Math.pow(factor, 1.2)));
+    });
 
     return {
       months: rawTimeline,
@@ -100,20 +102,39 @@ export const SCurveProgressChart = ({ sCurveData = [], projects = [] }) => {
   const pts = (arr) => arr.map((v, i) => `${toX(i).toFixed(1)},${toY(v).toFixed(1)}`).join(' ');
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-4 shrink-0">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Cumulative project timeline comparing planned sigmoidal S-curve target with actual DPR physical work progress logs."
-            formula="Actual Trajectory = Cumulative Avg(DPR Physical Work Progress %)"
-          />
-          <div>
-            <h3 className="chart-title">S-Curve Performance Progress</h3>
-            <p className="chart-subtitle">Planned sigmoidal S-curve target vs actual DPR submissions</p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between"}>
+      {!isModal && (
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-4 shrink-0">
+          <div className="flex items-center gap-2">
+            <ChartInfoTooltip
+              description="Cumulative project timeline comparing planned sigmoidal S-curve target with actual DPR physical work progress logs."
+              formula="Actual Trajectory = Cumulative Avg(DPR Physical Work Progress %)"
+            />
+            <div>
+              <h3 className="chart-title">S-Curve Performance Progress</h3>
+              <p className="chart-subtitle">Planned sigmoidal S-curve target vs actual DPR submissions</p>
+            </div>
           </div>
-        </div>
 
-        {activeWos.length > 0 && (
+          {activeWos.length > 0 && (
+            <select
+              value={selectedWo}
+              onChange={(e) => setSelectedWo(e.target.value)}
+              className="chart-select text-xs"
+            >
+              <option value="all">Average Portfolio</option>
+              {activeWos.map((wo) => (
+                <option key={wo} value={wo}>
+                  {wo}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {isModal && activeWos.length > 0 && (
+        <div className="flex justify-end items-center mb-3 shrink-0">
           <select
             value={selectedWo}
             onChange={(e) => setSelectedWo(e.target.value)}
@@ -126,11 +147,11 @@ export const SCurveProgressChart = ({ sCurveData = [], projects = [] }) => {
               </option>
             ))}
           </select>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="relative flex-1 flex flex-col justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+      <div className="relative flex-1 flex flex-col justify-center min-h-0 w-full">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full drop-shadow-md" preserveAspectRatio="xMidYMid meet">
           {/* Y Axis Title */}
           <text
             x={14}

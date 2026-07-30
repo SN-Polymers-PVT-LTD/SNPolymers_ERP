@@ -38,7 +38,8 @@ export const InvestmentRecoveryPlot = ({
     const disbursementPct = woValue > 0 ? ((billReceived / woValue) * 100).toFixed(1) : '0.0';
     const recoveryAgainstInvestPct = investment > 0 ? ((billReceived / investment) * 100).toFixed(1) : '0.0';
     const recoveryBarPct = Math.min(100, Number(recoveryAgainstInvestPct));
-    const deductionRate = grossBilled > 0 ? ((deductions / grossBilled) * 100).toFixed(1) : '0.0';
+    const rawDeductionRate = grossBilled > 0 ? (deductions / grossBilled) * 100 : 0;
+    const deductionRate = Math.min(100, Math.max(0, rawDeductionRate)).toFixed(1);
 
     const getProgressBand = (prog, status) => {
       const p = Number(prog || 0);
@@ -136,7 +137,7 @@ export const InvestmentRecoveryPlot = ({
   }, [filteredWos, woPage, pageSize]);
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden">
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4 relative overflow-hidden" : "chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden"}>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
           <h3

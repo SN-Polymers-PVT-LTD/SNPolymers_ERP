@@ -161,7 +161,7 @@ const HoDashboardView = () => {
     staleTime: 30000
   });
 
-  const zonalBalances = balancesRes?.balances || [];
+  const _zonalBalances = balancesRes?.balances || [];
 
   // Compute Live Capital Flow Telemetry
   const capitalFlow = useMemo(() => {

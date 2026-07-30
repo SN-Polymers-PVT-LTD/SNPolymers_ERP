@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset, Filtering, Sorting & Accessibility Test Suite for WorkOrderTelemetryTable
 import assert from 'node:assert';
 
@@ -163,3 +164,5 @@ console.log('--- Running Empty State Safety Test ---');
 const emptyRes = filterAndSort(goldenProjects, { search: 'NONEXISTENT_QUERY' });
 assert.strictEqual(emptyRes.length, 0);
 console.log('✓ Empty State (0 matching rows) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

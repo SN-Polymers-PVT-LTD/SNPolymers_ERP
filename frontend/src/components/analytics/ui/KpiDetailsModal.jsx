@@ -6,7 +6,7 @@ import { formatINR } from '../utils/formatters';
 
 export const KpiDetailsModal = ({
   title,
-  colorClass,
+  colorClass: _colorClass,
   projects = [],
   onClose,
   getZoDisplayName = null

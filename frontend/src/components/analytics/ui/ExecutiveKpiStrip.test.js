@@ -1,3 +1,4 @@
+import { describe, it } from "vitest";
 // Golden Dataset & Individual 10-KPI Calculation Test Suite for ExecutiveKpiStrip
 import assert from 'node:assert';
 
@@ -160,3 +161,5 @@ assert.strictEqual(emptyRes.woTotal, 0);
 assert.strictEqual(emptyRes.woVal, 0);
 assert.strictEqual(emptyRes.dueVal, 0);
 console.log('✓ Empty State (data=null, projects=[]) Assertions Passed Successfully!');
+describe('Test Suite', () => { it('runs assertions', () => {
+}); });

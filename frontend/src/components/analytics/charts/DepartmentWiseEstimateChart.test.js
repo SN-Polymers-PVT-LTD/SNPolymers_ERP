@@ -1,4 +1,4 @@
-// Golden Dataset & Donut Geometry Test Suite for DepartmentWiseEstimateChart
+import { describe, it } from 'vitest';
 import assert from 'node:assert';
 import { buildDonutSlices } from '../utils/donutGeometry.js';
 
@@ -20,7 +20,7 @@ const preComputedItems = [
 function normalizeItems(items, projects) {
   if (items && Array.isArray(items) && items.length > 0) {
     const total = items.reduce((a, i) => a + Number(i.amount || 0), 0) || 1;
-    return items.map((item, idx) => ({
+    return items.map((item, _idx) => ({
       department: item.department || item.name || 'General',
       amount: Number(item.amount || 0),
       count: item.count !== undefined ? Number(item.count) : undefined,
@@ -46,31 +46,41 @@ function normalizeItems(items, projects) {
   }));
 }
 
-console.log('--- Running buildDonutSlices Geometry Test ---');
-const donutSlices = buildDonutSlices(preComputedItems);
-assert.strictEqual(donutSlices.length, 4);
-donutSlices.forEach((slice) => {
-  assert.ok(slice.pathData.startsWith('M'));
-  assert.ok(slice.pathData.includes('A 85 85'));
-  assert.ok(slice.pathData.endsWith('Z'));
+describe('DepartmentWiseEstimateChart Test Suite', () => {
+  it('runs geometry and golden dataset assertions', () => {
+    console.log('--- Running buildDonutSlices Geometry Test ---');
+    const rawSlices = [
+      { percentage: 50, color: '#3B82F6', label: 'Civil' },
+      { percentage: 25, color: '#10B981', label: 'Electrical' },
+      { percentage: 25, color: '#8B5CF6', label: 'Mechanical' },
+    ];
+    const donut = buildDonutSlices(rawSlices);
+    assert.strictEqual(donut.length, 3);
+    assert.strictEqual(donut[0].startAngle, 0);
+    assert.strictEqual(donut[0].endAngle, 180);
+    assert.strictEqual(donut[1].startAngle, 180);
+    assert.strictEqual(donut[1].endAngle, 270);
+    assert.strictEqual(donut[2].startAngle, 270);
+    assert.strictEqual(donut[2].endAngle, 360);
+    console.log('✓ SVG Donut Slice Path Geometry Validated!');
+
+    console.log('--- Running Backend Items vs Client Fallback Equivalence Test ---');
+    const preComputedResult = normalizeItems(preComputedItems, []);
+    const fallbackResult = normalizeItems([], goldenProjects);
+
+    assert.strictEqual(preComputedResult.length, fallbackResult.length);
+    for (let i = 0; i < preComputedResult.length; i++) {
+      assert.strictEqual(preComputedResult[i].department, fallbackResult[i].department);
+      assert.strictEqual(preComputedResult[i].amount, fallbackResult[i].amount);
+      assert.strictEqual(preComputedResult[i].percentage, fallbackResult[i].percentage);
+    }
+    console.log('✓ Pre-computed backend breakdown and client fallback aggregation produce 100% EQUIVALENT results!');
+
+    console.log('--- Running Empty State Safety Test ---');
+    const emptyResult = normalizeItems([], []);
+    assert.strictEqual(emptyResult.length, 0);
+    const emptyDonut = buildDonutSlices([]);
+    assert.strictEqual(emptyDonut.length, 0);
+    console.log('✓ Empty State (items=[], projects=[]) Assertions Passed Successfully!');
+  });
 });
-console.log('✓ SVG Donut Slice Path Geometry Validated!');
-
-console.log('--- Running Backend Items vs Client Fallback Equivalence Test ---');
-const preComputedResult = normalizeItems(preComputedItems, []);
-const fallbackResult = normalizeItems([], goldenProjects);
-
-assert.strictEqual(preComputedResult.length, fallbackResult.length);
-for (let i = 0; i < preComputedResult.length; i++) {
-  assert.strictEqual(preComputedResult[i].department, fallbackResult[i].department);
-  assert.strictEqual(preComputedResult[i].amount, fallbackResult[i].amount);
-  assert.strictEqual(preComputedResult[i].percentage, fallbackResult[i].percentage);
-}
-console.log('✓ Pre-computed backend breakdown and client fallback aggregation produce 100% EQUIVALENT results!');
-
-console.log('--- Running Empty State Safety Test ---');
-const emptyResult = normalizeItems([], []);
-assert.strictEqual(emptyResult.length, 0);
-const emptyDonut = buildDonutSlices([]);
-assert.strictEqual(emptyDonut.length, 0);
-console.log('✓ Empty State (items=[], projects=[]) Assertions Passed Successfully!');

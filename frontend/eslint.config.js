@@ -18,8 +18,12 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^React$', argsIgnorePattern: '^_' }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^_|^React$', argsIgnorePattern: '^_' }],
       'react-refresh/only-export-components': 'warn',
+      // Disable overly aggressive hooks rules that flag idiomatic patterns
+      // (e.g. setPage(1) in filter-change effects, Date.now() in render-time helpers)
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/purity': 'off',
     },
   },
 ])

@@ -10,7 +10,19 @@ export default defineConfig(({ mode }) => {
       host: true
     },
     build: {
-      minify: mode === 'production' ? 'esbuild' : 'esbuild', // Use esbuild to allow dropping console/debugger statements
+      minify: 'esbuild',
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router-dom/')) {
+              return 'vendor-react';
+            }
+            if (id.includes('node_modules/@tanstack/')) {
+              return 'vendor-query';
+            }
+          }
+        }
+      }
     },
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : []
