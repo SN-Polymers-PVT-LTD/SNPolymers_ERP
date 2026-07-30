@@ -15,41 +15,15 @@ import {
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getEligibleZOs } from '../api/userMappingsApi';
 import { exportProjectsToExcel } from '../utils/exportHelpers';
-
-/* ─── helpers ────────────────────────────────────────────────────── */
-const formatINR = (value) => {
-  const num = Number(value) || 0;
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(num);
-};
-
-const fmtCr = (n) => {
-  const v = Number(n) || 0;
-  if (v >= 10000000) return `₹ ${(v / 10000000).toFixed(2)} Cr`;
-  if (v >= 100000) return `₹ ${(v / 100000).toFixed(2)} L`;
-  return `₹ ${v.toLocaleString('en-IN')}`;
-};
-
-/* ─── chart color tokens ─────────────────────────────────────────── */
-const useChartColors = () => {
-  const { isDark } = useTheme();
-  return {
-    gridLine: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)',
-    gridLineDash: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
-    axisLine: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
-    labelMuted: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.35)',
-    labelNormal: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.55)',
-    labelStrong: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.8)',
-    todayLine: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.2)',
-    todayText: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
-    quadrantNormal: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)',
-    quadrantCritical: isDark ? 'rgba(239,68,68,0.4)' : 'rgba(185,28,28,0.5)',
-    cellBorder: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)',
-    highChurnLabel: isDark ? '#ef4444' : '#b91c1c',
-    normalLabel: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.55)',
-    dropOffConnector: isDark ? 'rgba(239,68,68,0.25)' : 'rgba(185,28,28,0.3)',
-    isDark,
-  };
-};
+import { formatINR, fmtCr } from '../components/analytics/utils/formatters';
+import { useChartColors } from '../components/analytics/utils/chartColors';
+import { ChartInfoTooltip } from '../components/analytics/ui/ChartInfoTooltip';
+import { ChartModal } from '../components/analytics/ui/ChartModal';
+import { ZoomCard } from '../components/analytics/ui/ZoomCard';
+import { KpiDetailsModal } from '../components/analytics/ui/KpiDetailsModal';
+import { InvestmentRecoveryPlot } from '../components/analytics/charts/InvestmentRecoveryPlot';
+import { FundFlowWaterfallChart } from '../components/analytics/charts/FundFlowWaterfallChart';
+import { DepartmentWiseEstimateChart } from '../components/analytics/charts/DepartmentWiseEstimateChart';
 
 /* ─── Section Divider ─────────────────────────────────────────────── */
 const SectionLabel = ({ children }) => (
@@ -58,85 +32,6 @@ const SectionLabel = ({ children }) => (
     <div className="flex-1 h-px bg-white/[0.045]" />
   </div>
 );
-
-/* ─── Chart Info Tooltip Component (Portal Architecture for Zero Clipping) ──── */
-const ChartInfoTooltip = ({ description, formula }) => {
-  const [show, setShow] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const btnRef = useRef(null);
-  const { isDark } = useTheme();
-
-  const updatePosition = () => {
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    const popW = 280;
-    const popH = 140;
-
-    let left = rect.right - popW;
-    if (left < 16) left = 16;
-    if (left + popW > window.innerWidth - 16) {
-      left = Math.max(16, window.innerWidth - popW - 16);
-    }
-
-    let top = rect.bottom + 8;
-    if (top + popH > window.innerHeight - 16) {
-      top = Math.max(16, rect.top - popH - 8);
-    }
-
-    setPos({ x: left, y: top });
-  };
-
-  const handleOpen = () => {
-    updatePosition();
-    setShow(true);
-  };
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onMouseEnter={handleOpen}
-        onMouseLeave={() => setShow(false)}
-        onClick={(e) => {
-          e.stopPropagation();
-          updatePosition();
-          setShow(!show);
-        }}
-        className="w-5 h-5 rounded-full bg-amber-500/15 hover:bg-amber-500/35 border border-amber-500/50 flex items-center justify-center text-[11px] font-black text-amber-400 hover:text-amber-300 transition-all cursor-pointer shadow-md shadow-amber-500/10 hover:scale-110 shrink-0"
-        title="Click or hover for chart details & formula"
-      >
-        i
-      </button>
-
-      {show && ReactDOM.createPortal(
-        <div
-          className="fixed z-[999999] p-3.5 rounded-2xl shadow-2xl min-w-[260px] max-w-[300px] text-xs backdrop-blur-xl pointer-events-none transition-all duration-150 border"
-          style={{
-            top: pos.y,
-            left: pos.x,
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-            borderColor: isDark ? 'rgba(245, 158, 11, 0.5)' : 'rgba(245, 158, 11, 0.4)',
-            boxShadow: '0 20px 40px -5px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(245,158,11,0.2)'
-          }}
-        >
-          <div className={`flex items-center gap-1.5 mb-2 border-b pb-1.5 text-amber-500 dark:text-amber-400 font-extrabold uppercase text-[10px] tracking-wider ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-            Metric Info &amp; Formula
-          </div>
-          <p className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug font-medium mb-2.5">
-            {description}
-          </p>
-          <div className={`p-2.5 rounded-xl border font-mono text-[10px] font-semibold leading-relaxed ${isDark ? 'bg-slate-950/90 border-white/10 text-emerald-400' : 'bg-slate-100 border-slate-200 text-emerald-700'}`}>
-            <span className="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-0.5 font-sans">Formula:</span>
-            {formula}
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-};
 
 /* ─── Paginated ZO Name Selector Component ──────────────────────── */
 const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
@@ -262,196 +157,6 @@ const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDispla
           )}
         </div>
       )}
-    </div>
-  );
-};
-
-/* ─── ChartModal Component ─────────────────────────────────────────── */
-const ChartModal = ({ title, description, formula, isDark, width = '96vw', height = '92vh', maxWidth = '1600px', maxHeight = '1000px', onClose, children }) => {
-  const { isDark: themeDark } = useTheme();
-  const dark = isDark !== undefined ? isDark : themeDark;
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  if (typeof document !== 'undefined') {
-    return ReactDOM.createPortal(
-      <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
-        style={{
-          background: dark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(16px)'
-        }}
-        onClick={onClose}
-      >
-        <div
-          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${dark ? 'bg-[#0b0e14] border-white/10 text-slate-100 shadow-black/90' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'}`}
-          style={{ width, height, maxWidth, maxHeight }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Modal Header */}
-          <div
-            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${
-              dark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
-            }`}
-          >
-            <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" />
-              <h3
-                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${
-                  dark ? 'text-amber-400' : 'text-amber-600'
-                }`}
-              >
-                {title || 'Chart Telemetry Inspection'}
-              </h3>
-              {description && formula && (
-                <ChartInfoTooltip description={description} formula={formula} />
-              )}
-            </div>
-
-            {/* Red Close Button */}
-            <button
-              onClick={onClose}
-              className="shrink-0 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-md cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
-              title="Close (ESC)"
-            >
-              <span>Close</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Dynamically Scaled Inner Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0 h-full w-full flex flex-col justify-start">
-            {children}
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  }
-  return null;
-};
-
-/* ─── ZoomCard ─────────────────────────────────────────────────────── */
-const ZoomCard = ({ children, onZoom, className = '' }) => (
-  <div className={`relative group ${className}`}>
-    {children}
-    <button
-      onClick={onZoom}
-      className="absolute top-3 right-3 z-30 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest transition-all duration-200 hover:bg-amber-500/20 hover:border-amber-500/40 cursor-zoom-in"
-    >
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-      </svg>
-      Zoom
-    </button>
-  </div>
-);
-
-/* ─── KPI Details Modal ─────────────────────────────────────────────── */
-const KpiDetailsModal = ({ title, colorClass, projects, getZoDisplayName, onClose }) => {
-  const { isDark } = useTheme();
-  const navigate = useNavigate();
-
-  React.useEffect(() => {
-    const esc = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-8"
-      style={{ background: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(16px)' }}
-      onClick={onClose}
-    >
-      <div
-        className={`relative w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border ${isDark ? 'bg-slate-950 border-white/10 text-slate-100 shadow-black/80' : 'bg-white border-slate-200 text-slate-900 shadow-2xl shadow-slate-900/20'}`}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className={`flex items-center justify-between px-6 py-5 border-b shrink-0 ${isDark ? 'border-white/10 bg-slate-900' : 'border-slate-100 bg-white'}`}>
-          <div className="flex items-center gap-3">
-            <h2 className={`text-lg font-black uppercase tracking-widest ${colorClass || (isDark ? 'text-slate-100' : 'text-slate-900')}`}>{title}</h2>
-            <span className={`px-3 py-1 rounded-full border text-[10px] font-extrabold ${isDark ? 'bg-white/10 border-white/15 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'}`}>
-              {projects.length} {projects.length === 1 ? 'Project' : 'Projects'}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-md hover:shadow-[0_0_15px_rgba(244,63,94,0.6)] cursor-pointer"
-            title="Close (ESC)"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className={`p-6 overflow-y-auto no-scrollbar flex-1 ${isDark ? 'bg-slate-950' : 'bg-white'}`}>
-          {projects.length === 0 ? (
-            <div className={`text-center py-12 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              No projects matching this filter
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className={`border-b text-[9px] font-black uppercase tracking-widest ${isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
-                    <th className="py-3 px-3">WO No</th>
-                    <th className="py-3 px-3">ZO Name</th>
-                    <th className="py-3 px-3">Department</th>
-                    <th className="py-3 px-3 text-center">Value</th>
-                    <th className="py-3 px-3 text-center">Progress</th>
-                    <th className="py-3 px-3 text-center">Health</th>
-                    <th className="py-3 px-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
-                  {(projects || []).map((p, idx) => {
-                    const scoreBadge = p.health_score >= 80
-                      ? isDark ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 font-extrabold'
-                      : p.health_score >= 60
-                      ? isDark ? 'bg-amber-950/80 text-amber-400 border-amber-500/30' : 'bg-amber-500/10 text-amber-800 border-amber-500/30 font-extrabold'
-                      : isDark ? 'bg-rose-950/80 text-rose-400 border-rose-500/30' : 'bg-rose-500/10 text-rose-700 border-rose-500/30 font-extrabold';
-                    const statusBadge = p.health_status === 'Critical'
-                      ? isDark ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-                      : p.health_status === 'Warning'
-                      ? isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-800 border-amber-200 font-black'
-                      : isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border-emerald-200 font-black';
-                    const zoDisplayName = getZoDisplayName ? getZoDisplayName(p.zo_name || p.zo_user_id || p.zone) : (p.zo_name || p.zo_user_id || p.zone || 'N/A');
-                    return (
-                      <tr key={idx} className={`transition-colors group ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50/80'}`}>
-                        <td
-                          onClick={() => { onClose(); navigate(`/projects/${p.work_order_no}/digital-twin`); }}
-                          className={`py-3.5 px-3 font-extrabold hover:underline cursor-pointer font-mono ${isDark ? 'text-sky-400' : 'text-sky-600'}`}
-                        >
-                          {p.work_order_no}
-                        </td>
-                        <td className={`py-3.5 px-3 font-extrabold uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{zoDisplayName}</td>
-                        <td className={`py-3.5 px-3 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.department || 'N/A'}</td>
-                        <td className={`py-3.5 px-3 text-center font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatINR(p.work_order_value)}</td>
-                        <td className={`py-3.5 px-3 text-center font-extrabold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.physical_progress || 0}%</td>
-                        <td className="py-3.5 px-3 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-lg text-[10px] border ${scoreBadge}`}>{Math.round(p.health_score || 0)}</span>
-                        </td>
-                        <td className="py-3.5 px-3 text-right">
-                          <span className={`px-2.5 py-0.5 rounded-lg text-[8px] uppercase tracking-wider border ${statusBadge}`}>{p.health_status || 'Healthy'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
@@ -622,136 +327,6 @@ const PhysicalWorkProgress = ({ projects, isModal = false }) => {
   );
 };
 
-/* ─── Department Wise Estimate Donut ─────────────────────────────── */
-const DepartmentWiseEstimate = ({ projects }) => {
-  const { isDark } = useTheme();
-  const [hoveredDept, setHoveredDept] = useState(null);
-  const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
-
-  const DEFAULT_COLORS = ['#3B82F6','#10B981','#8B5CF6','#F97316','#64748B','#EF4444','#14B8A6','#EC4899'];
-
-  const items = useMemo(() => {
-    const map = {};
-    const countMap = {};
-    (projects || []).forEach(p => {
-      const d = p.department || 'General';
-      map[d] = (map[d] || 0) + Number(p.work_order_value || 0);
-      countMap[d] = (countMap[d] || 0) + 1;
-    });
-    const entries = Object.entries(map);
-    if (entries.length === 0) {
-      return [];
-    }
-    const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
-    return entries.map(([dept, amount], i) => ({
-      department: dept,
-      amount,
-      count: countMap[dept] || 0,
-      percentage: +((amount / total) * 100).toFixed(1),
-      color: DEFAULT_COLORS[i % DEFAULT_COLORS.length]
-    }));
-  }, [projects]);
-
-  const totalAmount = useMemo(() => items.reduce((a, it) => a + it.amount, 0), [items]);
-  const slices = useMemo(() => buildDonutSlices(items, totalAmount, it => it.amount), [items, totalAmount]);
-
-  const handleMouseEnter = (e, item) => {
-    const ph = 100, pw = 240;
-    let y = e.clientY - ph - 15; if (y < 20) y = Math.min(window.innerHeight - ph - 20, e.clientY + 20);
-    let x = Math.min(window.innerWidth - pw - 20, Math.max(20, e.clientX - 50));
-    setPopoverPos({ x, y }); setHoveredDept(item);
-  };
-  const handleMouseMove = (e) => {
-    if (hoveredDept) {
-      const ph = 100, pw = 240;
-      let y = e.clientY - ph - 15; if (y < 20) y = Math.min(window.innerHeight - ph - 20, e.clientY + 20);
-      let x = Math.min(window.innerWidth - pw - 20, Math.max(20, e.clientX - 50));
-      setPopoverPos({ x, y });
-    }
-  };
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Distribution of total work order value allocated across operational departments."
-            formula="Dept Share % = (Sum of Work Order Values in Dept / Total Zonal WO Value) × 100"
-          />
-          <div>
-            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Work Order Value</h3>
-            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of work order values across operational departments</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
-        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto flex items-center justify-center">
-          {items.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-500 uppercase tracking-wider text-center p-4">No projects for selected ZO Name</div>
-          ) : (
-            <>
-              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
-                {slices.map((slice, idx) => slice.pathData && (
-                  <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group"
-                    onMouseEnter={(e) => handleMouseEnter(e, slice)} onMouseLeave={() => setHoveredDept(null)}>
-                    <path d={slice.pathData} fill={slice.color} stroke={isDark ? '#0f172a' : '#ffffff'} strokeWidth="2.5"
-                      style={{ transform: hoveredDept?.department === slice.department ? 'scale(1.04)' : 'scale(1)', transformOrigin: '100px 100px' }} />
-                  </g>
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Total WO Value
-                </span>
-                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
-                  {fmtCr(totalAmount)}
-                </span>
-              </div>
-            </>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full pt-2 border-t border-slate-200 dark:border-white/5">
-          {items.map((item, idx) => (
-            <div key={idx}
-              className={`flex items-center justify-between gap-2 text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${hoveredDept?.department === item.department ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]' : 'hover:bg-slate-500/10 border border-transparent'}`}
-              onMouseEnter={(e) => handleMouseEnter(e, item)} onMouseLeave={() => setHoveredDept(null)}>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
-                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs truncate" title={item.department}>{item.department}</span>
-              </div>
-              <span className="text-slate-400 font-mono text-[10px] font-bold shrink-0">{item.percentage}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {hoveredDept && ReactDOM.createPortal(
-        <div className="fixed z-[99999] rounded-2xl shadow-2xl p-3.5 min-w-[220px] pointer-events-none transition-all duration-150 backdrop-blur-md"
-          style={{ top: popoverPos.y, left: popoverPos.x, backgroundColor: isDark ? 'rgba(15,23,42,0.98)' : 'rgba(255,255,255,0.98)', border: `1.5px solid ${hoveredDept.color}`, boxShadow: `0 20px 35px -5px rgba(0,0,0,0.7), 0 8px 16px -6px ${hoveredDept.color}60` }}>
-          <div className="flex items-center gap-2 mb-1.5 border-b border-slate-200 dark:border-slate-700/60 pb-1.5">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: hoveredDept.color }} />
-            <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">{hoveredDept.department}</span>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 mt-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Work Order Value:</span>
-            <span className="font-black text-sm font-mono text-amber-400">{fmtCr(hoveredDept.amount)}</span>
-          </div>
-          {hoveredDept.count !== undefined && (
-            <div className="flex items-baseline justify-between gap-3 mt-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Work Orders:</span>
-              <span className="font-bold text-xs font-mono text-sky-400">{hoveredDept.count} {hoveredDept.count === 1 ? 'Work Order' : 'Work Orders'}</span>
-            </div>
-          )}
-          <div className="flex items-baseline justify-between gap-3 mt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Share of WO Value:</span>
-            <span className="font-bold text-xs font-mono text-slate-200">{hoveredDept.percentage}%</span>
-          </div>
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
-
 /* ─── Key Financial Indicators ────────────────────────────────────── */
 const KeyFinancialIndicators = ({ projects, data }) => {
   const { isDark } = useTheme();
@@ -823,100 +398,6 @@ const KeyFinancialIndicators = ({ projects, data }) => {
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-};
-
-/* ─── Fund Flow Waterfall ─────────────────────────────────────────── */
-const STAGE_METADATA_MAP = {
-  'final approved estimate': { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
-  'ho allocated (gross)':    { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'Excess Refunded to HO' },
-  'excess returned to ho':   { gradId: 'ff-mint',    color1: '#10b981', color2: '#34d399', diffLabel: '↩ Refunded Back to HO' },
-  'ho allocated (net)':      { gradId: 'ff-amber',   color1: '#d97706', color2: '#f59e0b', diffLabel: 'Net ZO Retained Balance' },
-  'ho allocated':            { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
-  'requisitions approved':  { gradId: 'ff-indigo',  color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'In-Flight Site WIP' },
-  'gross billed':           { gradId: 'ff-blue',    color1: '#2563eb', color2: '#60a5fa', diffLabel: 'Unbilled Work' },
-  'agency paid':            { gradId: 'ff-teal',    color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
-};
-
-const FundFlowWaterfall = ({ data, projects }) => {
-  const c = useChartColors();
-  const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
-  const barH = 22, gap = 20;
-
-  const rows = useMemo(() => {
-    if (data && data.length > 0) return data;
-
-    const p = projects || [];
-    const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
-    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_ho_amount || pr.ho_allocated_amount || pr.approve_ho_amount || pr.approved_amount || 0), 0);
-    const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
-    const netAllocated = Math.max(0, grossAllocated - excessReturned);
-    const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
-    const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
-    const paid = p.reduce((a, pr) => a + Number(pr.agency_paid || 0), 0);
-
-    return [
-      { stage: 'Final Approved Estimate', amount: est },
-      { stage: 'HO Allocated (Gross)',    amount: grossAllocated },
-      { stage: 'Excess Returned to HO',   amount: excessReturned, isRefund: true },
-      { stage: 'HO Allocated (Net)',      amount: netAllocated },
-      { stage: 'Requisitions Approved',   amount: reqApproved },
-      { stage: 'Gross Billed',            amount: billed },
-      { stage: 'Agency Paid',             amount: paid },
-    ];
-  }, [data, projects]);
-
-  const maxVal = Math.max(1, ...rows.map(d => Number(d.amount || 0)));
-  const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-start mb-2 shrink-0">
-        <div>
-          <h3 className="chart-title">Fund Flow Pipeline</h3>
-          <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
-        </div>
-        <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
-          formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
-        />
-      </div>
-      <div className="relative mt-2 flex-1 flex items-center justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[85vh]" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
-              <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
-                <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />
-              </linearGradient>
-            ))}
-          </defs>
-          {rows.map((d, i) => {
-            const bW = scale(d.amount);
-            const y = PAD_Y + i * (barH + gap);
-            const prev = i > 0 ? Number(rows[i - 1].amount || 0) : d.amount;
-            const diff = prev - d.amount;
-            const key = (d.stage || '').toLowerCase().trim();
-            const meta = STAGE_METADATA_MAP[key] || { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Stage Delta' };
-            const prevKey = i > 0 ? (rows[i - 1].stage || '').toLowerCase().trim() : key;
-            const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
-            return (
-              <g key={i}>
-                <text x={PAD_LEFT - 14} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="9" fontWeight="bold" letterSpacing="0.5">{d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}</text>
-                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={5} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
-                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="9" fontWeight="extrabold" className="font-mono">{fmtCr(d.amount)}</text>
-                {i > 0 && diff > 0 && !d.isRefund && (
-                  <g>
-                    <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
-                    <text x={PAD_LEFT + scale(prev) + 8} y={y - 5} fill={c.isDark ? '#cbd5e1' : '#475569'} fontSize="8" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </svg>
       </div>
     </div>
   );
@@ -1128,495 +609,6 @@ const SCurveProgress = ({ projects, sCurveData = [] }) => {
           <div className="flex items-center gap-1.5"><span className="w-3 h-1 rounded-sm" style={{ backgroundColor: c.isDark ? '#10b981' : '#059669' }} /><span>Actual Progress</span></div>
         </div>
       </div>
-    </div>
-  );
-};
-
-/* ─── Investment vs Recovery Realization Plot ─────────────────────── */
-const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = false }) => {
-  const { isDark } = useTheme();
-  const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState('summary');
-  const [woPage, setWoPage] = useState(1);
-  const [searchWo, setSearchWo] = useState('');
-  const pageSize = 4;
-
-  const metrics = useMemo(() => {
-    const pList = projects || [];
-    const totalProjectsCount = pList.length;
-    const woValue = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-    const investment = pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0), 0);
-    const grossBilled = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-    const billReceived = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
-
-    const pendingRecovery = Math.max(0, investment - billReceived);
-    const surplusRecovery = Math.max(0, billReceived - investment);
-    const remainingWOValue = Math.max(0, woValue - investment);
-    const deductions = Math.max(0, grossBilled - billReceived);
-
-    const investmentPct = woValue > 0 ? ((investment / woValue) * 100).toFixed(1) : '0.0';
-    const disbursementPct = woValue > 0 ? ((billReceived / woValue) * 100).toFixed(1) : '0.0';
-    const recoveryAgainstInvestPct = investment > 0 ? ((billReceived / investment) * 100).toFixed(1) : '0.0';
-    const recoveryBarPct = Math.min(100, Number(recoveryAgainstInvestPct));
-    const deductionRate = grossBilled > 0 ? ((deductions / grossBilled) * 100).toFixed(1) : '0.0';
-
-    const getProgressBand = (prog, status) => {
-      const p = Number(prog || 0);
-      if (p > 100 || status === 'Critical') return { label: '>100% Over Budget', color: '#EF4444', bg: 'bg-rose-500/15 text-rose-400 border-rose-500/30' };
-      if (p === 100) return { label: '100% Completed', color: '#16A34A', bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
-      if (p >= 81) return { label: `${p}% Excellent`, color: '#10B981', bg: 'bg-teal-500/15 text-teal-400 border-teal-500/30' };
-      if (p >= 61) return { label: `${p}% Very Good`, color: '#15803D', bg: 'bg-emerald-600/15 text-emerald-300 border-emerald-600/30' };
-      if (p >= 41) return { label: `${p}% Good`, color: '#22C55E', bg: 'bg-green-500/15 text-green-400 border-green-500/30' };
-      if (p >= 21) return { label: `${p}% Fair`, color: '#EAB308', bg: 'bg-amber-500/15 text-amber-400 border-amber-500/30' };
-      if (p >= 1) return { label: `${p}% Initial`, color: '#3B82F6', bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30' };
-      return { label: '0% Not Started', color: '#64748B', bg: 'bg-slate-500/15 text-slate-400 border-slate-500/30' };
-    };
-
-    const rawBands = [
-      { label: '0% Not Started', color: '#64748B', count: pList.filter(p => !p.physical_progress || p.physical_progress === 0).length },
-      { label: '1–20% Initial Stage', color: '#3B82F6', count: pList.filter(p => p.physical_progress > 0 && p.physical_progress <= 20).length },
-      { label: '21–40% Fair', color: '#EAB308', count: pList.filter(p => p.physical_progress > 20 && p.physical_progress <= 40).length },
-      { label: '41–60% Good', color: '#22C55E', count: pList.filter(p => p.physical_progress > 40 && p.physical_progress <= 60).length },
-      { label: '61–80% Very Good', color: '#15803D', count: pList.filter(p => p.physical_progress > 60 && p.physical_progress <= 80).length },
-      { label: '81–99% Excellent', color: '#10B981', count: pList.filter(p => p.physical_progress > 80 && p.physical_progress < 100).length },
-      { label: '100% Completed', color: '#16A34A', count: pList.filter(p => p.physical_progress === 100).length },
-      { label: '>100% Over Budget', color: '#EF4444', count: pList.filter(p => p.physical_progress > 100 || p.health_status === 'Critical').length },
-    ];
-
-    const bands = rawBands.map(b => ({
-      ...b,
-      pct: totalProjectsCount > 0 ? ((b.count / totalProjectsCount) * 100).toFixed(1) : '0.0',
-    }));
-
-    const woItems = pList.map(p => {
-      const wVal = Number(p.work_order_value || 0);
-      const inv = Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0);
-      const rec = Number(p.agency_payment ?? p.agency_paid ?? 0);
-      const pend = Math.max(0, inv - rec);
-      const surplus = Math.max(0, rec - inv);
-      const rem = Math.max(0, wVal - inv);
-      const band = getProgressBand(p.physical_progress, p.health_status);
-      return {
-        work_order_no: p.work_order_no,
-        site_details: p.site_details,
-        department: p.department,
-        woValue: wVal,
-        investment: inv,
-        billReceived: rec,
-        pendingRecovery: pend,
-        surplusRecovery: surplus,
-        remainingWOValue: rem,
-        band,
-        physical_progress: p.physical_progress || 0,
-      };
-    });
-
-    return {
-      totalProjects: totalProjectsCount,
-      woValue,
-      investment,
-      grossBilled,
-      billReceived,
-      deductions,
-      deductionRate,
-      pendingRecovery,
-      surplusRecovery,
-      remainingWOValue,
-      investmentPct,
-      disbursementPct,
-      recoveryAgainstInvestPct,
-      recoveryBarPct,
-      bands,
-      woItems,
-    };
-  }, [projects, agencyPaymentAmount]);
-
-  const filteredWos = useMemo(() => {
-    const q = searchWo.toLowerCase().trim();
-    if (!q) return metrics.woItems;
-    return metrics.woItems.filter(item =>
-      (item.work_order_no || '').toLowerCase().includes(q) ||
-      (item.site_details || '').toLowerCase().includes(q) ||
-      (item.department || '').toLowerCase().includes(q)
-    );
-  }, [metrics.woItems, searchWo]);
-
-  const totalWoPages = Math.ceil(filteredWos.length / pageSize) || 1;
-  const pagedWos = useMemo(() => {
-    const start = (woPage - 1) * pageSize;
-    return filteredWos.slice(start, start + pageSize);
-  }, [filteredWos, woPage, pageSize]);
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-            Investment &amp; Bill Recovery Realization
-          </h3>
-          <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-            {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setViewMode('summary')}
-              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'summary' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-            >
-              Summary
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('work_order')}
-              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'work_order' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-            >
-              WO Wise ({metrics.woItems.length})
-            </button>
-          </div>
-
-          <ChartInfoTooltip
-            description="Capital investment vs bill recovery realization across work order progress bands."
-            formula="Pending Recovery = Requisition Investment - Contractor Bill Payments Received"
-          />
-        </div>
-      </div>
-
-      {viewMode === 'summary' ? (
-        <>
-          {/* Top Formula KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2">
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 truncate">Total Investment %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">Inv / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value that has been requested and approved for project execution."
-                    formula="Total Investment % = (Approved Requisitions / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-amber-400 mt-1">{metrics.investmentPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Inv: <strong className="text-slate-200">{fmtCr(metrics.investment)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-400 truncate">Bill Recovery %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 whitespace-nowrap">Rec / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value recovered through paid contractor bills."
-                    formula="Bill Recovery % = (Agency Payments Realized / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-emerald-400 mt-1">{metrics.disbursementPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Rec: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-teal-400 truncate">Payment Disbursement %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 whitespace-nowrap">Paid / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value that has actually been disbursed to agencies as net payment. Represents actual fund outflow rate against contracted value."
-                    formula="Payment Disbursement % = (Net Agency Payments / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-teal-400 mt-1">{metrics.disbursementPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Paid: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${
-              metrics.surplusRecovery > 0
-                ? (isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300')
-                : (isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200')
-            }`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className={`text-[9px] font-extrabold uppercase tracking-wider truncate ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>Agency Realization vs Investment</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className={`text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
-                    metrics.surplusRecovery > 0
-                      ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                      : 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
-                  }`}>Realized / Inv</span>
-                  <ChartInfoTooltip
-                    description={metrics.surplusRecovery > 0
-                      ? 'Ratio of net agency payments received from client departments against approved site requisition investment. Shows revenue realization relative to invested capital.'
-                      : 'Ratio of net agency payments received against approved requisition investment.'}
-                    formula="Realization vs Investment % = (Net Agency Payments / Approved Requisitions) × 100"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <p className={`text-base sm:text-lg font-black font-mono ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>{metrics.recoveryAgainstInvestPct}%</p>
-                {metrics.surplusRecovery > 0 && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">✓ Surplus Realized</span>
-                )}
-              </div>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Realized: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong>
-                  {metrics.surplusRecovery > 0
-                    ? <span className="text-emerald-400 font-bold"> (+{fmtCr(metrics.surplusRecovery)} surplus)</span>
-                    : <span className="text-rose-400 font-bold"> (Pend: {fmtCr(metrics.pendingRecovery)})</span>
-                  }
-                </span>
-                <span className="text-slate-500 truncate">of Inv: {fmtCr(metrics.investment)}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Gross Bill → Deductions → Net Paid Pipeline */}
-          {metrics.grossBilled > 0 && (
-            <div className={`my-2 p-2.5 rounded-xl border transition-all ${isDark ? 'border-white/5 bg-slate-950/40' : 'border-slate-200 bg-white/80'}`}>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className={`text-[8.5px] font-black uppercase tracking-wider font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Gross Bill → Deductions → Net Paid Pipeline</p>
-                <ChartInfoTooltip
-                  description="Shows how gross billed amount reduces to net agency payment after statutory deductions (TDS, Security Deposit, GST, EMD etc.)."
-                  formula="Deductions = Gross Bill Amount − Net Agency Payment"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-[8px] font-mono flex-wrap">
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-sky-500/10 border-sky-500/20 text-sky-200' : 'bg-sky-50 border-sky-200 text-sky-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>Gross Billed</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-sky-200' : 'text-sky-950'}`}>{fmtCr(metrics.grossBilled)}</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-rose-500 font-black text-[10px]">−</span>
-                  <span className="text-rose-500 font-bold text-[7px] uppercase tracking-wider">{metrics.deductionRate}%</span>
-                </div>
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>Deductions</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-rose-200' : 'text-rose-950'}`}>{fmtCr(metrics.deductions)}</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-emerald-500 font-black text-[10px]">→</span>
-                </div>
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Net Agency Paid</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-emerald-200' : 'text-emerald-950'}`}>{fmtCr(metrics.billReceived)}</span>
-                </div>
-                <div className="flex-1 min-w-[80px]">
-                  <div className={`h-2 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                    <div
-                      style={{ width: `${metrics.grossBilled > 0 ? ((metrics.billReceived / metrics.grossBilled) * 100).toFixed(1) : 0}%` }}
-                      className="bg-emerald-500 h-full"
-                      title={`Net Paid: ${fmtCr(metrics.billReceived)}`}
-                    />
-                    <div
-                      style={{ width: `${metrics.deductionRate}%` }}
-                      className="bg-rose-500/70 h-full"
-                      title={`Deductions: ${fmtCr(metrics.deductions)} (${metrics.deductionRate}%)`}
-                    />
-                  </div>
-                  <p className={`text-[7.5px] mt-0.5 font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Net retained: {metrics.grossBilled > 0 ? (100 - Number(metrics.deductionRate)).toFixed(1) : 0}% of Gross</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Dual Realization Progress Bars */}
-          <div className={`my-2 space-y-2 p-2.5 rounded-xl border transition-all ${isDark ? 'border-white/5 bg-slate-950/40' : 'border-slate-200 bg-white/80'}`}>
-            {/* Bar 1: Investment vs Remaining WO Value */}
-            <div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase mb-1 font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">1. Capital Investment Realization</span>
-                  <ChartInfoTooltip
-                    description="Visual breakdown of total investment disbursed against overall portfolio work order capacity."
-                    formula="Remaining WO Value = Total WO Value - Approved Requisition Investment"
-                  />
-                </div>
-                <span className={`shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>WO Value: {fmtCr(metrics.woValue)}</span>
-              </div>
-              <div className={`h-3 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                <div
-                  style={{ width: `${Math.max(1, Math.min(100, Number(metrics.investmentPct)))}%` }}
-                  className="bg-amber-500 h-full transition-all duration-500"
-                  title={`Investment: ${fmtCr(metrics.investment)} (${metrics.investmentPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(0, 100 - Number(metrics.investmentPct))}%` }}
-                  className="bg-sky-500/30 h-full transition-all duration-500"
-                  title={`Remaining WO Value: ${fmtCr(metrics.remainingWOValue)}`}
-                />
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1 text-[8px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> Total Inv: {fmtCr(metrics.investment)} ({metrics.investmentPct}%)</span>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-sky-500/30 shrink-0" /> Remaining: {fmtCr(metrics.remainingWOValue)}</span>
-              </div>
-            </div>
-
-            {/* Bar 2: Recovery Realization against Total Investment */}
-            <div className={`border-t pt-1.5 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase mb-1 font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">2. Recovery Realization (Investment Pool)</span>
-                  <ChartInfoTooltip
-                    description="Visual realization of actual contractor bill payments recovered against the disbursed investment pool."
-                    formula="Pending Recovery = Approved Requisitions - Agency Billed Payments"
-                  />
-                </div>
-                <span className={`shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>Pool: {fmtCr(metrics.investment)}</span>
-              </div>
-              <div className={`h-3 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                <div
-                  style={{ width: `${Math.max(1, metrics.recoveryBarPct)}%` }}
-                  className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Agency Paid: ${fmtCr(metrics.billReceived)} (${metrics.recoveryAgainstInvestPct}% of Investment)`}
-                />
-                {metrics.pendingRecovery > 0 && (
-                  <div
-                    style={{ width: `${Math.max(0, 100 - metrics.recoveryBarPct)}%` }}
-                    className="bg-rose-500/80 h-full transition-all duration-500"
-                    title={`Pending Bill Recovery: ${fmtCr(metrics.pendingRecovery)}`}
-                  />
-                )}
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1 text-[8px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Agency Paid: {fmtCr(metrics.billReceived)} ({metrics.recoveryAgainstInvestPct}%)</span>
-                {metrics.surplusRecovery > 0
-                  ? <span className="flex items-center gap-1 truncate text-emerald-500 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Surplus: +{fmtCr(metrics.surplusRecovery)}</span>
-                  : <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-rose-500/80 shrink-0" /> Pending: {fmtCr(metrics.pendingRecovery)}</span>
-                }
-              </div>
-            </div>
-          </div>
-
-          {/* Visual Progress Stage Color Bands with Stacked Bar & Distribution Badges */}
-          <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-1">
-              <p className={`text-[8.5px] sm:text-[9px] font-black uppercase tracking-wider truncate ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Progress Stage Color Bands Distribution</p>
-              <span className={`text-[8px] font-mono font-bold shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{metrics.totalProjects} Total WOs</span>
-            </div>
-
-            {/* Multi-segment distribution bar */}
-            <div className={`h-2 w-full rounded-full overflow-hidden flex mb-2 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-              {metrics.bands.map((b, idx) => Number(b.pct) > 0 && (
-                <div
-                  key={idx}
-                  style={{ width: `${b.pct}%`, backgroundColor: b.color }}
-                  className="h-full transition-all duration-300"
-                  title={`${b.label}: ${b.count} WOs (${b.pct}%)`}
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[8.5px]">
-              {metrics.bands.map((b, idx) => (
-                <div key={idx} className="flex items-center justify-between p-1.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition min-w-0">
-                  <div className="flex items-center gap-1 truncate min-w-0">
-                    <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: b.color }} />
-                    <span className="font-bold text-slate-300 truncate text-[8.5px]">{b.label}</span>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 font-mono ml-1">
-                    <span className="font-black text-amber-400 text-[9px]">{b.count}</span>
-                    <span className="text-[7.5px] text-slate-500">({b.pct}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
-        /* Work Order Wise View Mode */
-        <div className="flex flex-col flex-1 min-h-0 justify-between">
-          <div className="mb-2">
-            <input
-              type="text"
-              placeholder="Search work order or site..."
-              value={searchWo}
-              onChange={(e) => { setSearchWo(e.target.value); setWoPage(1); }}
-              className={`w-full border rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 ${isDark ? 'bg-slate-950 border-white/10 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
-            />
-          </div>
-
-          <div className="space-y-2 overflow-y-auto max-h-[260px] pr-1">
-            {pagedWos.map((item, idx) => (
-              <div
-                key={idx}
-                className={`p-2.5 rounded-xl border transition-all ${isDark ? 'bg-slate-900/60 border-white/10 hover:border-white/20' : 'bg-white border-slate-200 shadow-sm'}`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="min-w-0">
-                    <span
-                      onClick={() => navigate && navigate(`/projects/${item.work_order_no}/digital-twin`)}
-                      className="font-extrabold font-mono text-xs text-sky-400 hover:underline cursor-pointer truncate block"
-                    >
-                      {item.work_order_no}
-                    </span>
-                    <p className="text-[10px] text-slate-400 truncate">{item.site_details || item.department}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider shrink-0 ${item.band.bg}`}>
-                    {item.band.label}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] font-mono border-t border-white/5 pt-1.5">
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">WO Value</span>
-                    <span className="font-bold text-slate-200">{fmtCr(item.woValue)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Investment</span>
-                    <span className="font-bold text-amber-400">{fmtCr(item.investment)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Received</span>
-                    <span className="font-bold text-emerald-400">{fmtCr(item.billReceived)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Pending</span>
-                    <span className="font-bold text-rose-400">{fmtCr(item.pendingRecovery)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {pagedWos.length === 0 && (
-              <div className="py-8 text-center text-xs text-slate-500 italic">No work orders match current search</div>
-            )}
-          </div>
-
-          {totalWoPages > 1 && (
-            <div className="flex items-center justify-between pt-2 mt-1 border-t border-white/5 text-[10px] font-mono select-none">
-              <span className="text-slate-400 font-bold">Pg {woPage} of {totalWoPages} ({filteredWos.length} WOs)</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setWoPage(p => Math.max(1, p - 1))}
-                  disabled={woPage === 1}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWoPage(p => Math.min(totalWoPages, p + 1))}
-                  disabled={woPage === totalWoPages}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };
@@ -2240,7 +1232,8 @@ const ZoDashboard = () => {
   /* ── Data Queries ── */
   const { data: insightsRes } = useQuery({
     queryKey: ['zoInsights'],
-    queryFn: async () => { const res = await getHoActionableInsights(); return res.data; }
+    queryFn: async () => { const res = await getHoActionableInsights(); return res.data; },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: chartRes } = useQuery({
@@ -2254,7 +1247,8 @@ const ZoDashboard = () => {
         end_date: endDate || undefined
       });
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: leaderboardRes } = useQuery({
@@ -2262,12 +1256,14 @@ const ZoDashboard = () => {
     queryFn: async () => {
       const res = await getJeLeaderboard({ timeframe: 'weekly', zone: selectedZo || undefined });
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: projectsRes } = useQuery({
     queryKey: ['projectsHealthList'],
-    queryFn: async () => { const res = await getProjectsHealth(); return res.data; }
+    queryFn: async () => { const res = await getProjectsHealth(); return res.data; },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: balancesRes } = useQuery({
@@ -2658,7 +1654,7 @@ const ZoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
           <div style={{ minHeight: '520px' }} className="h-full">
-            <DepartmentWiseEstimate projects={filteredProjects} />
+            <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} />
           </div>
         </ZoomCard>
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
@@ -2673,7 +1669,7 @@ const ZoDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
           <div style={{ minHeight: '480px' }} className="h-full">
-            <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
+            <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} />
           </div>
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
@@ -2697,7 +1693,7 @@ const ZoDashboard = () => {
       {/* ── Section: Financial Realization Pipeline ── */}
       <SectionLabel>Financial Realization &amp; Bill Recovery {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
       <ZoomCard className="mb-6" onZoom={() => setZoomedChart('revision')}>
-        <InvestmentRecoveryPlot projects={filteredProjects} />
+        <InvestmentRecoveryPlot projects={filteredProjects} showBillRecoveryKpi={true} />
       </ZoomCard>
 
       {/* ── Section: Project Health Summary ── */}
@@ -2761,7 +1757,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'department' && (
         <ChartModal title={`Department Wise Work Order Value Breakdown — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} onClose={() => setZoomedChart(null)}>
-          <DepartmentWiseEstimate projects={filteredProjects} />
+          <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} />
         </ChartModal>
       )}
       {zoomedChart === 'key_financials' && (
@@ -2776,7 +1772,7 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'fundflow' && (
         <ChartModal title={`Fund Flow Pipeline Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
+          <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} />
         </ChartModal>
       )}
       {zoomedChart === 'scurve' && (
@@ -2796,7 +1792,7 @@ const ZoDashboard = () => {
           maxHeight="92vh"
           onClose={() => setZoomedChart(null)}
         >
-          <InvestmentRecoveryPlot projects={filteredProjects} isModal={true} />
+          <InvestmentRecoveryPlot projects={filteredProjects} isModal={true} showBillRecoveryKpi={true} />
         </ChartModal>
       )}
       {zoomedChart === 'jeleaderboard' && (
