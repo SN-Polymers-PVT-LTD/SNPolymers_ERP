@@ -34,7 +34,9 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 # Helper function for supabase CLI execution
-if command -v supabase >/dev/null 2>&1; then
+if [ -x "$BACKEND_DIR/node_modules/.bin/supabase" ]; then
+  SUPABASE_CMD="$BACKEND_DIR/node_modules/.bin/supabase"
+elif command -v supabase >/dev/null 2>&1; then
   SUPABASE_CMD="supabase"
 else
   SUPABASE_CMD="npx -y supabase"
