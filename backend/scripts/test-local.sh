@@ -33,17 +33,24 @@ if [ -f "$ENV_FILE" ]; then
   fi
 fi
 
+# Helper function for supabase CLI execution
+if command -v supabase >/dev/null 2>&1; then
+  SUPABASE_CMD="supabase"
+else
+  SUPABASE_CMD="npx -y supabase"
+fi
+
 # ─── Start local Supabase if not already running ──────────────────────────────
 echo ""
 echo "▶  Checking local Supabase status..."
 cd "$PROJECT_ROOT"
 
-if supabase status 2>/dev/null | grep -q "API URL"; then
+if $SUPABASE_CMD status 2>/dev/null | grep -q "API URL"; then
   echo "   Already running — skipping supabase start."
   SUPABASE_WAS_RUNNING=true
 else
   echo "   Starting local Supabase (this takes ~60s the first time)..."
-  supabase start
+  $SUPABASE_CMD start
   SUPABASE_WAS_RUNNING=false
 fi
 
@@ -67,7 +74,7 @@ if [ "$SUPABASE_WAS_RUNNING" = "false" ]; then
   echo ""
   echo "▶  Stopping local Supabase..."
   cd "$PROJECT_ROOT"
-  supabase stop --no-backup
+  $SUPABASE_CMD stop --no-backup
 fi
 
 echo ""
