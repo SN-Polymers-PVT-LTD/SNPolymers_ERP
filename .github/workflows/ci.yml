@@ -66,7 +66,8 @@ jobs:
       NODE_ENV: test
       # Keep false so tests can insert and clean up TEST_WO_ prefixed data
       IDBP_FILTER_TEST_DATA: 'false'
-      # No Telegram bot available in CI
+      # Telegram token from secrets — lets notification tests behave like local
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_MODE: 'disabled'
 
     steps:
