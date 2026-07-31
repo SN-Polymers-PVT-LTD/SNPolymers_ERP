@@ -6,31 +6,32 @@ VALUES
   (
     'ra-bill-copies', 
     'ra-bill-copies', 
-    true, 
+    false, 
     5242880, -- 5MB in bytes
     ARRAY['application/pdf', 'image/jpeg', 'image/png']
   ),
   (
     'daily-progress-photos', 
     'daily-progress-photos', 
-    true, 
+    false, 
     10485760, -- 10MB in bytes
     ARRAY['image/jpeg', 'image/png']
   ),
   (
     'gst-bills', 
     'gst-bills', 
-    true, 
+    false, 
     10485760, -- 10MB in bytes
     ARRAY['application/pdf']
   ),
   (
     'requisition-pdfs', 
     'requisition-pdfs', 
-    true, 
+    false, 
     10485760, -- 10MB in bytes
     ARRAY['application/pdf']
   )
 ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;

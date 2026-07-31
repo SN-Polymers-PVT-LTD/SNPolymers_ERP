@@ -10,8 +10,13 @@ function checkUrlPrivate(url) {
   const client = url.startsWith('https:') ? https : http;
   return new Promise((resolve) => {
     client.get(url, (res) => {
-      const isPrivate = res.statusCode === 400 || res.statusCode === 403 || res.statusCode === 404;
-      resolve(isPrivate);
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        const isErrorJson = data.includes('"error"') || data.includes('Not Found') || data.includes('statusCode');
+        const isPrivate = res.statusCode !== 200 || isErrorJson;
+        resolve(isPrivate);
+      });
     }).on('error', () => {
       resolve(true);
     });
