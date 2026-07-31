@@ -8,6 +8,7 @@
     "dev": "nodemon src/app.js",
     "migrate": "node scripts/apply-migrations.js",
     "test": "vitest run",
+    "test:local": "bash scripts/test-local.sh",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:milestone1": "vitest run tests/vitest/milestones/milestone1.test.js",
