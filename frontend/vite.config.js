@@ -26,6 +26,12 @@ export default defineConfig(({ mode }) => {
     },
     esbuild: {
       drop: mode === 'production' ? ['console', 'debugger'] : []
+    },
+    test: {
+      environment: 'jsdom',
+      globals: true,
+      setupFiles: ['./src/test/setup.js'],
+      css: false,
     }
   };
 })
