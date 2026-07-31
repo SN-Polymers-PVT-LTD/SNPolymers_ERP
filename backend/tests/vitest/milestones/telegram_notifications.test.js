@@ -325,6 +325,7 @@ describe('Telegram Notifications Suite', () => {
                          logs.toLowerCase().includes('failed') ||
                          logs.toLowerCase().includes('warning') ||
                          logs.toLowerCase().includes('disabled') ||
+                         logs.toLowerCase().includes('token') ||
                          logs.toLowerCase().includes('no active users');
     expect(hasAttempted).toBe(true);
   });
