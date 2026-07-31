@@ -19,7 +19,7 @@ PROJECT_ROOT="$(cd "$BACKEND_DIR/.." && pwd)"
 
 # ─── Local Supabase static credentials (safe: localhost only, public) ────────
 export SUPABASE_URL="http://127.0.0.1:54321"
-export SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hj04zWl196z2-SBc0"
+export SUPABASE_SERVICE_ROLE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJvbGUiOiJzZXJ2aWNlX3JvbGUiLCJpYXQiOjE2NDM4MTg4MDAsImV4cCI6MTk1OTM5NDgwMH0.0K_F0L3bL9H6-0vX5r5p1L6R5k-P_U9-rQ35-x4"
 export SUPABASE_TEST_DB_URI="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 export IDBP_FILTER_TEST_DATA="false"
 export TELEGRAM_MODE="disabled"

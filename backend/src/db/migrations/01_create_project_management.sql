@@ -6,18 +6,25 @@ CREATE TYPE project_status AS ENUM ('Running', 'Closed', 'Complete Under Mainten
 
 -- 2. Create projects_master table (no soft delete support)
 CREATE TABLE IF NOT EXISTS projects_master (
-  work_order_no     VARCHAR PRIMARY KEY NOT NULL,
-  estimate_no       VARCHAR UNIQUE NOT NULL,
-  site_details      TEXT NOT NULL,
-  state             VARCHAR NOT NULL,
-  district          VARCHAR NOT NULL,
-  zone              VARCHAR NOT NULL,
-  department        VARCHAR NOT NULL,
-  status            project_status NOT NULL DEFAULT 'Running',
-  created_by        VARCHAR NOT NULL, -- Stored as user mobile number (e.g., +918276071523)
-  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  edited_by         VARCHAR NOT NULL,  -- Stored as user mobile number (e.g., +918276071523)
-  edited_at         TIMESTAMPTZ NOT NULL DEFAULT now()
+  work_order_no          VARCHAR PRIMARY KEY NOT NULL,
+  estimate_no            VARCHAR UNIQUE NOT NULL,
+  site_details           TEXT NOT NULL,
+  state                  VARCHAR NOT NULL,
+  district               VARCHAR NOT NULL,
+  zone                   VARCHAR NOT NULL,
+  department             VARCHAR NOT NULL,
+  status                 project_status NOT NULL DEFAULT 'Running',
+  created_by             VARCHAR NOT NULL, -- Stored as user mobile number
+  created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  edited_by              VARCHAR NOT NULL,  -- Stored as user mobile number
+  edited_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  work_order_value       NUMERIC NOT NULL DEFAULT 0.00,
+  earnest_money_deposit  NUMERIC NOT NULL DEFAULT 0.00,
+  site_latitude          NUMERIC,
+  site_longitude         NUMERIC,
+  project_start_date     DATE,
+  project_end_date       DATE,
+  zo_user_id             VARCHAR REFERENCES authorised_users(mobile_number)
 );
 
 -- 3. Create audit_log table (append-only)

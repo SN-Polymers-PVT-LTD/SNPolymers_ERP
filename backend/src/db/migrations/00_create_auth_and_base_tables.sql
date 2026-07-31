@@ -20,9 +20,10 @@ CREATE TABLE IF NOT EXISTS public.authorised_users (
 CREATE TABLE IF NOT EXISTS public.sessions (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id           UUID REFERENCES public.authorised_users(id) ON DELETE CASCADE,
-  jwt_jti           VARCHAR NOT NULL,
-  ip_address        VARCHAR,
+  jwt_jti           VARCHAR UNIQUE NOT NULL,
+  ip_address        INET,
   user_agent        TEXT,
+  module            VARCHAR DEFAULT 'office',
   is_active         BOOLEAN NOT NULL DEFAULT true,
   login_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   logout_at         TIMESTAMPTZ,

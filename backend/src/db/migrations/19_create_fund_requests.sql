@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS fund_requests (
   zo_fr_amount          NUMERIC(18,2) NOT NULL,
   zo_remarks            TEXT,
   request_status        fund_request_status_enum NOT NULL DEFAULT 'Pending',
+  attachments           JSONB DEFAULT '[]'::jsonb,
   approve_ho_user_id    VARCHAR REFERENCES authorised_users(mobile_number) ON DELETE RESTRICT,
   approve_ho_date       TIMESTAMPTZ,
   approve_ho_amount     NUMERIC(18,2),
