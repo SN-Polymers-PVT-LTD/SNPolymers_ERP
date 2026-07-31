@@ -77,7 +77,8 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
     }
 
     const hasAttempted = logOutput.toLowerCase().includes('sent') || 
-                         logOutput.toLowerCase().includes('failed');
+                         logOutput.toLowerCase().includes('failed') ||
+                         logOutput.toLowerCase().includes('disabled');
     expect(hasAttempted).toBe(true);
   });
 

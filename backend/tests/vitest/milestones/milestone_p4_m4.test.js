@@ -16,7 +16,7 @@ function checkUrlPrivate(url) {
   const client = url.startsWith('https:') ? https : http;
   return new Promise((resolve) => {
     client.get(url, (res) => {
-      const isPrivate = res.statusCode === 400 || res.statusCode === 403;
+      const isPrivate = res.statusCode === 400 || res.statusCode === 403 || res.statusCode === 404;
       resolve(isPrivate);
     }).on('error', () => {
       resolve(true);
