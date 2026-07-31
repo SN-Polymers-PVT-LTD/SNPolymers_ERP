@@ -57,11 +57,16 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
     process.env.NODE_ENV = 'development';
 
     const originalLog = console.log;
+    const originalWarn = console.warn;
     const originalError = console.error;
     let logOutput = '';
     console.log = (...args) => {
       logOutput += args.join(' ') + '\n';
       originalLog(...args);
+    };
+    console.warn = (...args) => {
+      logOutput += args.join(' ') + '\n';
+      originalWarn(...args);
     };
     console.error = (...args) => {
       logOutput += args.join(' ') + '\n';
@@ -72,6 +77,7 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
       await notifyZoFundRequestApproved(mockOriginalRequest, mockUpdatedRequest);
     } finally {
       console.log = originalLog;
+      console.warn = originalWarn;
       console.error = originalError;
       process.env.NODE_ENV = originalEnvNodeEnv;
     }
