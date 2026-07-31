@@ -6,11 +6,15 @@ on:
   push:
     branches: [main]
 
+# Cancel any in-progress run for the same ref so duplicate pushes don't pile up.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # Frontend — lint, unit tests, production build
+  # ---------------------------------------------------------------------------
   frontend:
     name: Frontend — lint, test, build
     runs-on: ubuntu-latest
@@ -30,3 +34,52 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Backend — apply pending migrations to test DB, then run integration tests
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend — integration tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      # Supabase JS client (used by all tests and controllers)
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_TEST_SERVICE_ROLE_KEY }}
+
+      # Direct Postgres URI (used only by apply-migrations.js)
+      # Get from: Test project → Settings → Database → Connection string → URI
+      SUPABASE_TEST_DB_URI: ${{ secrets.SUPABASE_TEST_DB_URI }}
+
+      # JWT settings (needed by auth middleware during controller tests)
+      JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+
+      # Runtime flags
+      NODE_ENV: test
+      # Must be false so tests can insert and clean up TEST_WO_ prefixed rows
+      IDBP_FILTER_TEST_DATA: 'false'
+      # Disable Telegram in CI (no bot token available)
+      TELEGRAM_MODE: 'disabled'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply pending migrations to test DB
+        run: npm run migrate
+
+      - name: Run integration tests
+        run: npm test
