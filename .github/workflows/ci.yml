@@ -5,6 +5,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:  # ← allows manual trigger from GitHub Actions tab
 
 # Cancel any in-progress run for the same ref so duplicate pushes don't pile up.
 concurrency:
