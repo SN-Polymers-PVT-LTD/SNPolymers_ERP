@@ -1,0 +1,5 @@
+# Supabase local dev generated files — do not commit
+.branches
+.temp
+.env
+seed.sql

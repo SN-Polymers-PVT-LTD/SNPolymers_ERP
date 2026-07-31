@@ -1,0 +1,64 @@
+# For detailed configuration reference documentation, visit:
+# https://supabase.com/docs/guides/local-development/cli/config
+#
+# This config is used ONLY for CI (GitHub Actions).
+# Local development connects to the shared cloud dev project — no local Docker needed.
+
+project_id = "SNPolymers"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+# Migrations are managed by backend/scripts/apply-migrations.js, not the Supabase CLI.
+
+[db.migrations]
+enabled = false
+
+[db.seed]
+enabled = false
+
+# Studio is not needed in CI — disable to save container startup time.
+[studio]
+enabled = false
+
+# Email testing not needed in CI.
+[inbucket]
+enabled = false
+
+[storage]
+enabled = true
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = []
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+enable_signup = true
+enable_anonymous_sign_ins = false
+minimum_password_length = 6
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+# Edge Runtime not needed for backend integration tests.
+[edge_runtime]
+enabled = false
+
+[analytics]
+enabled = false
