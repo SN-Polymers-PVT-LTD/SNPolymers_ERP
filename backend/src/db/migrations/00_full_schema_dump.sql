@@ -210,6 +210,9 @@ BEGIN
         p_actioned_by
     );
 
+    -- Initial population of analytics materialized views
+    SELECT public.refresh_analytics_views();
+
     -- 7. Update status to Completed
     UPDATE public.excess_fund_returns
     SET 

@@ -4,9 +4,12 @@ const { supabase } = require('../../../src/db/supabase');
 const { uploadSitePhoto } = require('../../../src/controllers/dailyProgress.uploads.controller');
 const mockRes = require('../../helpers/mockRes');
 
+const http = require('http');
+
 function checkUrlPrivate(url) {
+  const client = url.startsWith('https:') ? https : http;
   return new Promise((resolve) => {
-    https.get(url, (res) => {
+    client.get(url, (res) => {
       const isPrivate = res.statusCode === 400 || res.statusCode === 403;
       resolve(isPrivate);
     }).on('error', () => {
