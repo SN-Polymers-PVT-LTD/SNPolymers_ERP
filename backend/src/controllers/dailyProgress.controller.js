@@ -206,9 +206,13 @@ async function createProgressReport(req, res) {
     }
 
     // Refresh materialized views in background to update physical progress instantly
-    supabase.rpc('refresh_analytics_views').catch(err => {
-      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
-    });
+    (async () => {
+      try {
+        await supabase.rpc('refresh_analytics_views');
+      } catch (err) {
+        console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+      }
+    })();
 
     return res.status(201).json({
       success: true,
@@ -477,9 +481,13 @@ async function addAuthorityRemarks(req, res) {
     }
 
     // Refresh materialized views in background to update physical progress instantly
-    supabase.rpc('refresh_analytics_views').catch(err => {
-      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
-    });
+    (async () => {
+      try {
+        await supabase.rpc('refresh_analytics_views');
+      } catch (err) {
+        console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+      }
+    })();
 
     return res.status(200).json({
       success: true,

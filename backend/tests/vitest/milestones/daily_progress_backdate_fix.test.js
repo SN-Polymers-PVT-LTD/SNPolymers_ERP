@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createProgressReport,
   addAuthorityRemarks
@@ -13,8 +14,8 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const testMobile = '+918000000002'; // Actual JE in DB
-  const testZoMobile = '+918000000001'; // ZO that testMobile JE is mapped to
+  let testMobile;
+  let testZoMobile;
   let createdReportId = null;
   let jeZoMappingId = null;
   let workOrderMappingId = null;
@@ -23,9 +24,16 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_DP_${suffix}`;
     testEstimateNo = `EST_DP_${suffix}`;
+    testMobile = `9100${suffix}`;
+    testZoMobile = `9200${suffix}`;
+
+    await setupUsers([
+      { mobile_number: testMobile, role: 'je', is_active: true, display_name: `Test JE ${suffix}` },
+      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `Test ZO ${suffix}` }
+    ]);
 
     // Setup active project
-    await setupProject(testWorkOrder, testEstimateNo, 500000.00, testMobile);
+    await setupProject(testWorkOrder, testEstimateNo, 500000.00, testZoMobile);
 
     // Assign owning Zonal Office to the project
     await supabase.from('projects_master')
