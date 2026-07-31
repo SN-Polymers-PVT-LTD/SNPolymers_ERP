@@ -70,9 +70,9 @@ async function main() {
     await client.connect();
     console.log('[apply-migrations] Connected to database.');
 
-    // Ensure the migration tracking table exists.
+    // Ensure the migration tracking table exists in public schema.
     await client.query(`
-      CREATE TABLE IF NOT EXISTS _migration_log (
+      CREATE TABLE IF NOT EXISTS public._migration_log (
         id          SERIAL       PRIMARY KEY,
         filename    TEXT         UNIQUE NOT NULL,
         applied_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
@@ -81,7 +81,7 @@ async function main() {
 
     // Fetch already-applied filenames.
     const { rows } = await client.query(
-      'SELECT filename FROM _migration_log ORDER BY applied_at'
+      'SELECT filename FROM public._migration_log ORDER BY applied_at'
     );
     const applied = new Set(rows.map((r) => r.filename));
 
@@ -118,9 +118,10 @@ async function main() {
         await client.query('BEGIN');
         await client.query(sql);
         await client.query(
-          'INSERT INTO _migration_log (filename) VALUES ($1)',
+          'INSERT INTO public._migration_log (filename) VALUES ($1)',
           [filename]
         );
+        await client.query('SET search_path = public, extensions;');
         await client.query('COMMIT');
         console.log('✓');
         appliedCount++;
