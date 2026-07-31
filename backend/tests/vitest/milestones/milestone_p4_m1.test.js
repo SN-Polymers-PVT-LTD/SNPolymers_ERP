@@ -1,17 +1,26 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
+const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 
 describe('Milestone P4-M1 — Requisitions Database Foundation', () => {
   let suffix;
   let requisitionNo;
-  const testMobile = '+918276071523'; // Admin/Staff user from seed
-  const testWorkOrder = 'WB_BAN_102'; // Known valid work order in DB
+  let testMobile;
+  let testWorkOrder;
   let requisitionId = null;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
     requisitionNo = `REQ_P4_M1_TEST_${suffix}`;
+    testMobile = `9300${suffix}`;
+    testWorkOrder = `WO_P4M1_${suffix}`;
+
+    await setupUsers([
+      { mobile_number: testMobile, role: 'admin', is_active: true, display_name: `Test Staff ${suffix}` }
+    ]);
+    await setupProject(testWorkOrder, `EST_M1_${suffix}`, 500000.00, testMobile);
   });
 
   afterAll(async () => {
@@ -25,6 +34,12 @@ describe('Milestone P4-M1 — Requisitions Database Foundation', () => {
           cancelled_at: new Date().toISOString() 
         })
         .eq('requisition_id', requisitionId);
+    }
+    if (testWorkOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    }
+    if (testMobile) {
+      await supabase.from('authorised_users').delete().eq('mobile_number', testMobile);
     }
   });
 

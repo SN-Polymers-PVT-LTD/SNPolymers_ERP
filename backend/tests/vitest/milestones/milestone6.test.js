@@ -7,6 +7,9 @@ const {
   getRevisionLog
 } = require('../../../src/controllers/estimates.controller');
 
+const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
+
 describe('Milestone 6 — Cost Estimates Revision Gating & Logs API', () => {
   let suffix;
   let testZoMobile;
@@ -21,47 +24,21 @@ describe('Milestone 6 — Cost Estimates Revision Gating & Logs API', () => {
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
-    testZoMobile = `+91800000_${suffix.substring(0, 4)}`;
-    testJeMobile = `+91800001_${suffix.substring(0, 4)}`;
-    testOtherMobile = `+91800002_${suffix.substring(0, 4)}`;
-    testHoMobile = `+91800003_${suffix.substring(0, 4)}`;
-    testAdminMobile = '+918276071523';
-    testWorkOrder = 'WB_BAN_102'; // Running work order
+    testZoMobile = `9501${suffix}`;
+    testJeMobile = `9502${suffix}`;
+    testOtherMobile = `9503${suffix}`;
+    testHoMobile = `9504${suffix}`;
+    testAdminMobile = `9505${suffix}`;
+    testWorkOrder = `TEST_WO_M6_${suffix}`;
 
-    // Setup test users and estimate
-    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile]);
-
-    // Insert ZO
-    await supabase.from('authorised_users').insert({
-      mobile_number: testZoMobile,
-      display_name: 'Test ZO User',
-      role: 'zo',
-      is_active: true
-    });
-
-    // Insert JE
-    await supabase.from('authorised_users').insert({
-      mobile_number: testJeMobile,
-      display_name: 'Test JE User',
-      role: 'je',
-      is_active: true
-    });
-
-    // Insert Other JE
-    await supabase.from('authorised_users').insert({
-      mobile_number: testOtherMobile,
-      display_name: 'Other JE User',
-      role: 'je',
-      is_active: true
-    });
-
-    // Insert HO
-    await supabase.from('authorised_users').insert({
-      mobile_number: testHoMobile,
-      display_name: 'Test HO User',
-      role: 'ho',
-      is_active: true
-    });
+    await setupUsers([
+      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `ZO M6 ${suffix}` },
+      { mobile_number: testJeMobile, role: 'je', is_active: true, display_name: `JE M6 ${suffix}` },
+      { mobile_number: testOtherMobile, role: 'je', is_active: true, display_name: `Other JE ${suffix}` },
+      { mobile_number: testHoMobile, role: 'ho', is_active: true, display_name: `HO M6 ${suffix}` },
+      { mobile_number: testAdminMobile, role: 'admin', is_active: true, display_name: `Admin M6 ${suffix}` }
+    ]);
+    await setupProject(testWorkOrder, `EST_M6_${suffix}`, 500000.00, testJeMobile);
 
     // Clear active estimates for this work order to bypass unique checks
     await supabase.from('project_cost_estimates')
@@ -121,19 +98,11 @@ describe('Milestone 6 — Cost Estimates Revision Gating & Logs API', () => {
     if (jeZoMappingId) await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
     if (testEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', testEstimateId);
-      await supabase.from('project_cost_estimates')
-        .update({
-          estimate_status: 'Rejected by ZO',
-          created_by: '+918276071523',
-          last_modified_by: '+918276071523',
-          je_user_id: '+918276071523',
-          zo_approved_by: null,
-          ho_approved_by: null
-        })
-        .eq('estimate_id', testEstimateId);
       await supabase.from('estimate_revision_log').delete().eq('estimate_id', testEstimateId);
+      await supabase.from('project_cost_estimates').delete().eq('estimate_id', testEstimateId);
     }
-    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile]);
+    if (testWorkOrder) await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile, testAdminMobile]);
   });
 
   describe('Gating and Validation Checks', () => {

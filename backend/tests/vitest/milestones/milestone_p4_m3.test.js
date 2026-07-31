@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createRequisition,
   actOnRequisition,
@@ -14,10 +15,10 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const jeUser = { role: 'je', mobile_number: '+918000000002' }; // Actual je in DB
-  const jeUser2 = { role: 'je', mobile_number: '+918000000003' }; // Non-owner je in DB
-  const zoUser = { role: 'zo', mobile_number: '+918000000001' };
-  const adminUser = { role: 'admin', mobile_number: '+918276071523' }; // Actual admin in DB
+  let jeUser;
+  let jeUser2;
+  let zoUser;
+  let adminUser;
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
@@ -26,6 +27,17 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_M3_${suffix}`;
     testEstimateNo = `EST_M3_${suffix}`;
+    jeUser = { role: 'je', mobile_number: `9101${suffix}` };
+    jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
+    zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
+    adminUser = { role: 'admin', mobile_number: `9104${suffix}` };
+
+    await setupUsers([
+      { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
+      { mobile_number: jeUser2.mobile_number, role: 'je', is_active: true, display_name: `JE 2 ${suffix}` },
+      { mobile_number: zoUser.mobile_number, role: 'zo', is_active: true, display_name: `ZO ${suffix}` },
+      { mobile_number: adminUser.mobile_number, role: 'admin', is_active: true, display_name: `Admin ${suffix}` }
+    ]);
 
     // 1. Create a fresh project with zo_user_id
     const { error: projErr } = await supabase.from('projects_master').insert({
@@ -51,7 +63,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
       is_active: true,
       assigned_by: zoUser.mobile_number
     }).select('id').single();
-    if (jeZoErr) console.error('P4-M3 JE-ZO Mapping error:', jeZoErr);
+    if (jeZoErr) throw new Error(`P4-M3 JE-ZO Mapping error: ${jeZoErr.message}`);
     jeZoMappingId = jeZoData?.id || null;
 
     // 1c. Work order mapping for JE (trigger checks je_zo_mappings)
@@ -131,6 +143,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     }
 
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    if (jeUser) await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number, adminUser.mobile_number]);
   });
 
   async function createTestReq(reqNo, amount = 1000.00) {

@@ -80,6 +80,18 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
       available_balance: 5000.00,
       updated_at: new Date().toISOString()
     });
+
+    // Initialize WO balance in ledger to 5000.00
+    const { error: ledgErr } = await supabase.from('zo_fund_ledger').insert({
+      zo_user_id: zoMobile,
+      work_order_no: workOrderNo,
+      transaction_type: 'ALLOCATION',
+      reference_type: 'FUND_REQUEST',
+      reference_id: crypto.randomUUID(),
+      amount: 5000.00,
+      created_by: adminMobile
+    });
+    if (ledgErr) throw new Error(`zo_fund_ledger seed failed: ${ledgErr.message}`);
   });
 
   afterAll(async () => {
@@ -135,12 +147,13 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
     const reqAccept = {
       user: { mobile_number: zoMobile, role: 'zo' },
       params: { id: returnId2 },
-      body: { client_updated_at: resCreate.jsonData.returnRequest.updated_at }
+      body: {
+        client_updated_at: resCreate.jsonData.returnRequest.updated_at,
+        breakdown: [{ work_order_no: workOrderNo, amount: 8000.00 }]
+      }
     };
     const resAccept = mockRes();
     await acceptReturnRequest(reqAccept, resAccept);
-
-    console.log('DEBUG TC-02 resAccept JSON:', resAccept.jsonData);
 
     expect(resAccept.statusCode).toBe(422);
     expect(resAccept.jsonData.success).toBe(false);
@@ -152,7 +165,10 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
     const reqAccept = {
       user: { mobile_number: zoMobile, role: 'zo' },
       params: { id: returnId1 },
-      body: { client_updated_at: staleTime }
+      body: {
+        client_updated_at: staleTime,
+        breakdown: [{ work_order_no: workOrderNo, amount: 2000.00 }]
+      }
     };
     const resAccept = mockRes();
     await acceptReturnRequest(reqAccept, resAccept);
@@ -173,12 +189,13 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
     const reqAccept = {
       user: { mobile_number: zoMobile, role: 'zo' },
       params: { id: returnId1 },
-      body: { client_updated_at: latest.updated_at }
+      body: {
+        client_updated_at: latest.updated_at,
+        breakdown: [{ work_order_no: workOrderNo, amount: 2000.00 }]
+      }
     };
     const resAccept = mockRes();
     await acceptReturnRequest(reqAccept, resAccept);
-
-    console.log('DEBUG TC-04 resAccept JSON:', resAccept.jsonData);
 
     expect(resAccept.statusCode).toBe(200);
     expect(resAccept.jsonData.success).toBe(true);
@@ -196,7 +213,8 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
     const { data: ledgData } = await supabase
       .from('zo_fund_ledger')
       .select('*')
-      .eq('reference_id', returnId1)
+      .eq('zo_user_id', zoMobile)
+      .eq('transaction_type', 'RETURN')
       .single();
     expect(ledgData).toBeDefined();
     expect(ledgData.transaction_type).toBe('RETURN');

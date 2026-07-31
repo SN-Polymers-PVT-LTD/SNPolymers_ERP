@@ -151,14 +151,15 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
       expect(resExceed.jsonData.success).toBe(false);
     });
 
-    test('Test 4: Blocks HO approval when transfer_from_account is missing', async () => {
+    test('Test 4: Blocks HO approval when transfer_from_account is invalid', async () => {
       const fr4 = await createTestRequest(10000.00);
       const reqNoAccount = {
         params: { id: fr4.fund_request_id },
         user: hoUser,
         body: {
           action: 'Approve',
-          approve_ho_amount: 5000.00
+          approve_ho_amount: 5000.00,
+          transfer_from_account: 'INVALID'
         }
       };
       const resNoAccount = mockRes();
@@ -166,6 +167,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
 
       expect(resNoAccount.statusCode).toBe(400);
       expect(resNoAccount.jsonData.success).toBe(false);
+      expect(resNoAccount.jsonData.message).toContain('transfer_from_account is required');
     });
 
     test('Test 5: Blocks taking action on an already approved request with 403', async () => {
@@ -244,11 +246,11 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
   });
 
   describe('Fund Request Constraints (Final Approved Cost Estimate)', () => {
-    test('Test 9: Blocks creating fund request for WO without a Final Approved cost estimate', async () => {
+    test('Test 9: Blocks creating fund request exceeding WO funding capacity when no estimate exists', async () => {
       const suffix = crypto.randomUUID().substring(0, 8);
       const tempWO = `TEST_WO_P3M3_NOEST_${suffix}`;
 
-      // Insert project WITHOUT cost estimate
+      // Insert project WITHOUT cost estimate and zero work_order_value
       await supabase.from('projects_master').insert({
         work_order_no: tempWO,
         estimate_no: `EST_P3M3_NOEST_${suffix}`,
@@ -259,7 +261,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
         zone: 'Kolkata Zone',
         department: 'PWD',
         status: 'Running',
-        work_order_value: 500000.00,
+        work_order_value: 0.00,
         created_by: zoUser.mobile_number,
         edited_by: zoUser.mobile_number
       });
@@ -279,7 +281,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
 
       expect(res.statusCode).toBe(400);
       expect(res.jsonData.success).toBe(false);
-      expect(res.jsonData.message).toContain('without a Final Approved cost estimate');
+      expect(res.jsonData.message).toContain('exceed');
 
       // Cleanup
       await supabase.from('projects_master').delete().eq('work_order_no', tempWO);

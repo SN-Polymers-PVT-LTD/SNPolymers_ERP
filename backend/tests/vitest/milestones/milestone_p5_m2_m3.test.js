@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createProgressReport,
   getProgressReports,
@@ -18,26 +19,25 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
   let testDate2;
   let createdReportId = null;
 
-  const jeUser = { role: 'je', mobile_number: '+918000000002' };
-  const jeUser2 = { role: 'je', mobile_number: '+918000000003' };
-  const zoUser = { role: 'zo', mobile_number: '+918000000001' };
+  let jeUser;
+  let jeUser2;
+  let zoUser;
   let jeZoMappingId = null;
   let workOrderMappingId = null;
 
   beforeAll(async () => {
-    // Safely upsert users to prevent duplicate key violations and foreign key delete failures
-    for (const u of [
-      { mobile_number: jeUser.mobile_number, display_name: 'JE User 1', role: 'je', is_active: true, permissions: {} },
-      { mobile_number: jeUser2.mobile_number, display_name: 'JE User 2', role: 'je', is_active: true, permissions: {} },
-      { mobile_number: zoUser.mobile_number, display_name: 'ZO User', role: 'zo', is_active: true, permissions: {} }
-    ]) {
-      const { error: upsertErr } = await supabase.from('authorised_users').upsert(u, { onConflict: 'mobile_number' });
-      if (upsertErr) throw upsertErr;
-    }
-
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_P5_${suffix}`;
     testEstimateNo = `EST_P5_${suffix}`;
+    jeUser = { role: 'je', mobile_number: `9101${suffix}` };
+    jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
+    zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
+
+    await setupUsers([
+      { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
+      { mobile_number: jeUser2.mobile_number, role: 'je', is_active: true, display_name: `JE 2 ${suffix}` },
+      { mobile_number: zoUser.mobile_number, role: 'zo', is_active: true, display_name: `ZO ${suffix}` }
+    ]);
 
     const pad = (num) => String(num).padStart(2, '0');
     const d1 = new Date();
@@ -57,22 +57,24 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
       .eq('work_order_no', testWorkOrder);
 
     // Setup active JE-ZO mapping so createProgressReport can resolve zo_user_id
-    const { data: mappingData } = await supabase.from('je_zo_mappings').insert({
+    const { data: mappingData, error: jeZoErr } = await supabase.from('je_zo_mappings').insert({
       je_user_id: jeUser.mobile_number,
       zo_user_id: zoUser.mobile_number,
       is_active: true,
       assigned_by: zoUser.mobile_number
     }).select('id').single();
+    if (jeZoErr) throw new Error(`P5 JE-ZO Mapping error: ${jeZoErr.message}`);
     jeZoMappingId = mappingData?.id || null;
 
     // Setup Work Order mapping so JE is mapped to the work order
-    const { data: woMappingData } = await supabase.from('work_order_mappings').insert({
+    const { data: woMappingData, error: woMapErr } = await supabase.from('work_order_mappings').insert({
       work_order_no: testWorkOrder,
       je_user_id: jeUser.mobile_number,
       is_active: true,
       reason: 'Assigned',
       assigned_by: zoUser.mobile_number
     }).select('id').single();
+    if (woMapErr) throw new Error(`P5 WO Mapping error: ${woMapErr.message}`);
     workOrderMappingId = woMappingData?.id || null;
   });
 
@@ -87,19 +89,13 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
     // Delete the test estimate (no requisitions created in this suite).
     await supabase.from('project_cost_estimates').delete().eq('work_order_no', testWorkOrder);
 
-    // NOTE: The daily progress report created in Test 1 cannot be hard-deleted
-    // (DB trigger blocks it) and work_order_no is NOT NULL so we cannot null
-    // the FK to release the project. Mark the project Closed so no production
-    // code touches it. The report+project rows are left as TEST_WO_P5_* artefacts
-    // for the DBA nuke script.
     await supabase.from('projects_master')
       .update({ status: 'Closed' })
       .eq('work_order_no', testWorkOrder);
 
-    // Clean up test-only authorised_users rows (seed users like +91800000000x
-    // are permanent fixtures; do NOT delete them here).
-    // The upsert in beforeAll only writes display_name/role — those rows are
-    // left intact as shared test fixtures.
+    if (jeUser) {
+      await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number]);
+    }
   });
 
   describe('Progress Report Creation', () => {

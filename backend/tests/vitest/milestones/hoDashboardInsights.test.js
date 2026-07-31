@@ -125,12 +125,14 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
     await getHoChartData(req, res);
 
     const wf = res.jsonData.waterfallData;
-    expect(wf).toHaveLength(5);
+    expect(wf).toHaveLength(7);
     expect(wf[0].stage).toBe('Final Approved Estimate');
-    expect(wf[1].stage).toBe('HO Allocated');
-    expect(wf[2].stage).toBe('Requisitions Approved');
-    expect(wf[3].stage).toBe('Gross Billed');
-    expect(wf[4].stage).toBe('Agency Paid');
+    expect(wf[1].stage).toBe('HO Allocated (Gross)');
+    expect(wf[2].stage).toBe('Excess Returned to HO');
+    expect(wf[3].stage).toBe('HO Allocated (Net)');
+    expect(wf[4].stage).toBe('Requisitions Approved');
+    expect(wf[5].stage).toBe('Gross Billed');
+    expect(wf[6].stage).toBe('Agency Paid');
     wf.forEach(w => expect(Number(w.amount)).toBeGreaterThanOrEqual(0));
   });
 

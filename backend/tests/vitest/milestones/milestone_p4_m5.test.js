@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -22,7 +22,34 @@ const createMockResWithCookies = () => {
   return base;
 };
 
+const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
+
 describe('Milestone P4-M5 — Code Quality & Security Hardening', () => {
+  let suffix;
+  let testMobile;
+  let testWorkOrder;
+
+  beforeAll(async () => {
+    suffix = crypto.randomUUID().substring(0, 8);
+    testMobile = `9302${suffix}`;
+    testWorkOrder = `WO_P4M5_${suffix}`;
+
+    await setupUsers([
+      { mobile_number: testMobile, role: 'admin', is_active: true, display_name: `Test Staff ${suffix}` }
+    ]);
+    await setupProject(testWorkOrder, `EST_M5_${suffix}`, 500000.00, testMobile);
+  });
+
+  afterAll(async () => {
+    if (testWorkOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    }
+    if (testMobile) {
+      await supabase.from('authorised_users').delete().eq('mobile_number', testMobile);
+    }
+  });
+
   test('Test 1: Verifies legitMobiles is absent from source and global=true is blocked for JE', async () => {
     const coreControllerContent = fs.readFileSync(
       path.join(__dirname, '../../../src/controllers/estimates.core.controller.js'),
@@ -32,14 +59,14 @@ describe('Milestone P4-M5 — Code Quality & Security Hardening', () => {
     expect(hasLegitMobiles).toBe(false);
 
     const req = {
-      user: { role: 'je', mobile_number: '+918276071523' },
+      user: { role: 'je', mobile_number: testMobile },
       query: { global: 'true', page: 1, limit: 5 }
     };
     const res = mockRes();
     await getEstimates(req, res);
 
     const estimatesList = res.jsonData?.estimates || [];
-    const allOwn = estimatesList.every(e => e.created_by === '+918276071523');
+    const allOwn = estimatesList.every(e => e.created_by === testMobile);
     expect(allOwn).toBe(true);
   });
 
@@ -153,7 +180,7 @@ describe('Milestone P4-M5 — Code Quality & Security Hardening', () => {
     const { data: realUser } = await supabase
       .from('authorised_users')
       .select('id')
-      .eq('mobile_number', '+918276071523')
+      .eq('mobile_number', testMobile)
       .single();
 
     const mockSessionInput = {
@@ -191,8 +218,8 @@ describe('Milestone P4-M5 — Code Quality & Security Hardening', () => {
   });
 
   test('Test 9: Whitelist deletion blocks if user has active requisitions with 409', async () => {
-    const suffix = crypto.randomUUID().substring(0, 8);
-    const mockMobile = `+919999_${suffix.substring(0, 4)}`;
+    const suffix2 = crypto.randomUUID().substring(0, 8);
+    const mockMobile = `9999${suffix2}`;
 
     const { data: mockUser, error: userError } = await supabase
       .from('authorised_users')
@@ -211,15 +238,15 @@ describe('Milestone P4-M5 — Code Quality & Security Hardening', () => {
       .from('requisitions')
       .insert([{
         requester_user_id: mockMobile,
-        work_order_no: 'WB_BAN_102',
-        estimate_no: 'BAN_2',
+        work_order_no: testWorkOrder,
+        estimate_no: `EST_M5_${suffix}`,
         estimate_amount: 1000.00,
         state: 'West Bengal',
         district: 'Bankura',
         area_code: 'South Bengal',
         department: 'PWD',
         site_details: 'Mock site details',
-        requisition_no: `REQ_M5_DEL_${suffix}`,
+        requisition_no: `REQ_M5_DEL_${suffix2}`,
         material_main_head: 'Pipes',
         requisition_pdf_url: 'mock_path.pdf',
         requisition_amount: 100.00,

@@ -6,12 +6,14 @@ const setupProject = require('../../helpers/setupProject');
 const { createProgressReport } = require('../../../src/controllers/dailyProgress.controller');
 const { checkAndSendStreakReminders } = require('../../../src/services/streakNotification.service');
 
+const setupUsers = require('../../helpers/setupUsers');
+
 describe('Daily Progress Upload Streak Suite', () => {
   let suffix;
   let testWorkOrder;
   let testEstimateNo;
-  const testMobile = '+918000000002'; // JE mobile
-  const testZoMobile = '+918000000001';
+  let testMobile;
+  let testZoMobile;
   let jeZoMappingId = null;
   let workOrderMappingId = null;
   const reportIds = [];
@@ -20,6 +22,13 @@ describe('Daily Progress Upload Streak Suite', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_STREAK_${suffix}`;
     testEstimateNo = `EST_STREAK_${suffix}`;
+    testMobile = `9101${suffix}`;
+    testZoMobile = `9102${suffix}`;
+
+    await setupUsers([
+      { mobile_number: testMobile, role: 'je', is_active: true, display_name: `JE Streak ${suffix}` },
+      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `ZO Streak ${suffix}` }
+    ]);
 
     // Setup active project
     await setupProject(testWorkOrder, testEstimateNo, 500000.00, testMobile);
@@ -30,22 +39,24 @@ describe('Daily Progress Upload Streak Suite', () => {
       .eq('work_order_no', testWorkOrder);
 
     // Setup JE-ZO mapping
-    const { data: mappingData } = await supabase.from('je_zo_mappings').insert({
+    const { data: mappingData, error: jeZoErr } = await supabase.from('je_zo_mappings').insert({
       je_user_id: testMobile,
       zo_user_id: testZoMobile,
       is_active: true,
       assigned_by: testZoMobile
     }).select('id').single();
+    if (jeZoErr) throw jeZoErr;
     jeZoMappingId = mappingData?.id || null;
 
     // Setup Work Order mapping
-    const { data: woMappingData } = await supabase.from('work_order_mappings').insert({
+    const { data: woMappingData, error: woMapErr } = await supabase.from('work_order_mappings').insert({
       work_order_no: testWorkOrder,
       je_user_id: testMobile,
       is_active: true,
       reason: 'Assigned',
       assigned_by: testZoMobile
     }).select('id').single();
+    if (woMapErr) throw woMapErr;
     workOrderMappingId = woMappingData?.id || null;
   });
 
@@ -60,6 +71,12 @@ describe('Daily Progress Upload Streak Suite', () => {
     // Clean up reports
     if (reportIds.length > 0) {
       await supabase.from('daily_progress_reports').delete().in('report_id', reportIds);
+    }
+    if (testWorkOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    }
+    if (testMobile) {
+      await supabase.from('authorised_users').delete().in('mobile_number', [testMobile, testZoMobile]);
     }
   });
 

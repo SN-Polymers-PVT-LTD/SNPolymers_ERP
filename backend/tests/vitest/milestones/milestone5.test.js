@@ -332,7 +332,9 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
     test('Test 9: Blocks submitReview when undecided rows exist with 422', async () => {
       expect(createdEstimateId).not.toBeNull();
 
-      // Reset itemIdA's decision
+      // Ensure item C is Approve so pre-flight rejected check passes, testing undecided rows
+      await supabase.from('project_cost_estimate_items').update({ zo_office_approve: 'Approve' }).eq('item_id', itemIdC);
+      // Reset itemIdA's decision to null
       await supabase.from('project_cost_estimate_items').update({ zo_office_approve: null }).eq('item_id', itemIdA);
 
       const req = {
@@ -344,7 +346,7 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       await submitReview(req, res);
 
       expect(res.statusCode).toBe(422);
-      expect(res.jsonData.message).toContain('All rows must be decided');
+      expect(res.jsonData.message).toContain('All rows must be decided.');
 
       // Revert item A to Approve
       await supabase.from('project_cost_estimate_items').update({ zo_office_approve: 'Approve' }).eq('item_id', itemIdA);
@@ -373,13 +375,15 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       expect(est.zo_approval_date).not.toBeNull();
     });
 
-    test('Test 11: Transitions to Rejected by ZO when at least one row is Not Approve', async () => {
+    let rejWorkOrder;
+
+    test('Test 11: Blocks submitReview with 422 when at least one row is Not Approve (requires Revision Request)', async () => {
       const suffix2 = crypto.randomUUID().substring(0, 8);
-      const activeWorkOrder2 = `TEST_WO_M5_REJ_${suffix2}`;
+      rejWorkOrder = `TEST_WO_M5_REJ_${suffix2}`;
 
       await supabase.from('projects_master').insert([
         {
-          work_order_no: activeWorkOrder2,
+          work_order_no: rejWorkOrder,
           estimate_no: `EST_M5_R_${suffix2}`,
           work_order_value: 500000.00,
           site_details: 'Staging Site M5 Rej',
@@ -395,7 +399,7 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       ]);
 
       await supabase.from('work_order_mappings').insert({
-        work_order_no: activeWorkOrder2,
+        work_order_no: rejWorkOrder,
         je_user_id: mobileJE_Owner,
         is_active: true,
         assigned_by: mobileAdmin,
@@ -405,7 +409,7 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       const resCreate = mockRes();
       await createEstimate({
         user: { mobile_number: mobileJE_Owner, role: 'je' },
-        body: { work_order_no: activeWorkOrder2, zonal_office_no: 'ZO-10' }
+        body: { work_order_no: rejWorkOrder, zonal_office_no: 'ZO-10' }
       }, resCreate);
       const rejEstimateId = resCreate.jsonData.estimate.estimate_id;
       cleanUpEstimates.push(rejEstimateId);
@@ -443,21 +447,16 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
         body: { remarks: 'Rejection remarks' }
       }, res);
 
-      expect(res.statusCode).toBe(200);
-      expect(res.jsonData.estimate.estimate_status).toBe('Rejected by ZO');
-
-      const est = res.jsonData.estimate;
-      expect(est.zo_approved_by).toBe(mobileZO);
-      expect(est.zo_remarks).toBe('Rejection remarks');
-      expect(est.zo_approval_date).not.toBeNull();
+      expect(res.statusCode).toBe(422);
+      expect(res.jsonData.message).toContain('Final review cannot be submitted while one or more items are marked Not Approve');
     });
 
     test('Test 12: Verified mixed approval amount calculations (Approved sums active, Rejection retains total)', async () => {
-      // Fetch the Rejected by ZO estimate
+      // Fetch the estimate with disapproved items
       const { data: rejEst } = await supabase
         .from('project_cost_estimates')
         .select('estimate_amount')
-        .like('work_order_no', 'TEST_WO_M5_REJ_%')
+        .eq('work_order_no', rejWorkOrder)
         .single();
 
       // Fetch the ZO Approved estimate

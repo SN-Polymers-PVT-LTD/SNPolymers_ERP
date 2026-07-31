@@ -21,9 +21,14 @@ function checkUrlPrivate(url) {
   });
 }
 
+const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
+
 describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
   let suffix;
   let testReqNo;
+  let testMobile;
+  let testWorkOrder;
   let uploadedRequisitionPath = null;
   let uploadedGstPath = null;
   let tempRequisitionId = null;
@@ -31,6 +36,13 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testReqNo = `REQ_M4_FILE_${suffix}`;
+    testMobile = `9301${suffix}`;
+    testWorkOrder = `WO_P4M4_${suffix}`;
+
+    await setupUsers([
+      { mobile_number: testMobile, role: 'admin', is_active: true, display_name: `Test Staff ${suffix}` }
+    ]);
+    await setupProject(testWorkOrder, `EST_M4_${suffix}`, 500000.00, testMobile);
   });
 
   afterAll(async () => {
@@ -44,6 +56,12 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
     // Delete temp DB record
     if (tempRequisitionId) {
       await supabase.from('requisitions').delete().eq('requisition_id', tempRequisitionId);
+    }
+    if (testWorkOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    }
+    if (testMobile) {
+      await supabase.from('authorised_users').delete().eq('mobile_number', testMobile);
     }
   });
 
@@ -208,9 +226,9 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
       const { data: tempRecord, error } = await supabase
         .from('requisitions')
         .insert([{
-          requester_user_id: '+918276071523',
-          work_order_no: 'WB_BAN_102',
-          estimate_no: 'BAN_2',
+          requester_user_id: testMobile,
+          work_order_no: testWorkOrder,
+          estimate_no: `EST_M4_${suffix}`,
           estimate_amount: 1000.00,
           state: 'West Bengal',
           district: 'Bankura',
@@ -225,7 +243,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
           gst_bill_pdf_url: uploadedGstPath,
           bank_details: 'SBI Account 1234567890',
           requisition_status: 'Pending',
-          created_by: '+918276071523'
+          created_by: testMobile
         }])
         .select()
         .single();
@@ -235,7 +253,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
 
       const reqGet = {
         params: { id: tempRequisitionId },
-        user: { role: 'je', mobile_number: '+918276071523' }
+        user: { role: 'je', mobile_number: testMobile }
       };
       const resGet = mockRes();
       await getRequisitionById(reqGet, resGet);

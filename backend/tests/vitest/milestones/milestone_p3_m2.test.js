@@ -76,7 +76,8 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
         body: {
           zo_fr_no: testFrNo1,
           work_order_no: testWorkOrder,
-          zo_fr_amount: 10000.00
+          zo_fr_amount: 10000.00,
+          zo_remarks: 'Duplicate test'
         }
       };
       const resCreateDup = mockRes();

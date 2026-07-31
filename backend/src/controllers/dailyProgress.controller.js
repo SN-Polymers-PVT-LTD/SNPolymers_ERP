@@ -111,7 +111,7 @@ async function createProgressReport(req, res) {
     // 2. Determine if it is a back-dated submission
     const [year, month, day] = site_visit_date.split('-').map(Number);
     const inputDate = new Date(year, month - 1, day);
-    
+
     const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' };
     const formatter = new Intl.DateTimeFormat('en-CA', options);
     const [tYear, tMonth, tDay] = formatter.format(new Date()).split('-').map(Number);
@@ -206,9 +206,13 @@ async function createProgressReport(req, res) {
     }
 
     // Refresh materialized views in background to update physical progress instantly
-    supabase.rpc('refresh_analytics_views').catch(err => {
-      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
-    });
+    (async () => {
+      try {
+        await supabase.rpc('refresh_analytics_views');
+      } catch (err) {
+        console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+      }
+    })();
 
     return res.status(201).json({
       success: true,
@@ -477,9 +481,13 @@ async function addAuthorityRemarks(req, res) {
     }
 
     // Refresh materialized views in background to update physical progress instantly
-    supabase.rpc('refresh_analytics_views').catch(err => {
-      console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
-    });
+    (async () => {
+      try {
+        await supabase.rpc('refresh_analytics_views');
+      } catch (err) {
+        console.warn('[DAILY PROGRESS] refresh_analytics_views failed:', err?.message || err);
+      }
+    })();
 
     return res.status(200).json({
       success: true,
