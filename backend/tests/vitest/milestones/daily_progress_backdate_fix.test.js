@@ -3,12 +3,13 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createProgressReport,
   addAuthorityRemarks
 } = require('../../../src/controllers/dailyProgress.controller');
 
-const setupUsers = require('../../helpers/setupUsers');
+
 
 describe('Daily Progress Backdate Constraint & Approval Suite', () => {
   let suffix;
@@ -25,16 +26,16 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_DP_${suffix}`;
     testEstimateNo = `EST_DP_${suffix}`;
-    testMobile = `9101${suffix}`;
-    testZoMobile = `9102${suffix}`;
+    testMobile = `9100${suffix}`;
+    testZoMobile = `9200${suffix}`;
 
     await setupUsers([
-      { mobile_number: testMobile, role: 'je', is_active: true, display_name: `JE Backdate ${suffix}` },
-      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `ZO Backdate ${suffix}` }
+      { mobile_number: testMobile, role: 'je', is_active: true, display_name: `Test JE ${suffix}` },
+      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `Test ZO ${suffix}` }
     ]);
 
     // Setup active project
-    await setupProject(testWorkOrder, testEstimateNo, 500000.00, testMobile);
+    await setupProject(testWorkOrder, testEstimateNo, 500000.00, testZoMobile);
 
     // Assign owning Zonal Office to the project
     await supabase.from('projects_master')
