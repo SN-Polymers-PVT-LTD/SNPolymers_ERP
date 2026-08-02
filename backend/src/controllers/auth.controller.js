@@ -9,6 +9,10 @@ const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.servi
 const validate = require('../validation/validate');
 const { requestOtpSchema, verifyOtpSchema } = require('../validation/auth.schema');
 
+function normalizeMobileNumber(value) {
+  return value ? String(value).trim().replace(/^\+/, '') : '';
+}
+
 const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {
   httpOnly: true,
@@ -24,7 +28,8 @@ const cookieOptions = {
  */
 async function requestOtp(req, res) {
   if (!validate(req, res, requestOtpSchema)) return;
-  const { mobileNumber } = req.body;
+  const { mobileNumber: rawMobile } = req.body;
+  const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
     // 1. Check if user is whitelisted & active
@@ -77,10 +82,11 @@ async function requestOtp(req, res) {
  * Public polling endpoint. Checks if the user's telegram_chat_id is populated.
  */
 async function checkLinkStatus(req, res) {
-  const { mobileNumber } = req.query;
-  if (!mobileNumber) {
+  const { mobileNumber: rawMobile } = req.query;
+  if (!rawMobile) {
     return res.status(400).json({ success: false, message: 'Mobile number is required.' });
   }
+  const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
     const { data: user, error } = await supabase
@@ -111,7 +117,8 @@ async function checkLinkStatus(req, res) {
  */
 async function verifyOtpCode(req, res) {
   if (!validate(req, res, verifyOtpSchema)) return;
-  const { mobileNumber, otp } = req.body;
+  const { mobileNumber: rawMobile, otp } = req.body;
+  const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
     // 1. Verify OTP

@@ -1,0 +1,4 @@
+id,mobile_number,display_name,role,permissions,created_at,is_active,telegram_chat_id,daily_streak,last_report_date
+04cc275a-c257-46d8-a2cb-57ff8b58a388,917047638380,Rishi,ho,{},2026-07-27 15:49:49.376953+00,true,8856002506,0,
+44695957-b94e-496c-aa2c-a36161acce4d,918276071523,Shreyan Ghosh,zo,{},2026-07-07 20:57:27.985301+00,true,5078059280,0,
+50a18286-a33c-4b7a-8ffa-e8a8eeeb2d3f,919883321834,Aswint Guha,admin,{},2026-06-30 16:54:57.964466+00,true,8023911159,0,

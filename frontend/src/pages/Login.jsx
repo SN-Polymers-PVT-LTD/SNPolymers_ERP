@@ -72,7 +72,7 @@ const Login = () => {
               Authorized Mobile Number
             </label>
             <div className="relative rounded-xl overflow-hidden">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 font-bold text-sm select-none pointer-events-none">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 font-bold text-sm select-none pointer-events-none z-10">
                 +91
               </span>
               <input

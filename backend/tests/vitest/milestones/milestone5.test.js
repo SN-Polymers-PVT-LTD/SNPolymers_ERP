@@ -642,11 +642,13 @@ describe('Milestone 5 — Cost Estimates Review & Approvals API', () => {
       expect(res.jsonData.estimate.estimate_status).toBe('Under HO Review');
       expect(res.jsonData.estimate.estimate_revision).toBe(3);
 
-      const { data: itemsAfter } = await supabase.from('project_cost_estimate_items').select('*').eq('estimate_id', harEstimateId).order('created_at', { ascending: true });
-      expect(itemsAfter[0].zo_office_approve).toBe('Approve');
-      expect(itemsAfter[1].zo_office_approve).toBe('Approve');
-      expect(itemsAfter[0].ho_office_approve).toBe('Approve');
-      expect(itemsAfter[1].ho_office_approve).toBeNull();
+      const { data: itemsAfter } = await supabase.from('project_cost_estimate_items').select('*').eq('estimate_id', harEstimateId);
+      const itemA = itemsAfter.find(i => i.material_details.includes('Cement A'));
+      const itemB = itemsAfter.find(i => i.material_details.includes('Cement B'));
+      expect(itemA.zo_office_approve).toBe('Approve');
+      expect(itemB.zo_office_approve).toBe('Approve');
+      expect(itemA.ho_office_approve).toBe('Approve');
+      expect(itemB.ho_office_approve).toBeNull();
       expect(Number(res.jsonData.estimate.estimate_amount)).toBe(3000.00);
     });
 
