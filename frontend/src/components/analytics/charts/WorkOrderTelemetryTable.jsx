@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../ThemeContext';
 import { formatINR } from '../utils/formatters';
 import { exportProjectsToExcel } from '../../../utils/exportHelpers';
+import { EMPTY_ARRAY } from '../../../utils/constants';
 import { ChartInfoTooltip } from '../ui/ChartInfoTooltip';
 
 /* ─── Inner Paginated ZO Name Selector Component ──────────────────────── */
@@ -163,7 +164,7 @@ export const WorkOrderTelemetryTable = ({
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
 
-  const pList = data || [];
+  const pList = data ?? EMPTY_ARRAY;
 
   // Filter list
   const filtered = useMemo(() => {

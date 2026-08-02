@@ -5,6 +5,7 @@ import { useAuth } from '../../components/AuthContext';
 import authApi from '../../api/authApi';
 import { getProgressReports } from '../../api/dailyProgressApi';
 import { getUserMappings } from '../../api/userMappingsApi';
+import { EMPTY_ARRAY } from '../../utils/constants';
 
 const JeDashboardView = () => {
   const { user } = useAuth();
@@ -19,7 +20,7 @@ const JeDashboardView = () => {
     staleTime: 30000
   });
 
-  const projects = projectsRes?.projects || [];
+  const projects = projectsRes?.projects ?? EMPTY_ARRAY;
 
   // 2. Fetch Estimates
   const { data: estimatesRes } = useQuery({
@@ -31,7 +32,7 @@ const JeDashboardView = () => {
     staleTime: 60000
   });
 
-  const estimates = estimatesRes?.estimates || [];
+  const estimates = estimatesRes?.estimates ?? EMPTY_ARRAY;
 
   // 3. Fetch Requisitions
   const { data: requisitionsRes } = useQuery({
@@ -43,7 +44,7 @@ const JeDashboardView = () => {
     staleTime: 60000
   });
 
-  const requisitions = requisitionsRes?.requisitions || [];
+  const requisitions = requisitionsRes?.requisitions ?? EMPTY_ARRAY;
 
   // 4. Fetch JE's Daily Progress Reports
   const { data: dprRes } = useQuery({
@@ -55,7 +56,7 @@ const JeDashboardView = () => {
     staleTime: 30000
   });
 
-  const dprReports = dprRes?.reports || [];
+  const dprReports = dprRes?.reports ?? EMPTY_ARRAY;
 
   // 5. Fetch User Mappings for assigned ZO Office details
   const { data: mappingsRes } = useQuery({

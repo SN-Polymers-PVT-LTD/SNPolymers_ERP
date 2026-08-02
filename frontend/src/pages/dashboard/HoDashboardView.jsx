@@ -7,6 +7,7 @@ import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getProjectsHealth } from '../../api/analyticsApi';
 import { useTheme } from '../../components/ThemeContext';
 import { useAuth } from '../../components/AuthContext';
+import { EMPTY_ARRAY } from '../../utils/constants';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -47,7 +48,7 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const estimates = estimatesRes?.estimates || [];
+  const estimates = estimatesRes?.estimates ?? EMPTY_ARRAY;
   const pendingEstimatesCount = useMemo(() => {
     return estimates.filter(e => {
       const st = (e.estimate_status || '').toLowerCase().trim();
@@ -65,7 +66,7 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const requisitions = requisitionsRes?.requisitions || [];
+  const requisitions = requisitionsRes?.requisitions ?? EMPTY_ARRAY;
   const pendingRequisitions = useMemo(() => {
     return requisitions.filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'pending');
   }, [requisitions]);
@@ -149,7 +150,7 @@ const HoDashboardView = () => {
     staleTime: 30000
   });
 
-  const fundRequests = fundRequestsRes?.fundRequests || [];
+  const fundRequests = fundRequestsRes?.fundRequests ?? EMPTY_ARRAY;
 
   // 6. Fetch Zonal Balances
   const { data: balancesRes } = useQuery({

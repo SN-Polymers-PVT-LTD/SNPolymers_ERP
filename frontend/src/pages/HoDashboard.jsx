@@ -23,6 +23,7 @@ import { FundFlowWaterfallChart } from '../components/analytics/charts/FundFlowW
 import { DepartmentWiseEstimateChart } from '../components/analytics/charts/DepartmentWiseEstimateChart';
 import { ExecutiveKpiStrip } from '../components/analytics/ui/ExecutiveKpiStrip';
 import { SCurveProgressChart } from '../components/analytics/charts/SCurveProgressChart';
+import { EMPTY_ARRAY } from '../utils/constants';
 import { BubbleRiskMatrixChart } from '../components/analytics/charts/BubbleRiskMatrixChart';
 import { WorkOrderTelemetryTable } from '../components/analytics/charts/WorkOrderTelemetryTable';
 
@@ -805,7 +806,7 @@ const HoDashboard = () => {
   });
 
   const insights = insightsRes || {};
-  const stalledProjects = insights.stalledProjects || [];
+  const stalledProjects = insights.stalledProjects ?? EMPTY_ARRAY;
   const lowRunwayZones = (insights.runwayData || []).filter(z => z.runway_days !== null && z.runway_days < 21);
 
 
@@ -817,7 +818,7 @@ const HoDashboard = () => {
     },
     staleTime: 5 * 60 * 1000
   });
-  const projectsList = projectsRes?.data || [];
+  const projectsList = projectsRes?.data ?? EMPTY_ARRAY;
 
   /* ── Filtered Projects & Stalled Ticker ── */
   const filteredProjects = useMemo(() => {

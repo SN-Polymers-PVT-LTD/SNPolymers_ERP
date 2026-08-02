@@ -44,8 +44,7 @@ export const EstimatedBill = () => {
   // Query: Estimated Bills List
   const {
     data: listData,
-    isLoading: isListLoading,
-    refetch: refetchList
+    isLoading: isListLoading
   } = useQuery({
     queryKey: ['estimated-bills', filters],
     queryFn: async () => {

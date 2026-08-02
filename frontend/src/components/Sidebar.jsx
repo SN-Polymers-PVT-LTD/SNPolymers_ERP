@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
@@ -368,7 +368,7 @@ const Sidebar = () => {
   const [pinnedProjects, setPinnedProjects] = useState([]);
   const storageKey = user?.mobile_number ? `pinnedProjects_${user.mobile_number}` : 'pinnedProjects';
 
-  const loadPinnedProjects = () => {
+  const loadPinnedProjects = useCallback(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -380,7 +380,7 @@ const Sidebar = () => {
       console.error(e);
       setPinnedProjects([]);
     }
-  };
+  }, [storageKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -389,7 +389,7 @@ const Sidebar = () => {
     return () => {
       window.removeEventListener('pinned-projects-updated', loadPinnedProjects);
     };
-  }, [storageKey]);
+  }, [storageKey, loadPinnedProjects]);
 
   useEffect(() => {
     const handleCollapseEvent = (e) => {

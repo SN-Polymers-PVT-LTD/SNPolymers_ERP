@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import authApi from '../../api/authApi';
 import { SkeletonCard } from '../../components/ui/Skeleton';
+import { EMPTY_ARRAY } from '../../utils/constants';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -24,7 +25,7 @@ const StaffDashboardView = () => {
     staleTime: 60 * 1000
   });
 
-  const requisitions = requisitionsRes?.requisitions || [];
+  const requisitions = requisitionsRes?.requisitions ?? EMPTY_ARRAY;
 
   const pendingRequisitions = useMemo(() => {
     return requisitions.filter(r => r.requisition_status === 'Pending');

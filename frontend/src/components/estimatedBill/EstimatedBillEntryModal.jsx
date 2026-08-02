@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Select, Input, TextArea, Button, Badge } from '../ui';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Select, Input, TextArea, Button } from '../ui';
 import { useAuth } from '../AuthContext';
 import { getEstimatedBillByWO } from '../../api/estimatedBillsApi';
 
@@ -21,37 +21,22 @@ export const EstimatedBillEntryModal = ({
   const [suretyPct, setSuretyPct] = useState(80);
   const [remarks, setRemarks] = useState('');
 
-  const [isExistingRecord, setIsExistingRecord] = useState(false);
   const [lastUpdatedMeta, setLastUpdatedMeta] = useState('');
   const [validationError, setValidationError] = useState('');
   const [isFetchingWO, setIsFetchingWO] = useState(false);
 
-  // Sync initialWorkOrderNo when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setValidationError('');
-      if (initialWorkOrderNo) {
-        setSelectedWoNo(initialWorkOrderNo);
-        handleWoSelection(initialWorkOrderNo);
-      } else {
-        resetForm();
-      }
-    }
-  }, [isOpen, initialWorkOrderNo]);
-
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setSelectedWoNo('');
     setSelectedWoData(null);
     setAmount('');
     setPaymentDate('');
     setSuretyPct(80);
     setRemarks('');
-    setIsExistingRecord(false);
     setLastUpdatedMeta('Not yet saved');
     setValidationError('');
-  };
+  }, []);
 
-  const handleWoSelection = async (woNo) => {
+  const handleWoSelection = useCallback(async (woNo) => {
     if (!woNo) {
       resetForm();
       return;
@@ -66,13 +51,13 @@ export const EstimatedBillEntryModal = ({
     setIsFetchingWO(true);
     try {
       const res = await getEstimatedBillByWO(woNo);
+      if (!isOpen) return;
       if (res.data?.success && res.data?.data) {
         const r = res.data.data;
         setAmount(r.estimated_bill_amount || '');
         setPaymentDate(r.estimated_payment_date || '');
         setSuretyPct(r.surety_pct ?? 80);
         setRemarks(r.remarks || '');
-        setIsExistingRecord(true);
         const updateDate = r.updated_at
           ? new Date(r.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
           : 'Today';
@@ -82,21 +67,35 @@ export const EstimatedBillEntryModal = ({
         setPaymentDate('');
         setSuretyPct(80);
         setRemarks('');
-        setIsExistingRecord(false);
         setLastUpdatedMeta('Not yet saved');
       }
     } catch {
+      if (!isOpen) return;
       // 404 means no record existing yet
       setAmount('');
       setPaymentDate('');
       setSuretyPct(80);
       setRemarks('');
-      setIsExistingRecord(false);
       setLastUpdatedMeta('Not yet saved');
     } finally {
-      setIsFetchingWO(false);
+      if (isOpen) {
+        setIsFetchingWO(false);
+      }
     }
-  };
+  }, [isOpen, workOrderOptions, resetForm]);
+
+  // Sync initialWorkOrderNo when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setValidationError('');
+      if (initialWorkOrderNo) {
+        setSelectedWoNo(initialWorkOrderNo);
+        handleWoSelection(initialWorkOrderNo);
+      } else {
+        resetForm();
+      }
+    }
+  }, [isOpen, initialWorkOrderNo, handleWoSelection, resetForm]);
 
   const handleSuretyInput = (val) => {
     const num = parseInt(val, 10);

@@ -7,7 +7,6 @@ import { fmtCr } from '../utils/formatters';
 
 export const InvestmentRecoveryPlot = ({
   projects = [],
-  agencyPaymentAmount = 0,
   isModal = false,
   showBillRecoveryKpi = false
 }) => {
@@ -117,7 +116,7 @@ export const InvestmentRecoveryPlot = ({
       bands,
       woItems,
     };
-  }, [projects, agencyPaymentAmount]);
+  }, [projects]);
 
   const filteredWos = useMemo(() => {
     const q = searchWo.toLowerCase().trim();

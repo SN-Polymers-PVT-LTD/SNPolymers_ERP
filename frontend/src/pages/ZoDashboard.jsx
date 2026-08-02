@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../components/ThemeContext';
@@ -23,6 +23,7 @@ import { FundFlowWaterfallChart } from '../components/analytics/charts/FundFlowW
 import { DepartmentWiseEstimateChart } from '../components/analytics/charts/DepartmentWiseEstimateChart';
 import { ExecutiveKpiStrip } from '../components/analytics/ui/ExecutiveKpiStrip';
 import { SCurveProgressChart } from '../components/analytics/charts/SCurveProgressChart';
+import { EMPTY_ARRAY } from '../utils/constants';
 import { BubbleRiskMatrixChart } from '../components/analytics/charts/BubbleRiskMatrixChart';
 import { WorkOrderTelemetryTable, PaginatedZoSelector } from '../components/analytics/charts/WorkOrderTelemetryTable';
 
@@ -774,7 +775,7 @@ const ZoDashboard = () => {
     staleTime: 60000
   });
 
-  const projectsList = projectsRes?.data || [];
+  const projectsList = projectsRes?.data ?? EMPTY_ARRAY;
 
   /* ── Derived ZO Display Names & List for Dropdown Filter ── */
   const availableZos = useMemo(() => {
@@ -837,7 +838,7 @@ const ZoDashboard = () => {
     return m;
   }, [availableZos]);
 
-  const getZoDisplayName = (zoIdOrName) => {
+  const getZoDisplayName = useCallback((zoIdOrName) => {
     if (!zoIdOrName) return 'Unassigned ZO';
     if (zoNameMap[zoIdOrName]) return zoNameMap[zoIdOrName];
     if (typeof zoIdOrName === 'string' && /^[0-9a-fA-F]{8,}$/.test(zoIdOrName)) {
@@ -849,12 +850,12 @@ const ZoDashboard = () => {
       return `ZO (${zoIdOrName.slice(0, 10)})`;
     }
     return zoIdOrName;
-  };
+  }, [availableZos, zoNameMap]);
 
   const selectedZoName = useMemo(() => {
     if (!selectedZo) return null;
     return getZoDisplayName(selectedZo);
-  }, [selectedZo, zoNameMap]);
+  }, [selectedZo, getZoDisplayName]);
 
   const refreshMutation = useMutation({
     mutationFn: refreshAnalyticsViews,
@@ -875,7 +876,7 @@ const ZoDashboard = () => {
   };
 
   const insights = insightsRes || {};
-  const stalledProjects = insights.stalledProjects || [];
+  const stalledProjects = insights.stalledProjects ?? EMPTY_ARRAY;
   const lowRunwayZones = (insights.runwayData || []).filter(z => z.runway_days !== null && z.runway_days < 21);
 
   /* ── Strictly Filter Projects by Selected ZO Name & Project Status ── */

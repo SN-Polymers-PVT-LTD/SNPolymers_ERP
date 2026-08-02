@@ -10,9 +10,6 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const pList = projects || [];
 
     // Client-side fallback metrics
-    const fallbackTotalWO = pList.length;
-    const fallbackRunning = pList.filter((p) => !['Completed', 'Closed'].includes(p.status)).length;
-    const fallbackCompleted = pList.filter((p) => ['Completed', 'Closed'].includes(p.status)).length;
     const fallbackWOVal = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
     const fallbackEst = pList.reduce(
       (a, p) => a + Number(p.approved_estimate_amount || (p.estimate_status === 'Final Approved' ? p.estimate_amount : 0) || p.estimate_amount || p.work_order_value || 0),
@@ -28,10 +25,6 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const fallbackForecast = pList.reduce((a, p) => a + Number(p.estimated_bill_amount || 0), 0);
 
     // Property-level resilient values
-    const woTotal = data?.totalWorkOrders?.total ?? fallbackTotalWO;
-    const woRunning = data?.totalWorkOrders?.running ?? fallbackRunning;
-    const woCompleted = data?.totalWorkOrders?.completed ?? fallbackCompleted;
-
     const woVal = data?.totalWOValue ?? fallbackWOVal;
     const estVal = data?.totalEstimateAmount?.amount ?? fallbackEst;
     const reqVal = data?.totalRequisition?.amount ?? fallbackReq;

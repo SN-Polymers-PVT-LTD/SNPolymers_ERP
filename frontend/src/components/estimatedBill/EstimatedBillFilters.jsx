@@ -1,5 +1,5 @@
 import React from 'react';
-import { Select, Input, Button } from '../ui';
+import { Select, Input } from '../ui';
 
 export const EstimatedBillFilters = ({
   filters,

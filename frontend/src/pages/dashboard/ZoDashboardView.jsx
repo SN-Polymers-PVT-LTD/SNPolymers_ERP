@@ -5,6 +5,7 @@ import { useAuth } from '../../components/AuthContext';
 import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getProjectsHealth, getJeLeaderboard } from '../../api/analyticsApi';
 import { getRequisitions } from '../../api/requisitionsApi';
+import { EMPTY_ARRAY } from '../../utils/constants';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -60,8 +61,8 @@ const ZoDashboardView = () => {
     staleTime: 30000
   });
 
-  const projects = projectsRes?.data || [];
-  const requisitionsList = requisitionsRes?.requisitions || requisitionsRes?.data || [];
+  const projects = projectsRes?.data ?? EMPTY_ARRAY;
+  const requisitionsList = requisitionsRes?.requisitions ?? requisitionsRes?.data ?? EMPTY_ARRAY;
   const myZoName = user?.display_name || user?.assigned_zone || user?.zo_name || user?.name || 'Zonal Office';
   const myZoId = user?.mobile_number || user?.zo_user_id || '';
 
