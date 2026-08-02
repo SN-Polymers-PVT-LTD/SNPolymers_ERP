@@ -1,6 +1,8 @@
-import { describe, it } from "vitest";
-// Golden Dataset & S-Curve Calculation Test Suite for SCurveProgressChart
+import { describe, it } from 'vitest';
 import assert from 'node:assert';
+import { computeSCurveSeries, _scurveTestUtils } from '../utils/scurveSeries';
+
+const { plannedPctAtElapsed, isValidProjectWindow, buildPlannedSeries, SIGMOIDAL_PLANNED } = _scurveTestUtils;
 
 const goldenProjects = [
   { work_order_no: 'WO-401', physical_progress: 80 },
@@ -13,6 +15,8 @@ const goldenProjects = [
 const goldenSCurveData = [
   {
     work_order_no: 'WO-401',
+    project_start_date: '2026-01-01',
+    project_end_date: '2026-06-30',
     actuals: [
       { date: '2026-01-01', progress: 10 },
       { date: '2026-02-01', progress: 25 },
@@ -24,97 +28,86 @@ const goldenSCurveData = [
   },
 ];
 
-const W = 600;
-const H = 330;
-const PAD_TOP = 40;
-const PAD_BOT = 60;
-const PAD_SIDE = 50;
+console.log('--- Running sigmoid planned curve math ---');
+assert.ok(plannedPctAtElapsed(0) < plannedPctAtElapsed(0.5));
+assert.ok(plannedPctAtElapsed(0.5) < plannedPctAtElapsed(1));
+assert.ok(plannedPctAtElapsed(1) >= 90);
+assert.strictEqual(isValidProjectWindow('2026-01-01', '2026-06-30'), true);
+assert.strictEqual(isValidProjectWindow('2026-06-30', '2026-01-01'), false);
+console.log('✓ Contract sigmoid rises monotonically toward completion');
 
-function toX(i, totalCount) {
-  return PAD_SIDE + (i / Math.max(1, totalCount - 1)) * (W - 2 * PAD_SIDE);
-}
-
-function toY(v) {
-  return H - PAD_BOT - (Math.min(100, Math.max(0, v)) / 100) * (H - PAD_TOP - PAD_BOT);
-}
-
-function resolveSCurve(sCurveData, projects, selectedWo = 'all') {
-  let rawTimeline = [];
-  const activeData =
-    selectedWo === 'all'
-      ? sCurveData
-      : (sCurveData || []).filter((d) => d.work_order_no === selectedWo);
-
-  if (activeData && activeData.length > 0) {
-    const datesSet = new Set();
-    activeData.forEach((s) => {
-      (s.actuals || []).forEach((a) => {
-        if (a.date) datesSet.add(a.date.slice(0, 7));
-      });
-    });
-    rawTimeline = Array.from(datesSet).sort();
-  }
-
-  if (rawTimeline.length < 3) {
-    rawTimeline = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-  }
-
-  const sigmoidalPlanned = [2, 12, 35, 65, 88, 98];
-
-  const activeProjects =
-    selectedWo === 'all'
-      ? projects
-      : (projects || []).filter((p) => p.work_order_no === selectedWo);
-
-  const avgProg = activeProjects?.length
-    ? Math.round(activeProjects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / activeProjects.length)
-    : 0;
-
-  const stepCount = rawTimeline.length;
-  const computedActual = rawTimeline.map((_, idx) => {
-    const factor = (idx + 1) / stepCount;
-    return Math.min(100, Math.round(avgProg * Math.pow(factor, 1.2)));
-  });
-
-  return {
-    months: rawTimeline,
-    planned: sigmoidalPlanned,
-    actual: computedActual,
-    avgProg,
-  };
-}
-
-console.log('--- Running SVG Coordinate Bounds Test ---');
-assert.strictEqual(toX(0, 6), 50); // Start PAD_SIDE
-assert.strictEqual(toX(5, 6), 550); // End W - PAD_SIDE
-assert.strictEqual(toY(0), 270); // Bottom H - PAD_BOT
-assert.strictEqual(toY(100), 40); // Top PAD_TOP
-console.log('✓ SVG Coordinate Projection bounds strictly verified within [X: 50..550, Y: 40..270]!');
-
-console.log('--- Running Golden Dataset & S-Curve Calculation Test ---');
-const portfolioRes = resolveSCurve(null, goldenProjects, 'all');
-assert.strictEqual(portfolioRes.avgProg, 60); // Average of (80+60+40+90+30)/5 = 60%
+console.log('--- Running sparse-history projected trend fallback ---');
+const portfolioRes = computeSCurveSeries([], goldenProjects, 'all');
+assert.strictEqual(portfolioRes.avgProg, 60);
+assert.strictEqual(portfolioRes.isProjectedTrend, true);
+assert.strictEqual(portfolioRes.isDefaultPlannedCurve, true);
+assert.strictEqual(portfolioRes.dprPointCount, 0);
 assert.deepStrictEqual(portfolioRes.actual, [7, 16, 26, 37, 48, 60]);
+assert.deepStrictEqual(portfolioRes.planned, SIGMOIDAL_PLANNED);
+console.log('✓ Sparse portfolio history uses projected actual and default planned curve');
 
-console.log('✓ Portfolio Average Progress = 60%');
-console.log('✓ Trajectory Points = [7%, 16%, 26%, 37%, 48%, 60%]');
+const sparseRes = computeSCurveSeries(
+  [{ work_order_no: 'WO-401', actuals: [{ date: '2026-01-01', progress: 12 }, { date: '2026-02-01', progress: 20 }] }],
+  goldenProjects,
+  'WO-401'
+);
+assert.strictEqual(sparseRes.isProjectedTrend, true);
+assert.strictEqual(sparseRes.isDefaultPlannedCurve, true);
+assert.strictEqual(sparseRes.dprPointCount, 2);
+console.log('✓ Fewer than 3 DPR points keeps projected trend flag');
 
-console.log('--- Running Specific Work Order Selection Test ---');
-const woRes = resolveSCurve(null, goldenProjects, 'WO-404');
-assert.strictEqual(woRes.avgProg, 90);
-assert.deepStrictEqual(woRes.actual, [10, 24, 39, 55, 72, 90]);
-console.log('✓ Selected WO-404 Progress = 90%');
+console.log('--- Running real DPR history with contract planned line ---');
+const woRes = computeSCurveSeries(goldenSCurveData, goldenProjects, 'WO-401');
+assert.strictEqual(woRes.isProjectedTrend, false);
+assert.strictEqual(woRes.isDefaultPlannedCurve, false);
+assert.strictEqual(woRes.plannedSource, 'contract_dates');
+assert.deepStrictEqual(woRes.actual, [10, 25, 45, 65, 75, 80]);
+assert.strictEqual(woRes.months.length, 6);
+assert.strictEqual(woRes.planned.length, 6);
+assert.ok(woRes.planned.every((v, i, arr) => i === 0 || v >= arr[i - 1]));
+console.log('✓ WO-401 plots reported progress and contract-derived planned curve');
 
-console.log('--- Running Backend vs Client Fallback Equivalence Test ---');
-const backendRes = resolveSCurve(goldenSCurveData, goldenProjects, 'all');
-assert.strictEqual(backendRes.avgProg, 60);
-assert.deepStrictEqual(backendRes.actual, portfolioRes.actual);
-console.log('✓ API timeline dataset and client projects fallback produce 100% EQUIVALENT trajectory curves!');
+const plannedMeta = buildPlannedSeries(
+  ['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'],
+  goldenSCurveData,
+  goldenProjects,
+  'WO-401'
+);
+assert.strictEqual(plannedMeta.isDefaultPlannedCurve, false);
+assert.strictEqual(plannedMeta.planned.length, 6);
+console.log('✓ Planned series aligns month-for-month with actual timeline');
 
-console.log('--- Running Empty State Safety Test ---');
-const emptyRes = resolveSCurve([], [], 'all');
+console.log('--- Running portfolio partial schedule coverage ---');
+const mixedProjects = [
+  { work_order_no: 'WO-A', project_start_date: '2026-01-01', project_end_date: '2026-06-30', physical_progress: 50 },
+  { work_order_no: 'WO-B', physical_progress: 40 },
+];
+const mixedCurve = [
+  {
+    work_order_no: 'WO-A',
+    project_start_date: '2026-01-01',
+    project_end_date: '2026-06-30',
+    actuals: [
+      { date: '2026-01-15', progress: 10 },
+      { date: '2026-02-15', progress: 20 },
+      { date: '2026-03-15', progress: 35 },
+    ],
+  },
+];
+const mixedRes = computeSCurveSeries(mixedCurve, mixedProjects, 'all');
+assert.strictEqual(mixedRes.partialScheduleCoverage, true);
+assert.strictEqual(mixedRes.datedProjectCount, 1);
+assert.strictEqual(mixedRes.totalProjectCount, 2);
+console.log('✓ Portfolio partial schedule coverage is surfaced');
+
+console.log('--- Running empty state detection ---');
+const emptyRes = computeSCurveSeries([], [], 'all');
 assert.strictEqual(emptyRes.avgProg, 0);
+assert.strictEqual(emptyRes.isProjectedTrend, true);
+assert.strictEqual(emptyRes.isDefaultPlannedCurve, true);
 assert.deepStrictEqual(emptyRes.actual, [0, 0, 0, 0, 0, 0]);
-console.log('✓ Empty State (sCurveData=[], projects=[]) Assertions Passed Successfully!');
-describe('Test Suite', () => { it('runs assertions', () => {
-}); });
+console.log('✓ Empty state triggers zero projected trend');
+
+describe('SCurveProgressChart', () => {
+  it('runs s-curve series assertions', () => {});
+});

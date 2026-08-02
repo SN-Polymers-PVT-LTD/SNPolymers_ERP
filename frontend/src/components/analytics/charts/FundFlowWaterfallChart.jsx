@@ -14,24 +14,19 @@ const STAGE_METADATA_MAP = {
   'agency paid':            { gradId: 'ff-teal',     color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
 };
 
-export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = false }) => {
-  const c = useChartColors();
-  const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
-  const barH = 22, gap = 20;
+function buildFallbackRows(projects) {
+  const p = projects || [];
+  const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
+  const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_ho_amount || pr.ho_allocated_amount || pr.approve_ho_amount || pr.approved_amount || 0), 0);
+  const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
+  const netAllocated = Math.max(0, grossAllocated - excessReturned);
+  const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
+  const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
+  const paid = p.reduce((a, pr) => a + Number(pr.agency_payment ?? pr.agency_paid ?? 0), 0);
+  const forecasted = p.reduce((a, pr) => a + Number(pr.estimated_bill_amount || 0), 0);
 
-  const rows = useMemo(() => {
-    if (data && Array.isArray(data) && data.length > 0) return data;
-
-    const p = projects || [];
-    const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
-    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_ho_amount || pr.ho_allocated_amount || pr.approve_ho_amount || pr.approved_amount || 0), 0);
-    const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
-    const netAllocated = Math.max(0, grossAllocated - excessReturned);
-    const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
-    const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
-    const paid = p.reduce((a, pr) => a + Number(pr.agency_payment ?? pr.agency_paid ?? 0), 0);
-
-    return [
+  return {
+    rows: [
       { stage: 'Final Approved Estimate', amount: est },
       { stage: 'HO Allocated (Gross)',    amount: grossAllocated },
       { stage: 'Excess Returned to HO',   amount: excessReturned, isRefund: true },
@@ -39,28 +34,61 @@ export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = fal
       { stage: 'Requisitions Approved',   amount: reqApproved },
       { stage: 'Gross Billed',            amount: billed },
       { stage: 'Agency Paid',             amount: paid },
-    ];
-  }, [data, projects]);
+    ],
+    forecast: {
+      amount: forecasted,
+      varianceVsGrossBilled: forecasted - billed
+    }
+  };
+}
+
+export const FundFlowWaterfallChart = ({ data = [], estimatedBillForecast = null, projects = [], isModal = false }) => {
+  const c = useChartColors();
+  const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 28;
+  const barH = 20, gap = 22;
+
+  const { rows, forecast } = useMemo(() => {
+    if (data && Array.isArray(data) && data.length > 0) {
+      return { rows: data, forecast: estimatedBillForecast };
+    }
+    const fallback = buildFallbackRows(projects);
+    return {
+      rows: fallback.rows,
+      forecast: estimatedBillForecast || fallback.forecast
+    };
+  }, [data, projects, estimatedBillForecast]);
 
   const maxVal = Math.max(1, ...rows.map(d => Number(d.amount || 0)));
   const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
+
+  const grossBilledIdx = rows.findIndex(r => (r.stage || '').toLowerCase().trim() === 'gross billed');
+  const grossBilledY = grossBilledIdx >= 0 ? PAD_Y + grossBilledIdx * (barH + gap) : null;
+  const forecastMarkerX = forecast && grossBilledY != null
+    ? PAD_LEFT + scale(Number(forecast.amount || 0))
+    : null;
+
+  const varianceLabel = forecast
+    ? `${forecast.varianceVsGrossBilled >= 0 ? '+' : ''}${fmtCr(forecast.varianceVsGrossBilled)} vs. Gross Billed`
+    : '';
 
   return (
     <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between"}>
       {!isModal && (
         <div className="flex justify-between items-start mb-2 shrink-0">
           <div>
-            <h3 className="chart-title">Fund Flow Pipeline</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="chart-title">Fund Flow Pipeline</h3>
+            </div>
             <p className="chart-subtitle">Capital Realization &amp; Allocation Lifecycle Pipeline</p>
           </div>
           <ChartInfoTooltip
-            description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
+            description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, estimated bill forecasts, and vendor settlement."
             formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
           />
         </div>
       )}
-      <div className="relative mt-2 flex-1 flex items-center justify-center min-h-0">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full drop-shadow-md" preserveAspectRatio="xMidYMid meet">
+      <div className="relative mt-1 flex-1 flex flex-col justify-center min-h-0">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full flex-1 min-h-[280px] drop-shadow-md" preserveAspectRatio="xMidYMid meet">
           <defs>
             {Object.entries(STAGE_METADATA_MAP).map(([_k, m]) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
@@ -78,26 +106,63 @@ export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = fal
             const meta = STAGE_METADATA_MAP[key] || { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Stage Delta' };
             const prevKey = i > 0 ? (rows[i - 1].stage || '').toLowerCase().trim() : key;
             const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
+
+            const labelColor = d.isRefund ? '#34d399' : c.labelNormal;
+            const valueColor = d.isRefund ? '#34d399' : c.labelStrong;
+            const connectorY = y - Math.min(10, gap / 2);
+
             return (
               <g key={i}>
-                {/* Stage Label */}
-                <text x={PAD_LEFT - 14} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="9" fontWeight="bold" letterSpacing="0.5">
+                <text x={PAD_LEFT - 14} y={y + 14} textAnchor="end" fill={labelColor} fontSize="9" fontWeight="bold" letterSpacing="0.5">
                   {d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}
                 </text>
 
-                {/* Flow Bar */}
-                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={5} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
+                <rect
+                  x={PAD_LEFT}
+                  y={y}
+                  width={Math.max(2, bW)}
+                  height={barH}
+                  rx={5}
+                  fill={`url(#${meta.gradId})`}
+                  className="transition-all duration-300 hover:fill-opacity-90"
+                />
 
-                {/* Amount Label */}
-                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="9" fontWeight="extrabold" className="font-mono">
+                {forecastMarkerX != null && i === grossBilledIdx && Number(forecast.amount || 0) > 0 && (
+                  <g>
+                    <line
+                      x1={forecastMarkerX}
+                      x2={forecastMarkerX}
+                      y1={y - 2}
+                      y2={y + barH + 2}
+                      stroke="#f59e0b"
+                      strokeWidth="1.5"
+                      strokeDasharray="3 2"
+                    />
+                    <circle cx={forecastMarkerX} cy={y + barH / 2} r="2.5" fill="#f59e0b" />
+                  </g>
+                )}
+
+                <text x={PAD_LEFT + bW + 10} y={y + 14} fill={valueColor} fontSize="9" fontWeight="extrabold" className="font-mono">
                   {fmtCr(d.amount)}
                 </text>
 
-                {/* Stage Connector & Uncommitted Capital Explanation */}
                 {i > 0 && diff > 0 && !d.isRefund && (
                   <g>
-                    <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
-                    <text x={PAD_LEFT + scale(prev) + 8} y={y - 5} fill={c.isDark ? '#cbd5e1' : '#475569'} fontSize="8" fontWeight="bold" className="font-mono">
+                    <path
+                      d={`M ${PAD_LEFT + scale(prev)} ${connectorY - 6} L ${PAD_LEFT + scale(prev)} ${connectorY} L ${PAD_LEFT + bW} ${connectorY}`}
+                      fill="none"
+                      stroke={c.isDark ? '#475569' : '#94a3b8'}
+                      strokeWidth="1"
+                      strokeDasharray="2 2"
+                    />
+                    <text
+                      x={PAD_LEFT + scale(prev) + 8}
+                      y={connectorY - 8}
+                      fill={c.isDark ? '#cbd5e1' : '#475569'}
+                      fontSize="8"
+                      fontWeight="bold"
+                      className="font-mono"
+                    >
                       {prevMeta.diffLabel}: {fmtCr(diff)}
                     </text>
                   </g>
@@ -106,9 +171,25 @@ export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = fal
             );
           })}
         </svg>
+
+        {forecast && (
+          <div className="shrink-0 mt-1 px-3 py-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500 shrink-0">★ Forecast</span>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">Estimated Bill Forecast</span>
+              <span className="text-[10px] font-extrabold font-mono text-amber-600 dark:text-amber-400 shrink-0">
+                {fmtCr(forecast.amount)}
+              </span>
+            </div>
+            <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400 sm:text-right">
+              {varianceLabel}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
 
 export default FundFlowWaterfallChart;

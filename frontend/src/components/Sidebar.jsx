@@ -82,6 +82,16 @@ export const MobileHeader = () => {
         )
       });
       finItems.push({
+        to: '/estimated-bills',
+        label: 'Estimated Bills',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+
+      finItems.push({
         to: '/zonal-balances',
         label: 'Zonal Balances',
         icon: (
@@ -416,7 +426,7 @@ const Sidebar = () => {
 
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
   const isAnalyticsModule = currentPath.startsWith('/analytics') || currentPath.includes('/digital-twin');
@@ -493,6 +503,16 @@ const Sidebar = () => {
             </svg>
           )
         },
+        {
+          to: '/estimated-bills',
+          label: 'Estimated Bills',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )
+        },
+
         {
           to: '/zonal-balances',
           label: 'Zonal Balances',

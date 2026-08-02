@@ -158,7 +158,7 @@ export const WorkOrderTelemetryTable = ({
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
-  const [sortField, setSortField] = useState('health_score');
+  const [sortField, setSortField] = useState('estimated_bill_amount');
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
@@ -204,26 +204,13 @@ export const WorkOrderTelemetryTable = ({
     return Array.from(new Set(pList.map((p) => p.zone || p.zo_name).filter(Boolean))).sort();
   }, [pList]);
 
-  const getEffectiveHealthScore = (row) => {
-    if (row.health_score !== undefined && row.health_score !== null && !isNaN(row.health_score)) {
-      return Number(row.health_score);
-    }
-    const days = Number(row.days_since_last_progress_report || 0);
-    const budgetUtil = Number(row.budget_utilization_pct || 0);
-    return Math.min(100, Math.max(0, Math.round(100 - (days * 2) - budgetUtil)));
-  };
-
   // Stable sort list
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {
-      let aVal, bVal;
-      if (sortField === 'health_score') {
-        aVal = getEffectiveHealthScore(a);
-        bVal = getEffectiveHealthScore(b);
-      } else {
-        aVal = a[sortField] ?? 0;
-        bVal = b[sortField] ?? 0;
-      }
+      let aVal = a[sortField] ?? '';
+      let bVal = b[sortField] ?? '';
+      if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+      if (typeof bVal === 'string') bVal = bVal.toLowerCase();
       if (aVal < bVal) return sortAsc ? -1 : 1;
       if (aVal > bVal) return sortAsc ? 1 : -1;
       return 0;
@@ -265,13 +252,22 @@ export const WorkOrderTelemetryTable = ({
     return sortAsc ? 'ascending' : 'descending';
   };
 
+  const renderSortIcon = (columnKey) => {
+    const isActive = sortField === columnKey;
+    return (
+      <span className={`ml-1 transition-colors ${isActive ? 'text-amber-400 font-bold' : 'text-slate-600 group-hover:text-slate-400'}`}>
+        {isActive ? (sortAsc ? '▲' : '▼') : '↕'}
+      </span>
+    );
+  };
+
   return (
     <div className="relative w-full glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/10 mb-8 text-xs">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-2">
           <ChartInfoTooltip
-            description="High-density project tracking telemetry table with real-time health score metrics."
-            formula="Health Score = 100 - (Days Since DPR × 2) - (Budget Overrun %)"
+            description="High-density project tracking telemetry table with real-time financial and physical metrics."
+            formula="Net Exposure = Work Order Value - Gross Bill Amount"
           />
           <div>
             <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
@@ -382,23 +378,39 @@ export const WorkOrderTelemetryTable = ({
                 aria-sort={getSortAria('work_order_no')}
                 onClick={() => handleSort('work_order_no')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('work_order_no')}
-                className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest focus:outline-none focus:text-amber-400"
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest focus:outline-none focus:text-amber-400"
               >
-                WO No {sortField === 'work_order_no' && (sortAsc ? '▲' : '▼')}
+                WO No {renderSortIcon('work_order_no')}
               </th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">
-                {availableZos !== null ? 'ZO Name' : 'Zone'}
+              <th
+                tabIndex={0}
+                role="columnheader"
+                aria-sort={getSortAria('zone')}
+                onClick={() => handleSort('zone')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('zone')}
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest focus:outline-none focus:text-amber-400"
+              >
+                {availableZos !== null ? 'ZO Name' : 'Zone'} {renderSortIcon('zone')}
               </th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">Dept</th>
+              <th
+                tabIndex={0}
+                role="columnheader"
+                aria-sort={getSortAria('department')}
+                onClick={() => handleSort('department')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('department')}
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest focus:outline-none focus:text-amber-400"
+              >
+                Dept {renderSortIcon('department')}
+              </th>
               <th
                 tabIndex={0}
                 role="columnheader"
                 aria-sort={getSortAria('work_order_value')}
                 onClick={() => handleSort('work_order_value')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('work_order_value')}
-                className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
               >
-                Value {sortField === 'work_order_value' && (sortAsc ? '▲' : '▼')}
+                Value {renderSortIcon('work_order_value')}
               </th>
               <th
                 tabIndex={0}
@@ -406,9 +418,19 @@ export const WorkOrderTelemetryTable = ({
                 aria-sort={getSortAria('approved_requisitions_amount')}
                 onClick={() => handleSort('approved_requisitions_amount')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('approved_requisitions_amount')}
-                className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
               >
-                Spent {sortField === 'approved_requisitions_amount' && (sortAsc ? '▲' : '▼')}
+                Spent {renderSortIcon('approved_requisitions_amount')}
+              </th>
+              <th
+                tabIndex={0}
+                role="columnheader"
+                aria-sort={getSortAria('estimated_bill_amount')}
+                onClick={() => handleSort('estimated_bill_amount')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('estimated_bill_amount')}
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
+              >
+                Estimated Bill {renderSortIcon('estimated_bill_amount')}
               </th>
               <th
                 tabIndex={0}
@@ -416,34 +438,15 @@ export const WorkOrderTelemetryTable = ({
                 aria-sort={getSortAria('physical_progress')}
                 onClick={() => handleSort('physical_progress')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('physical_progress')}
-                className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
+                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
               >
-                Progress {sortField === 'physical_progress' && (sortAsc ? '▲' : '▼')}
-              </th>
-              <th
-                tabIndex={0}
-                role="columnheader"
-                aria-sort={getSortAria('health_score')}
-                onClick={() => handleSort('health_score')}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('health_score')}
-                className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
-              >
-                Health {sortField === 'health_score' && (sortAsc ? '▲' : '▼')}
+                Progress {renderSortIcon('physical_progress')}
               </th>
               <th className="py-2.5 text-right text-[9px] font-bold uppercase tracking-widest">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {paginated.map((row, idx) => {
-              const clampedScore = getEffectiveHealthScore(row);
-
-              const scoreBg =
-                clampedScore >= 80
-                  ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-500/20'
-                  : clampedScore >= 60
-                  ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20'
-                  : 'bg-rose-900/20 text-rose-400 border border-rose-500/20';
-
               const zoDisplayName = getZoDisplayName
                 ? getZoDisplayName(row.zo_name || row.zo_user_id || row.zone)
                 : row.zo_name || row.zo_user_id || row.zone || 'N/A';
@@ -462,11 +465,11 @@ export const WorkOrderTelemetryTable = ({
                   <td className="py-3.5 text-center font-mono text-emerald-400">
                     {formatINR(row.approved_requisitions_amount)}
                   </td>
-                  <td className="py-3.5 text-center">
-                    <span className="font-extrabold text-slate-200">{row.physical_progress}%</span>
+                  <td className="py-3.5 text-center font-mono text-amber-400 font-extrabold">
+                    {formatINR(row.estimated_bill_amount)}
                   </td>
                   <td className="py-3.5 text-center">
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${scoreBg}`}>{clampedScore}</span>
+                    <span className="font-extrabold text-slate-200">{row.physical_progress}%</span>
                   </td>
                   <td className="py-3.5 text-right">
                     <span

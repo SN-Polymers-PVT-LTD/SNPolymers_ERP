@@ -11,7 +11,9 @@ export const formatINR = (value) => {
 
 export const fmtCr = (n) => {
   const v = Number(n) || 0;
-  if (v >= 10000000) return `₹ ${(v / 10000000).toFixed(2)} Cr`;
-  if (v >= 100000) return `₹ ${(v / 100000).toFixed(2)} L`;
-  return `₹ ${v.toLocaleString('en-IN')}`;
+  const sign = v < 0 ? '-' : '';
+  const abs = Math.abs(v);
+  if (abs >= 10000000) return `${sign}₹ ${(abs / 10000000).toFixed(2)} Cr`;
+  if (abs >= 100000) return `${sign}₹ ${(abs / 100000).toFixed(2)} L`;
+  return `${sign}₹ ${abs.toLocaleString('en-IN')}`;
 };

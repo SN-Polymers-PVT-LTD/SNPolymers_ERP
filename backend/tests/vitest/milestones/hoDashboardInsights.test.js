@@ -134,6 +134,13 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
     expect(wf[5].stage).toBe('Gross Billed');
     expect(wf[6].stage).toBe('Agency Paid');
     wf.forEach(w => expect(Number(w.amount)).toBeGreaterThanOrEqual(0));
+    expect(wf.some(w => w.stage === 'Estimated Bill Forecast')).toBe(false);
+
+    const forecast = res.jsonData.estimatedBillForecast;
+    expect(forecast).toBeDefined();
+    expect(typeof forecast.amount).toBe('number');
+    expect(typeof forecast.varianceVsGrossBilled).toBe('number');
+    expect(forecast.varianceVsGrossBilled).toBe(forecast.amount - wf[5].amount);
   });
 
   test('M3.3: bubbleMatrix items have finite numeric fields and no NaN values', async () => {
@@ -226,5 +233,97 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
       expect(typeof b.count).toBe('number');
       expect(Array.isArray(b.workOrders)).toBe(true);
     });
+  });
+});
+
+describe('P0 — ZO zone scoping (analytics data isolation)', () => {
+  let suffix;
+  let zoUserA;
+  let zoUserB;
+  let ledgerIdA;
+  let ledgerIdB;
+  const balanceA = 111111.11;
+  const balanceB = 222222.22;
+
+  beforeAll(async () => {
+    suffix = crypto.randomUUID().substring(0, 8);
+    zoUserA = `9510${suffix}`;
+    zoUserB = `9511${suffix}`;
+    ledgerIdA = crypto.randomUUID();
+    ledgerIdB = crypto.randomUUID();
+
+    await setupUsers([
+      { mobile_number: zoUserA, role: 'zo', is_active: true, display_name: `ZO Scope A ${suffix}` },
+      { mobile_number: zoUserB, role: 'zo', is_active: true, display_name: `ZO Scope B ${suffix}` }
+    ]);
+
+    await supabase.from('zo_balances').upsert([
+      { zo_user_id: zoUserA, available_balance: balanceA, updated_at: new Date().toISOString() },
+      { zo_user_id: zoUserB, available_balance: balanceB, updated_at: new Date().toISOString() }
+    ]);
+
+    await supabase.from('zo_fund_ledger').insert([
+      {
+        ledger_id: ledgerIdA,
+        zo_user_id: zoUserA,
+        transaction_type: 'ALLOCATION',
+        reference_type: 'FUND_REQUEST',
+        reference_id: ledgerIdA,
+        amount: balanceA,
+        created_by: zoUserA
+      },
+      {
+        ledger_id: ledgerIdB,
+        zo_user_id: zoUserB,
+        transaction_type: 'ALLOCATION',
+        reference_type: 'FUND_REQUEST',
+        reference_id: ledgerIdB,
+        amount: balanceB,
+        created_by: zoUserB
+      }
+    ]);
+  });
+
+  afterAll(async () => {
+    await supabase.from('zo_fund_ledger').delete().in('ledger_id', [ledgerIdA, ledgerIdB]);
+    await supabase.from('zo_balances').delete().in('zo_user_id', [zoUserA, zoUserB]);
+    await supabase.from('authorised_users').delete().in('mobile_number', [zoUserA, zoUserB]);
+  });
+
+  test('P0.1: ZO caller sees only own zone in actionable-insights runwayData', async () => {
+    const req = { user: { role: 'zo', mobile_number: zoUserA }, query: {} };
+    const res = mockRes();
+    await getHoActionableInsights(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.runwayData.length).toBe(1);
+    expect(res.jsonData.runwayData[0].zo_user_id).toBe(zoUserA);
+    expect(res.jsonData.runwayData[0].available_balance).toBe(balanceA);
+  });
+
+  test('P0.2: ZO caller sees only own zone in chart-data runwayTrend', async () => {
+    const req = { user: { role: 'zo', mobile_number: zoUserA }, query: {} };
+    const res = mockRes();
+    await getHoChartData(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const zoIds = (res.jsonData.runwayTrend || []).map(r => r.zo_user_id);
+    expect(zoIds).toContain(zoUserA);
+    expect(zoIds).not.toContain(zoUserB);
+    zoIds.forEach(id => expect(id).toBe(zoUserA));
+  });
+
+  test('P0.3: ZO notUtilized matches zoAvailableBalance and excludes other zones', async () => {
+    const req = { user: { role: 'zo', mobile_number: zoUserA }, query: {} };
+    const res = mockRes();
+    await getHoChartData(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const { notUtilized } = res.jsonData.keyFinancialIndicators;
+    const { zoAvailableBalance } = res.jsonData.executiveSummaryKpis;
+    expect(notUtilized).toBe(balanceA);
+    expect(zoAvailableBalance).toBe(balanceA);
+    expect(notUtilized).toBe(zoAvailableBalance);
+    expect(notUtilized).not.toBe(balanceB);
   });
 });

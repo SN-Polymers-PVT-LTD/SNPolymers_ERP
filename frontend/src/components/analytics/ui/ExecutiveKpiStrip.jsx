@@ -25,6 +25,7 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const fallbackGB = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
     const fallbackAP = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
     const fallbackDue = Math.max(0, fallbackWOVal - fallbackGB);
+    const fallbackForecast = pList.reduce((a, p) => a + Number(p.estimated_bill_amount || 0), 0);
 
     // Property-level resilient values
     const woTotal = data?.totalWorkOrders?.total ?? fallbackTotalWO;
@@ -40,6 +41,7 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const gbVal = data?.grossBillAmount?.amount ?? fallbackGB;
     const apVal = data?.agencyPayment?.amount ?? fallbackAP;
     const dueVal = data?.dueBill?.amount ?? fallbackDue;
+    const forecastVal = data?.totalForecastedBilling ?? data?.total_forecasted_billing ?? fallbackForecast;
 
     // Subtext calculations
     const estPct = data?.totalEstimateAmount?.pctOfWOValue ?? (woVal > 0 ? ((estVal / woVal) * 100).toFixed(1) : 0);
@@ -50,16 +52,6 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const duePct = data?.dueBill?.pctOfWOValue ?? (woVal > 0 ? ((dueVal / woVal) * 100).toFixed(1) : 0);
 
     return [
-      {
-        id: 'work_orders',
-        title: 'TOTAL WORK ORDERS',
-        description: 'Total active and completed work orders in portfolio.',
-        formula: 'Count(projects)',
-        titleColor: '#60a5fa',
-        topGlow: 'linear-gradient(90deg, #3b82f6 0%, rgba(59,130,246,0) 80%)',
-        value: woTotal,
-        subtext: `Run: ${woRunning} | Done: ${woCompleted}`,
-      },
       {
         id: 'wo_value',
         title: 'TOTAL WO VALUE',
@@ -99,6 +91,16 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
         topGlow: 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0) 80%)',
         value: fmtCr(appVal),
         subtext: `${appPct}% of Req`,
+      },
+      {
+        id: 'forecast_billing',
+        title: 'FORECASTED BILLING',
+        description: 'Consolidated forward cash-flow billing forecast for active running projects.',
+        formula: 'Sum(estimated_bill_amount where status = Running)',
+        titleColor: '#f59e0b',
+        topGlow: 'linear-gradient(90deg, #f59e0b 0%, rgba(245,158,11,0) 80%)',
+        value: fmtCr(forecastVal),
+        subtext: woVal > 0 ? `${((forecastVal / woVal) * 100).toFixed(1)}% of WO Value` : 'Forward Cash Flow',
       },
       {
         id: 'zo_balance',
@@ -151,6 +153,7 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
         subtext: `${duePct}% of WO`,
       },
     ];
+
   }, [data, projects]);
 
   return (

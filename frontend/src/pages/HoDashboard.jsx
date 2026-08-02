@@ -490,23 +490,25 @@ const MetricDonutCard = ({
       {/* Interactive Floating Hover Popover listing matching Work Orders (Portal) */}
       {hoveredBucket && ReactDOM.createPortal(
         <div
-          className="fixed z-[99999] rounded-2xl shadow-2xl p-4 min-w-[300px] max-w-[360px] pointer-events-none transition-all duration-150 backdrop-blur-md"
+          className="fixed z-[99999] rounded-2xl p-4 min-w-[300px] max-w-[360px] pointer-events-none transition-all duration-150 backdrop-blur-md border"
           style={{
             top: popoverPos.y,
             left: popoverPos.x,
             backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-            border: `1.5px solid ${hoveredBucket.color}`,
-            boxShadow: `0 20px 35px -5px rgba(0, 0, 0, 0.7), 0 8px 16px -6px ${hoveredBucket.color}60`
+            borderColor: hoveredBucket.color,
+            boxShadow: isDark
+              ? `0 20px 35px -5px rgba(0, 0, 0, 0.7), 0 8px 16px -6px ${hoveredBucket.color}60`
+              : `0 20px 35px -5px rgba(0, 0, 0, 0.15), 0 8px 16px -6px ${hoveredBucket.color}30`
           }}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5 mb-2.5">
+          <div className={`flex items-center justify-between gap-2 border-b pb-2.5 mb-2.5 ${isDark ? 'border-slate-700/60' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: hoveredBucket.color }} />
-              <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+              <span className={`font-extrabold text-xs uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                 {hoveredBucket.label}
               </span>
             </div>
-            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
               {hoveredBucket.workOrders?.length || hoveredBucket.count || 0} Work Orders
             </span>
           </div>
@@ -516,17 +518,23 @@ const MetricDonutCard = ({
               {hoveredBucket.workOrders.slice(0, 20).map((wo, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/50"
+                  className={`flex items-center justify-between p-2 rounded-xl border ${
+                    isDark
+                      ? 'bg-slate-800/80 border-slate-700/50 text-slate-100'
+                      : 'bg-slate-50 border-slate-200/80 text-slate-900'
+                  }`}
                 >
                   <div className="min-w-0 pr-2">
-                    <p className="font-extrabold font-mono text-[11px] text-slate-900 dark:text-slate-100 truncate">
+                    <p className={`font-extrabold font-mono text-[11px] truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
                       {wo.work_order_no}
                     </p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                    <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                       {wo.site_details}
                     </p>
                   </div>
-                  <span className="shrink-0 font-extrabold text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <span className={`shrink-0 font-extrabold text-[10px] font-mono px-2 py-0.5 rounded ${
+                    isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-800'
+                  }`}>
                     {wo.value}
                   </span>
                 </div>
@@ -781,7 +789,7 @@ const HoDashboard = () => {
   });
 
   // Fetch executive chart data
-  const { data: chartRes } = useQuery({
+  const { data: chartRes, isError: isChartError, refetch: refetchChart } = useQuery({
     queryKey: ['hoChartData', activeView, projectStatusFilter, startDate, endDate, selectedZone],
     queryFn: async () => {
       const res = await getHoChartData({
@@ -1127,14 +1135,43 @@ const HoDashboard = () => {
           />
         </div>
       </div>
+      {isChartError && (
+        <div className="col-span-full p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-bold flex items-center justify-between mb-4">
+          <span>Couldn&apos;t load analytics data. This might be temporary.</span>
+          <button type="button" onClick={() => refetchChart()} className="underline">Retry</button>
+        </div>
+      )}
       <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} projects={filteredProjects} />
+
+      {/* ── Section: Fund Flow & Risk ── */}
+      <div className="flex items-center gap-3 mb-3 mt-2">
+        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Fund Flow &amp; Risk</span>
+        <div className="flex-1 h-px bg-white/[0.045]" />
+      </div>
+      {/* ── Row 1: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <FundFlowWaterfallChart
+              data={chartRes?.waterfallData}
+              estimatedBillForecast={chartRes?.estimatedBillForecast}
+              projects={filteredProjects}
+            />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
+          </div>
+        </ZoomCard>
+      </div>
 
       {/* ── Section: Performance Overview ── */}
       <div className="flex items-center gap-3 mb-3 mt-2">
         <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Performance Overview</span>
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
-      {/* ── Row 1: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
+      {/* ── Row 2: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('physical_progress')}>
           <div style={{ minHeight: '520px' }} className="h-full">
@@ -1149,25 +1186,6 @@ const HoDashboard = () => {
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
           <div style={{ minHeight: '520px' }} className="h-full">
             <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
-          </div>
-        </ZoomCard>
-      </div>
-
-      {/* ── Section: Fund Flow & Risk ── */}
-      <div className="flex items-center gap-3 mb-3 mt-2">
-        <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Fund Flow &amp; Risk</span>
-        <div className="flex-1 h-px bg-white/[0.045]" />
-      </div>
-      {/* ── Row 2: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
-          <div style={{ minHeight: '480px' }} className="h-full">
-            <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} />
-          </div>
-        </ZoomCard>
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
-          <div style={{ minHeight: '480px' }} className="h-full">
-            <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
           </div>
         </ZoomCard>
       </div>
@@ -1399,7 +1417,12 @@ const HoDashboard = () => {
       )}
       {zoomedChart === 'fundflow' && (
         <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
-          <FundFlowWaterfallChart data={chartRes?.waterfallData} projects={filteredProjects} isModal={true} />
+          <FundFlowWaterfallChart
+            data={chartRes?.waterfallData}
+            estimatedBillForecast={chartRes?.estimatedBillForecast}
+            projects={filteredProjects}
+            isModal={true}
+          />
         </ChartModal>
       )}
       {zoomedChart === 'zonal' && (

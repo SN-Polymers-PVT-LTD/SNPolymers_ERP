@@ -103,9 +103,9 @@ export const DepartmentWiseEstimateChart = ({ items = [], projects = [], isModal
         </div>
       )}
 
-      <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
+      <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2 flex-1">
         {/* Donut Graphic with Center Text */}
-        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto flex items-center justify-center">
+        <div className={`relative shrink-0 flex items-center justify-center ${isModal ? 'w-56 h-56 sm:w-72 sm:h-72' : 'w-40 h-40 sm:w-44 sm:h-44'}`}>
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
             {donutSlices.map((slice, idx) => (
               <g
@@ -118,9 +118,9 @@ export const DepartmentWiseEstimateChart = ({ items = [], projects = [], isModal
                   d={slice.pathData}
                   fill={slice.color}
                   stroke={isDark ? '#0f172a' : '#ffffff'}
-                  strokeWidth="2.5"
+                  strokeWidth="3"
                   style={{
-                    transform: hoveredDept?.department === slice.department ? 'scale(1.04)' : 'scale(1)',
+                    transform: hoveredDept?.department === slice.department ? 'scale(1.05)' : 'scale(1)',
                     transformOrigin: '100px 100px',
                   }}
                 />
@@ -130,21 +130,21 @@ export const DepartmentWiseEstimateChart = ({ items = [], projects = [], isModal
 
           {/* Center Label inside donut */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Total WO Value
             </span>
-            <span className="text-sm sm:text-base font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
+            <span className={`${isModal ? 'text-3xl sm:text-4xl' : 'text-xl sm:text-2xl'} font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5`}>
               {fmtCr(totalAmount)}
             </span>
           </div>
         </div>
 
-        {/* 2-Column Grid Legend Index */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full pt-2 border-t border-slate-200 dark:border-white/5">
+        {/* Legend Breakdown List matching MetricDonutCard */}
+        <div className={`flex flex-col gap-2 w-full md:w-auto ${isModal ? 'min-w-[240px]' : 'min-w-[180px]'}`}>
           {normalizedItems.map((item, idx) => (
             <div
               key={idx}
-              className={`flex items-center justify-between gap-2 text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
+              className={`flex items-center justify-between gap-3 text-xs font-semibold py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${
                 hoveredDept?.department === item.department
                   ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]'
                   : 'hover:bg-slate-500/10 border border-transparent'
@@ -152,18 +152,23 @@ export const DepartmentWiseEstimateChart = ({ items = [], projects = [], isModal
               onMouseEnter={(e) => handleMouseEnter(e, item)}
               onMouseLeave={() => setHoveredDept(null)}
             >
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2.5 min-w-0">
                 <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
                 <span
-                  className={`font-bold text-xs truncate ${isDark ? 'text-slate-200' : 'text-slate-800'}`}
+                  className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs whitespace-nowrap"
                   title={item.department}
                 >
                   {item.department}
                 </span>
               </div>
-              <span className="text-slate-400 font-mono text-[10px] font-bold shrink-0">
-                {item.percentage}%
-              </span>
+              <div className="flex items-center gap-1.5 font-mono shrink-0 whitespace-nowrap">
+                <span className="font-extrabold text-slate-900 dark:text-slate-100 text-xs">
+                  {fmtCr(item.amount)}
+                </span>
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                  ({item.percentage}%)
+                </span>
+              </div>
             </div>
           ))}
         </div>

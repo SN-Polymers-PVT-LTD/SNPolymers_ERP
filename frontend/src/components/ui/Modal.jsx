@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useModalOverlay } from '../ModalContext';
 
 const Modal = ({
@@ -67,18 +68,18 @@ const Modal = ({
     }
   };
 
-  return (
+  const modalContent = (
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-fadeIn"
+      className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-[9999] overflow-y-auto animate-fadeIn"
     >
       <div
-        className={`glass-panel p-6 rounded-3xl w-full shadow-[0_25px_60px_rgba(0,0,0,0.8)] border border-white/10 relative overflow-hidden transition-all duration-300 transform scale-100 ${maxWidthClass} ${className}`}
+        className={`glass-panel p-6 rounded-3xl w-full max-h-[85vh] flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.8)] border border-white/10 relative overflow-hidden my-auto transition-all duration-300 transform scale-100 ${maxWidthClass} ${className}`}
         {...props}
       >
         {/* Modal Header */}
-        <div className="flex justify-between items-start mb-5 relative z-10">
+        <div className="flex justify-between items-start mb-4 pb-3 border-b border-white/5 relative z-10 shrink-0">
           <div>
             {subtitle && (
               <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500 font-mono block">
@@ -94,7 +95,8 @@ const Modal = ({
           {onClose && (
             <button
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded-lg hover:bg-white/5"
+              className="text-slate-400 hover:text-slate-200 transition-colors p-1.5 rounded-lg hover:bg-white/5 shrink-0"
+              title="Close"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -104,19 +106,21 @@ const Modal = ({
         </div>
 
         {/* Modal Content */}
-        <div className="relative z-10 overflow-y-auto max-h-[70vh] no-scrollbar">
+        <div className="relative z-10 overflow-y-auto max-h-[calc(85vh-130px)] no-scrollbar flex-1 pr-1">
           {children}
         </div>
 
         {/* Modal Footer */}
         {footer && (
-          <div className="flex gap-3 justify-end pt-5 mt-5 border-t border-white/5 relative z-10">
+          <div className="flex gap-3 justify-end pt-4 mt-4 border-t border-white/5 relative z-10 shrink-0">
             {footer}
           </div>
         )}
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default Modal;

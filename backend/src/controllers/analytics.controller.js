@@ -605,19 +605,24 @@ async function getHoActionableInsights(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied. Authorized executive and zonal roles only.' });
     }
 
-    // 1. Fetch all ZO balances
-    const { data: balances, error: balErr } = await supabase
-      .from('zo_balances')
-      .select('zo_user_id, available_balance');
+    const isZo = req.user.role === 'zo';
+    const callerZo = req.user.mobile_number;
+
+    // 1. Fetch ZO balances — scoped for ZO callers
+    let balQuery = supabase.from('zo_balances').select('zo_user_id, available_balance');
+    if (isZo) balQuery = balQuery.eq('zo_user_id', callerZo);
+    const { data: balances, error: balErr } = await balQuery;
     if (balErr) throw balErr;
 
-    // 2. Fetch last-30-day requisition burns per ZO
+    // 2. Fetch last-30-day requisition burns per ZO — scoped for ZO callers
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: burns, error: burnErr } = await supabase
+    let burnQuery = supabase
       .from('requisitions')
       .select('zo_user_id, approved_amount')
       .eq('requisition_status', 'Approved')
       .gte('payment_date', thirtyDaysAgo);
+    if (isZo) burnQuery = burnQuery.eq('zo_user_id', callerZo);
+    const { data: burns, error: burnErr } = await burnQuery;
     if (burnErr) throw burnErr;
 
     // 3. Aggregate burn per ZO
@@ -642,23 +647,41 @@ async function getHoActionableInsights(req, res) {
       };
     });
 
-    // 5. Stalled projects from project_health_mv view
-    const { data: stalled, error: stalledErr } = await supabase
+    // 5. Stalled projects from project_health_mv view — scoped for ZO callers
+    let stalledQuery = supabase
       .from('project_health_mv')
-      .select('work_order_no, site_details, days_since_last_progress_report, physical_progress')
+      .select('work_order_no, site_details, days_since_last_progress_report, physical_progress, zo_user_id')
       .lt('physical_progress', 100)
       .gt('days_since_last_progress_report', 7)
       .order('days_since_last_progress_report', { ascending: false });
+    if (isZo) stalledQuery = stalledQuery.eq('zo_user_id', callerZo);
+    const { data: stalled, error: stalledErr } = await stalledQuery;
     if (stalledErr) throw stalledErr;
 
-    // 6. High-revision projects (>3 revisions)
-    const { data: allEstimates, error: estErr } = await supabase
-      .from('project_cost_estimates')
-      .select('work_order_no');
-    if (estErr) throw estErr;
+    // 6. High-revision projects (>3 revisions) — scoped for ZO callers
+    let allEstimates;
+    if (isZo) {
+      const { data: myWos, error: woErr } = await supabase
+        .from('projects_master')
+        .select('work_order_no')
+        .eq('zo_user_id', callerZo);
+      if (woErr) throw woErr;
+      const myWoSet = new Set((myWos || []).map(w => w.work_order_no));
+      const { data: estimates, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no');
+      if (estErr) throw estErr;
+      allEstimates = (estimates || []).filter(e => myWoSet.has(e.work_order_no));
+    } else {
+      const { data: estimates, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no');
+      if (estErr) throw estErr;
+      allEstimates = estimates || [];
+    }
 
     const revisionCount = {};
-    (allEstimates || []).forEach(e => {
+    allEstimates.forEach(e => {
       revisionCount[e.work_order_no] = (revisionCount[e.work_order_no] || 0) + 1;
     });
     const highRevisionProjects = Object.entries(revisionCount)
@@ -702,7 +725,7 @@ async function getHoChartData(req, res) {
       (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
 
     // === Parallel fetch all chart sources ===
-    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes, woMappingsRes, jeZoMappingsRes] =
+    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes, woMappingsRes, jeZoMappingsRes, estimatedBillsRes] =
       await Promise.all([
         supabase.from('project_health_mv').select(
           'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
@@ -713,16 +736,18 @@ async function getHoChartData(req, res) {
         supabase.from('zo_fund_ledger').select('zo_user_id, transaction_type, amount, created_at').gte('created_at', twelveMonthsAgo).order('created_at', { ascending: true }),
         supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
         supabase.from('zone_performance_mv').select('*'),
-        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id'),
+        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id, project_start_date, project_end_date, created_at'),
         supabase.from('zo_balances').select('zo_user_id, available_balance'),
         supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true),
-        supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true)
+        supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true),
+        supabase.from('estimated_bills').select('work_order_no, estimated_bill_amount')
       ]);
 
     // Throw on first error
     for (const r of [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
       if (r.error) throw r.error;
     }
+
 
     let estimatesRes = await supabase
       .from('project_cost_estimates')
@@ -761,6 +786,11 @@ async function getHoChartData(req, res) {
       };
     });
 
+    const estBillMap = {};
+    (estimatedBillsRes?.data || []).forEach(e => {
+      estBillMap[e.work_order_no] = Number(e.estimated_bill_amount || 0);
+    });
+
     // === Strict Filtering Logic ===
     let allProjects = (projectsRes.data || []).map(p => {
       const assignedJe = woJeMap[p.work_order_no];
@@ -772,9 +802,11 @@ async function getHoChartData(req, res) {
         zo_user_id: mappedZoId,
         assigned_je: assignedJe,
         zone: zoDisplayName,
-        zo_name: zoDisplayName
+        zo_name: zoDisplayName,
+        estimated_bill_amount: estBillMap[p.work_order_no] || 0
       };
     });
+
 
     if (project_status && !project_status.toLowerCase().includes('all')) {
       const normStatus = project_status.toLowerCase().trim();
@@ -813,7 +845,10 @@ async function getHoChartData(req, res) {
     });
     let filteredReqs = (reqsRes.data || []).filter(r => allowedWoSet.has(r.work_order_no) && isWithinDateRange(r.payment_date || r.created_at));
     let filteredBills = (billsRes.data || []).filter(b => allowedWoSet.has(b.work_order_no) && isWithinDateRange(b.created_at));
-    let filteredLedger = (ledgerRes.data || []).filter(l => isWithinDateRange(l.created_at));
+    let filteredLedger = (ledgerRes.data || []).filter(l => {
+      const matchZo = !effectiveZone || (l.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+      return matchZo && isWithinDateRange(l.created_at);
+    });
     let filteredDpr = (dprRes.data || []).filter(d => allowedWoSet.has(d.work_order_no) && isWithinDateRange(d.login_date));
 
     // === Build bubbleMatrix ===
@@ -868,6 +903,10 @@ async function getHoChartData(req, res) {
 
     const grossHoAllocated = sumOf(approvedFunds, 'approve_ho_amount');
     const netHoAllocated = Math.max(0, grossHoAllocated - totalExcessReturned);
+    let filteredEstimatedBills = (estimatedBillsRes?.data || []).filter(eb => allowedWoSet.has(eb.work_order_no));
+
+    const grossBilledAmount = sumOf(filteredBills, 'gross_bill');
+    const estimatedBillForecastAmount = sumOf(filteredEstimatedBills, 'estimated_bill_amount');
 
     const waterfallData = [
       { stage: 'Final Approved Estimate', amount: sumOf(finalEstimates, 'estimate_amount') },
@@ -875,9 +914,13 @@ async function getHoChartData(req, res) {
       { stage: 'Excess Returned to HO',   amount: totalExcessReturned, isRefund: true },
       { stage: 'HO Allocated (Net)',      amount: netHoAllocated },
       { stage: 'Requisitions Approved',   amount: sumOf(approvedReqs,   'approved_amount') },
-      { stage: 'Gross Billed',            amount: sumOf(filteredBills,  'gross_bill') },
+      { stage: 'Gross Billed',            amount: grossBilledAmount },
       { stage: 'Agency Paid',             amount: sumOf(filteredBills,  'agency_payment') }
     ];
+    const estimatedBillForecast = {
+      amount: estimatedBillForecastAmount,
+      varianceVsGrossBilled: estimatedBillForecastAmount - grossBilledAmount
+    };
 
     // === Build zonalHeatmap ===
     let zonalHeatmap = (zoneRes.data || []).map(z => {
@@ -933,9 +976,19 @@ async function getHoChartData(req, res) {
       }
     });
 
+    const projectDatesByWo = {};
+    allProjects.forEach(p => {
+      projectDatesByWo[p.work_order_no] = {
+        project_start_date: p.project_start_date || null,
+        project_end_date: p.project_end_date || null
+      };
+    });
+
     const sCurveData = Object.entries(dprByWO).map(([wo, actuals]) => ({
       work_order_no: wo,
-      actuals
+      actuals,
+      project_start_date: projectDatesByWo[wo]?.project_start_date || null,
+      project_end_date: projectDatesByWo[wo]?.project_end_date || null
     }));
 
     // === Build runwayTrend ===
@@ -1190,7 +1243,11 @@ async function getHoChartData(req, res) {
     const totalSgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
     const totalCgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
 
-    const totalNotUtilized = (zoBalRes.data || []).reduce((acc, b) => acc + Number(b.available_balance || 0), 0);
+    const filteredZoBalances = (zoBalRes.data || []).filter(b => {
+      if (!effectiveZone) return true;
+      return (b.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+    });
+    const totalNotUtilized = filteredZoBalances.reduce((acc, b) => acc + Number(b.available_balance || 0), 0);
 
     const keyFinancialIndicators = {
       emdAmount: totalEmd,
@@ -1211,10 +1268,6 @@ async function getHoChartData(req, res) {
     const totalEstAmt = sumOf(finalEstimates, 'estimate_amount');
     const totalReqAmt = sumOf(approvedReqs, 'approved_amount');
     const totalHoApprAmt = sumOf(approvedFunds, 'approve_ho_amount');
-    const filteredZoBalances = (zoBalRes.data || []).filter(b => {
-      if (!effectiveZone) return true;
-      return (b.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
-    });
     const totalZoBalAmt = sumOf(filteredZoBalances, 'available_balance');
     const totalRefundAmt = Math.abs(totalExcessReturned);
 
@@ -1284,6 +1337,7 @@ async function getHoChartData(req, res) {
       success: true,
       bubbleMatrix,
       waterfallData,
+      estimatedBillForecast,
       zonalHeatmap,
       runwayTrend,
       sCurveData,
@@ -1297,28 +1351,9 @@ async function getHoChartData(req, res) {
     });
   } catch (error) {
     console.error('[ANALYTICS] Error in getHoChartData:', error.message || error);
-    return res.status(200).json({
-      success: true,
-      bubbleMatrix: [],
-      waterfallData: [
-        { stage: 'Final Approved Estimate', amount: 0 },
-        { stage: 'HO Allocated (Gross)',    amount: 0 },
-        { stage: 'Excess Returned to HO',   amount: 0, isRefund: true },
-        { stage: 'HO Allocated (Net)',      amount: 0 },
-        { stage: 'Requisitions Approved',   amount: 0 },
-        { stage: 'Gross Billed',            amount: 0 },
-        { stage: 'Agency Paid',             amount: 0 }
-      ],
-      zonalHeatmap: [],
-      runwayTrend: [],
-      sCurveData: [],
-      revisionHeatmap: [],
-      departmentWiseEstimate: [],
-      physicalProgressMetrics: {},
-      jeVisitFrequencyMetrics: {},
-      keyFinancialIndicators: {},
-      executiveSummaryKpis: {},
-      projectsList: []
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load analytics chart data. Please try again.'
     });
   }
 }
@@ -1460,6 +1495,29 @@ async function getJeLeaderboard(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/analytics/ho/billing-forecast-accuracy
+ * Returns billing forecast accuracy view records comparing estimated bills vs actual payments
+ */
+async function getHoBillingForecastAccuracy(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from('billing_forecast_accuracy_mv')
+      .select('*')
+      .order('estimated_payment_date', { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || []
+    });
+  } catch (error) {
+    console.error('[ANALYTICS] Error in getHoBillingForecastAccuracy:', error.message || error);
+    return res.status(500).json({ success: false, message: 'Internal server error fetching billing forecast accuracy.' });
+  }
+}
+
 module.exports = {
   getHoKpis,
   getHoResourceUtilization,
@@ -1474,5 +1532,7 @@ module.exports = {
   getProjectsHealth,
   getHoActionableInsights,
   getHoChartData,
-  getJeLeaderboard
+  getJeLeaderboard,
+  getHoBillingForecastAccuracy
 };
+

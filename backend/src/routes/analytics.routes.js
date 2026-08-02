@@ -13,7 +13,8 @@ const {
   getProjectsHealth,
   getHoActionableInsights,
   getHoChartData,
-  getJeLeaderboard
+  getJeLeaderboard,
+  getHoBillingForecastAccuracy
 } = require('../controllers/analytics.controller');
 const verifyJwt  = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -29,13 +30,15 @@ router.get('/je-leaderboard', requireRole(['je', 'zo', 'ho', 'admin']), getJeLea
 // HO / ZO Shared Executive Routes
 const execRoles = ['zo', 'ho', 'admin'];
 const hoRoles = ['ho', 'admin'];
-router.get('/ho/kpis',                 requireRole(hoRoles), getHoKpis);
-router.get('/ho/resource-utilization', requireRole(hoRoles), getHoResourceUtilization);
-router.get('/ho/approval-sla',         requireRole(hoRoles), getHoApprovalSla);
-router.get('/ho/zone-benchmarking',    requireRole(hoRoles), getHoZoneBenchmarking);
-router.get('/ho/budget-leakage',       requireRole(hoRoles), getHoBudgetLeakage);
-router.get('/ho/actionable-insights',  requireRole(execRoles), getHoActionableInsights);
-router.get('/ho/chart-data',           requireRole(execRoles), getHoChartData);
+router.get('/ho/kpis',                     requireRole(hoRoles), getHoKpis);
+router.get('/ho/resource-utilization',     requireRole(hoRoles), getHoResourceUtilization);
+router.get('/ho/approval-sla',             requireRole(hoRoles), getHoApprovalSla);
+router.get('/ho/zone-benchmarking',        requireRole(hoRoles), getHoZoneBenchmarking);
+router.get('/ho/budget-leakage',           requireRole(hoRoles), getHoBudgetLeakage);
+router.get('/ho/billing-forecast-accuracy', requireRole(hoRoles), getHoBillingForecastAccuracy);
+router.get('/ho/actionable-insights',      requireRole(execRoles), getHoActionableInsights);
+router.get('/ho/chart-data',               requireRole(execRoles), getHoChartData);
+
 
 // ZO + HO Routes
 router.get('/zo/productivity',         requireRole(['zo', 'ho', 'admin']), getZoProductivity);

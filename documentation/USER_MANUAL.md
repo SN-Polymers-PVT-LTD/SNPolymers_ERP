@@ -397,6 +397,21 @@ This module tracks contractor payment applications, tax deduction breakdowns, an
 
 ---
 
+### 11. Estimated Bill Module (Cash-Flow Forecasting)
+
+Located under **Finance -> Estimated Bills** (`/estimated-bills`), this module enables Zonal Office (ZO) and Head Office (HO) managers to record forward-looking cash-flow forecasts for active construction work orders.
+
+#### Key Rules & Operations:
+* **One Record Per Work Order**: Each Work Order maintains at most one active estimated bill record. Saving an estimate for an existing Work Order updates the record in place automatically.
+* **No Approval Workflow Required**: Entries update reports, executive KPI cards, and cash-flow forecasts immediately upon saving — no draft or approval chain needed.
+* **Auto-Filled Master Data**: Selecting a Work Order automatically populates contract values, client department, zone, district, and site location.
+* **Validation Cap**: The estimated bill amount cannot exceed the total Work Order Value.
+* **Bidirectionally Synced Surety Slider**: Adjust probability of payment realization (0–100%) using the range slider or typed number box.
+* **Dashed Forecast Overlay**: Forecasted billing amounts display as dashed amber overlays on the Fund Flow Pipeline waterfall chart to compare actual realization vs. forecasts.
+
+---
+
+
 ### 11. Project Fund Reports
 
 Located under **Finance -> Fund Reports** (`/fund-reports`), this module records actual bank financial disbursements linked directly to active work orders.
