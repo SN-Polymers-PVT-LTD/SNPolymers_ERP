@@ -60,11 +60,15 @@ async function verifyOtp(mobileNumber, rawOtp) {
     return { success: true };
   }
 
-  // Retrieve the latest unused OTP request for this mobile number
+  const { mobileNumberVariants } = require('../utils/mobile');
+  const variants = mobileNumberVariants(mobileNumber);
+  const lookupKeys = variants.length > 0 ? variants : [mobileNumber];
+
+  // Retrieve the latest unused OTP request (accepts +91… or 91… storage keys)
   const { data: requests, error } = await supabase
     .from('otp_requests')
     .select('*')
-    .eq('mobile_number', mobileNumber)
+    .in('mobile_number', lookupKeys)
     .eq('is_used', false)
     .order('created_at', { ascending: false })
     .limit(1);

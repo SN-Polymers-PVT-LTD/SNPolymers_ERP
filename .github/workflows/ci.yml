@@ -73,8 +73,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install Supabase CLI (Docker images are cached between runs)
-      - uses: supabase/setup-cli@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      # Install Supabase CLI via npm (v3). v1 hits GitHub release API rate limits
+      # and still targets deprecated Node 20.
+      - uses: supabase/setup-cli@v3
         with:
           version: latest
 
@@ -83,24 +90,18 @@ jobs:
       - name: Start local Supabase
         run: supabase start
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
-
       - name: Install dependencies
         working-directory: backend
         run: npm ci
 
-      # Apply all 39 migrations to the fresh local DB
+      # Apply all migrations to the fresh local DB
       - name: Apply migrations
         working-directory: backend
         run: npm run migrate
 
-      # Run all 40 Vitest integration tests
+      # Run Vitest directly — Supabase is already up from the steps above
       - name: Run integration tests
         working-directory: backend
-        run: npm test
+        run: npx vitest run
 
       # Runner is destroyed after this — no cleanup step needed

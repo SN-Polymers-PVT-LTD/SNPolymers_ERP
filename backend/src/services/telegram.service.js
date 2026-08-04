@@ -218,27 +218,25 @@ async function processWebhookUpdate(update) {
     let phone = contact.phone_number;
     if (!phone) return;
 
-    // Normalise phone number to match the +91XXXXXXXXXX format stored in DB
-    let normalizedPhone = phone.trim().replace(/\s+/g, '');
-    if (!normalizedPhone.startsWith('+')) {
-      normalizedPhone = '+' + normalizedPhone;
-    }
+    // Accept both 91… and +91… — production rows are stored without leading +
+    const { mobileNumberVariants, normalizeMobileNumber } = require('../utils/mobile');
+    const displayPhone = normalizeMobileNumber(phone) || phone.trim();
+    const variants = mobileNumberVariants(phone);
 
     try {
-      // Find active user with this normalized mobile number
       const { data: user, error } = await supabase
         .from('authorised_users')
         .select('*')
-        .eq('mobile_number', normalizedPhone)
+        .in('mobile_number', variants)
         .eq('is_active', true)
         .maybeSingle();
 
       if (error) throw error;
 
       if (!user) {
-        const rejectMsg = `❌ *Access Denied.*\n\nThe phone number *${normalizedPhone}* is not whitelisted or is inactive in the system.\n\nPlease contact the administrator to whitelist your mobile number first.`;
+        const rejectMsg = `❌ *Access Denied.*\n\nThe phone number *${displayPhone}* is not whitelisted or is inactive in the system.\n\nPlease contact the administrator to whitelist your mobile number first.`;
         await sendBotMessage(chatId, rejectMsg);
-        console.log(`[BOT] Rejected connection for unwhitelisted number ${normalizedPhone} (chat_id: ${chatId})`);
+        console.log(`[BOT] Rejected connection for unwhitelisted number ${displayPhone} (chat_id: ${chatId})`);
         return;
       }
 
@@ -258,7 +256,7 @@ async function processWebhookUpdate(update) {
       const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(successMsg)}&parse_mode=Markdown&reply_markup=${encodeURIComponent(JSON.stringify(replyMarkup))}`;
       await fetch(url);
 
-      console.log(`[BOT] Linked phone number ${normalizedPhone} to Chat ID ${chatId} (${user.display_name})`);
+      console.log(`[BOT] Linked phone number ${displayPhone} to Chat ID ${chatId} (${user.display_name})`);
 
     } catch (err) {
       console.error(`[BOT] Error linking contact for chat ${chatId}:`, err);
