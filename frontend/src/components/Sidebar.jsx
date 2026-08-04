@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 
@@ -360,6 +360,7 @@ const Sidebar = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const currentPath = location.pathname;
+  const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const isExpanded = !isCollapsed || isHovered;
@@ -659,34 +660,20 @@ const Sidebar = () => {
           <Link to="/dashboard" className="flex items-center justify-center w-10 h-10">
             <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="w-auto h-9 object-contain" />
           </Link>
-
-          <button
-            onClick={() => setIsCollapsed((prev) => !prev)}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 transition"
-            title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-              )}
-            </svg>
-          </button>
         </div>
 
         {/* Dynamic Icons (Fixed Rail) */}
         <nav className="flex flex-col items-center gap-3 my-auto">
           {currentPath !== '/dashboard' && (
-            <Link
-              to="/dashboard"
+            <button
+              onClick={() => navigate(-1)}
               className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 transition border border-transparent"
-              title="Back to Console"
+              title="Back"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-            </Link>
+            </button>
           )}
           {navItems.map(({ to, label, icon }) => {
             const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
@@ -756,33 +743,20 @@ const Sidebar = () => {
               <span className="text-[10px] text-amber-500 font-extrabold tracking-widest uppercase mt-0.5">ERP Console</span>
             </div>
           </Link>
-          <button
-            onClick={() => setIsCollapsed((prev) => !prev)}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 transition shrink-0"
-            title={isCollapsed ? 'Pin Sidebar' : 'Unpin Sidebar'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-              )}
-            </svg>
-          </button>
         </div>
 
         {/* Dynamic Contextual Sub-Nav Items */}
         <nav className="flex-grow space-y-2 overflow-y-auto pr-1 no-scrollbar min-w-0">
           {currentPath !== '/dashboard' && (
-            <Link
-              to="/dashboard"
-              className="flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden mb-4 bg-slate-500/5 hover:bg-slate-500/10 border border-slate-500/25 text-slate-400"
+            <button
+              onClick={() => navigate(-1)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden mb-4 bg-slate-500/5 hover:bg-slate-500/10 border border-slate-500/25 text-slate-400"
             >
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span>Back to Console</span>
-            </Link>
+              <span>Back</span>
+            </button>
           )}
           {navItems.map(({ to, label, icon }) => {
             const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;

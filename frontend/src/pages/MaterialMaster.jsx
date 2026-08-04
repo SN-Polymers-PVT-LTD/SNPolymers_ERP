@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, TextArea, Select, Checkbox, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, Input, TextArea, Select, Checkbox, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getMaterials,
@@ -111,7 +111,13 @@ const MaterialMaster = () => {
   const materials = materialsData?.materials || [];
   const totalItems = materialsData?.pagination?.totalItems || 0;
   const totalPages = materialsData?.pagination?.totalPages || 1;
-  const displayErrorMsg = errorMsg || (queryError ? 'Failed to load Material Master items. Please try again.' : '');
+
+  // Sync queryError to errorMsg to trigger the premium popup once
+  useEffect(() => {
+    if (queryError) {
+      setErrorMsg(queryError.response?.data?.message || 'Failed to load Material Master items. Please try again.');
+    }
+  }, [queryError]);
 
   // Prefetch the next page of results
   useEffect(() => {
@@ -311,17 +317,19 @@ const MaterialMaster = () => {
           )}
         </div>
 
-        {/* Global Notifications */}
-        {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold rounded-xl animate-fade-in">
-            {successMsg}
-          </div>
-        )}
-        {displayErrorMsg && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold rounded-xl animate-fade-in">
-            {displayErrorMsg}
-          </div>
-        )}
+        {/* Global Notifications via Premium Popups */}
+        <SuccessPopup
+          isOpen={!!successMsg}
+          title="Success"
+          description={successMsg}
+          onClose={() => setSuccessMsg('')}
+        />
+        <ErrorPopup
+          isOpen={!!errorMsg}
+          title="Error"
+          description={errorMsg}
+          onClose={() => setErrorMsg('')}
+        />
 
         {/* Search and Filters Bar */}
         <div className="glass-panel p-4 rounded-2xl mb-6 space-y-4">

@@ -35,6 +35,7 @@ const WorkOrderMappings = React.lazy(() => import('./pages/WorkOrderMappings'));
 const ZonalBalances = React.lazy(() => import('./pages/ZonalBalances'));
 const ExcessFundReturns = React.lazy(() => import('./pages/ExcessFundReturns'));
 const EstimatedBill = React.lazy(() => import('./pages/EstimatedBill'));
+const EstimatedBillLedger = React.lazy(() => import('./pages/EstimatedBillLedger'));
 const Profile = React.lazy(() => import('./pages/Profile'));
 
 const HoDashboard = React.lazy(() => import('./pages/HoDashboard'));
@@ -124,6 +125,7 @@ function App() {
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
                   <Route path="/ra-final-bills" element={<React.Suspense fallback={<AppChunkLoader />}><RAFinalBill /></React.Suspense>} />
                   <Route path="/estimated-bills" element={<React.Suspense fallback={<AppChunkLoader />}><EstimatedBill /></React.Suspense>} />
+                  <Route path="/estimated-bills/ledger/:work_order_no" element={<React.Suspense fallback={<AppChunkLoader />}><EstimatedBillLedger /></React.Suspense>} />
                   <Route path="/user-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><UserMappings /></React.Suspense>} />
                   <Route path="/work-order-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><WorkOrderMappings /></React.Suspense>} />
                   <Route path="/zonal-balances" element={<React.Suspense fallback={<AppChunkLoader />}><ZonalBalances /></React.Suspense>} />

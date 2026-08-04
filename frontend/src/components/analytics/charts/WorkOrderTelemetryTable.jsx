@@ -155,11 +155,12 @@ export const WorkOrderTelemetryTable = ({
   selectedZo = null,
   onSelectZo = null,
   getZoDisplayName = null,
+  hideZoSelector = false,
 }) => {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [deptFilter, setDeptFilter] = useState('');
-  const [sortField, setSortField] = useState('estimated_bill_amount');
+  const [sortField, setSortField] = useState('work_order_value');
   const [sortAsc, setSortAsc] = useState(false);
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
@@ -319,32 +320,34 @@ export const WorkOrderTelemetryTable = ({
         </select>
 
         {/* Zone Selector: ZO Mode or HO Mode */}
-        {availableZos !== null ? (
-          <PaginatedZoSelector
-            availableZos={availableZos}
-            selectedZo={selectedZo}
-            onSelectZo={(zoId) => {
-              if (onSelectZo) onSelectZo(zoId);
-              setPage(1);
-            }}
-            getZoDisplayName={getZoDisplayName}
-          />
-        ) : (
-          <select
-            value={selectedZone || ''}
-            onChange={(e) => {
-              if (onSelectZone) onSelectZone(e.target.value || null);
-              setPage(1);
-            }}
-            className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-amber-500/50 transition"
-          >
-            <option value="">All Zones</option>
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z}
-              </option>
-            ))}
-          </select>
+        {!hideZoSelector && (
+          availableZos !== null ? (
+            <PaginatedZoSelector
+              availableZos={availableZos}
+              selectedZo={selectedZo}
+              onSelectZo={(zoId) => {
+                if (onSelectZo) onSelectZo(zoId);
+                setPage(1);
+              }}
+              getZoDisplayName={getZoDisplayName}
+            />
+          ) : (
+            <select
+              value={selectedZone || ''}
+              onChange={(e) => {
+                if (onSelectZone) onSelectZone(e.target.value || null);
+                setPage(1);
+              }}
+              className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 focus:outline-none focus:border-white/30 focus:ring-1 focus:ring-amber-500/50 transition"
+            >
+              <option value="">All Zones</option>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </select>
+          )
         )}
 
         <div className="flex items-center justify-between sm:justify-end gap-2">
@@ -423,16 +426,7 @@ export const WorkOrderTelemetryTable = ({
               >
                 Spent {renderSortIcon('approved_requisitions_amount')}
               </th>
-              <th
-                tabIndex={0}
-                role="columnheader"
-                aria-sort={getSortAria('estimated_bill_amount')}
-                onClick={() => handleSort('estimated_bill_amount')}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleSort('estimated_bill_amount')}
-                className="py-2.5 cursor-pointer select-none group hover:text-white text-[9px] font-bold uppercase tracking-widest text-center focus:outline-none focus:text-amber-400"
-              >
-                Estimated Bill {renderSortIcon('estimated_bill_amount')}
-              </th>
+
               <th
                 tabIndex={0}
                 role="columnheader"
@@ -466,9 +460,7 @@ export const WorkOrderTelemetryTable = ({
                   <td className="py-3.5 text-center font-mono text-emerald-400">
                     {formatINR(row.approved_requisitions_amount)}
                   </td>
-                  <td className="py-3.5 text-center font-mono text-amber-400 font-extrabold">
-                    {formatINR(row.estimated_bill_amount)}
-                  </td>
+
                   <td className="py-3.5 text-center">
                     <span className="font-extrabold text-slate-200">{row.physical_progress}%</span>
                   </td>
@@ -490,7 +482,7 @@ export const WorkOrderTelemetryTable = ({
             })}
             {paginated.length === 0 && (
               <tr>
-                <td colSpan="8" className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest">
+                <td colSpan="7" className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest">
                   No work orders match current filters
                 </td>
               </tr>

@@ -135,12 +135,6 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
     expect(wf[6].stage).toBe('Agency Paid');
     wf.forEach(w => expect(Number(w.amount)).toBeGreaterThanOrEqual(0));
     expect(wf.some(w => w.stage === 'Estimated Bill Forecast')).toBe(false);
-
-    const forecast = res.jsonData.estimatedBillForecast;
-    expect(forecast).toBeDefined();
-    expect(typeof forecast.amount).toBe('number');
-    expect(typeof forecast.varianceVsGrossBilled).toBe('number');
-    expect(forecast.varianceVsGrossBilled).toBe(forecast.amount - wf[5].amount);
   });
 
   test('M3.3: bubbleMatrix items have finite numeric fields and no NaN values', async () => {

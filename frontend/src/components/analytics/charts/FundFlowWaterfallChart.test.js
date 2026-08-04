@@ -54,9 +54,9 @@ const goldenProjects = [
   },
 ];
 
-function resolveWaterfall(data, projects, estimatedBillForecast = null) {
+function resolveWaterfall(data, projects) {
   if (data && Array.isArray(data) && data.length > 0) {
-    return { rows: data, forecast: estimatedBillForecast };
+    return { rows: data };
   }
 
   const p = projects || [];
@@ -67,7 +67,6 @@ function resolveWaterfall(data, projects, estimatedBillForecast = null) {
   const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
   const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
   const paid = p.reduce((a, pr) => a + Number(pr.agency_payment ?? pr.agency_paid ?? 0), 0);
-  const forecasted = p.reduce((a, pr) => a + Number(pr.estimated_bill_amount || 0), 0);
 
   return {
     rows: [
@@ -78,11 +77,7 @@ function resolveWaterfall(data, projects, estimatedBillForecast = null) {
       { stage: 'Requisitions Approved',   amount: reqApproved },
       { stage: 'Gross Billed',            amount: billed },
       { stage: 'Agency Paid',             amount: paid },
-    ],
-    forecast: estimatedBillForecast || {
-      amount: forecasted,
-      varianceVsGrossBilled: forecasted - billed
-    }
+    ]
   };
 }
 
@@ -104,11 +99,9 @@ assert.strictEqual(fallbackRows[3].amount, 42500000);
 assert.strictEqual(fallbackRows[4].amount, 35000000);
 assert.strictEqual(fallbackRows[5].amount, 28000000);
 assert.strictEqual(fallbackRows[6].amount, 23000000);
-assert.strictEqual(fallback.forecast.amount, 0);
-assert.strictEqual(fallback.forecast.varianceVsGrossBilled, -28000000);
 
 console.log('✓ Seven sequential pipeline stages computed correctly');
-console.log('✓ Forecast is a sibling annotation, not stage 7');
+console.log('✓ Forecast has been removed as per specification');
 
 console.log('--- Running Agency Paid connector delta test ---');
 const backendEquivalentData = [
@@ -120,13 +113,11 @@ const backendEquivalentData = [
   { stage: 'Gross Billed',            amount: 100 },
   { stage: 'Agency Paid',             amount: 80 },
 ];
-const backendForecast = { amount: 25000000, varianceVsGrossBilled: 24999900 };
-const backendResult = resolveWaterfall(backendEquivalentData, goldenProjects, backendForecast);
+const backendResult = resolveWaterfall(backendEquivalentData, goldenProjects);
 
 assert.strictEqual(agencyPaidConnectorDiff(backendResult.rows), 20);
-assert.strictEqual(backendResult.forecast.amount, 25000000);
 assert.ok(!backendResult.rows.some(r => r.stage === 'Estimated Bill Forecast'));
-console.log('✓ Agency Paid connector = Gross Billed − Agency Paid regardless of forecast amount');
+console.log('✓ Agency Paid connector = Gross Billed − Agency Paid');
 
 console.log('--- Running Backend Data vs Client Fallback Equivalence Test ---');
 const alignedBackendData = [
@@ -138,7 +129,7 @@ const alignedBackendData = [
   { stage: 'Gross Billed',            amount: 28000000 },
   { stage: 'Agency Paid',             amount: 23000000 },
 ];
-const backendRows = resolveWaterfall(alignedBackendData, goldenProjects, { amount: 0, varianceVsGrossBilled: -28000000 }).rows;
+const backendRows = resolveWaterfall(alignedBackendData, goldenProjects).rows;
 for (let i = 0; i < 7; i++) {
   assert.strictEqual(backendRows[i].stage, fallbackRows[i].stage);
   assert.strictEqual(backendRows[i].amount, fallbackRows[i].amount);
@@ -149,8 +140,6 @@ console.log('--- Running Empty State & Boundary Safety Test ---');
 const empty = resolveWaterfall([], []);
 assert.strictEqual(empty.rows.length, 7);
 empty.rows.forEach(r => assert.strictEqual(r.amount, 0));
-assert.strictEqual(empty.forecast.amount, 0);
-assert.strictEqual(empty.forecast.varianceVsGrossBilled, 0);
 console.log('✓ Empty State (data=[], projects=[]) Assertions Passed Successfully!');
 
 describe('FundFlowWaterfallChart', () => {

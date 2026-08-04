@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Select, Input, TextArea, Button } from '../ui';
 import { useAuth } from '../AuthContext';
-import { getEstimatedBillByWO } from '../../api/estimatedBillsApi';
 
 export const EstimatedBillEntryModal = ({
   isOpen = false,
@@ -9,7 +8,8 @@ export const EstimatedBillEntryModal = ({
   initialWorkOrderNo = null,
   workOrderOptions = [],
   onSave,
-  isSaving = false
+  isSaving = false,
+  lockWorkOrder = false
 }) => {
   const { user } = useAuth();
 
@@ -21,9 +21,7 @@ export const EstimatedBillEntryModal = ({
   const [suretyPct, setSuretyPct] = useState(80);
   const [remarks, setRemarks] = useState('');
 
-  const [lastUpdatedMeta, setLastUpdatedMeta] = useState('');
   const [validationError, setValidationError] = useState('');
-  const [isFetchingWO, setIsFetchingWO] = useState(false);
 
   const resetForm = useCallback(() => {
     setSelectedWoNo('');
@@ -32,11 +30,10 @@ export const EstimatedBillEntryModal = ({
     setPaymentDate('');
     setSuretyPct(80);
     setRemarks('');
-    setLastUpdatedMeta('Not yet saved');
     setValidationError('');
   }, []);
 
-  const handleWoSelection = useCallback(async (woNo) => {
+  const handleWoSelection = useCallback((woNo) => {
     if (!woNo) {
       resetForm();
       return;
@@ -46,43 +43,7 @@ export const EstimatedBillEntryModal = ({
     setSelectedWoData(woMatch || null);
     setSelectedWoNo(woNo);
     setValidationError('');
-
-    // Fetch existing estimate record if any
-    setIsFetchingWO(true);
-    try {
-      const res = await getEstimatedBillByWO(woNo);
-      if (!isOpen) return;
-      if (res.data?.success && res.data?.data) {
-        const r = res.data.data;
-        setAmount(r.estimated_bill_amount || '');
-        setPaymentDate(r.estimated_payment_date || '');
-        setSuretyPct(r.surety_pct ?? 80);
-        setRemarks(r.remarks || '');
-        const updateDate = r.updated_at
-          ? new Date(r.updated_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-          : 'Today';
-        setLastUpdatedMeta(`Last updated by ${r.updated_by_name || r.updated_by}, ${updateDate}`);
-      } else {
-        setAmount('');
-        setPaymentDate('');
-        setSuretyPct(80);
-        setRemarks('');
-        setLastUpdatedMeta('Not yet saved');
-      }
-    } catch {
-      if (!isOpen) return;
-      // 404 means no record existing yet
-      setAmount('');
-      setPaymentDate('');
-      setSuretyPct(80);
-      setRemarks('');
-      setLastUpdatedMeta('Not yet saved');
-    } finally {
-      if (isOpen) {
-        setIsFetchingWO(false);
-      }
-    }
-  }, [isOpen, workOrderOptions, resetForm]);
+  }, [workOrderOptions, resetForm]);
 
   // Sync initialWorkOrderNo when modal opens
   useEffect(() => {
@@ -131,7 +92,7 @@ export const EstimatedBillEntryModal = ({
       return;
     }
     if (!paymentDate) {
-      setValidationError('Please select an estimated payment date.');
+      setValidationError('Please select an estimated date.');
       return;
     }
 
@@ -167,8 +128,8 @@ export const EstimatedBillEntryModal = ({
       subtitle="Cash-Flow Forecast Layer"
       footer={
         <div className="w-full flex justify-between items-center">
-          <span className="text-xs text-slate-400">
-            {lastUpdatedMeta}
+          <span className="text-xs text-slate-400 font-medium">
+            New timeline entry
           </span>
           <div className="flex gap-3 items-center">
             <button
@@ -183,7 +144,7 @@ export const EstimatedBillEntryModal = ({
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <Button variant="amber" onClick={handleSubmit} disabled={isSaving || isFetchingWO || Boolean(validationError)}>
+            <Button variant="amber" onClick={handleSubmit} disabled={isSaving || Boolean(validationError)}>
               {isSaving ? 'Saving...' : 'Save Estimate'}
             </Button>
           </div>
@@ -200,7 +161,7 @@ export const EstimatedBillEntryModal = ({
             value={selectedWoNo}
             onChange={(e) => handleWoSelection(e.target.value)}
             options={woSelectOptions}
-            disabled={isFetchingWO}
+            disabled={lockWorkOrder}
           />
         </div>
 
@@ -271,7 +232,7 @@ export const EstimatedBillEntryModal = ({
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
-              Estimated Payment Date <span className="text-amber-500">*</span>
+              Estimated Date <span className="text-amber-500">*</span>
             </label>
             <Input
               type="date"

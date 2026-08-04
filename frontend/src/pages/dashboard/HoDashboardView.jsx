@@ -7,7 +7,19 @@ import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getProjectsHealth } from '../../api/analyticsApi';
 import { useTheme } from '../../components/ThemeContext';
 import { useAuth } from '../../components/AuthContext';
+import DashboardErrorBanner from '../../components/dashboard/DashboardErrorBanner';
 import { EMPTY_ARRAY } from '../../utils/constants';
+import {
+  countPendingEstimates,
+  filterPendingRequisitions,
+  computeRequisitionStats,
+  computeApprovalRate,
+  computeCapitalFlow,
+  computeBillExposure,
+  getActiveWorkOrderCount,
+  mergeProjectsWithHealth,
+  buildEstimateCountMap
+} from '../../utils/hoDashboard';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -26,7 +38,7 @@ const HoDashboardView = () => {
   const [filterType, setFilterType] = useState('value');
 
   // 1. Fetch dashboard overview
-  const { data: overviewRes } = useQuery({
+  const overviewQ = useQuery({
     queryKey: ['dashboardOverview'],
     queryFn: async () => {
       const res = await authApi.get('/projects/dashboard/overview');
@@ -35,11 +47,11 @@ const HoDashboardView = () => {
     staleTime: 30000
   });
 
-  const overview = overviewRes?.overview || { totalProjects: 0, running: 0, closed: 0, maintenance: 0 };
-  const activities = overviewRes?.recentActivity || [];
+  const overview = overviewQ.data?.overview || { totalProjects: 0, running: 0, closed: 0, maintenance: 0 };
+  const activities = overviewQ.data?.recentActivity || [];
 
   // 2. Fetch cost estimates
-  const { data: estimatesRes } = useQuery({
+  const estimatesQ = useQuery({
     queryKey: ['estimates', { limit: 100 }],
     queryFn: async () => {
       const res = await authApi.get('/estimates?limit=100');
@@ -48,16 +60,11 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const estimates = estimatesRes?.estimates ?? EMPTY_ARRAY;
-  const pendingEstimatesCount = useMemo(() => {
-    return estimates.filter(e => {
-      const st = (e.estimate_status || '').toLowerCase().trim();
-      return ['submitted', 'under zo review', 'zo revision requested', 'zo approved', 'under ho review', 'ho revision requested', 'estimate reopened'].includes(st);
-    }).length;
-  }, [estimates]);
+  const estimates = estimatesQ.data?.estimates ?? EMPTY_ARRAY;
+  const pendingEstimatesCount = useMemo(() => countPendingEstimates(estimates), [estimates]);
 
   // 3. Fetch payment requisitions
-  const { data: requisitionsRes } = useQuery({
+  const requisitionsQ = useQuery({
     queryKey: ['dashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
@@ -66,26 +73,18 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const requisitions = requisitionsRes?.requisitions ?? EMPTY_ARRAY;
-  const pendingRequisitions = useMemo(() => {
-    return requisitions.filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'pending');
-  }, [requisitions]);
+  const requisitions = requisitionsQ.data?.requisitions ?? EMPTY_ARRAY;
+  const pendingRequisitions = useMemo(() => filterPendingRequisitions(requisitions), [requisitions]);
 
-  const requisitionStats = useMemo(() => {
-    const approvedSum = requisitions
-      .filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved')
-      .reduce((sum, r) => sum + Number(r.approved_amount || r.net_payable_amount || 0), 0);
-    return { approvedSum, pendingCount: pendingRequisitions.length };
-  }, [requisitions, pendingRequisitions]);
+  const requisitionStats = useMemo(
+    () => computeRequisitionStats(requisitions, pendingRequisitions),
+    [requisitions, pendingRequisitions]
+  );
 
-  const approvalRate = useMemo(() => {
-    if (!requisitions.length) return '0%';
-    const appCount = requisitions.filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved').length;
-    return `${((appCount / requisitions.length) * 100).toFixed(1)}%`;
-  }, [requisitions]);
+  const approvalRate = useMemo(() => computeApprovalRate(requisitions), [requisitions]);
 
   // 4. Fetch all projects and project health data (which includes latest_progress from project_health_mv)
-  const { data: projectsRes } = useQuery({
+  const projectsQ = useQuery({
     queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
@@ -94,7 +93,7 @@ const HoDashboardView = () => {
     staleTime: 60000
   });
 
-  const { data: healthRes } = useQuery({
+  const healthQ = useQuery({
     queryKey: ['projectsHealthData'],
     queryFn: async () => {
       const res = await getProjectsHealth();
@@ -102,6 +101,8 @@ const HoDashboardView = () => {
     },
     staleTime: 30000
   });
+
+  const healthRes = healthQ.data;
 
   const healthMap = useMemo(() => {
     const map = {};
@@ -111,37 +112,15 @@ const HoDashboardView = () => {
     return map;
   }, [healthRes]);
 
-  const estimateCountMap = useMemo(() => {
-    const map = {};
-    estimates.forEach(e => {
-      if (e.work_order_no) {
-        map[e.work_order_no] = (map[e.work_order_no] || 0) + 1;
-      }
-    });
-    return map;
-  }, [estimates]);
+  const estimateCountMap = useMemo(() => buildEstimateCountMap(estimates), [estimates]);
 
   const projects = useMemo(() => {
-    const rawProjects = projectsRes?.projects || [];
-    return rawProjects.map(p => {
-      const h = healthMap[p.work_order_no];
-      const progVal = h?.physical_progress !== undefined && h?.physical_progress !== null
-        ? h.physical_progress
-        : h?.physical_work_progress;
-
-      const prog = progVal !== undefined && progVal !== null
-        ? Number(progVal)
-        : Number(p.physical_progress || 0);
-      return {
-        ...p,
-        physical_progress: prog,
-        estimates_count: estimateCountMap[p.work_order_no] || 0
-      };
-    });
-  }, [projectsRes, healthMap, estimateCountMap]);
+    const rawProjects = projectsQ.data?.projects || [];
+    return mergeProjectsWithHealth(rawProjects, healthMap, estimateCountMap);
+  }, [projectsQ.data, healthMap, estimateCountMap]);
 
   // 5. Fetch Fund Requests for HO Capital Flow Telemetry
-  const { data: fundRequestsRes } = useQuery({
+  const fundRequestsQ = useQuery({
     queryKey: ['hoFundRequests'],
     queryFn: async () => {
       const res = await getFundRequests();
@@ -150,10 +129,10 @@ const HoDashboardView = () => {
     staleTime: 30000
   });
 
-  const fundRequests = fundRequestsRes?.fundRequests ?? EMPTY_ARRAY;
+  const fundRequests = fundRequestsQ.data?.fundRequests ?? EMPTY_ARRAY;
 
   // 6. Fetch Zonal Balances
-  const { data: balancesRes } = useQuery({
+  const balancesQ = useQuery({
     queryKey: ['hoZonalBalances'],
     queryFn: async () => {
       const res = await getZonalBalances();
@@ -162,40 +141,31 @@ const HoDashboardView = () => {
     staleTime: 30000
   });
 
-  const _zonalBalances = balancesRes?.balances || [];
+  const _zonalBalances = balancesQ.data?.balances || [];
+
+  const hasAnyError = overviewQ.isError || estimatesQ.isError || requisitionsQ.isError
+    || projectsQ.isError || healthQ.isError || fundRequestsQ.isError || balancesQ.isError;
+
+  const handleRetry = () => {
+    if (overviewQ.isError) overviewQ.refetch();
+    if (estimatesQ.isError) estimatesQ.refetch();
+    if (requisitionsQ.isError) requisitionsQ.refetch();
+    if (projectsQ.isError) projectsQ.refetch();
+    if (healthQ.isError) healthQ.refetch();
+    if (fundRequestsQ.isError) fundRequestsQ.refetch();
+    if (balancesQ.isError) balancesQ.refetch();
+  };
 
   // Compute Live Capital Flow Telemetry
-  const capitalFlow = useMemo(() => {
-    // In-flight: pending fund requests + pending requisitions
-    const pendingFrAmt = fundRequests
-      .filter(f => (f.request_status || f.status || '').toLowerCase() === 'pending')
-      .reduce((sum, f) => sum + Number(f.zo_fr_amount || f.amount || f.request_amount || 0), 0);
+  const capitalFlow = useMemo(
+    () => computeCapitalFlow(fundRequests, pendingRequisitions, requisitions),
+    [fundRequests, pendingRequisitions, requisitions]
+  );
 
-    const pendingReqAmt = pendingRequisitions
-      .reduce((sum, r) => sum + Number(r.requisition_amount || r.requested_amount || r.net_payable_amount || 0), 0);
-
-    const inFlightTotal = pendingFrAmt + pendingReqAmt;
-
-    // Disbursed / Approved
-    const approvedFrAmt = fundRequests
-      .filter(f => (f.request_status || f.status || '').toLowerCase() === 'approved')
-      .reduce((sum, f) => sum + Number(f.approve_ho_amount || f.zo_fr_amount || f.amount || 0), 0);
-
-    const approvedReqAmt = requisitions
-      .filter(r => (r.requisition_status || r.status || '').toLowerCase() === 'approved')
-      .reduce((sum, r) => sum + Number(r.approved_amount || r.requisition_amount || r.net_payable_amount || 0), 0);
-
-    const movedTotal = approvedFrAmt + approvedReqAmt;
-
-    return {
-      inFlightTotal,
-      pendingFrAmt,
-      pendingReqAmt,
-      movedTotal,
-      zonalDisbursals: approvedFrAmt,
-      requisitionsDisbursed: approvedReqAmt
-    };
-  }, [fundRequests, pendingRequisitions, requisitions]);
+  const billExposure = useMemo(
+    () => computeBillExposure(projects, healthMap),
+    [projects, healthMap]
+  );
 
   // Sorted work orders for Ongoing Work Zones
   const topProjects = useMemo(() => {
@@ -220,11 +190,12 @@ const HoDashboardView = () => {
     { label: 'Requisitions Awaiting Approval', value: pendingRequisitions.length, change: 'Requires operator action', color: 'text-rose-500', glow: 'shadow-[0_0_15px_rgba(244,63,94,0.05)]' },
     { label: 'Estimates Under Review', value: pendingEstimatesCount, change: 'Pending approval action', color: 'text-sky-500', glow: 'shadow-[0_0_15px_rgba(14,165,233,0.05)]' },
     { label: 'Total Requisitions Approved', value: formatINR(requisitionStats.approvedSum), change: `${requisitions.length} bills processed`, color: 'text-emerald-500', glow: 'shadow-[0_0_15px_rgba(16,185,129,0.05)]' },
-    { label: 'Active Work Orders', value: overview.running || projects.length, change: `Total: ${overview.totalProjects || projects.length}`, color: 'text-amber-500', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.05)]' },
+    { label: 'Active Work Orders', value: getActiveWorkOrderCount(overview), change: `Total: ${overview.totalProjects || projects.length}`, color: 'text-amber-500', glow: 'shadow-[0_0_15px_rgba(245,158,11,0.05)]' },
   ];
 
   return (
     <div className="space-y-8 pb-12">
+      <DashboardErrorBanner visible={hasAnyError} onRetry={handleRetry} />
       {/* Top KPI Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {kpis.map((kpi, idx) => (
@@ -251,7 +222,7 @@ const HoDashboardView = () => {
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Active Work Orders</span>
-                <span className="text-xl font-bold text-sky-400">{overview.running || projects.length}</span>
+                <span className="text-xl font-bold text-sky-400">{getActiveWorkOrderCount(overview)}</span>
               </div>
               <div className="bg-white/5 border border-white/5 rounded-2xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Pending Reqs</span>
@@ -588,28 +559,16 @@ const HoDashboardView = () => {
                   </div>
                 </div>
 
-                {/* Stage 4: Due Bill Amount */}
+                {/* Stage 4: Remaining Bill Amount */}
                 <div className="group relative bg-white/2 border border-white/5 rounded-2xl p-4 transition-all duration-300 hover:bg-purple-500/5 hover:border-purple-500/30 cursor-pointer">
                   <div className="flex items-center justify-between">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">4. Due Bill Amount</span>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider">4. Remaining Bill Amount</span>
                     <span className="w-2 h-2 rounded-full bg-purple-500/40 group-hover:bg-purple-400 transition" />
                   </div>
-                  <div className="text-base sm:text-lg font-mono font-black text-purple-600 dark:text-purple-400 mt-2 truncate" title={
-                    formatINR(
-                      Math.max(0,
-                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
-                        (capitalFlow.requisitionsDisbursed || 0)
-                      )
-                    )
-                  }>
-                    {formatINR(
-                      Math.max(0,
-                        (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
-                        (capitalFlow.requisitionsDisbursed || 0)
-                      )
-                    )}
+                  <div className="text-base sm:text-lg font-mono font-black text-purple-600 dark:text-purple-400 mt-2 truncate" title={formatINR(billExposure.remainingBillAmount)}>
+                    {formatINR(billExposure.remainingBillAmount)}
                   </div>
-                  <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">Unbilled WO value pending realization</span>
+                  <span className="text-[9px] text-slate-500 font-medium mt-1 block truncate">Total WO Value − Gross Bill Amount</span>
 
                   {/* Hover Tooltip Card (Opens Upwards to avoid bottom clipping) */}
                   <div
@@ -621,30 +580,25 @@ const HoDashboardView = () => {
                     }}
                   >
                     <div className="text-[10px] font-extrabold uppercase tracking-wider border-b pb-1 flex justify-between items-center" style={{ color: isDark ? '#c084fc' : '#7e22ce', borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
-                      <span>Stage 4: Due Bill Exposure</span>
+                      <span>Stage 4: Remaining Bill Exposure</span>
                       <span className="text-[9px] font-mono" style={{ color: isDark ? '#94a3b8' : '#64748b' }}>Live</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Total Portfolio Value:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>
-                        {formatINR(projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0)}
+                        {formatINR(billExposure.totalWoValue)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Gross Billed Amount:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#34d399' : '#059669' }}>
-                        {formatINR(capitalFlow.requisitionsDisbursed || 0)}
+                        {formatINR(billExposure.totalGrossBilled)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-[10px] pt-0.5 border-t" style={{ borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)' }}>
-                      <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Unbilled Exposure:</span>
+                      <span className="font-medium" style={{ color: isDark ? '#cbd5e1' : '#475569' }}>Remaining Bill Amount:</span>
                       <span className="font-mono font-bold" style={{ color: isDark ? '#c084fc' : '#7e22ce' }}>
-                        {formatINR(
-                          Math.max(0,
-                            (projects.reduce((sum, p) => sum + Number(p.work_order_value || 0), 0) || 0) -
-                            (capitalFlow.requisitionsDisbursed || 0)
-                          )
-                        )}
+                        {formatINR(billExposure.remainingBillAmount)}
                       </span>
                     </div>
                   </div>

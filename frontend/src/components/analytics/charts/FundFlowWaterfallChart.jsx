@@ -23,7 +23,6 @@ function buildFallbackRows(projects) {
   const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
   const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
   const paid = p.reduce((a, pr) => a + Number(pr.agency_payment ?? pr.agency_paid ?? 0), 0);
-  const forecasted = p.reduce((a, pr) => a + Number(pr.estimated_bill_amount || 0), 0);
 
   return {
     rows: [
@@ -34,42 +33,27 @@ function buildFallbackRows(projects) {
       { stage: 'Requisitions Approved',   amount: reqApproved },
       { stage: 'Gross Billed',            amount: billed },
       { stage: 'Agency Paid',             amount: paid },
-    ],
-    forecast: {
-      amount: forecasted,
-      varianceVsGrossBilled: forecasted - billed
-    }
+    ]
   };
 }
 
-export const FundFlowWaterfallChart = ({ data = [], estimatedBillForecast = null, projects = [], isModal = false }) => {
+export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = false }) => {
   const c = useChartColors();
   const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 28;
   const barH = 20, gap = 22;
 
-  const { rows, forecast } = useMemo(() => {
+  const { rows } = useMemo(() => {
     if (data && Array.isArray(data) && data.length > 0) {
-      return { rows: data, forecast: estimatedBillForecast };
+      return { rows: data };
     }
     const fallback = buildFallbackRows(projects);
     return {
-      rows: fallback.rows,
-      forecast: estimatedBillForecast || fallback.forecast
+      rows: fallback.rows
     };
-  }, [data, projects, estimatedBillForecast]);
+  }, [data, projects]);
 
   const maxVal = Math.max(1, ...rows.map(d => Number(d.amount || 0)));
   const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
-
-  const grossBilledIdx = rows.findIndex(r => (r.stage || '').toLowerCase().trim() === 'gross billed');
-  const grossBilledY = grossBilledIdx >= 0 ? PAD_Y + grossBilledIdx * (barH + gap) : null;
-  const forecastMarkerX = forecast && grossBilledY != null
-    ? PAD_LEFT + scale(Number(forecast.amount || 0))
-    : null;
-
-  const varianceLabel = forecast
-    ? `${forecast.varianceVsGrossBilled >= 0 ? '+' : ''}${fmtCr(forecast.varianceVsGrossBilled)} vs. Gross Billed`
-    : '';
 
   return (
     <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between"}>
@@ -82,7 +66,7 @@ export const FundFlowWaterfallChart = ({ data = [], estimatedBillForecast = null
             <p className="chart-subtitle">Capital Realization &amp; Allocation Lifecycle Pipeline</p>
           </div>
           <ChartInfoTooltip
-            description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, estimated bill forecasts, and vendor settlement."
+            description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
             formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
           />
         </div>
@@ -127,21 +111,6 @@ export const FundFlowWaterfallChart = ({ data = [], estimatedBillForecast = null
                   className="transition-all duration-300 hover:fill-opacity-90"
                 />
 
-                {forecastMarkerX != null && i === grossBilledIdx && Number(forecast.amount || 0) > 0 && (
-                  <g>
-                    <line
-                      x1={forecastMarkerX}
-                      x2={forecastMarkerX}
-                      y1={y - 2}
-                      y2={y + barH + 2}
-                      stroke="#f59e0b"
-                      strokeWidth="1.5"
-                      strokeDasharray="3 2"
-                    />
-                    <circle cx={forecastMarkerX} cy={y + barH / 2} r="2.5" fill="#f59e0b" />
-                  </g>
-                )}
-
                 <text x={PAD_LEFT + bW + 10} y={y + 14} fill={valueColor} fontSize="9" fontWeight="extrabold" className="font-mono">
                   {fmtCr(d.amount)}
                 </text>
@@ -171,25 +140,9 @@ export const FundFlowWaterfallChart = ({ data = [], estimatedBillForecast = null
             );
           })}
         </svg>
-
-        {forecast && (
-          <div className="shrink-0 mt-1 px-3 py-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-amber-500 shrink-0">★ Forecast</span>
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 truncate">Estimated Bill Forecast</span>
-              <span className="text-[10px] font-extrabold font-mono text-amber-600 dark:text-amber-400 shrink-0">
-                {fmtCr(forecast.amount)}
-              </span>
-            </div>
-            <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400 sm:text-right">
-              {varianceLabel}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
 };
-
 
 export default FundFlowWaterfallChart;

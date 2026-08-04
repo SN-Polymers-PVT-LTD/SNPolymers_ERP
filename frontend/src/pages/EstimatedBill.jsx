@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../components/AuthContext';
 import { Button, SuccessPopup } from '../components/ui';
@@ -9,11 +10,12 @@ import EstimatedBillEntryModal from '../components/estimatedBill/EstimatedBillEn
 import {
   getEstimatedBills,
   getWorkOrderOptions,
-  saveEstimatedBill
+  createEstimatedBillEntry
 } from '../api/estimatedBillsApi';
 
 export const EstimatedBill = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const isZo = user?.role === 'zo';
@@ -62,9 +64,9 @@ export const EstimatedBill = () => {
     }
   });
 
-  // Mutation: Upsert Save
+  // Mutation: Insert Save
   const saveMutation = useMutation({
-    mutationFn: (payload) => saveEstimatedBill(payload),
+    mutationFn: (payload) => createEstimatedBillEntry(payload),
     onSuccess: (res, variables) => {
       queryClient.invalidateQueries(['estimated-bills']);
       queryClient.invalidateQueries(['estimated-bill-work-orders']);
@@ -81,8 +83,8 @@ export const EstimatedBill = () => {
     setModalState({ isOpen: true, initialWorkOrderNo: null });
   };
 
-  const handleEditClick = (woNo) => {
-    setModalState({ isOpen: true, initialWorkOrderNo: woNo });
+  const handleViewLedgerClick = (woNo) => {
+    navigate(`/estimated-bills/ledger/${encodeURIComponent(woNo)}`);
   };
 
   const handleCloseModal = () => {
@@ -105,7 +107,7 @@ export const EstimatedBill = () => {
             Estimated Bill Module
           </h1>
           <p className="text-xs text-slate-400 mt-1 max-w-xl">
-            Record forward-looking billing estimates per Work Order for cash-flow forecasting. One record per Work Order — updates in place automatically on every save.
+            Record forward-looking billing estimates per Work Order for cash-flow forecasting. Grouped summaries per Work Order with full history tracking ledgers.
           </p>
         </div>
 
@@ -121,17 +123,6 @@ export const EstimatedBill = () => {
         </Button>
       </div>
 
-      {/* ZO Role Context Note Banner */}
-      {isZo && (
-        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center gap-3 text-amber-400 text-xs font-bold">
-          <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>
-            Viewing as Zonal Office — showing assigned Work Orders only. You can create and edit estimates for Work Orders within your zone.
-          </span>
-        </div>
-      )}
 
       {/* Statistics Bar (KPI Strip) */}
       <EstimatedBillStats
@@ -151,7 +142,7 @@ export const EstimatedBill = () => {
       <EstimatedBillTable
         data={listData || []}
         isLoading={isListLoading}
-        onEditClick={handleEditClick}
+        onViewLedgerClick={handleViewLedgerClick}
       />
 
       {/* Entry / Edit Modal */}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import Modal from '../components/ui/Modal';
-import { SkeletonTable, Pagination } from '../components/ui';
+import { SkeletonTable, Pagination, SuccessPopup, ErrorPopup } from '../components/ui';
 import { getWorkOrderMappings, createWorkOrderMapping, deactivateWorkOrderMapping } from '../api/workOrderMappingsApi';
 import { getEligibleJEs } from '../api/userMappingsApi';
 import { getProjects } from '../api/projectsApi';
@@ -262,21 +262,19 @@ const WorkOrderMappings = () => {
         )}
       </div>
 
-      {/* Success Alert */}
-      {success && (
-        <div className="mb-6 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium flex items-center justify-between">
-          <span>{success}</span>
-          <button onClick={() => setSuccess('')} className="text-emerald-400/70 hover:text-emerald-400">&times;</button>
-        </div>
-      )}
-
-      {/* Error Alert */}
-      {error && (
-        <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center justify-between">
-          <span>{error}</span>
-          <button onClick={() => setError('')} className="text-red-400/70 hover:text-red-400">&times;</button>
-        </div>
-      )}
+      {/* Global Notifications via Premium Popups */}
+      <SuccessPopup
+        isOpen={!!success}
+        title="Success"
+        description={success}
+        onClose={() => setSuccess('')}
+      />
+      <ErrorPopup
+        isOpen={!!error}
+        title="Error"
+        description={error}
+        onClose={() => setError('')}
+      />
 
       {/* Filter Controls */}
       <div className="glass-panel p-4 rounded-2xl mb-6 flex flex-col md:flex-row gap-4 items-center justify-between shadow-lg">

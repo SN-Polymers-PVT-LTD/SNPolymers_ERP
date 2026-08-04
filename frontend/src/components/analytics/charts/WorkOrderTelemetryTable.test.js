@@ -11,7 +11,6 @@ const goldenProjects = [
     zo_name: 'ZO-NORTH',
     work_order_value: 10000000,
     approved_requisitions_amount: 5000000,
-    estimated_bill_amount: 4500000,
     physical_progress: 80,
     health_score: 95,
     health_status: 'Healthy',
@@ -25,7 +24,6 @@ const goldenProjects = [
     zo_name: 'ZO-NORTH',
     work_order_value: 10000000,
     approved_requisitions_amount: 7000000,
-    estimated_bill_amount: 6500000,
     physical_progress: 60,
     health_score: 75,
     health_status: 'Warning',
@@ -39,7 +37,6 @@ const goldenProjects = [
     zo_name: 'ZO-SOUTH',
     work_order_value: 5000000,
     approved_requisitions_amount: 4000000,
-    estimated_bill_amount: 3800000,
     physical_progress: 40,
     health_score: 45,
     health_status: 'Critical',
@@ -53,7 +50,6 @@ const goldenProjects = [
     zo_name: 'ZO-SOUTH',
     work_order_value: 8000000,
     approved_requisitions_amount: 3000000,
-    estimated_bill_amount: 2900000,
     physical_progress: 90,
     health_score: 90,
     health_status: 'Healthy',
@@ -67,7 +63,6 @@ const goldenProjects = [
     zo_name: 'ZO-WEST',
     work_order_value: 12000000,
     approved_requisitions_amount: 11000000,
-    estimated_bill_amount: 10500000,
     physical_progress: 85,
     health_score: 70,
     health_status: 'Warning',
@@ -75,7 +70,7 @@ const goldenProjects = [
   },
 ];
 
-function filterAndSort(pList, { search = '', selectedZone = null, selectedZo = null, deptFilter = '', sortField = 'estimated_bill_amount', sortAsc = false }) {
+function filterAndSort(pList, { search = '', selectedZone = null, selectedZo = null, deptFilter = '', sortField = 'work_order_value', sortAsc = false }) {
   const filtered = pList.filter((p) => {
     const q = search.toLowerCase().trim();
     const matchSearch =
@@ -132,13 +127,6 @@ const searchRes2 = filterAndSort(goldenProjects, { search: 'WATER' });
 assert.strictEqual(searchRes2.length, 2);
 console.log('✓ Search normalization (trimming + case-insensitivity) verified!');
 
-console.log('--- Running Estimated Bill Sorting Test ---');
-const sortedEst = filterAndSort(goldenProjects, { sortField: 'estimated_bill_amount', sortAsc: false });
-assert.strictEqual(sortedEst[0].work_order_no, 'WO-605'); // 10.5M
-assert.strictEqual(sortedEst[1].work_order_no, 'WO-602'); // 6.5M
-assert.strictEqual(sortedEst[4].work_order_no, 'WO-604'); // 2.9M
-console.log('✓ Estimated Bill Amount sorting strictly verified across telemetry dataset!');
-
 console.log('--- Running Stable Sorting Test ---');
 // WO-601 and WO-602 both have work_order_value = 10000000
 const sortedVal = filterAndSort(goldenProjects, { sortField: 'work_order_value', sortAsc: false });
@@ -166,10 +154,10 @@ assert.strictEqual(pageCount, 3);
 console.log('✓ Pagination bounds calculation (12 rows -> 3 pages) verified!');
 
 console.log('--- Running Golden Dataset Verification ---');
-const allRes = filterAndSort(goldenProjects, { sortField: 'estimated_bill_amount', sortAsc: false });
+const allRes = filterAndSort(goldenProjects, { sortField: 'work_order_value', sortAsc: false });
 assert.strictEqual(allRes.length, 5);
-assert.strictEqual(allRes[0].work_order_no, 'WO-605'); // Highest Estimated Bill 10.5M
-assert.strictEqual(allRes[4].work_order_no, 'WO-604'); // Lowest Estimated Bill 2.9M
+assert.strictEqual(allRes[0].work_order_no, 'WO-605'); // Highest WO Value 12M
+assert.strictEqual(allRes[4].work_order_no, 'WO-603'); // Lowest WO Value 5M
 console.log('✓ Golden Dataset telemetry verification passed for all 5 reference projects!');
 
 console.log('--- Running Empty State Safety Test ---');

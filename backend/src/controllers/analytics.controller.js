@@ -425,43 +425,12 @@ async function getProjectDigitalTwin(req, res) {
       department: coordsRes.data?.department || null
     } : null;
 
-    // Resolve signed Supabase storage URLs for daily site photos
-    const rawPhotos = photosRes.data || [];
-    const photosWithUrls = await Promise.all(
-      rawPhotos.map(async (photo) => {
-        let photo_url = photo.daily_site_photo_url;
-        if (photo_url && !photo_url.startsWith('http://') && !photo_url.startsWith('https://') && !photo_url.startsWith('data:')) {
-          try {
-            const { data: signData } = await supabase.storage
-              .from('daily-progress-photos')
-              .createSignedUrl(photo_url, 3600);
-            
-            if (signData?.signedUrl) {
-              photo_url = signData.signedUrl;
-            } else {
-              const { data: pubData } = supabase.storage
-                .from('daily-progress-photos')
-                .getPublicUrl(photo_url);
-              if (pubData?.publicUrl) photo_url = pubData.publicUrl;
-            }
-          } catch (e) {
-            console.warn('[ANALYTICS] Failed to generate photo URL for:', photo_url);
-          }
-        }
-        return {
-          ...photo,
-          daily_site_photo_url: photo_url
-        };
-      })
-    );
-
     return res.status(200).json({
       success: true,
       overview: overviewData,
       materials: materialsRes.data || [],
       approvals: approvalsRes.data || [],
       budget: budgetRes.data || null,
-      photos: siteMedia,
       media: siteMedia,
       audits: enrichedAudits
     });
@@ -507,6 +476,9 @@ async function getProjectsHealth(req, res) {
         supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true).in('work_order_no', woNumbers)
       ]);
 
+      if (pmRes.error) throw pmRes.error;
+      if (woMapRes.error) throw woMapRes.error;
+
       const deptMap = {};
       (pmRes.data || []).forEach(p => {
         if (p.department) deptMap[p.work_order_no] = p.department;
@@ -515,7 +487,10 @@ async function getProjectsHealth(req, res) {
       const jeMobileMap = {};
       const jeMobiles = [];
       (woMapRes.data || []).forEach(m => {
-        jeMobileMap[m.work_order_no] = m.je_user_id;
+        if (!jeMobileMap[m.work_order_no]) {
+          jeMobileMap[m.work_order_no] = [];
+        }
+        jeMobileMap[m.work_order_no].push(m.je_user_id);
         if (m.je_user_id) jeMobiles.push(m.je_user_id);
       });
 
@@ -531,14 +506,22 @@ async function getProjectsHealth(req, res) {
       }
 
       enrichedData = enrichedData.map(p => {
-        const jeMobile = jeMobileMap[p.work_order_no];
-        const jeName = jeMobile ? (userMap[jeMobile] || jeMobile) : undefined;
+        const jeMobilesForProject = jeMobileMap[p.work_order_no] || [];
+        const assignedJes = jeMobilesForProject.map(mobile => ({
+          mobile_number: mobile,
+          name: userMap[mobile] || mobile
+        }));
+
+        const commaSeparatedNames = assignedJes.map(j => j.name).join(', ') || undefined;
+        const mainJeMobile = jeMobilesForProject[0] || undefined;
+
         return {
           ...p,
           department: p.department || deptMap[p.work_order_no] || 'General',
-          je_user_id: p.je_user_id || jeMobile,
-          je_name: p.je_name || jeName,
-          assigned_je: p.assigned_je || jeName
+          je_user_id: p.je_user_id || mainJeMobile,
+          je_name: p.je_name || commaSeparatedNames,
+          assigned_je: p.assigned_je || commaSeparatedNames,
+          assigned_jes: assignedJes
         };
       });
     }
@@ -725,7 +708,7 @@ async function getHoChartData(req, res) {
       (arr || []).reduce((acc, r) => acc + Number(r[key] || 0), 0);
 
     // === Parallel fetch all chart sources ===
-    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes, woMappingsRes, jeZoMappingsRes, estimatedBillsRes] =
+    const [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes, woMappingsRes, jeZoMappingsRes] =
       await Promise.all([
         supabase.from('project_health_mv').select(
           'work_order_no, site_details, physical_progress, approved_requisitions_amount, work_order_value, days_since_last_progress_report, health_score, health_status, zo_user_id, zone'
@@ -739,8 +722,7 @@ async function getHoChartData(req, res) {
         supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id, project_start_date, project_end_date, created_at'),
         supabase.from('zo_balances').select('zo_user_id, available_balance'),
         supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true),
-        supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true),
-        supabase.from('estimated_bills').select('work_order_no, estimated_bill_amount')
+        supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true)
       ]);
 
     // Throw on first error
@@ -786,11 +768,6 @@ async function getHoChartData(req, res) {
       };
     });
 
-    const estBillMap = {};
-    (estimatedBillsRes?.data || []).forEach(e => {
-      estBillMap[e.work_order_no] = Number(e.estimated_bill_amount || 0);
-    });
-
     // === Strict Filtering Logic ===
     let allProjects = (projectsRes.data || []).map(p => {
       const assignedJe = woJeMap[p.work_order_no];
@@ -802,8 +779,7 @@ async function getHoChartData(req, res) {
         zo_user_id: mappedZoId,
         assigned_je: assignedJe,
         zone: zoDisplayName,
-        zo_name: zoDisplayName,
-        estimated_bill_amount: estBillMap[p.work_order_no] || 0
+        zo_name: zoDisplayName
       };
     });
 
@@ -903,10 +879,7 @@ async function getHoChartData(req, res) {
 
     const grossHoAllocated = sumOf(approvedFunds, 'approve_ho_amount');
     const netHoAllocated = Math.max(0, grossHoAllocated - totalExcessReturned);
-    let filteredEstimatedBills = (estimatedBillsRes?.data || []).filter(eb => allowedWoSet.has(eb.work_order_no));
-
     const grossBilledAmount = sumOf(filteredBills, 'gross_bill');
-    const estimatedBillForecastAmount = sumOf(filteredEstimatedBills, 'estimated_bill_amount');
 
     const waterfallData = [
       { stage: 'Final Approved Estimate', amount: sumOf(finalEstimates, 'estimate_amount') },
@@ -917,10 +890,8 @@ async function getHoChartData(req, res) {
       { stage: 'Gross Billed',            amount: grossBilledAmount },
       { stage: 'Agency Paid',             amount: sumOf(filteredBills,  'agency_payment') }
     ];
-    const estimatedBillForecast = {
-      amount: estimatedBillForecastAmount,
-      varianceVsGrossBilled: estimatedBillForecastAmount - grossBilledAmount
-    };
+
+
 
     // === Build zonalHeatmap ===
     let zonalHeatmap = (zoneRes.data || []).map(z => {
@@ -1337,7 +1308,6 @@ async function getHoChartData(req, res) {
       success: true,
       bubbleMatrix,
       waterfallData,
-      estimatedBillForecast,
       zonalHeatmap,
       runwayTrend,
       sCurveData,
@@ -1473,7 +1443,14 @@ async function getJeLeaderboard(req, res) {
           score
         };
       })
-      .filter(u => u.total_reports > 0 || u.daily_streak > 0); // Exclude zero-activity inactive accounts
+      .filter(u => {
+        // If a ZO is requesting, include every JE currently mapped to that ZO in the active mapping table
+        if (effectiveZone && allowedJeSet) {
+          return allowedJeSet.has(u.mobile_number);
+        }
+        // Otherwise, for HO/Global views, keep active JEs with logged reports or streak
+        return u.total_reports > 0 || u.daily_streak > 0;
+      });
 
     // Sort by score descending, then total_reports descending
     leaderboard.sort((a, b) => b.score - a.score || b.total_reports - a.total_reports);
@@ -1495,29 +1472,6 @@ async function getJeLeaderboard(req, res) {
   }
 }
 
-/**
- * GET /api/v1/auth/analytics/ho/billing-forecast-accuracy
- * Returns billing forecast accuracy view records comparing estimated bills vs actual payments
- */
-async function getHoBillingForecastAccuracy(req, res) {
-  try {
-    const { data, error } = await supabase
-      .from('billing_forecast_accuracy_mv')
-      .select('*')
-      .order('estimated_payment_date', { ascending: true });
-
-    if (error) throw error;
-
-    return res.status(200).json({
-      success: true,
-      data: data || []
-    });
-  } catch (error) {
-    console.error('[ANALYTICS] Error in getHoBillingForecastAccuracy:', error.message || error);
-    return res.status(500).json({ success: false, message: 'Internal server error fetching billing forecast accuracy.' });
-  }
-}
-
 module.exports = {
   getHoKpis,
   getHoResourceUtilization,
@@ -1532,7 +1486,6 @@ module.exports = {
   getProjectsHealth,
   getHoActionableInsights,
   getHoChartData,
-  getJeLeaderboard,
-  getHoBillingForecastAccuracy
+  getJeLeaderboard
 };
 

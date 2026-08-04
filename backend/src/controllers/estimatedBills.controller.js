@@ -25,6 +25,7 @@ async function resolveDisplayNames(mobiles) {
 /**
  * GET /api/v1/auth/estimated-bills
  * Retrieves a list of estimated bills with filtering and role scoping.
+ * Aggregates multiple entries per work order into a single overview row per WO.
  */
 async function listEstimatedBills(req, res) {
   try {
@@ -64,34 +65,63 @@ async function listEstimatedBills(req, res) {
       dbQuery = dbQuery.lte('estimated_payment_date', query.payment_date_to.trim());
     }
 
-    const { data: records, error } = await dbQuery.order('updated_at', { ascending: false });
+    // Order by created_at to group correctly in timeline order
+    const { data: records, error } = await dbQuery.order('created_at', { ascending: true });
 
     if (error) throw error;
 
     const enriched = [];
     if (records && records.length > 0) {
-      const mobiles = [];
+      // Group by work_order_no
+      const groups = {};
       records.forEach(r => {
-        mobiles.push(r.created_by);
-        mobiles.push(r.updated_by);
+        const wo = r.work_order_no;
+        if (!groups[wo]) {
+          groups[wo] = {
+            work_order_no: wo,
+            entries: [],
+            projects_master: r.projects_master
+          };
+        }
+        groups[wo].entries.push(r);
       });
-      const userMap = await resolveDisplayNames(mobiles);
 
-      records.forEach(r => {
-        const pm = r.projects_master || {};
+      // Aggregate each group
+      for (const wo of Object.keys(groups)) {
+        const g = groups[wo];
+        const pm = g.projects_master || {};
+        
+        // Find latest entry by created_at / updated_at
+        let latest = g.entries[0];
+        g.entries.forEach(e => {
+          if (new Date(e.updated_at) > new Date(latest.updated_at)) {
+            latest = e;
+          }
+        });
+
+        // Resolve user display names for the latest entry
+        const userMap = await resolveDisplayNames([latest.created_by, latest.updated_by]);
+
+        const totalAmount = g.entries.reduce((sum, e) => sum + Number(e.estimated_bill_amount || 0), 0);
+        // Weighted Average Surety = SUM(amount * surety) / SUM(amount)
+        const weightedSuretySum = g.entries.reduce((sum, e) => sum + (Number(e.estimated_bill_amount || 0) * Number(e.surety_pct || 0)), 0);
+        const wtdSuretyPct = totalAmount > 0 ? parseFloat((weightedSuretySum / totalAmount).toFixed(1)) : 0;
+        const suretyAmount = g.entries.reduce((sum, e) => sum + (Number(e.estimated_bill_amount || 0) * Number(e.surety_pct || 0) / 100), 0);
+
         enriched.push({
-          id: r.id,
-          work_order_no: r.work_order_no,
-          estimated_bill_amount: Number(r.estimated_bill_amount),
-          estimated_payment_date: r.estimated_payment_date,
-          surety_pct: r.surety_pct,
-          remarks: r.remarks,
-          created_by: r.created_by,
-          created_by_name: userMap[r.created_by] || r.created_by,
-          created_at: r.created_at,
-          updated_by: r.updated_by,
-          updated_by_name: userMap[r.updated_by] || r.updated_by,
-          updated_at: r.updated_at,
+          id: latest.id,
+          work_order_no: wo,
+          estimated_bill_amount: totalAmount,
+          surety_pct: wtdSuretyPct,
+          surety_amount: suretyAmount,
+          entry_count: g.entries.length,
+          remarks: latest.remarks,
+          created_by: latest.created_by,
+          created_by_name: userMap[latest.created_by] || latest.created_by,
+          created_at: latest.created_at,
+          updated_by: latest.updated_by,
+          updated_by_name: userMap[latest.updated_by] || latest.updated_by,
+          updated_at: latest.updated_at,
           status: pm.status || 'Running',
           zone: pm.zone,
           department: pm.department,
@@ -100,7 +130,7 @@ async function listEstimatedBills(req, res) {
           site_details: pm.site_details,
           work_order_value: pm.work_order_value ? Number(pm.work_order_value) : null
         });
-      });
+      }
     }
 
     return res.status(200).json({
@@ -128,17 +158,8 @@ async function listWorkOrderOptions(req, res) {
     const query = req.query || {};
 
     let dbQuery = supabase
-      .from('projects_master')
+      .from('eligible_estimated_bill_work_orders')
       .select('work_order_no, estimate_no, state, district, zone, department, site_details, work_order_value, zo_user_id, status');
-
-    if (query.status === 'all') {
-      // No status filter
-    } else if (query.status) {
-      dbQuery = dbQuery.eq('status', query.status.trim());
-    } else {
-      // Default to Running
-      dbQuery = dbQuery.eq('status', 'Running');
-    }
 
     if (role === 'zo') {
       dbQuery = dbQuery.eq('zo_user_id', mobile_number);
@@ -177,7 +198,7 @@ async function listWorkOrderOptions(req, res) {
 
 /**
  * GET /api/v1/auth/estimated-bills/:work_order_no
- * Retrieves a single estimated bill by Work Order number (with ZO scoping check).
+ * Retrieves all timeline entries for a specific Work Order (with ZO scoping check).
  */
 async function getEstimatedBill(req, res) {
   try {
@@ -187,7 +208,7 @@ async function getEstimatedBill(req, res) {
     // Check project master existence and ZO scoping
     const { data: project, error: projErr } = await supabase
       .from('projects_master')
-      .select('work_order_no, state, district, zone, department, site_details, work_order_value, zo_user_id')
+      .select('work_order_no, state, district, zone, department, site_details, work_order_value, zo_user_id, status')
       .eq('work_order_no', work_order_no.trim())
       .maybeSingle();
 
@@ -200,40 +221,71 @@ async function getEstimatedBill(req, res) {
       return res.status(404).json({ success: false, message: 'Work order not found.' });
     }
 
-    const { data: record, error: recErr } = await supabase
+    // Check if Final Bill already exists
+    const { data: finalBill, error: fbErr } = await supabase
+      .from('ra_final_bills')
+      .select('bill_id')
+      .eq('work_order_no', work_order_no.trim())
+      .eq('payment_type', 'Final Bill')
+      .maybeSingle();
+
+    if (fbErr) throw fbErr;
+
+    // Retrieve all timeline entries for this work order ordered by created_at DESC
+    const { data: records, error: recErr } = await supabase
       .from('estimated_bills')
       .select('*')
       .eq('work_order_no', work_order_no.trim())
-      .maybeSingle();
+      .order('created_at', { ascending: false });
 
     if (recErr) throw recErr;
-    if (!record) {
-      return res.status(404).json({ success: false, message: 'No estimated bill recorded for this work order.' });
-    }
 
-    const userMap = await resolveDisplayNames([record.created_by, record.updated_by]);
+    const enriched = [];
+    if (records && records.length > 0) {
+      const mobiles = [];
+      records.forEach(r => {
+        mobiles.push(r.created_by);
+        mobiles.push(r.updated_by);
+      });
+      const userMap = await resolveDisplayNames(mobiles);
+
+      records.forEach(r => {
+        enriched.push({
+          id: r.id,
+          work_order_no: r.work_order_no,
+          estimated_bill_amount: Number(r.estimated_bill_amount),
+          estimated_payment_date: r.estimated_payment_date,
+          surety_pct: r.surety_pct,
+          remarks: r.remarks,
+          created_by: r.created_by,
+          created_by_name: userMap[r.created_by] || r.created_by,
+          created_at: r.created_at,
+          updated_by: r.updated_by,
+          updated_by_name: userMap[r.updated_by] || r.updated_by,
+          updated_at: r.updated_at,
+          zone: project.zone,
+          department: project.department,
+          state: project.state,
+          district: project.district,
+          site_details: project.site_details,
+          work_order_value: project.work_order_value ? Number(project.work_order_value) : null
+        });
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      data: {
-        id: record.id,
-        work_order_no: record.work_order_no,
-        estimated_bill_amount: Number(record.estimated_bill_amount),
-        estimated_payment_date: record.estimated_payment_date,
-        surety_pct: record.surety_pct,
-        remarks: record.remarks,
-        created_by: record.created_by,
-        created_by_name: userMap[record.created_by] || record.created_by,
-        created_at: record.created_at,
-        updated_by: record.updated_by,
-        updated_by_name: userMap[record.updated_by] || record.updated_by,
-        updated_at: record.updated_at,
+      data: enriched,
+      project: {
+        work_order_no: project.work_order_no,
         zone: project.zone,
         department: project.department,
         state: project.state,
         district: project.district,
         site_details: project.site_details,
-        work_order_value: project.work_order_value ? Number(project.work_order_value) : null
+        work_order_value: project.work_order_value ? Number(project.work_order_value) : null,
+        status: project.status,
+        final_bill_exists: !!finalBill
       }
     });
 
@@ -243,13 +295,13 @@ async function getEstimatedBill(req, res) {
     } else {
       console.error(`getEstimatedBill failed: ${error.message}`);
     }
-    return res.status(500).json({ success: false, message: 'Failed to retrieve estimated bill.' });
+    return res.status(500).json({ success: false, message: 'Failed to retrieve estimated bill ledger.' });
   }
 }
 
 /**
  * POST /api/v1/auth/estimated-bills
- * Performs an upsert of an estimated bill record using transactional RPC.
+ * Performs append-only insert of an estimated bill record using transactional RPC.
  */
 async function upsertEstimatedBill(req, res) {
   try {
@@ -270,10 +322,10 @@ async function upsertEstimatedBill(req, res) {
       }
     }
 
-    const { data: result, error: rpcError } = await supabase.rpc('upsert_estimated_bill', {
+    const { data: result, error: rpcError } = await supabase.rpc('insert_estimated_bill', {
       p_work_order_no: work_order_no.trim(),
       p_amount: Number(estimated_bill_amount),
-      p_payment_date: estimated_payment_date.trim(),
+      p_estimated_date: estimated_payment_date.trim(),
       p_surety_pct: Number(surety_pct),
       p_remarks: remarks?.trim() || null,
       p_actor: mobile_number
@@ -284,7 +336,9 @@ async function upsertEstimatedBill(req, res) {
         rpcError.message.includes('cannot exceed work order value') ||
         rpcError.message.includes('must be greater than zero') ||
         rpcError.message.includes('between 0 and 100') ||
-        rpcError.message.includes('not found')
+        rpcError.message.includes('not found') ||
+        rpcError.message.includes('only be created for Running') ||
+        rpcError.message.includes('after a Final Bill has been submitted')
       )) {
         return res.status(400).json({ success: false, message: rpcError.message });
       }

@@ -1123,7 +1123,7 @@ const HoDashboard = () => {
         </div>
       )}
 
-      {/* Executive 9-KPI Strip */}
+      {/* Executive KPI Strip */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Executive KPIs</span>
@@ -1155,7 +1155,6 @@ const HoDashboard = () => {
           <div style={{ minHeight: '480px' }} className="h-full">
             <FundFlowWaterfallChart
               data={chartRes?.waterfallData}
-              estimatedBillForecast={chartRes?.estimatedBillForecast}
               projects={filteredProjects}
             />
           </div>
@@ -1420,7 +1419,6 @@ const HoDashboard = () => {
         <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
           <FundFlowWaterfallChart
             data={chartRes?.waterfallData}
-            estimatedBillForecast={chartRes?.estimatedBillForecast}
             projects={filteredProjects}
             isModal={true}
           />

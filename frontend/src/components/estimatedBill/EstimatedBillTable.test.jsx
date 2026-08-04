@@ -12,9 +12,9 @@ describe('EstimatedBillTable Component Tests', () => {
       department: 'PHE',
       work_order_value: 500000,
       estimated_bill_amount: 350000,
-      estimated_payment_date: '2026-09-15',
       surety_pct: 85,
-      updated_by_name: 'Shreyan Ghosh'
+      updated_by_name: 'Shreyan Ghosh',
+      entry_count: 1
     },
     {
       id: 2,
@@ -23,9 +23,9 @@ describe('EstimatedBillTable Component Tests', () => {
       department: 'PWD',
       work_order_value: 800000,
       estimated_bill_amount: 600000,
-      estimated_payment_date: '2026-10-20',
       surety_pct: 60,
-      updated_by_name: 'John Doe'
+      updated_by_name: 'John Doe',
+      entry_count: 2
     }
   ];
 
@@ -47,13 +47,13 @@ describe('EstimatedBillTable Component Tests', () => {
     expect(screen.getByText('60%')).toBeInTheDocument();
   });
 
-  it('triggers onEditClick callback when Edit button is clicked', () => {
-    const handleEdit = vi.fn();
-    render(<EstimatedBillTable data={sampleData} isLoading={false} onEditClick={handleEdit} />);
+  it('triggers onViewLedgerClick callback when View Ledger button is clicked', () => {
+    const handleViewLedger = vi.fn();
+    render(<EstimatedBillTable data={sampleData} isLoading={false} onViewLedgerClick={handleViewLedger} />);
     
-    const editButtons = screen.getAllByRole('button', { name: /edit/i });
-    fireEvent.click(editButtons[0]);
+    const viewLedgerButtons = screen.getAllByRole('button', { name: /view ledger/i });
+    fireEvent.click(viewLedgerButtons[0]);
     
-    expect(handleEdit).toHaveBeenCalledWith('WO-WB_KOL_01');
+    expect(handleViewLedger).toHaveBeenCalledWith('WO-WB_KOL_01');
   });
 });

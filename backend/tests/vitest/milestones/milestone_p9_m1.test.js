@@ -43,7 +43,6 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
     await supabase.from('projects_master').update({ zo_user_id: testZoUserB }).eq('work_order_no', testWoB);
   });
 
-
   afterAll(async () => {
     // Clean up test records
     await supabase.from('estimated_bills').delete().in('work_order_no', [testWoA, testWoB]);
@@ -53,10 +52,10 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
 
   describe('Milestone 1 — RPC & Database Constraints', () => {
     test('TC-1.1: RPC inserts a new estimated bill successfully', async () => {
-      const { data, error } = await supabase.rpc('upsert_estimated_bill', {
+      const { data, error } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoA,
         p_amount: 200000.00,
-        p_payment_date: '2026-09-15',
+        p_estimated_date: '2026-09-15',
         p_surety_pct: 85,
         p_remarks: 'Initial estimate A',
         p_actor: testZoUserA
@@ -71,19 +70,13 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
       expect(data.updated_by).toBe(testZoUserA);
     });
 
-    test('TC-1.2: RPC upserts existing record on conflict (overwrites in place)', async () => {
-      const { data: beforeData } = await supabase
-        .from('estimated_bills')
-        .select('created_at, updated_at')
-        .eq('work_order_no', testWoA)
-        .single();
-
+    test('TC-1.2: RPC inserts a second timeline entry for the same WO', async () => {
       await new Promise(r => setTimeout(r, 100));
 
-      const { data, error } = await supabase.rpc('upsert_estimated_bill', {
+      const { data, error } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoA,
         p_amount: 350000.00,
-        p_payment_date: '2026-10-01',
+        p_estimated_date: '2026-10-01',
         p_surety_pct: 90,
         p_remarks: 'Updated estimate A',
         p_actor: testHoUser
@@ -94,22 +87,20 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
       expect(Number(data.estimated_bill_amount)).toBe(350000.00);
       expect(data.surety_pct).toBe(90);
       expect(data.updated_by).toBe(testHoUser);
-      expect(data.created_at).toBe(beforeData.created_at);
-      expect(new Date(data.updated_at).getTime()).toBeGreaterThan(new Date(beforeData.updated_at).getTime());
 
-      // Verify total count for testWoA remains 1
+      // Verify total count for testWoA is now 2 (append-only timeline entries)
       const { count } = await supabase
         .from('estimated_bills')
         .select('*', { count: 'exact', head: true })
         .eq('work_order_no', testWoA);
-      expect(count).toBe(1);
+      expect(count).toBe(2);
     });
 
     test('TC-1.3: RPC blocks estimated amount exceeding work order value', async () => {
-      const { error } = await supabase.rpc('upsert_estimated_bill', {
+      const { error } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoA, // Value is 500,000.00
         p_amount: 600000.00,       // Exceeds 500,000.00
-        p_payment_date: '2026-09-15',
+        p_estimated_date: '2026-09-15',
         p_surety_pct: 80,
         p_remarks: null,
         p_actor: testZoUserA
@@ -120,10 +111,10 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
     });
 
     test('TC-1.4: RPC blocks invalid surety percentage (< 0 or > 100)', async () => {
-      const { error: errLow } = await supabase.rpc('upsert_estimated_bill', {
+      const { error: errLow } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoA,
         p_amount: 100000.00,
-        p_payment_date: '2026-09-15',
+        p_estimated_date: '2026-09-15',
         p_surety_pct: -5,
         p_remarks: null,
         p_actor: testZoUserA
@@ -131,10 +122,10 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
       expect(errLow).not.toBeNull();
       expect(errLow.message).toContain('between 0 and 100');
 
-      const { error: errHigh } = await supabase.rpc('upsert_estimated_bill', {
+      const { error: errHigh } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoA,
         p_amount: 100000.00,
-        p_payment_date: '2026-09-15',
+        p_estimated_date: '2026-09-15',
         p_surety_pct: 105,
         p_remarks: null,
         p_actor: testZoUserA
@@ -144,10 +135,10 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
     });
 
     test('TC-1.5: RPC blocks non-existent work order', async () => {
-      const { error } = await supabase.rpc('upsert_estimated_bill', {
+      const { error } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: 'NON_EXISTENT_WO_9999',
         p_amount: 100000.00,
-        p_payment_date: '2026-09-15',
+        p_estimated_date: '2026-09-15',
         p_surety_pct: 80,
         p_remarks: null,
         p_actor: testZoUserA
@@ -161,10 +152,10 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
   describe('Milestone 2 — Controller Logic & Authorization Scoping', () => {
     test('TC-2.1: listEstimatedBills scopes ZO user to own zone', async () => {
       // Also insert an estimate for ZO User B's work order
-      await supabase.rpc('upsert_estimated_bill', {
+      await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoB,
         p_amount: 400000.00,
-        p_payment_date: '2026-11-01',
+        p_estimated_date: '2026-11-01',
         p_surety_pct: 75,
         p_remarks: 'Estimate B',
         p_actor: testZoUserB
@@ -200,7 +191,7 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
 
       expect(resOwn.statusCode).toBe(200);
       expect(resOwn.jsonData.success).toBe(true);
-      expect(resOwn.jsonData.data.work_order_no).toBe(testWoA);
+      expect(resOwn.jsonData.data[0].work_order_no).toBe(testWoA);
 
       // ZO A fetches ZO B's WO B -> 404 (read scoping)
       const reqOther = { params: { work_order_no: testWoB }, user: { role: 'zo', mobile_number: testZoUserA } };
@@ -216,7 +207,7 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
       await getEstimatedBill(reqHo, resHo);
 
       expect(resHo.statusCode).toBe(200);
-      expect(resHo.jsonData.data.work_order_no).toBe(testWoB);
+      expect(resHo.jsonData.data[0].work_order_no).toBe(testWoB);
     });
 
     test('TC-2.3: listWorkOrderOptions returns role-scoped dropdown options', async () => {
@@ -273,17 +264,20 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
     test('TC-2.6: listEstimatedBills and listWorkOrderOptions strictly exclude closed work orders', async () => {
       const testWoClosed = `WO_CLOSED_${suffix}`;
       await setupProject(testWoClosed, `EST_CLOSED_${suffix}`, 600000.00, testZoUserA);
-      await supabase.from('projects_master').update({ zo_user_id: testZoUserA, status: 'Closed' }).eq('work_order_no', testWoClosed);
 
-      // Insert estimated bill for closed WO
-      await supabase.rpc('upsert_estimated_bill', {
+      // Insert estimated bill for WO while it is Running (as required by RPC status validation)
+      const { error: insErr } = await supabase.rpc('insert_estimated_bill', {
         p_work_order_no: testWoClosed,
         p_amount: 100000.00,
-        p_payment_date: '2026-11-01',
+        p_estimated_date: '2026-11-01',
         p_surety_pct: 75,
         p_remarks: 'Closed project estimate',
         p_actor: testZoUserA
       });
+      expect(insErr).toBeNull();
+
+      // Now set the status to Closed
+      await supabase.from('projects_master').update({ status: 'Closed' }).eq('work_order_no', testWoClosed);
 
       // 1. Verify listWorkOrderOptions excludes testWoClosed
       const reqOpt = { user: { role: 'ho', mobile_number: testHoUser } };
@@ -304,6 +298,108 @@ describe('Milestone P9-M1/M2 — Estimated Bills Database Layer & Backend API', 
       // Cleanup closed project
       await supabase.from('estimated_bills').delete().eq('work_order_no', testWoClosed);
       await supabase.from('projects_master').delete().eq('work_order_no', testWoClosed);
+    });
+
+    test('TC-2.7: RPC and Controller block inserts for non-Running work orders', async () => {
+      const testWoNonRunning = `WO_NON_RUN_${suffix}`;
+      await setupProject(testWoNonRunning, `EST_NON_RUN_${suffix}`, 600000.00, testZoUserA);
+      await supabase.from('projects_master').update({ zo_user_id: testZoUserA, status: 'Complete Under Maintenance' }).eq('work_order_no', testWoNonRunning);
+
+      // 1. Verify RPC block
+      const { error: rpcErr } = await supabase.rpc('insert_estimated_bill', {
+        p_work_order_no: testWoNonRunning,
+        p_amount: 100000.00,
+        p_estimated_date: '2026-11-01',
+        p_surety_pct: 75,
+        p_remarks: 'Non-Running project estimate',
+        p_actor: testZoUserA
+      });
+      expect(rpcErr).not.toBeNull();
+      expect(rpcErr.message).toContain('only be created for Running');
+
+      // 2. Verify Controller block (400 Bad Request)
+      const req = {
+        user: { role: 'zo', mobile_number: testZoUserA },
+        body: {
+          work_order_no: testWoNonRunning,
+          estimated_bill_amount: 100000.00,
+          estimated_payment_date: '2026-11-01',
+          surety_pct: 75,
+          remarks: 'Non-Running project estimate'
+        }
+      };
+      const res = mockRes();
+      await upsertEstimatedBill(req, res);
+      expect(res.statusCode).toBe(400);
+      expect(res.jsonData.success).toBe(false);
+      expect(res.jsonData.message).toContain('only be created for Running');
+
+      // Cleanup
+      await supabase.from('projects_master').delete().eq('work_order_no', testWoNonRunning);
+    });
+
+    test('TC-2.8: RPC and Controller block inserts if a Final Bill exists', async () => {
+      const testWoFinal = `WO_FINAL_${suffix}`;
+      await setupProject(testWoFinal, `EST_FINAL_${suffix}`, 600000.00, testZoUserA);
+      await supabase.from('projects_master').update({ zo_user_id: testZoUserA }).eq('work_order_no', testWoFinal);
+
+      // Create a Final Bill in ra_final_bills
+      const { error: fbErr } = await supabase.from('ra_final_bills').insert({
+        created_by: testZoUserA,
+        work_order_no: testWoFinal,
+        payment_type: 'Final Bill',
+        bill_date: '2026-09-20',
+        bill_no: `B-FINAL-${suffix}`,
+        gross_bill: 100000.00,
+        state: 'West Bengal',
+        district: 'Kolkata',
+        area_code: 'Kolkata Zone',
+        department: 'PWD',
+        site_details: 'Testing Site',
+        bill_copy_url: 'dummy-url-placeholder'
+      });
+      expect(fbErr).toBeNull();
+
+      // 1. Verify RPC block
+      const { error: rpcErr } = await supabase.rpc('insert_estimated_bill', {
+        p_work_order_no: testWoFinal,
+        p_amount: 100000.00,
+        p_estimated_date: '2026-11-01',
+        p_surety_pct: 75,
+        p_remarks: 'Estimate post final bill',
+        p_actor: testZoUserA
+      });
+      expect(rpcErr).not.toBeNull();
+      expect(rpcErr.message).toContain('after a Final Bill has been submitted');
+
+      // 2. Verify Controller block (400 Bad Request)
+      const req = {
+        user: { role: 'zo', mobile_number: testZoUserA },
+        body: {
+          work_order_no: testWoFinal,
+          estimated_bill_amount: 100000.00,
+          estimated_payment_date: '2026-11-01',
+          surety_pct: 75,
+          remarks: 'Estimate post final bill'
+        }
+      };
+      const res = mockRes();
+      await upsertEstimatedBill(req, res);
+      expect(res.statusCode).toBe(400);
+      expect(res.jsonData.success).toBe(false);
+      expect(res.jsonData.message).toContain('after a Final Bill has been submitted');
+
+      // 3. Verify listWorkOrderOptions excludes testWoFinal
+      const reqOpt = { user: { role: 'ho', mobile_number: testHoUser } };
+      const resOpt = mockRes();
+      await listWorkOrderOptions(reqOpt, resOpt);
+      expect(resOpt.statusCode).toBe(200);
+      const wos = resOpt.jsonData.workOrders;
+      expect(wos.some(w => w.work_order_no === testWoFinal)).toBe(false);
+
+      // Cleanup
+      await supabase.from('ra_final_bills').delete().eq('work_order_no', testWoFinal);
+      await supabase.from('projects_master').delete().eq('work_order_no', testWoFinal);
     });
   });
 });

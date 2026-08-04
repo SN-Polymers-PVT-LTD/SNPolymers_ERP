@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import authApi from '../../api/authApi';
-import Modal from '../../components/ui/Modal';
+import { Modal, SuccessPopup, ErrorPopup } from '../../components/ui';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 
 const PurchaseOptions = () => {
@@ -148,19 +148,18 @@ const PurchaseOptions = () => {
           </button>
         </div>
 
-        {error && (
-          <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5 animate-headShake">
-            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-6 flex items-center gap-2.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            {success}
-          </div>
-        )}
+        <SuccessPopup
+          isOpen={!!success}
+          title="Success"
+          description={success}
+          onClose={() => setSuccess('')}
+        />
+        <ErrorPopup
+          isOpen={!!error}
+          title="Error"
+          description={error}
+          onClose={() => setError('')}
+        />
 
         <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
           {loadingPurchase ? (

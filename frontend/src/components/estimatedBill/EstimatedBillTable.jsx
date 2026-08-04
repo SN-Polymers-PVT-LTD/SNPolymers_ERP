@@ -4,7 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableCell, Button, SkeletonTab
 export const EstimatedBillTable = ({
   data = [],
   isLoading = false,
-  onEditClick
+  onViewLedgerClick
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: '', direction: 'desc' });
@@ -19,7 +19,7 @@ export const EstimatedBillTable = ({
       if (prev.key === key) {
         return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
       }
-      return { key, direction: key.includes('amount') || key.includes('value') || key.includes('date') || key === 'surety_pct' ? 'desc' : 'asc' };
+      return { key, direction: key.includes('amount') || key.includes('value') || key === 'surety_pct' || key === 'entry_count' ? 'desc' : 'asc' };
     });
   };
 
@@ -53,7 +53,7 @@ export const EstimatedBillTable = ({
   }, [data, sortConfig]);
 
   if (isLoading) {
-    return <SkeletonTable rows={6} cols={9} />;
+    return <SkeletonTable rows={6} cols={10} />;
   }
 
   const totalPages = Math.ceil((sortedData?.length || 0) / itemsPerPage);
@@ -65,16 +65,6 @@ export const EstimatedBillTable = ({
       currency: 'INR',
       maximumFractionDigits: 0
     }).format(val || 0);
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
   };
 
   const getSuretyBadgeVariant = (surety) => {
@@ -125,23 +115,26 @@ export const EstimatedBillTable = ({
             <TableCell isHeader onClick={() => handleSort('estimated_bill_amount')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               Estimated Amount {renderSortIcon('estimated_bill_amount')}
             </TableCell>
-            <TableCell isHeader onClick={() => handleSort('estimated_payment_date')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
-              Payment Date {renderSortIcon('estimated_payment_date')}
-            </TableCell>
             <TableCell isHeader onClick={() => handleSort('surety_pct')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
-              Surety % {renderSortIcon('surety_pct')}
+              Wtd. Surety % {renderSortIcon('surety_pct')}
+            </TableCell>
+            <TableCell isHeader onClick={() => handleSort('surety_amount')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
+              Surety Amount {renderSortIcon('surety_amount')}
+            </TableCell>
+            <TableCell isHeader onClick={() => handleSort('entry_count')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200 text-center">
+              # Entries {renderSortIcon('entry_count')}
             </TableCell>
             <TableCell isHeader onClick={() => handleSort('updated_by_name')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               Updated By {renderSortIcon('updated_by_name')}
             </TableCell>
             <TableCell isHeader className="text-xs font-bold uppercase tracking-wider text-slate-400 text-right">
-              Action
+              Ledger
             </TableCell>
           </TableRow>
         </TableHeader>
         <TableBody>
           {currentData.map((row) => (
-            <TableRow key={row.id || row.work_order_no} className="hover:bg-white/5 transition-colors border-b border-white/5">
+            <TableRow key={row.work_order_no} className="hover:bg-white/5 transition-colors border-b border-white/5">
               <TableCell className="font-mono text-xs font-bold text-amber-400">
                 {row.work_order_no}
               </TableCell>
@@ -157,13 +150,16 @@ export const EstimatedBillTable = ({
               <TableCell className="font-mono text-xs font-extrabold text-slate-100 tabular-nums">
                 {formatCurrency(row.estimated_bill_amount)}
               </TableCell>
-              <TableCell className="text-xs text-slate-300">
-                {formatDate(row.estimated_payment_date)}
-              </TableCell>
               <TableCell>
                 <Badge variant={getSuretyBadgeVariant(row.surety_pct)} showDot={false}>
                   {row.surety_pct}%
                 </Badge>
+              </TableCell>
+              <TableCell className="font-mono text-xs font-bold text-emerald-400 tabular-nums">
+                {formatCurrency(row.surety_amount)}
+              </TableCell>
+              <TableCell className="text-center text-xs font-bold text-slate-200 font-mono">
+                {row.entry_count || 1}
               </TableCell>
               <TableCell className="text-xs text-slate-400">
                 {row.updated_by_name || row.updated_by || '—'}
@@ -171,10 +167,10 @@ export const EstimatedBillTable = ({
               <TableCell className="text-right">
                 <Button
                   variant="ghost"
-                  onClick={() => onEditClick(row.work_order_no)}
+                  onClick={() => onViewLedgerClick(row.work_order_no)}
                   className="text-xs font-extrabold text-amber-400 hover:text-amber-300 p-1.5"
                 >
-                  Edit
+                  View Ledger →
                 </Button>
               </TableCell>
             </TableRow>

@@ -7,10 +7,6 @@ vi.mock('../AuthContext', () => ({
   useAuth: () => ({ user: { display_name: 'Shreyan Ghosh', role: 'ho' } })
 }));
 
-vi.mock('../../api/estimatedBillsApi', () => ({
-  getEstimatedBillByWO: vi.fn().mockResolvedValue({ data: { success: false } })
-}));
-
 describe('EstimatedBillEntryModal Component Tests', () => {
   const workOrderOptions = [
     { work_order_no: 'WO-WB_KOL_01', work_order_value: 500000, zone: 'Kolkata Zone', department: 'PHE', district: 'Kolkata', state: 'West Bengal', site_details: 'Site A' }
