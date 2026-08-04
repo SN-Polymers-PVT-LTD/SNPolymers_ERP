@@ -8,10 +8,7 @@ const { JWT_SECRET, generateTokens, createSession, closeSession, formatDuration 
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
 const validate = require('../validation/validate');
 const { requestOtpSchema, verifyOtpSchema } = require('../validation/auth.schema');
-
-function normalizeMobileNumber(value) {
-  return value ? String(value).trim().replace(/^\+/, '') : '';
-}
+const { normalizeMobileNumber, mobileNumberVariants } = require('../utils/mobile');
 
 const isProd = process.env.NODE_ENV === 'production';
 const cookieOptions = {
@@ -19,6 +16,24 @@ const cookieOptions = {
   secure: isProd,
   sameSite: isProd ? 'none' : 'lax'
 };
+
+async function findAuthorisedUserByMobile(rawMobile, { activeOnly = true } = {}) {
+  const variants = mobileNumberVariants(rawMobile);
+  if (variants.length === 0) return { user: null, error: null };
+
+  let query = supabase
+    .from('authorised_users')
+    .select('*')
+    .in('mobile_number', variants)
+    .limit(1);
+
+  if (activeOnly) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data: user, error } = await query.maybeSingle();
+  return { user, error };
+}
 
 /**
  * POST /api/v1/auth/request-otp
@@ -29,17 +44,12 @@ const cookieOptions = {
 async function requestOtp(req, res) {
   if (!validate(req, res, requestOtpSchema)) return;
   const { mobileNumber: rawMobile } = req.body;
+  // Canonical key for otp_requests (digits, no leading +)
   const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
-    // 1. Check if user is whitelisted & active
-    const { data: user, error } = await supabase
-      .from('authorised_users')
-      .select('*')
-      .eq('mobile_number', mobileNumber)
-      .eq('is_active', true)
-      .limit(1)
-      .single();
+    // 1. Check if user is whitelisted & active (accepts +91… or 91…)
+    const { user, error } = await findAuthorisedUserByMobile(rawMobile);
 
     if (error || !user) {
       return res.status(403).json({ success: false, message: 'Access denied. This number is not whitelisted or is inactive.' });
@@ -58,7 +68,7 @@ async function requestOtp(req, res) {
     const rawOtp = generateOtp();
     const hashed = await hashOtp(rawOtp);
 
-    // 4. Store OTP in DB
+    // 4. Store OTP under canonical mobile key
     await storeOtp(mobileNumber, hashed);
 
     // 5. Send OTP via Telegram
@@ -86,15 +96,9 @@ async function checkLinkStatus(req, res) {
   if (!rawMobile) {
     return res.status(400).json({ success: false, message: 'Mobile number is required.' });
   }
-  const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
-    const { data: user, error } = await supabase
-      .from('authorised_users')
-      .select('telegram_chat_id')
-      .eq('mobile_number', mobileNumber)
-      .eq('is_active', true)
-      .maybeSingle();
+    const { user, error } = await findAuthorisedUserByMobile(rawMobile);
 
     if (error || !user) {
       return res.status(404).json({ success: false, message: 'User not found or inactive.' });
@@ -121,7 +125,7 @@ async function verifyOtpCode(req, res) {
   const mobileNumber = normalizeMobileNumber(rawMobile);
 
   try {
-    // 1. Verify OTP
+    // 1. Verify OTP (canonical key used at request time)
     const verificationResult = await verifyOtp(mobileNumber, otp);
 
     if (!verificationResult.success) {
@@ -132,13 +136,8 @@ async function verifyOtpCode(req, res) {
       });
     }
 
-    // 2. Fetch User to populate payload details
-    const { data: user, error } = await supabase
-      .from('authorised_users')
-      .select('*')
-      .eq('mobile_number', mobileNumber)
-      .limit(1)
-      .single();
+    // 2. Fetch User to populate payload details (accepts either stored format)
+    const { user, error } = await findAuthorisedUserByMobile(rawMobile, { activeOnly: false });
 
     if (error || !user) {
       return res.status(403).json({ success: false, message: 'User verification failed.' });

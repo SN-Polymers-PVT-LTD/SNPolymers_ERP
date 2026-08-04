@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const { toStoredMobileNumber, mobileNumberVariants } = require('../utils/mobile');
 
 /**
  * GET /api/v1/auth/admin/users
@@ -31,22 +32,26 @@ async function addUser(req, res) {
     return res.status(400).json({ success: false, message: 'Mobile number is required.' });
   }
 
-  // Normalize phone number (strip whitespace/dashes, prepend +91 for 10-digit numbers)
-  let cleanPhone = String(mobileNumber).trim().replace(/\s+/g, '').replace(/[-()]/g, '');
-  if (/^\d{10}$/.test(cleanPhone)) {
-    cleanPhone = '+91' + cleanPhone;
-  } else if (/^0\d{10}$/.test(cleanPhone)) {
-    cleanPhone = '+91' + cleanPhone.substring(1);
-  } else if (/^91\d{10}$/.test(cleanPhone)) {
-    cleanPhone = '+' + cleanPhone;
-  } else if (!cleanPhone.startsWith('+')) {
-    cleanPhone = '+' + cleanPhone;
-  }
+  // Canonical storage: 91XXXXXXXXXX (no leading +) — matches production whitelist rows
+  const cleanPhone = toStoredMobileNumber(mobileNumber);
 
-  // Format validation
-  const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+  // Format validation (E.164 digits, optional + already stripped by toStoredMobileNumber)
+  const phoneRegex = /^[1-9]\d{1,14}$/;
   if (!phoneRegex.test(cleanPhone)) {
     return res.status(400).json({ success: false, message: 'Invalid mobile number format.' });
+  }
+
+  // Reject if either +91… or 91… form already exists
+  const variants = mobileNumberVariants(cleanPhone);
+  const { data: existing } = await supabase
+    .from('authorised_users')
+    .select('id')
+    .in('mobile_number', variants)
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    return res.status(409).json({ success: false, message: 'This mobile number is already whitelisted.' });
   }
 
   const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho'];
