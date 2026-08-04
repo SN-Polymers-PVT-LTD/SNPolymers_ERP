@@ -3,8 +3,11 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
 import { getZonalBalances } from '../../api/zoBalancesApi';
-import { getProjectsHealth, getJeLeaderboard } from '../../api/analyticsApi';
+import { getProjectsHealth, getJeLeaderboard, getRecentActivity } from '../../api/analyticsApi';
 import { getRequisitions } from '../../api/requisitionsApi';
+import { EMPTY_ARRAY } from '../../utils/constants';
+import { buildJeStats, computeWorkloadShare, filterProjectsByZoId } from '../../utils/zoDashboard';
+import DashboardErrorBanner from '../../components/dashboard/DashboardErrorBanner';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -15,19 +18,13 @@ const formatINR = (value) => {
   }).format(num);
 };
 
-const fmtCr = (n) => {
-  const v = Number(n) || 0;
-  if (v >= 10000000) return `₹ ${(v / 10000000).toFixed(2)} Cr`;
-  if (v >= 100000) return `₹ ${(v / 100000).toFixed(2)} L`;
-  return `₹ ${v.toLocaleString('en-IN')}`;
-};
 
 const ZoDashboardView = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
   // 1. Fetch Zonal Credit Balance
-  const { data: balanceRes } = useQuery({
+  const balanceQ = useQuery({
     queryKey: ['zoBalances'],
     queryFn: async () => {
       const res = await getZonalBalances();
@@ -36,8 +33,10 @@ const ZoDashboardView = () => {
     staleTime: 30000
   });
 
+  const balanceRes = balanceQ.data;
+
   // 2. Fetch Projects for JE Workload & Stats
-  const { data: projectsRes } = useQuery({
+  const projectsQ = useQuery({
     queryKey: ['projectsHealthList'],
     queryFn: async () => {
       const res = await getProjectsHealth();
@@ -46,8 +45,10 @@ const ZoDashboardView = () => {
     staleTime: 30000
   });
 
+  const projectsRes = projectsQ.data;
+
   // 3. Fetch Requisitions for Pending Payment Requisition Amount
-  const { data: requisitionsRes } = useQuery({
+  const requisitionsQ = useQuery({
     queryKey: ['zoPendingRequisitions'],
     queryFn: async () => {
       const res = await getRequisitions();
@@ -56,8 +57,10 @@ const ZoDashboardView = () => {
     staleTime: 30000
   });
 
+  const requisitionsRes = requisitionsQ.data;
+
   // 4. Fetch JE Leaderboard for Live Streaks
-  const { data: leaderboardRes } = useQuery({
+  const leaderboardQ = useQuery({
     queryKey: ['jeLeaderboardZoView'],
     queryFn: async () => {
       const res = await getJeLeaderboard({ timeframe: 'weekly' });
@@ -66,22 +69,40 @@ const ZoDashboardView = () => {
     staleTime: 30000
   });
 
-  const projects = projectsRes?.data || [];
-  const requisitionsList = requisitionsRes?.requisitions || requisitionsRes?.data || [];
+  const leaderboardRes = leaderboardQ.data;
+
+  // 5. Fetch recent zonal activity for timeline
+  const activityQ = useQuery({
+    queryKey: ['zoRecentActivity'],
+    queryFn: async () => {
+      const res = await getRecentActivity();
+      return res.data;
+    },
+    staleTime: 30000
+  });
+
+  const activityRes = activityQ.data;
+
+  const hasAnyError = balanceQ.isError || projectsQ.isError || requisitionsQ.isError || leaderboardQ.isError || activityQ.isError;
+
+  const handleRetry = () => {
+    if (balanceQ.isError) balanceQ.refetch();
+    if (projectsQ.isError) projectsQ.refetch();
+    if (requisitionsQ.isError) requisitionsQ.refetch();
+    if (leaderboardQ.isError) leaderboardQ.refetch();
+    if (activityQ.isError) activityQ.refetch();
+  };
+
+  const projects = projectsRes?.data ?? EMPTY_ARRAY;
+  const requisitionsList = requisitionsRes?.requisitions ?? requisitionsRes?.data ?? EMPTY_ARRAY;
   const myZoName = user?.display_name || user?.assigned_zone || user?.zo_name || user?.name || 'Zonal Office';
   const myZoId = user?.mobile_number || user?.zo_user_id || '';
 
-  // Filter projects for logged-in ZO
+  // Filter projects for logged-in ZO (backend already scopes by zo_user_id)
   const filteredProjects = useMemo(() => {
     if (!user?.role || user.role !== 'zo') return projects;
-    const mob = (myZoId || '').toLowerCase().trim();
-    const name = (myZoName || '').toLowerCase().trim();
-    return projects.filter(p => {
-      const pZoId = (p.zo_user_id || '').toLowerCase().trim();
-      const zName = (p.zo_name || p.zone || '').toLowerCase().trim();
-      return (mob && pZoId === mob) || (name && (zName === name || zName.includes(name) || name.includes(zName)));
-    });
-  }, [projects, myZoName, myZoId, user]);
+    return filterProjectsByZoId(projects, myZoId);
+  }, [projects, myZoId, user]);
 
   // Compute Pending Payment Requisitions for this ZO
   const pendingReqStats = useMemo(() => {
@@ -104,50 +125,21 @@ const ZoDashboardView = () => {
 
   // Derive JE Stats for this zone
   const jeStats = useMemo(() => {
-    const leaderboardList = leaderboardRes?.leaderboard || [];
-    if (leaderboardList.length > 0) {
-      return leaderboardList.map(j => {
-        const count = j.total_reports > 0 ? Math.max(1, Math.ceil(j.total_reports / 5)) : 1;
-        const avg = j.avg_progress || 0;
-        let status = 'Active';
-        if (avg >= 70) status = 'Excellent';
-        else if (avg < 40) status = 'Warning';
-        return {
-          name: j.display_name || j.mobile_number,
-          count,
-          streak: Number(j.daily_streak || j.streak || 0),
-          avg,
-          status
-        };
-      });
-    }
-
-    const map = new Map();
-    (filteredProjects || []).forEach(p => {
-      const jeName = p.je_name || p.assigned_je || p.assigned_to || 'Unassigned JE';
-      if (!map.has(jeName)) {
-        map.set(jeName, { name: jeName, count: 0, totalProgress: 0, streak: Number(p.daily_streak || p.je_daily_streak || 0) });
-      }
-      const item = map.get(jeName);
-      item.count += 1;
-      item.totalProgress += Number(p.physical_progress || 0);
-      if (p.daily_streak || p.je_daily_streak) {
-        item.streak = Math.max(item.streak, Number(p.daily_streak || p.je_daily_streak || 0));
-      }
-    });
-
-    return Array.from(map.values()).map(je => {
-      const avg = je.count > 0 ? Math.round(je.totalProgress / je.count) : 0;
-      let status = 'Active';
-      let streak = je.streak || 0;
-      if (avg >= 70) status = 'Excellent';
-      else if (avg < 40) status = 'Warning';
-      return { ...je, avg, status, streak };
-    }).sort((a, b) => b.count - a.count);
+    const stats = buildJeStats(filteredProjects, leaderboardRes?.leaderboard);
+    // Sort deterministically: count DESC, then streak DESC, then name ASC
+    return stats.sort((a, b) => b.count - a.count || b.streak - a.streak || a.name.localeCompare(b.name));
   }, [filteredProjects, leaderboardRes]);
+
+  const totalAssignments = useMemo(
+    () => jeStats.reduce((sum, je) => sum + je.count, 0) || 1,
+    [jeStats]
+  );
+
+  const recentActivities = activityRes?.activities ?? EMPTY_ARRAY;
 
   return (
     <div className="space-y-8 pb-12">
+      <DashboardErrorBanner visible={hasAnyError} onRetry={handleRetry} />
       
       {/* Overview Banner (homedashboard.html ZO View) */}
       <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-white/10 bg-[#0b0e14]/80 shadow-2xl relative overflow-hidden">
@@ -256,12 +248,15 @@ const ZoDashboardView = () => {
 
           {/* Workload Distribution Progress Bars */}
           <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/40">
-            <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-4">
+            <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-1">
               Zonal Workload Distribution
             </span>
+            <p className="text-[10px] text-slate-500 mb-4">
+              Percentages reflect share of total JE assignments (shared sites counted per JE).
+            </p>
             <div className="space-y-4">
               {jeStats.slice(0, 4).map((je, idx) => {
-                const pct = Math.min(100, Math.round((je.count / (filteredProjects.length || 1)) * 100));
+                const pct = computeWorkloadShare(je.count, totalAssignments);
                 return (
                   <div key={idx}>
                     <div className="flex justify-between text-xs font-bold mb-1.5">
@@ -346,22 +341,31 @@ const ZoDashboardView = () => {
             <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-3">
               Zonal Site Timeline
             </span>
-            <div className="space-y-3.5 text-xs">
-              <div className="flex gap-3 items-start">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                <div>
-                  <div className="text-slate-200 font-bold">DPR Progress Update Submitted</div>
-                  <div className="text-[10px] text-slate-500 font-mono">Mapped JE logged site progress (WO Active)</div>
-                </div>
+            {recentActivities.length === 0 ? (
+              <div className="py-4 text-center text-xs text-slate-500 italic">No recent zonal activity</div>
+            ) : (
+              <div className="space-y-3.5 text-xs">
+                {recentActivities.slice(0, 5).map((act, idx) => {
+                  const ts = act.timestamp ? new Date(act.timestamp).toLocaleString('en-IN') : '';
+                  const dotColor = (act.action || '').toLowerCase().includes('approv')
+                    ? 'bg-emerald-400'
+                    : (act.action || '').toLowerCase().includes('reject') || (act.action || '').toLowerCase().includes('fail')
+                      ? 'bg-rose-400'
+                      : 'bg-amber-400';
+                  return (
+                    <div key={act.id || act.audit_id || idx} className="flex gap-3 items-start">
+                      <span className={`w-2 h-2 rounded-full ${dotColor} mt-1.5 shrink-0`} />
+                      <div>
+                        <div className="text-slate-200 font-bold">{act.action || 'Activity'}</div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {act.user_name || 'System'} · {act.module_name || 'Record'} {act.record_identifier ? `(${act.record_identifier})` : ''}{ts ? ` · ${ts}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex gap-3 items-start">
-                <span className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-                <div>
-                  <div className="text-slate-200 font-bold">Zonal Requisition Processed</div>
-                  <div className="text-[10px] text-slate-500 font-mono">Disbursement recorded in credit balance</div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
         </div>

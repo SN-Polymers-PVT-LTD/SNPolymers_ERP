@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../components/ThemeContext';
-import ModalContext from '../components/ModalContext';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -14,42 +13,20 @@ import {
 } from '../api/analyticsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getEligibleZOs } from '../api/userMappingsApi';
-import { exportProjectsToExcel } from '../utils/exportHelpers';
-
-/* ─── helpers ────────────────────────────────────────────────────── */
-const formatINR = (value) => {
-  const num = Number(value) || 0;
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(num);
-};
-
-const fmtCr = (n) => {
-  const v = Number(n) || 0;
-  if (v >= 10000000) return `₹ ${(v / 10000000).toFixed(2)} Cr`;
-  if (v >= 100000) return `₹ ${(v / 100000).toFixed(2)} L`;
-  return `₹ ${v.toLocaleString('en-IN')}`;
-};
-
-/* ─── chart color tokens ─────────────────────────────────────────── */
-const useChartColors = () => {
-  const { isDark } = useTheme();
-  return {
-    gridLine: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)',
-    gridLineDash: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)',
-    axisLine: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.15)',
-    labelMuted: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.35)',
-    labelNormal: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.55)',
-    labelStrong: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.8)',
-    todayLine: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.2)',
-    todayText: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.5)',
-    quadrantNormal: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.18)',
-    quadrantCritical: isDark ? 'rgba(239,68,68,0.4)' : 'rgba(185,28,28,0.5)',
-    cellBorder: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.08)',
-    highChurnLabel: isDark ? '#ef4444' : '#b91c1c',
-    normalLabel: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.55)',
-    dropOffConnector: isDark ? 'rgba(239,68,68,0.25)' : 'rgba(185,28,28,0.3)',
-    isDark,
-  };
-};
+import { buildJeStats } from '../utils/zoDashboard';
+import { fmtCr } from '../components/analytics/utils/formatters';
+import { ChartInfoTooltip } from '../components/analytics/ui/ChartInfoTooltip';
+import { ChartModal } from '../components/analytics/ui/ChartModal';
+import { ZoomCard } from '../components/analytics/ui/ZoomCard';
+import { KpiDetailsModal } from '../components/analytics/ui/KpiDetailsModal';
+import { InvestmentRecoveryPlot } from '../components/analytics/charts/InvestmentRecoveryPlot';
+import { FundFlowWaterfallChart } from '../components/analytics/charts/FundFlowWaterfallChart';
+import { DepartmentWiseEstimateChart } from '../components/analytics/charts/DepartmentWiseEstimateChart';
+import { ExecutiveKpiStrip } from '../components/analytics/ui/ExecutiveKpiStrip';
+import { SCurveProgressChart } from '../components/analytics/charts/SCurveProgressChart';
+import { EMPTY_ARRAY } from '../utils/constants';
+import { BubbleRiskMatrixChart } from '../components/analytics/charts/BubbleRiskMatrixChart';
+import { WorkOrderTelemetryTable, PaginatedZoSelector } from '../components/analytics/charts/WorkOrderTelemetryTable';
 
 /* ─── Section Divider ─────────────────────────────────────────────── */
 const SectionLabel = ({ children }) => (
@@ -59,403 +36,6 @@ const SectionLabel = ({ children }) => (
   </div>
 );
 
-/* ─── Chart Info Tooltip Component (Portal Architecture for Zero Clipping) ──── */
-const ChartInfoTooltip = ({ description, formula }) => {
-  const [show, setShow] = useState(false);
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const btnRef = useRef(null);
-  const { isDark } = useTheme();
-
-  const updatePosition = () => {
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    const popW = 280;
-    const popH = 140;
-
-    let left = rect.right - popW;
-    if (left < 16) left = 16;
-    if (left + popW > window.innerWidth - 16) {
-      left = Math.max(16, window.innerWidth - popW - 16);
-    }
-
-    let top = rect.bottom + 8;
-    if (top + popH > window.innerHeight - 16) {
-      top = Math.max(16, rect.top - popH - 8);
-    }
-
-    setPos({ x: left, y: top });
-  };
-
-  const handleOpen = () => {
-    updatePosition();
-    setShow(true);
-  };
-
-  return (
-    <>
-      <button
-        ref={btnRef}
-        type="button"
-        onMouseEnter={handleOpen}
-        onMouseLeave={() => setShow(false)}
-        onClick={(e) => {
-          e.stopPropagation();
-          updatePosition();
-          setShow(!show);
-        }}
-        className="w-5 h-5 rounded-full bg-amber-500/15 hover:bg-amber-500/35 border border-amber-500/50 flex items-center justify-center text-[11px] font-black text-amber-400 hover:text-amber-300 transition-all cursor-pointer shadow-md shadow-amber-500/10 hover:scale-110 shrink-0"
-        title="Click or hover for chart details & formula"
-      >
-        i
-      </button>
-
-      {show && ReactDOM.createPortal(
-        <div
-          className="fixed z-[999999] p-3.5 rounded-2xl shadow-2xl min-w-[260px] max-w-[300px] text-xs backdrop-blur-xl pointer-events-none transition-all duration-150 border"
-          style={{
-            top: pos.y,
-            left: pos.x,
-            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
-            borderColor: isDark ? 'rgba(245, 158, 11, 0.5)' : 'rgba(245, 158, 11, 0.4)',
-            boxShadow: '0 20px 40px -5px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(245,158,11,0.2)'
-          }}
-        >
-          <div className={`flex items-center gap-1.5 mb-2 border-b pb-1.5 text-amber-500 dark:text-amber-400 font-extrabold uppercase text-[10px] tracking-wider ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 animate-pulse" />
-            Metric Info &amp; Formula
-          </div>
-          <p className="text-[11px] text-slate-700 dark:text-slate-200 leading-snug font-medium mb-2.5">
-            {description}
-          </p>
-          <div className={`p-2.5 rounded-xl border font-mono text-[10px] font-semibold leading-relaxed ${isDark ? 'bg-slate-950/90 border-white/10 text-emerald-400' : 'bg-slate-100 border-slate-200 text-emerald-700'}`}>
-            <span className="text-[9px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-0.5 font-sans">Formula:</span>
-            {formula}
-          </div>
-        </div>,
-        document.body
-      )}
-    </>
-  );
-};
-
-/* ─── Paginated ZO Name Selector Component ──────────────────────── */
-const PaginatedZoSelector = ({ availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
-  const { isDark } = useTheme();
-  const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 5;
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const filteredZos = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return availableZos;
-    return availableZos.filter(z => z.name.toLowerCase().includes(q) || z.id.toLowerCase().includes(q));
-  }, [availableZos, search]);
-
-  const totalPages = Math.ceil(filteredZos.length / pageSize) || 1;
-  const pagedZos = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredZos.slice(start, start + pageSize);
-  }, [filteredZos, page, pageSize]);
-
-  const selectedName = selectedZo ? getZoDisplayName(selectedZo) : 'All ZO Names (Entire Portfolio)';
-
-  return (
-    <div className="relative inline-block" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 hover:border-amber-500/50 rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-wider text-amber-400 shadow-sm backdrop-blur-md transition-all cursor-pointer"
-      >
-        <svg className="w-4 h-4 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-        </svg>
-        <span className="text-[10px] text-slate-400 font-bold uppercase">ZO Name:</span>
-        <span className="text-slate-100 font-extrabold max-w-[170px] sm:max-w-[200px] truncate">{selectedName}</span>
-        <svg className={`w-3.5 h-3.5 text-amber-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {isOpen && (
-        <div className={`absolute right-0 mt-2 w-72 rounded-2xl border shadow-2xl z-[600] p-3.5 backdrop-blur-xl transition-all ${isDark ? 'bg-[#0f172a] border-white/10 text-slate-100 shadow-black/90' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'}`}>
-          <div className="mb-2">
-            <input
-              type="text"
-              placeholder="Search ZO name..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-              className={`w-full border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500/50 ${isDark ? 'bg-slate-950 border-white/10 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900 placeholder-slate-400'}`}
-            />
-          </div>
-
-          <div
-            onClick={() => { onSelectZo(null); setIsOpen(false); }}
-            className={`flex items-center justify-between p-2 rounded-xl text-xs font-bold cursor-pointer transition ${!selectedZo ? 'bg-amber-500/20 text-amber-300 font-extrabold' : isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
-          >
-            <div className="flex items-center gap-2 truncate">
-              <span>🌐</span>
-              <span className="truncate">All ZO Names (Entire Portfolio)</span>
-            </div>
-            {!selectedZo && <span className="text-amber-400 font-black">✓</span>}
-          </div>
-
-          <div className="h-px bg-white/10 my-1.5" />
-
-          <div className="space-y-1 min-h-[160px]">
-            {pagedZos.map(z => {
-              const isSelected = selectedZo === z.id || selectedZo === z.name;
-              return (
-                <div
-                  key={z.id}
-                  onClick={() => { onSelectZo(z.id); setIsOpen(false); }}
-                  className={`flex items-center justify-between p-2 rounded-xl text-xs font-semibold cursor-pointer transition ${isSelected ? 'bg-amber-500/20 text-amber-300 font-extrabold' : isDark ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span className="w-5 h-5 rounded-full bg-amber-500/10 text-amber-400 font-mono text-[9px] font-black flex items-center justify-center border border-amber-500/20 shrink-0">
-                      {z.name.charAt(0).toUpperCase()}
-                    </span>
-                    <span className="truncate">{z.name}</span>
-                  </div>
-                  {isSelected && <span className="text-amber-400 font-black ml-1">✓</span>}
-                </div>
-              );
-            })}
-            {pagedZos.length === 0 && (
-              <div className="py-6 text-center text-xs text-slate-500 italic">No ZOs matching search</div>
-            )}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-white/10 text-[10px] font-mono select-none">
-              <span className="text-slate-400 font-bold">Pg {page} of {totalPages} ({filteredZos.length} ZOs)</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── ChartModal Component ─────────────────────────────────────────── */
-const ChartModal = ({ title, description, formula, isDark, width = '96vw', height = '92vh', maxWidth = '1600px', maxHeight = '1000px', onClose, children }) => {
-  const { isDark: themeDark } = useTheme();
-  const dark = isDark !== undefined ? isDark : themeDark;
-
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  if (typeof document !== 'undefined') {
-    return ReactDOM.createPortal(
-      <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200"
-        style={{
-          background: dark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(16px)'
-        }}
-        onClick={onClose}
-      >
-        <div
-          className={`relative flex flex-col overflow-hidden rounded-3xl border transition-all duration-300 shadow-2xl ${dark ? 'bg-[#0b0e14] border-white/10 text-slate-100 shadow-black/90' : 'bg-white border-slate-200 text-slate-900 shadow-2xl'}`}
-          style={{ width, height, maxWidth, maxHeight }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Modal Header */}
-          <div
-            className={`flex items-center justify-between px-6 py-4 border-b shrink-0 gap-4 ${
-              dark ? 'border-white/10 bg-[#0f172a]' : 'border-slate-100 bg-slate-50'
-            }`}
-          >
-            <div className="flex items-center gap-3 min-w-0 flex-1 pl-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse shadow-[0_0_10px_#f59e0b] shrink-0" />
-              <h3
-                className={`text-xs sm:text-sm font-extrabold uppercase tracking-widest font-mono truncate ${
-                  dark ? 'text-amber-400' : 'text-amber-600'
-                }`}
-              >
-                {title || 'Chart Telemetry Inspection'}
-              </h3>
-              {description && formula && (
-                <ChartInfoTooltip description={description} formula={formula} />
-              )}
-            </div>
-
-            {/* Red Close Button */}
-            <button
-              onClick={onClose}
-              className="shrink-0 px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-md cursor-pointer flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
-              title="Close (ESC)"
-            >
-              <span>Close</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Dynamically Scaled Inner Content Area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0 h-full w-full flex flex-col justify-start">
-            {children}
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  }
-  return null;
-};
-
-/* ─── ZoomCard ─────────────────────────────────────────────────────── */
-const ZoomCard = ({ children, onZoom, className = '' }) => (
-  <div className={`relative group ${className}`}>
-    {children}
-    <button
-      onClick={onZoom}
-      className="absolute top-3 right-3 z-30 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 text-[9px] font-black uppercase tracking-widest transition-all duration-200 hover:bg-amber-500/20 hover:border-amber-500/40 cursor-zoom-in"
-    >
-      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-      </svg>
-      Zoom
-    </button>
-  </div>
-);
-
-/* ─── KPI Details Modal ─────────────────────────────────────────────── */
-const KpiDetailsModal = ({ title, colorClass, projects, getZoDisplayName, onClose }) => {
-  const { isDark } = useTheme();
-  const navigate = useNavigate();
-
-  React.useEffect(() => {
-    const esc = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', esc);
-    return () => document.removeEventListener('keydown', esc);
-  }, [onClose]);
-
-  return (
-    <div
-      className="fixed inset-0 z-[500] flex items-center justify-center p-4 md:p-8"
-      style={{ background: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(16px)' }}
-      onClick={onClose}
-    >
-      <div
-        className={`relative w-full max-w-4xl rounded-3xl shadow-2xl flex flex-col max-h-[85vh] overflow-hidden border ${isDark ? 'bg-slate-950 border-white/10 text-slate-100 shadow-black/80' : 'bg-white border-slate-200 text-slate-900 shadow-2xl shadow-slate-900/20'}`}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className={`flex items-center justify-between px-6 py-5 border-b shrink-0 ${isDark ? 'border-white/10 bg-slate-900' : 'border-slate-100 bg-white'}`}>
-          <div className="flex items-center gap-3">
-            <h2 className={`text-lg font-black uppercase tracking-widest ${colorClass || (isDark ? 'text-slate-100' : 'text-slate-900')}`}>{title}</h2>
-            <span className={`px-3 py-1 rounded-full border text-[10px] font-extrabold ${isDark ? 'bg-white/10 border-white/15 text-slate-200' : 'bg-slate-100 border-slate-200 text-slate-700'}`}>
-              {projects.length} {projects.length === 1 ? 'Project' : 'Projects'}
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-500 hover:bg-rose-500 hover:text-white hover:border-rose-500 transition-all duration-300 shadow-md hover:shadow-[0_0_15px_rgba(244,63,94,0.6)] cursor-pointer"
-            title="Close (ESC)"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className={`p-6 overflow-y-auto no-scrollbar flex-1 ${isDark ? 'bg-slate-950' : 'bg-white'}`}>
-          {projects.length === 0 ? (
-            <div className={`text-center py-12 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-              No projects matching this filter
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className={`border-b text-[9px] font-black uppercase tracking-widest ${isDark ? 'border-white/10 text-slate-400' : 'border-slate-200 text-slate-500'}`}>
-                    <th className="py-3 px-3">WO No</th>
-                    <th className="py-3 px-3">ZO Name</th>
-                    <th className="py-3 px-3">Department</th>
-                    <th className="py-3 px-3 text-center">Value</th>
-                    <th className="py-3 px-3 text-center">Progress</th>
-                    <th className="py-3 px-3 text-center">Health</th>
-                    <th className="py-3 px-3 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
-                  {(projects || []).map((p, idx) => {
-                    const scoreBadge = p.health_score >= 80
-                      ? isDark ? 'bg-emerald-950/80 text-emerald-400 border-emerald-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30 font-extrabold'
-                      : p.health_score >= 60
-                      ? isDark ? 'bg-amber-950/80 text-amber-400 border-amber-500/30' : 'bg-amber-500/10 text-amber-800 border-amber-500/30 font-extrabold'
-                      : isDark ? 'bg-rose-950/80 text-rose-400 border-rose-500/30' : 'bg-rose-500/10 text-rose-700 border-rose-500/30 font-extrabold';
-                    const statusBadge = p.health_status === 'Critical'
-                      ? isDark ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-                      : p.health_status === 'Warning'
-                      ? isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-800 border-amber-200 font-black'
-                      : isDark ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-800 border-emerald-200 font-black';
-                    const zoDisplayName = getZoDisplayName ? getZoDisplayName(p.zo_name || p.zo_user_id || p.zone) : (p.zo_name || p.zo_user_id || p.zone || 'N/A');
-                    return (
-                      <tr key={idx} className={`transition-colors group ${isDark ? 'hover:bg-white/5' : 'hover:bg-slate-50/80'}`}>
-                        <td
-                          onClick={() => { onClose(); navigate(`/projects/${p.work_order_no}/digital-twin`); }}
-                          className={`py-3.5 px-3 font-extrabold hover:underline cursor-pointer font-mono ${isDark ? 'text-sky-400' : 'text-sky-600'}`}
-                        >
-                          {p.work_order_no}
-                        </td>
-                        <td className={`py-3.5 px-3 font-extrabold uppercase ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{zoDisplayName}</td>
-                        <td className={`py-3.5 px-3 font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.department || 'N/A'}</td>
-                        <td className={`py-3.5 px-3 text-center font-mono ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{formatINR(p.work_order_value)}</td>
-                        <td className={`py-3.5 px-3 text-center font-extrabold ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{p.physical_progress || 0}%</td>
-                        <td className="py-3.5 px-3 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-lg text-[10px] border ${scoreBadge}`}>{Math.round(p.health_score || 0)}</span>
-                        </td>
-                        <td className="py-3.5 px-3 text-right">
-                          <span className={`px-2.5 py-0.5 rounded-lg text-[8px] uppercase tracking-wider border ${statusBadge}`}>{p.health_status || 'Healthy'}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ─── donut path helper ───────────────────────────────────────────── */
 const buildDonutSlices = (items, totalCount, getCount) => {
   let acc = 0;
@@ -464,11 +44,11 @@ const buildDonutSlices = (items, totalCount, getCount) => {
     const count = getCount(item);
     const pct = totalCount > 0 ? (count / totalCount) * 100 : 0;
     const angle = (pct / 100) * 360;
+    if (angle < 0.01) return { ...item, pct: 0, pathData: null };
+
     const startAngle = acc;
     const endAngle = acc + angle;
     acc += angle;
-
-    if (angle < 0.01) return { ...item, pct: 0, pathData: null };
 
     // Handle 100% full circle donut slice (where start and end points overlap)
     if (angle >= 359.9) {
@@ -531,19 +111,21 @@ const PhysicalWorkProgress = ({ projects, isModal = false }) => {
   };
 
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Work order distribution categorized by physical work completion bands."
-            formula="Physical Progress % = (Latest DPR Work Completed / Total WO Scope) × 100"
-          />
-          <div>
-            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Physical Work Progress</h3>
-            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution of work orders by completion band</p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4 relative" : "chart-panel h-full flex flex-col justify-between p-5 relative"} onMouseMove={handleMouseMove}>
+      {!isModal && (
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <ChartInfoTooltip
+              description="Work order distribution categorized by physical work completion bands."
+              formula="Physical Progress % = (Latest DPR Work Completed / Total WO Scope) × 100"
+            />
+            <div>
+              <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Physical Work Progress</h3>
+              <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Distribution of work orders by completion band</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       <div className="flex flex-col md:flex-row items-center justify-around gap-6 my-auto py-2 flex-1">
         <div className={`relative shrink-0 flex items-center justify-center ${isModal ? 'w-56 h-56 sm:w-72 sm:h-72' : 'w-40 h-40 sm:w-44 sm:h-44'}`}>
           <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
@@ -589,162 +171,65 @@ const PhysicalWorkProgress = ({ projects, isModal = false }) => {
 
       {hoveredBucket && ReactDOM.createPortal(
         <div
-          className="fixed z-[99999] rounded-2xl shadow-2xl p-4 min-w-[300px] max-w-[360px] pointer-events-none transition-all duration-150 backdrop-blur-md"
-          style={{ top: popoverPos.y, left: popoverPos.x, backgroundColor: isDark ? 'rgba(15,23,42,0.98)' : 'rgba(255,255,255,0.98)', border: `1.5px solid ${hoveredBucket.color}`, boxShadow: `0 20px 35px -5px rgba(0,0,0,0.7), 0 8px 16px -6px ${hoveredBucket.color}60` }}
+          className="fixed z-[99999] rounded-2xl p-4 min-w-[300px] max-w-[360px] pointer-events-none transition-all duration-150 backdrop-blur-md border"
+          style={{
+            top: popoverPos.y,
+            left: popoverPos.x,
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+            borderColor: hoveredBucket.color,
+            boxShadow: isDark
+              ? `0 20px 35px -5px rgba(0, 0, 0, 0.7), 0 8px 16px -6px ${hoveredBucket.color}60`
+              : `0 20px 35px -5px rgba(0, 0, 0, 0.15), 0 8px 16px -6px ${hoveredBucket.color}30`
+          }}
         >
-          <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-700/60 pb-2.5 mb-2.5">
+          <div className={`flex items-center justify-between gap-2 border-b pb-2.5 mb-2.5 ${isDark ? 'border-slate-700/60' : 'border-slate-200'}`}>
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: hoveredBucket.color }} />
-              <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">{hoveredBucket.label}</span>
+              <span className={`font-extrabold text-xs uppercase tracking-wider ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                {hoveredBucket.label}
+              </span>
             </div>
-            <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>
               {hoveredBucket.workOrders?.length || hoveredBucket.count || 0} Work Orders
             </span>
           </div>
           {hoveredBucket.workOrders && hoveredBucket.workOrders.length > 0 ? (
             <div className="max-h-56 overflow-y-auto space-y-2 pr-1 text-xs">
               {hoveredBucket.workOrders.slice(0, 20).map((wo, i) => (
-                <div key={i} className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/50">
+                <div
+                  key={i}
+                  className={`flex items-center justify-between p-2 rounded-xl border ${
+                    isDark
+                      ? 'bg-slate-800/80 border-slate-700/50 text-slate-100'
+                      : 'bg-slate-50 border-slate-200/80 text-slate-900'
+                  }`}
+                >
                   <div className="min-w-0 pr-2">
-                    <p className="font-extrabold font-mono text-[11px] text-slate-900 dark:text-slate-100 truncate">{wo.work_order_no}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{wo.site_details}</p>
+                    <p className={`font-extrabold font-mono text-[11px] truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>
+                      {wo.work_order_no}
+                    </p>
+                    <p className={`text-[10px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {wo.site_details}
+                    </p>
                   </div>
-                  <span className="shrink-0 font-extrabold text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">{wo.value}</span>
+                  <span className={`shrink-0 font-extrabold text-[10px] font-mono px-2 py-0.5 rounded ${
+                    isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {wo.value}
+                  </span>
                 </div>
               ))}
-              {hoveredBucket.workOrders.length > 20 && <p className="text-[10px] text-center font-bold text-slate-400 pt-1">+{hoveredBucket.workOrders.length - 20} more</p>}
+              {hoveredBucket.workOrders.length > 20 && (
+                <p className="text-[10px] text-center font-bold text-slate-400 pt-1">
+                  + {hoveredBucket.workOrders.length - 20} more
+                </p>
+              )}
             </div>
-          ) : <p className="text-xs text-slate-500 italic text-center py-2">No active work orders in this band</p>}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-};
-
-/* ─── Department Wise Estimate Donut ─────────────────────────────── */
-const DepartmentWiseEstimate = ({ projects }) => {
-  const { isDark } = useTheme();
-  const [hoveredDept, setHoveredDept] = useState(null);
-  const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
-
-  const DEFAULT_COLORS = ['#3B82F6','#10B981','#8B5CF6','#F97316','#64748B','#EF4444','#14B8A6','#EC4899'];
-
-  const items = useMemo(() => {
-    const map = {};
-    const countMap = {};
-    (projects || []).forEach(p => {
-      const d = p.department || 'General';
-      map[d] = (map[d] || 0) + Number(p.work_order_value || 0);
-      countMap[d] = (countMap[d] || 0) + 1;
-    });
-    const entries = Object.entries(map);
-    if (entries.length === 0) {
-      return [];
-    }
-    const total = entries.reduce((a, [, v]) => a + v, 0) || 1;
-    return entries.map(([dept, amount], i) => ({
-      department: dept,
-      amount,
-      count: countMap[dept] || 0,
-      percentage: +((amount / total) * 100).toFixed(1),
-      color: DEFAULT_COLORS[i % DEFAULT_COLORS.length]
-    }));
-  }, [projects]);
-
-  const totalAmount = useMemo(() => items.reduce((a, it) => a + it.amount, 0), [items]);
-  const slices = useMemo(() => buildDonutSlices(items, totalAmount, it => it.amount), [items, totalAmount]);
-
-  const handleMouseEnter = (e, item) => {
-    const ph = 100, pw = 240;
-    let y = e.clientY - ph - 15; if (y < 20) y = Math.min(window.innerHeight - ph - 20, e.clientY + 20);
-    let x = Math.min(window.innerWidth - pw - 20, Math.max(20, e.clientX - 50));
-    setPopoverPos({ x, y }); setHoveredDept(item);
-  };
-  const handleMouseMove = (e) => {
-    if (hoveredDept) {
-      const ph = 100, pw = 240;
-      let y = e.clientY - ph - 15; if (y < 20) y = Math.min(window.innerHeight - ph - 20, e.clientY + 20);
-      let x = Math.min(window.innerWidth - pw - 20, Math.max(20, e.clientX - 50));
-      setPopoverPos({ x, y });
-    }
-  };
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between p-4 sm:p-5 relative" onMouseMove={handleMouseMove}>
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Distribution of total work order value allocated across operational departments."
-            formula="Dept Share % = (Sum of Work Order Values in Dept / Total Zonal WO Value) × 100"
-          />
-          <div>
-            <h3 className="chart-title text-base sm:text-lg font-extrabold tracking-tight" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>Department Wise Work Order Value</h3>
-            <p className="chart-subtitle text-xs text-slate-500 dark:text-slate-400 mt-0.5">Breakdown of work order values across operational departments</p>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col items-center justify-center gap-4 my-auto py-2">
-        <div className="relative w-44 h-44 sm:w-48 sm:h-48 shrink-0 mx-auto flex items-center justify-center">
-          {items.length === 0 ? (
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-500 uppercase tracking-wider text-center p-4">No projects for selected ZO Name</div>
           ) : (
-            <>
-              <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-md">
-                {slices.map((slice, idx) => slice.pathData && (
-                  <g key={idx} className="transition-all duration-300 hover:opacity-90 cursor-pointer group"
-                    onMouseEnter={(e) => handleMouseEnter(e, slice)} onMouseLeave={() => setHoveredDept(null)}>
-                    <path d={slice.pathData} fill={slice.color} stroke={isDark ? '#0f172a' : '#ffffff'} strokeWidth="2.5"
-                      style={{ transform: hoveredDept?.department === slice.department ? 'scale(1.04)' : 'scale(1)', transformOrigin: '100px 100px' }} />
-                  </g>
-                ))}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center p-4">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Total WO Value
-                </span>
-                <span className="text-xs sm:text-sm font-extrabold tracking-tight text-slate-900 dark:text-slate-100 font-mono mt-0.5">
-                  {fmtCr(totalAmount)}
-                </span>
-              </div>
-            </>
+            <p className="text-xs text-slate-500 italic text-center py-2">
+              No active work orders in this band
+            </p>
           )}
-        </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 w-full pt-2 border-t border-slate-200 dark:border-white/5">
-          {items.map((item, idx) => (
-            <div key={idx}
-              className={`flex items-center justify-between gap-2 text-xs py-1.5 px-2.5 rounded-xl cursor-pointer transition-all ${hoveredDept?.department === item.department ? 'bg-amber-500/15 border border-amber-500/30 scale-[1.02]' : 'hover:bg-slate-500/10 border border-transparent'}`}
-              onMouseEnter={(e) => handleMouseEnter(e, item)} onMouseLeave={() => setHoveredDept(null)}>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: item.color }} />
-                <span className="chart-text-primary text-slate-800 dark:text-slate-200 font-bold text-xs truncate" title={item.department}>{item.department}</span>
-              </div>
-              <span className="text-slate-400 font-mono text-[10px] font-bold shrink-0">{item.percentage}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      {hoveredDept && ReactDOM.createPortal(
-        <div className="fixed z-[99999] rounded-2xl shadow-2xl p-3.5 min-w-[220px] pointer-events-none transition-all duration-150 backdrop-blur-md"
-          style={{ top: popoverPos.y, left: popoverPos.x, backgroundColor: isDark ? 'rgba(15,23,42,0.98)' : 'rgba(255,255,255,0.98)', border: `1.5px solid ${hoveredDept.color}`, boxShadow: `0 20px 35px -5px rgba(0,0,0,0.7), 0 8px 16px -6px ${hoveredDept.color}60` }}>
-          <div className="flex items-center gap-2 mb-1.5 border-b border-slate-200 dark:border-slate-700/60 pb-1.5">
-            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: hoveredDept.color }} />
-            <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 uppercase tracking-wider">{hoveredDept.department}</span>
-          </div>
-          <div className="flex items-baseline justify-between gap-3 mt-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Work Order Value:</span>
-            <span className="font-black text-sm font-mono text-amber-400">{fmtCr(hoveredDept.amount)}</span>
-          </div>
-          {hoveredDept.count !== undefined && (
-            <div className="flex items-baseline justify-between gap-3 mt-0.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Work Orders:</span>
-              <span className="font-bold text-xs font-mono text-sky-400">{hoveredDept.count} {hoveredDept.count === 1 ? 'Work Order' : 'Work Orders'}</span>
-            </div>
-          )}
-          <div className="flex items-baseline justify-between gap-3 mt-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Share of WO Value:</span>
-            <span className="font-bold text-xs font-mono text-slate-200">{hoveredDept.percentage}%</span>
-          </div>
         </div>,
         document.body
       )}
@@ -753,7 +238,7 @@ const DepartmentWiseEstimate = ({ projects }) => {
 };
 
 /* ─── Key Financial Indicators ────────────────────────────────────── */
-const KeyFinancialIndicators = ({ projects, data }) => {
+const KeyFinancialIndicators = ({ projects, data, isModal = false }) => {
   const { isDark } = useTheme();
 
   const emd = useMemo(() => {
@@ -789,24 +274,32 @@ const KeyFinancialIndicators = ({ projects, data }) => {
     { label: 'CGST',              value: cgst, color: '#a78bfa', bgColor: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10M7 11h10M7 15h10M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg> },
   ], [emd, sd, itTds, sgst, cgst]);
 
-  const maxAmount = Math.max(1, ...items.map(i => i.value));
+  const maxAmount = Math.max(1, ...items.map(i => {
+    const v = Number(i.value);
+    return Number.isFinite(v) ? v : 0;
+  }));
+
   return (
-    <div className="chart-panel h-full flex flex-col justify-between p-5">
-      <div className="flex justify-between items-center mb-3">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="Summary of statutory withholdings and security deposits retained across zonal projects."
-            formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
-          />
-          <div>
-            <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>Key Financial Indicators</h3>
-            <p className="chart-subtitle">Summary of statutory withholdings</p>
+    <div className={isModal ? "w-full h-full flex flex-col justify-between p-2 sm:p-4" : "chart-panel h-full flex flex-col justify-between p-5"}>
+      {!isModal && (
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex items-center gap-2">
+            <ChartInfoTooltip
+              description="Summary of statutory withholdings and security deposits retained across zonal projects."
+              formula="Withholdings = EMD + Security Deposit (10%) + IT TDS (2%) + SGST (1%) + CGST (1%)"
+            />
+            <div>
+              <h3 className="chart-title" style={{ color: isDark ? '#e2e8f4' : '#1E3A8A' }}>Key Financial Indicators</h3>
+              <p className="chart-subtitle">Summary of statutory withholdings</p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
       <div className="flex flex-col justify-between my-auto gap-3">
         {items.map((item, idx) => {
-          const barWidth = (item.value / maxAmount) * 100;
+          const rawVal = Number(item.value);
+          const safeVal = Number.isFinite(rawVal) ? rawVal : 0;
+          const barWidth = maxAmount > 0 ? Math.min(100, Math.max(0, (safeVal / maxAmount) * 100)) : 0;
           return (
             <div key={idx} className="group">
               <div className="flex items-center justify-between mb-1.5 gap-2">
@@ -828,836 +321,18 @@ const KeyFinancialIndicators = ({ projects, data }) => {
   );
 };
 
-/* ─── Fund Flow Waterfall ─────────────────────────────────────────── */
-const STAGE_METADATA_MAP = {
-  'final approved estimate': { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Unallocated Reserve' },
-  'ho allocated (gross)':    { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'Excess Refunded to HO' },
-  'excess returned to ho':   { gradId: 'ff-mint',    color1: '#10b981', color2: '#34d399', diffLabel: '↩ Refunded Back to HO' },
-  'ho allocated (net)':      { gradId: 'ff-amber',   color1: '#d97706', color2: '#f59e0b', diffLabel: 'Net ZO Retained Balance' },
-  'ho allocated':            { gradId: 'ff-sky',     color1: '#0284c7', color2: '#3b82f6', diffLabel: 'ZO Retained Balance' },
-  'requisitions approved':  { gradId: 'ff-indigo',  color1: '#6366f1', color2: '#8b5cf6', diffLabel: 'In-Flight Site WIP' },
-  'gross billed':           { gradId: 'ff-blue',    color1: '#2563eb', color2: '#60a5fa', diffLabel: 'Unbilled Work' },
-  'agency paid':            { gradId: 'ff-teal',    color1: '#0d9488', color2: '#14b8a6', diffLabel: 'Pending Settlement' }
-};
-
-const FundFlowWaterfall = ({ data, projects }) => {
-  const c = useChartColors();
-  const W = 800, H = 400, PAD_LEFT = 190, PAD_RIGHT = 220, PAD_Y = 35;
-  const barH = 22, gap = 20;
-
-  const rows = useMemo(() => {
-    if (data && data.length > 0) return data;
-
-    const p = projects || [];
-    const est = p.reduce((a, pr) => a + Number(pr.approved_estimate_amount || (pr.estimate_status === 'Final Approved' ? pr.estimate_amount : 0)), 0);
-    const grossAllocated = p.reduce((a, pr) => a + Number(pr.approved_ho_amount || pr.ho_allocated_amount || pr.approve_ho_amount || pr.approved_amount || 0), 0);
-    const excessReturned = p.reduce((a, pr) => a + Number(pr.excess_refunded_amount || pr.total_refunded || 0), 0);
-    const netAllocated = Math.max(0, grossAllocated - excessReturned);
-    const reqApproved = p.reduce((a, pr) => a + Number(pr.approved_requisitions_amount || pr.requisition_amount || 0), 0);
-    const billed = p.reduce((a, pr) => a + Number(pr.gross_billed || 0), 0);
-    const paid = p.reduce((a, pr) => a + Number(pr.agency_paid || 0), 0);
-
-    return [
-      { stage: 'Final Approved Estimate', amount: est },
-      { stage: 'HO Allocated (Gross)',    amount: grossAllocated },
-      { stage: 'Excess Returned to HO',   amount: excessReturned, isRefund: true },
-      { stage: 'HO Allocated (Net)',      amount: netAllocated },
-      { stage: 'Requisitions Approved',   amount: reqApproved },
-      { stage: 'Gross Billed',            amount: billed },
-      { stage: 'Agency Paid',             amount: paid },
-    ];
-  }, [data, projects]);
-
-  const maxVal = Math.max(1, ...rows.map(d => Number(d.amount || 0)));
-  const scale = (v) => (v / maxVal) * (W - PAD_LEFT - PAD_RIGHT);
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-start mb-2 shrink-0">
-        <div>
-          <h3 className="chart-title">Fund Flow Pipeline</h3>
-          <p className="chart-subtitle">Capital Realization & Allocation Lifecycle Pipeline</p>
-        </div>
-        <ChartInfoTooltip
-          description="Capital realization pipeline tracking fund allocation from sanctioned cost estimate to HO disbursement, excess ZO fund returns, site requisitions, billing, and vendor settlement."
-          formula="Uncommitted Capital = Previous Stage Amount - Current Stage Amount"
-        />
-      </div>
-      <div className="relative mt-2 flex-1 flex items-center justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-h-[85vh]" preserveAspectRatio="xMidYMid meet">
-          <defs>
-            {Object.entries(STAGE_METADATA_MAP).map(([k, m]) => (
-              <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
-                <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />
-              </linearGradient>
-            ))}
-          </defs>
-          {rows.map((d, i) => {
-            const bW = scale(d.amount);
-            const y = PAD_Y + i * (barH + gap);
-            const prev = i > 0 ? Number(rows[i - 1].amount || 0) : d.amount;
-            const diff = prev - d.amount;
-            const key = (d.stage || '').toLowerCase().trim();
-            const meta = STAGE_METADATA_MAP[key] || { gradId: 'ff-emerald', color1: '#059669', color2: '#10b981', diffLabel: 'Stage Delta' };
-            const prevKey = i > 0 ? (rows[i - 1].stage || '').toLowerCase().trim() : key;
-            const prevMeta = STAGE_METADATA_MAP[prevKey] || meta;
-            return (
-              <g key={i}>
-                <text x={PAD_LEFT - 14} y={y + 15} textAnchor="end" fill={d.isRefund ? '#34d399' : c.labelNormal} fontSize="9" fontWeight="bold" letterSpacing="0.5">{d.isRefund ? `↩ ${d.stage.toUpperCase()}` : d.stage.toUpperCase()}</text>
-                <rect x={PAD_LEFT} y={y} width={Math.max(2, bW)} height={barH} rx={5} fill={`url(#${meta.gradId})`} className="transition-all duration-300 hover:fill-opacity-90" />
-                <text x={PAD_LEFT + bW + 10} y={y + 15} fill={d.isRefund ? '#34d399' : c.labelStrong} fontSize="9" fontWeight="extrabold" className="font-mono">{fmtCr(d.amount)}</text>
-                {i > 0 && diff > 0 && !d.isRefund && (
-                  <g>
-                    <path d={`M ${PAD_LEFT + scale(prev)} ${y - gap} L ${PAD_LEFT + scale(prev)} ${y} L ${PAD_LEFT + bW} ${y}`} fill="none" stroke={c.isDark ? '#475569' : '#94a3b8'} strokeWidth="1" strokeDasharray="2 2" />
-                    <text x={PAD_LEFT + scale(prev) + 8} y={y - 5} fill={c.isDark ? '#cbd5e1' : '#475569'} fontSize="8" fontWeight="bold">{prevMeta.diffLabel}: {fmtCr(diff)}</text>
-                  </g>
-                )}
-              </g>
-            );
-          })}
-        </svg>
-      </div>
-    </div>
-  );
-};
-
-/* ─── Bubble Risk Matrix ──────────────────────────────────────────── */
-const BubbleRiskMatrix = ({ projects, bubbleMatrixData = [] }) => {
-  const [tooltip, setTooltip] = useState(null);
-  const c = useChartColors();
-  const W = 600, H = 380, PAD = 58;
-  const toX = (v) => PAD + (Math.min(v, 140) / 140) * (W - 2 * PAD);
-  const toY = (v) => (H - PAD) - (Math.min(v, 100) / 100) * (H - 2 * PAD);
-
-  const bubbles = useMemo(() => {
-    if (bubbleMatrixData && bubbleMatrixData.length > 0) {
-      return bubbleMatrixData.map(b => ({
-        work_order_no: b.work_order_no,
-        site_details: b.site_details || 'Site Project',
-        budget_utilization_pct: Number(b.budget_utilization_pct || 0),
-        physical_progress: Number(b.physical_progress || 0),
-        days_since_dpr: Number(b.days_since_dpr || 0),
-        health_status: b.health_status || 'Healthy'
-      }));
-    }
-    if (projects && projects.length > 0) {
-      return projects.map(p => {
-        const woVal = Number(p.work_order_value || 0);
-        const reqVal = Number(p.approved_requisitions_amount || p.approved_amount || 0);
-        const budgetUtil = woVal > 0 ? (reqVal / woVal) * 100 : 0;
-        return {
-          work_order_no: p.work_order_no,
-          site_details: p.site_details || 'Site Project',
-          budget_utilization_pct: budgetUtil,
-          physical_progress: Number(p.physical_progress || 0),
-          days_since_dpr: Number(p.days_since_last_progress_report || 0),
-          health_status: p.health_status || 'Healthy'
-        };
-      });
-    }
-    return [];
-  }, [projects, bubbleMatrixData]);
-
-  return (
-    <div className="chart-panel h-full flex flex-col">
-      <div className="flex justify-between items-center mb-3 shrink-0">
-        <div>
-          <h3 className="chart-title">Bubble Risk Matrix</h3>
-          <p className="chart-subtitle">Budget vs Physical Progress vs reporting frequency</p>
-        </div>
-        <div className="flex gap-3 text-[8px] font-black uppercase tracking-wider chart-label">
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Healthy</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Warning</span>
-          <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-rose-500" /> Critical</span>
-        </div>
-      </div>
-      <div className="relative flex-1 flex items-center justify-center min-h-0">
-        {bubbles.length === 0 ? (
-          <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">No project data for selected ZO Name</div>
-        ) : (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full max-h-[60vh]" preserveAspectRatio="xMidYMid meet">
-            <line x1={toX(70)} y1={PAD} x2={toX(70)} y2={H - PAD} stroke={c.gridLineDash} strokeDasharray="4 4" />
-            <line x1={PAD} y1={toY(50)} x2={W - PAD} y2={toY(50)} stroke={c.gridLineDash} strokeDasharray="4 4" />
-            <text x={PAD + 10} y={PAD + 18} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">EFFICIENT</text>
-            <text x={toX(70) + 10} y={PAD + 18} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">ON TRACK</text>
-            <text x={PAD + 10} y={H - PAD - 10} fill={c.quadrantNormal} fontSize="8" fontWeight="bold" letterSpacing="1">DORMANT</text>
-            <text x={toX(70) + 10} y={H - PAD - 10} fill={c.quadrantCritical} fontSize="8" fontWeight="bold" letterSpacing="1">CRITICAL OVERRUN</text>
-            <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke={c.axisLine} strokeWidth="1" />
-            <text x={W / 2} y={H - 12} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1">BUDGET UTILIZATION %</text>
-            <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke={c.axisLine} strokeWidth="1" />
-            <text x={16} y={H / 2} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1" transform={`rotate(-90, 16, ${H / 2})`}>PHYSICAL PROGRESS %</text>
-            {[0, 35, 70, 105, 140].map(v => <text key={v} x={toX(v)} y={H - PAD + 14} textAnchor="middle" fill={c.labelMuted} fontSize="7">{v}%</text>)}
-            {[0, 25, 50, 75, 100].map(v => <text key={v} x={PAD - 8} y={toY(v) + 3} textAnchor="end" fill={c.labelMuted} fontSize="7">{v}%</text>)}
-            {bubbles.map((d, i) => {
-              const r = Math.min(20, Math.max(5, 6 + Number(d.days_since_dpr || 0) / 4));
-              const fill = d.health_status === 'Critical' ? '#ef4444' : d.health_status === 'Warning' ? '#f59e0b' : '#10b981';
-              return (
-                <circle key={i} cx={toX(d.budget_utilization_pct || 0)} cy={toY(d.physical_progress || 0)} r={r}
-                  fill={fill} fillOpacity={0.75} stroke={fill} strokeWidth={1.5}
-                  className="cursor-pointer transition-all duration-200 hover:fill-opacity-100"
-                  onMouseEnter={(e) => setTooltip({ ...d, x: e.clientX, y: e.clientY })}
-                  onMouseMove={(e) => setTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              );
-            })}
-          </svg>
-        )}
-        {tooltip && (
-          <div className="fixed z-50 chart-tooltip p-3 rounded-2xl text-[10px] pointer-events-none min-w-[180px] shadow-2xl"
-            style={{ top: tooltip.y - 120, left: tooltip.x + 20 }}>
-            <p className="font-extrabold truncate chart-tooltip-title">{tooltip.site_details || 'Site Project'}</p>
-            <p className="chart-tooltip-mono text-[9px] mt-0.5">{tooltip.work_order_no}</p>
-            <div className="mt-2 space-y-1 pt-1.5 chart-tooltip-divider">
-              <p className="chart-tooltip-label">Budget Spent: <span className="text-amber-600 font-extrabold">{(Number(tooltip.budget_utilization_pct) || 0).toFixed(1)}%</span></p>
-              <p className="chart-tooltip-label">Physical Progress: <span className="text-emerald-600 font-extrabold">{tooltip.physical_progress}%</span></p>
-              <p className="chart-tooltip-label">Last DPR Visit: <span className={tooltip.days_since_dpr > 7 ? 'text-rose-600 font-extrabold' : 'chart-tooltip-normal'}>{tooltip.days_since_dpr}d ago</span></p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/* ─── S-Curve Progress ────────────────────────────────────────────── */
-const SCurveProgress = ({ projects, sCurveData = [] }) => {
-  const c = useChartColors();
-  const W = 600, H = 330, PAD_TOP = 40, PAD_BOT = 60, PAD_SIDE = 50;
-
-  const { months, planned, actual } = useMemo(() => {
-    let rawTimeline = [];
-    if (sCurveData && sCurveData.length > 0) {
-      const datesSet = new Set();
-      sCurveData.forEach(s => {
-        (s.actuals || []).forEach(a => {
-          if (a.date) datesSet.add(a.date.slice(0, 7));
-        });
-      });
-      rawTimeline = Array.from(datesSet).sort();
-    }
-
-    if (rawTimeline.length < 3) {
-      const dateList = [];
-      const now = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const mStr = d.toLocaleString('en-US', { month: 'short' });
-        dateList.push(mStr);
-      }
-      rawTimeline = dateList;
-    } else {
-      rawTimeline = rawTimeline.slice(-6).map(ym => {
-        const parts = ym.split('-');
-        if (parts.length === 2) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, 1);
-          return d.toLocaleString('en-US', { month: 'short' });
-        }
-        return ym;
-      });
-    }
-
-    const sigmoidalPlanned = [2, 12, 35, 65, 88, 98];
-    const avgProg = projects?.length
-      ? Math.round(projects.reduce((a, p) => a + Number(p.physical_progress || 0), 0) / projects.length)
-      : 0;
-
-    let computedActual = [];
-    if (sCurveData && sCurveData.length > 0) {
-      const stepCount = rawTimeline.length;
-      computedActual = rawTimeline.map((_, idx) => {
-        const factor = (idx + 1) / stepCount;
-        return Math.round(avgProg * Math.pow(factor, 1.2));
-      });
-    } else {
-      computedActual = [
-        Math.round(avgProg * 0.1),
-        Math.round(avgProg * 0.25),
-        Math.round(avgProg * 0.45),
-        Math.round(avgProg * 0.65),
-        Math.round(avgProg * 0.85),
-        avgProg
-      ];
-    }
-
-    return {
-      months: rawTimeline,
-      planned: sigmoidalPlanned,
-      actual: computedActual
-    };
-  }, [projects, sCurveData]);
-
-  const toX = (i) => PAD_SIDE + (i / Math.max(1, months.length - 1)) * (W - 2 * PAD_SIDE);
-  const toY = (v) => (H - PAD_BOT) - (v / 100) * (H - PAD_TOP - PAD_BOT);
-  const pts = (arr) => arr.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h3 className="chart-title">S-Curve Performance Progress</h3>
-          <p className="chart-subtitle">Planned sigmoidal S-curve target vs actual DPR submissions</p>
-        </div>
-        <ChartInfoTooltip
-          description="Cumulative project timeline comparing planned sigmoidal S-curve target with actual DPR physical work progress logs."
-          formula="Actual Progress = Cumulative Avg(DPR Physical Work Progress %)"
-        />
-      </div>
-      <div className="relative flex-1 flex flex-col justify-center">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
-          {/* Y Axis Title */}
-          <text x={14} y={H / 2 - 10} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1" transform={`rotate(-90, 14, ${H / 2 - 10})`}>PHYSICAL PROGRESS %</text>
-
-          {/* X Axis Title */}
-          <text x={W / 2} y={H - 6} textAnchor="middle" fill={c.labelNormal} fontSize="8" fontWeight="bold" letterSpacing="1">MONTH TIMELINE / PROJECT DURATION</text>
-
-          {[0, 25, 50, 75, 100].map((v, i) => {
-            const y = toY(v);
-            return <g key={i}><line x1={PAD_SIDE} y1={y} x2={W - PAD_SIDE} y2={y} stroke={c.gridLine} /><text x={PAD_SIDE - 8} y={y + 3} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold">{v}%</text></g>;
-          })}
-          <text x={PAD_SIDE} y={H - PAD_BOT + 16} fill={c.labelNormal} fontSize="8" fontWeight="bold">START DATE</text>
-          <text x={W - PAD_SIDE} y={H - PAD_BOT + 16} textAnchor="end" fill={c.labelNormal} fontSize="8" fontWeight="bold">COMPLETION</text>
-          {months.map((m, i) => <text key={m} x={toX(i)} y={H - PAD_BOT + 32} textAnchor="middle" fill={c.labelNormal} fontSize="9" fontWeight="bold">{m}</text>)}
-          <polyline fill="none" stroke={c.isDark ? '#f59e0b' : '#d97706'} strokeWidth="2" strokeDasharray="5 4" points={pts(planned)} />
-          <polyline fill="none" stroke={c.isDark ? '#10b981' : '#059669'} strokeWidth="3" points={pts(actual)} />
-          {actual.map((v, i) => <circle key={i} cx={toX(i)} cy={toY(v)} r="4" fill={c.isDark ? '#10b981' : '#059669'} />)}
-        </svg>
-        <div className="flex gap-6 mt-3 text-[9px] font-bold uppercase tracking-widest chart-label justify-center">
-          <div className="flex items-center gap-1.5"><span className="w-3 h-0.5 border-t-2 border-dashed" style={{ borderColor: c.isDark ? '#f59e0b' : '#d97706' }} /><span>Planned Target</span></div>
-          <div className="flex items-center gap-1.5"><span className="w-3 h-1 rounded-sm" style={{ backgroundColor: c.isDark ? '#10b981' : '#059669' }} /><span>Actual Progress</span></div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-/* ─── Investment vs Recovery Realization Plot ─────────────────────── */
-const InvestmentRecoveryPlot = ({ projects, agencyPaymentAmount = 0, isModal = false }) => {
-  const { isDark } = useTheme();
-  const navigate = useNavigate();
-  const [viewMode, setViewMode] = useState('summary');
-  const [woPage, setWoPage] = useState(1);
-  const [searchWo, setSearchWo] = useState('');
-  const pageSize = 4;
-
-  const metrics = useMemo(() => {
-    const pList = projects || [];
-    const totalProjectsCount = pList.length;
-    const woValue = pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-    const investment = pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0), 0);
-    const grossBilled = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-    const billReceived = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
-
-    const pendingRecovery = Math.max(0, investment - billReceived);
-    const surplusRecovery = Math.max(0, billReceived - investment);
-    const remainingWOValue = Math.max(0, woValue - investment);
-    const deductions = Math.max(0, grossBilled - billReceived);
-
-    const investmentPct = woValue > 0 ? ((investment / woValue) * 100).toFixed(1) : '0.0';
-    const disbursementPct = woValue > 0 ? ((billReceived / woValue) * 100).toFixed(1) : '0.0';
-    const recoveryAgainstInvestPct = investment > 0 ? ((billReceived / investment) * 100).toFixed(1) : '0.0';
-    const recoveryBarPct = Math.min(100, Number(recoveryAgainstInvestPct));
-    const deductionRate = grossBilled > 0 ? ((deductions / grossBilled) * 100).toFixed(1) : '0.0';
-
-    const getProgressBand = (prog, status) => {
-      const p = Number(prog || 0);
-      if (p > 100 || status === 'Critical') return { label: '>100% Over Budget', color: '#EF4444', bg: 'bg-rose-500/15 text-rose-400 border-rose-500/30' };
-      if (p === 100) return { label: '100% Completed', color: '#16A34A', bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' };
-      if (p >= 81) return { label: `${p}% Excellent`, color: '#10B981', bg: 'bg-teal-500/15 text-teal-400 border-teal-500/30' };
-      if (p >= 61) return { label: `${p}% Very Good`, color: '#15803D', bg: 'bg-emerald-600/15 text-emerald-300 border-emerald-600/30' };
-      if (p >= 41) return { label: `${p}% Good`, color: '#22C55E', bg: 'bg-green-500/15 text-green-400 border-green-500/30' };
-      if (p >= 21) return { label: `${p}% Fair`, color: '#EAB308', bg: 'bg-amber-500/15 text-amber-400 border-amber-500/30' };
-      if (p >= 1) return { label: `${p}% Initial`, color: '#3B82F6', bg: 'bg-sky-500/15 text-sky-400 border-sky-500/30' };
-      return { label: '0% Not Started', color: '#64748B', bg: 'bg-slate-500/15 text-slate-400 border-slate-500/30' };
-    };
-
-    const rawBands = [
-      { label: '0% Not Started', color: '#64748B', count: pList.filter(p => !p.physical_progress || p.physical_progress === 0).length },
-      { label: '1–20% Initial Stage', color: '#3B82F6', count: pList.filter(p => p.physical_progress > 0 && p.physical_progress <= 20).length },
-      { label: '21–40% Fair', color: '#EAB308', count: pList.filter(p => p.physical_progress > 20 && p.physical_progress <= 40).length },
-      { label: '41–60% Good', color: '#22C55E', count: pList.filter(p => p.physical_progress > 40 && p.physical_progress <= 60).length },
-      { label: '61–80% Very Good', color: '#15803D', count: pList.filter(p => p.physical_progress > 60 && p.physical_progress <= 80).length },
-      { label: '81–99% Excellent', color: '#10B981', count: pList.filter(p => p.physical_progress > 80 && p.physical_progress < 100).length },
-      { label: '100% Completed', color: '#16A34A', count: pList.filter(p => p.physical_progress === 100).length },
-      { label: '>100% Over Budget', color: '#EF4444', count: pList.filter(p => p.physical_progress > 100 || p.health_status === 'Critical').length },
-    ];
-
-    const bands = rawBands.map(b => ({
-      ...b,
-      pct: totalProjectsCount > 0 ? ((b.count / totalProjectsCount) * 100).toFixed(1) : '0.0',
-    }));
-
-    const woItems = pList.map(p => {
-      const wVal = Number(p.work_order_value || 0);
-      const inv = Number(p.approved_requisitions_amount || p.requisition_amount || p.approved_amount || 0);
-      const rec = Number(p.agency_payment ?? p.agency_paid ?? 0);
-      const pend = Math.max(0, inv - rec);
-      const surplus = Math.max(0, rec - inv);
-      const rem = Math.max(0, wVal - inv);
-      const band = getProgressBand(p.physical_progress, p.health_status);
-      return {
-        work_order_no: p.work_order_no,
-        site_details: p.site_details,
-        department: p.department,
-        woValue: wVal,
-        investment: inv,
-        billReceived: rec,
-        pendingRecovery: pend,
-        surplusRecovery: surplus,
-        remainingWOValue: rem,
-        band,
-        physical_progress: p.physical_progress || 0,
-      };
-    });
-
-    return {
-      totalProjects: totalProjectsCount,
-      woValue,
-      investment,
-      grossBilled,
-      billReceived,
-      deductions,
-      deductionRate,
-      pendingRecovery,
-      surplusRecovery,
-      remainingWOValue,
-      investmentPct,
-      disbursementPct,
-      recoveryAgainstInvestPct,
-      recoveryBarPct,
-      bands,
-      woItems,
-    };
-  }, [projects, agencyPaymentAmount]);
-
-  const filteredWos = useMemo(() => {
-    const q = searchWo.toLowerCase().trim();
-    if (!q) return metrics.woItems;
-    return metrics.woItems.filter(item =>
-      (item.work_order_no || '').toLowerCase().includes(q) ||
-      (item.site_details || '').toLowerCase().includes(q) ||
-      (item.department || '').toLowerCase().includes(q)
-    );
-  }, [metrics.woItems, searchWo]);
-
-  const totalWoPages = Math.ceil(filteredWos.length / pageSize) || 1;
-  const pagedWos = useMemo(() => {
-    const start = (woPage - 1) * pageSize;
-    return filteredWos.slice(start, start + pageSize);
-  }, [filteredWos, woPage, pageSize]);
-
-  return (
-    <div className="chart-panel h-full flex flex-col justify-between p-3.5 sm:p-5 relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-        <div className="min-w-0 flex-1">
-          <h3 className="chart-title text-sm sm:text-base font-extrabold tracking-tight truncate" style={{ color: isDark ? '#60A5FA' : '#1E3A8A' }}>
-            Investment &amp; Bill Recovery Realization
-          </h3>
-          <p className="chart-subtitle text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-            {viewMode === 'summary' ? 'Realization Ratios, Dual Scale Breakdown & Progress Distribution' : 'Work Order Wise Realization Breakdown'}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setViewMode('summary')}
-              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'summary' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-            >
-              Summary
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('work_order')}
-              className={`px-2.5 py-1 rounded-lg text-[9.5px] font-black uppercase tracking-wider transition ${viewMode === 'work_order' ? 'bg-amber-500 text-black shadow-md' : 'text-slate-400 hover:text-white'}`}
-            >
-              WO Wise ({metrics.woItems.length})
-            </button>
-          </div>
-
-          <ChartInfoTooltip
-            description="Capital investment vs bill recovery realization across work order progress bands."
-            formula="Pending Recovery = Requisition Investment - Contractor Bill Payments Received"
-          />
-        </div>
-      </div>
-
-      {viewMode === 'summary' ? (
-        <>
-          {/* Top Formula KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2">
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-amber-400 truncate">Total Investment %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 whitespace-nowrap">Inv / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value that has been requested and approved for project execution."
-                    formula="Total Investment % = (Approved Requisitions / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-amber-400 mt-1">{metrics.investmentPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Inv: <strong className="text-slate-200">{fmtCr(metrics.investment)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-emerald-400 truncate">Bill Recovery %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 whitespace-nowrap">Rec / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value recovered through paid contractor bills."
-                    formula="Bill Recovery % = (Agency Payments Realized / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-emerald-400 mt-1">{metrics.disbursementPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Rec: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200'}`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-wider text-teal-400 truncate">Payment Disbursement %</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20 whitespace-nowrap">Paid / WO</span>
-                  <ChartInfoTooltip
-                    description="Percentage of total portfolio Work Order value that has actually been disbursed to agencies as net payment. Represents actual fund outflow rate against contracted value."
-                    formula="Payment Disbursement % = (Net Agency Payments / Total WO Value) × 100"
-                  />
-                </div>
-              </div>
-              <p className="text-base sm:text-lg font-black font-mono text-teal-400 mt-1">{metrics.disbursementPct}%</p>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Paid: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong></span>
-                <span className="text-slate-500 truncate">of {fmtCr(metrics.woValue)}</span>
-              </p>
-            </div>
-
-            <div className={`p-2.5 rounded-xl border transition-all flex flex-col justify-between relative ${
-              metrics.surplusRecovery > 0
-                ? (isDark ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-emerald-50 border-emerald-300')
-                : (isDark ? 'bg-slate-900/80 border-white/10' : 'bg-slate-50 border-slate-200')
-            }`}>
-              <div className="flex items-center justify-between gap-1 min-w-0">
-                <p className={`text-[9px] font-extrabold uppercase tracking-wider truncate ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>Agency Realization vs Investment</p>
-                <div className="flex items-center gap-1 shrink-0">
-                  <span className={`text-[7.5px] font-mono font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
-                    metrics.surplusRecovery > 0
-                      ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                      : 'bg-sky-500/10 text-sky-300 border border-sky-500/20'
-                  }`}>Realized / Inv</span>
-                  <ChartInfoTooltip
-                    description={metrics.surplusRecovery > 0
-                      ? 'Ratio of net agency payments received from client departments against approved site requisition investment. Shows revenue realization relative to invested capital.'
-                      : 'Ratio of net agency payments received against approved requisition investment.'}
-                    formula="Realization vs Investment % = (Net Agency Payments / Approved Requisitions) × 100"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <p className={`text-base sm:text-lg font-black font-mono ${metrics.surplusRecovery > 0 ? 'text-emerald-400' : 'text-sky-400'}`}>{metrics.recoveryAgainstInvestPct}%</p>
-                {metrics.surplusRecovery > 0 && (
-                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 whitespace-nowrap">✓ Surplus Realized</span>
-                )}
-              </div>
-              <p className="text-[8.5px] text-slate-400 font-mono mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 border-t border-white/5 pt-1 min-w-0">
-                <span className="truncate">Realized: <strong className="text-slate-200">{fmtCr(metrics.billReceived)}</strong>
-                  {metrics.surplusRecovery > 0
-                    ? <span className="text-emerald-400 font-bold"> (+{fmtCr(metrics.surplusRecovery)} surplus)</span>
-                    : <span className="text-rose-400 font-bold"> (Pend: {fmtCr(metrics.pendingRecovery)})</span>
-                  }
-                </span>
-                <span className="text-slate-500 truncate">of Inv: {fmtCr(metrics.investment)}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Gross Bill → Deductions → Net Paid Pipeline */}
-          {metrics.grossBilled > 0 && (
-            <div className={`my-2 p-2.5 rounded-xl border transition-all ${isDark ? 'border-white/5 bg-slate-950/40' : 'border-slate-200 bg-white/80'}`}>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className={`text-[8.5px] font-black uppercase tracking-wider font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Gross Bill → Deductions → Net Paid Pipeline</p>
-                <ChartInfoTooltip
-                  description="Shows how gross billed amount reduces to net agency payment after statutory deductions (TDS, Security Deposit, GST, EMD etc.)."
-                  formula="Deductions = Gross Bill Amount − Net Agency Payment"
-                />
-              </div>
-              <div className="flex items-center gap-2 text-[8px] font-mono flex-wrap">
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-sky-500/10 border-sky-500/20 text-sky-200' : 'bg-sky-50 border-sky-200 text-sky-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-sky-300' : 'text-sky-700'}`}>Gross Billed</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-sky-200' : 'text-sky-950'}`}>{fmtCr(metrics.grossBilled)}</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-rose-500 font-black text-[10px]">−</span>
-                  <span className="text-rose-500 font-bold text-[7px] uppercase tracking-wider">{metrics.deductionRate}%</span>
-                </div>
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-rose-500/10 border-rose-500/20 text-rose-200' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>Deductions</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-rose-200' : 'text-rose-950'}`}>{fmtCr(metrics.deductions)}</span>
-                </div>
-                <div className="flex flex-col items-center gap-0.5">
-                  <span className="text-emerald-500 font-black text-[10px]">→</span>
-                </div>
-                <div className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border min-w-[80px] ${isDark ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
-                  <span className={`font-bold uppercase tracking-wider text-[7px] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>Net Agency Paid</span>
-                  <span className={`font-black text-[11px] ${isDark ? 'text-emerald-200' : 'text-emerald-950'}`}>{fmtCr(metrics.billReceived)}</span>
-                </div>
-                <div className="flex-1 min-w-[80px]">
-                  <div className={`h-2 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                    <div
-                      style={{ width: `${metrics.grossBilled > 0 ? ((metrics.billReceived / metrics.grossBilled) * 100).toFixed(1) : 0}%` }}
-                      className="bg-emerald-500 h-full"
-                      title={`Net Paid: ${fmtCr(metrics.billReceived)}`}
-                    />
-                    <div
-                      style={{ width: `${metrics.deductionRate}%` }}
-                      className="bg-rose-500/70 h-full"
-                      title={`Deductions: ${fmtCr(metrics.deductions)} (${metrics.deductionRate}%)`}
-                    />
-                  </div>
-                  <p className={`text-[7.5px] mt-0.5 font-mono ${isDark ? 'text-slate-500' : 'text-slate-600'}`}>Net retained: {metrics.grossBilled > 0 ? (100 - Number(metrics.deductionRate)).toFixed(1) : 0}% of Gross</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Dual Realization Progress Bars */}
-          <div className={`my-2 space-y-2 p-2.5 rounded-xl border transition-all ${isDark ? 'border-white/5 bg-slate-950/40' : 'border-slate-200 bg-white/80'}`}>
-            {/* Bar 1: Investment vs Remaining WO Value */}
-            <div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase mb-1 font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">1. Capital Investment Realization</span>
-                  <ChartInfoTooltip
-                    description="Visual breakdown of total investment disbursed against overall portfolio work order capacity."
-                    formula="Remaining WO Value = Total WO Value - Approved Requisition Investment"
-                  />
-                </div>
-                <span className={`shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>WO Value: {fmtCr(metrics.woValue)}</span>
-              </div>
-              <div className={`h-3 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                <div
-                  style={{ width: `${Math.max(1, Math.min(100, Number(metrics.investmentPct)))}%` }}
-                  className="bg-amber-500 h-full transition-all duration-500"
-                  title={`Investment: ${fmtCr(metrics.investment)} (${metrics.investmentPct}%)`}
-                />
-                <div
-                  style={{ width: `${Math.max(0, 100 - Number(metrics.investmentPct))}%` }}
-                  className="bg-sky-500/30 h-full transition-all duration-500"
-                  title={`Remaining WO Value: ${fmtCr(metrics.remainingWOValue)}`}
-                />
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1 text-[8px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> Total Inv: {fmtCr(metrics.investment)} ({metrics.investmentPct}%)</span>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-sky-500/30 shrink-0" /> Remaining: {fmtCr(metrics.remainingWOValue)}</span>
-              </div>
-            </div>
-
-            {/* Bar 2: Recovery Realization against Total Investment */}
-            <div className={`border-t pt-1.5 ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-[8.5px] font-bold uppercase mb-1 font-mono ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                <div className="flex items-center gap-1.5 truncate">
-                  <span className="truncate">2. Recovery Realization (Investment Pool)</span>
-                  <ChartInfoTooltip
-                    description="Visual realization of actual contractor bill payments recovered against the disbursed investment pool."
-                    formula="Pending Recovery = Approved Requisitions - Agency Billed Payments"
-                  />
-                </div>
-                <span className={`shrink-0 ${isDark ? 'text-slate-300' : 'text-slate-900'}`}>Pool: {fmtCr(metrics.investment)}</span>
-              </div>
-              <div className={`h-3 w-full rounded-full overflow-hidden flex ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-                <div
-                  style={{ width: `${Math.max(1, metrics.recoveryBarPct)}%` }}
-                  className="bg-emerald-500 h-full transition-all duration-500"
-                  title={`Agency Paid: ${fmtCr(metrics.billReceived)} (${metrics.recoveryAgainstInvestPct}% of Investment)`}
-                />
-                {metrics.pendingRecovery > 0 && (
-                  <div
-                    style={{ width: `${Math.max(0, 100 - metrics.recoveryBarPct)}%` }}
-                    className="bg-rose-500/80 h-full transition-all duration-500"
-                    title={`Pending Bill Recovery: ${fmtCr(metrics.pendingRecovery)}`}
-                  />
-                )}
-              </div>
-              <div className={`flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-1 text-[8px] font-mono ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Agency Paid: {fmtCr(metrics.billReceived)} ({metrics.recoveryAgainstInvestPct}%)</span>
-                {metrics.surplusRecovery > 0
-                  ? <span className="flex items-center gap-1 truncate text-emerald-500 font-bold"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" /> Surplus: +{fmtCr(metrics.surplusRecovery)}</span>
-                  : <span className="flex items-center gap-1 truncate"><span className="w-1.5 h-1.5 rounded-full bg-rose-500/80 shrink-0" /> Pending: {fmtCr(metrics.pendingRecovery)}</span>
-                }
-              </div>
-            </div>
-          </div>
-
-          {/* Visual Progress Stage Color Bands with Stacked Bar & Distribution Badges */}
-          <div className={`mt-2 pt-2 border-t ${isDark ? 'border-white/5' : 'border-slate-200'}`}>
-            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mb-1">
-              <p className={`text-[8.5px] sm:text-[9px] font-black uppercase tracking-wider truncate ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>Progress Stage Color Bands Distribution</p>
-              <span className={`text-[8px] font-mono font-bold shrink-0 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{metrics.totalProjects} Total WOs</span>
-            </div>
-
-            {/* Multi-segment distribution bar */}
-            <div className={`h-2 w-full rounded-full overflow-hidden flex mb-2 ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}>
-              {metrics.bands.map((b, idx) => Number(b.pct) > 0 && (
-                <div
-                  key={idx}
-                  style={{ width: `${b.pct}%`, backgroundColor: b.color }}
-                  className="h-full transition-all duration-300"
-                  title={`${b.label}: ${b.count} WOs (${b.pct}%)`}
-                />
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[8.5px]">
-              {metrics.bands.map((b, idx) => (
-                <div key={idx} className="flex items-center justify-between p-1.5 rounded-xl bg-white/5 border border-white/5 hover:border-white/10 transition min-w-0">
-                  <div className="flex items-center gap-1 truncate min-w-0">
-                    <span className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: b.color }} />
-                    <span className="font-bold text-slate-300 truncate text-[8.5px]">{b.label}</span>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 font-mono ml-1">
-                    <span className="font-black text-amber-400 text-[9px]">{b.count}</span>
-                    <span className="text-[7.5px] text-slate-500">({b.pct}%)</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
-        /* Work Order Wise View Mode */
-        <div className="flex flex-col flex-1 min-h-0 justify-between">
-          <div className="mb-2">
-            <input
-              type="text"
-              placeholder="Search work order or site..."
-              value={searchWo}
-              onChange={(e) => { setSearchWo(e.target.value); setWoPage(1); }}
-              className={`w-full border rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:border-amber-500/50 ${isDark ? 'bg-slate-950 border-white/10 text-slate-200 placeholder-slate-500' : 'bg-slate-50 border-slate-200 text-slate-900'}`}
-            />
-          </div>
-
-          <div className="space-y-2 overflow-y-auto max-h-[260px] pr-1">
-            {pagedWos.map((item, idx) => (
-              <div
-                key={idx}
-                className={`p-2.5 rounded-xl border transition-all ${isDark ? 'bg-slate-900/60 border-white/10 hover:border-white/20' : 'bg-white border-slate-200 shadow-sm'}`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="min-w-0">
-                    <span
-                      onClick={() => navigate && navigate(`/projects/${item.work_order_no}/digital-twin`)}
-                      className="font-extrabold font-mono text-xs text-sky-400 hover:underline cursor-pointer truncate block"
-                    >
-                      {item.work_order_no}
-                    </span>
-                    <p className="text-[10px] text-slate-400 truncate">{item.site_details || item.department}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider shrink-0 ${item.band.bg}`}>
-                    {item.band.label}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-4 gap-1 mt-2 text-[9px] font-mono border-t border-white/5 pt-1.5">
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">WO Value</span>
-                    <span className="font-bold text-slate-200">{fmtCr(item.woValue)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Investment</span>
-                    <span className="font-bold text-amber-400">{fmtCr(item.investment)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Received</span>
-                    <span className="font-bold text-emerald-400">{fmtCr(item.billReceived)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[8px]">Pending</span>
-                    <span className="font-bold text-rose-400">{fmtCr(item.pendingRecovery)}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-            {pagedWos.length === 0 && (
-              <div className="py-8 text-center text-xs text-slate-500 italic">No work orders match current search</div>
-            )}
-          </div>
-
-          {totalWoPages > 1 && (
-            <div className="flex items-center justify-between pt-2 mt-1 border-t border-white/5 text-[10px] font-mono select-none">
-              <span className="text-slate-400 font-bold">Pg {woPage} of {totalWoPages} ({filteredWos.length} WOs)</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setWoPage(p => Math.max(1, p - 1))}
-                  disabled={woPage === 1}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWoPage(p => Math.min(totalWoPages, p + 1))}
-                  disabled={woPage === totalWoPages}
-                  className="px-2.5 py-1 rounded-lg border border-white/10 hover:bg-white/5 disabled:opacity-30 text-slate-300 font-bold uppercase cursor-pointer"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+/* ─── JE Leaderboard (paginated) ─────────────────────────────────── */
 
 /* ─── JE Leaderboard (paginated) ─────────────────────────────────── */
 const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
-  const { isDark } = useTheme();
   const [page, setPage] = useState(1);
   const rowsPerPage = 5;
 
-  const jes = useMemo(() => {
-    if (Array.isArray(leaderboardData)) {
-      return leaderboardData.map(j => ({
-        name: j.display_name || j.mobile_number,
-        projects: j.total_reports > 0 ? Math.max(1, Math.ceil(j.total_reports / 5)) : 1,
-        reports: Number(j.total_reports || 0),
-        streak: Number(j.daily_streak || 0),
-        score: Number(j.score || 0)
-      }));
-    }
-
-    const map = {};
-    (projects || []).forEach(p => {
-      const name = p.assigned_je || p.je_user_id || p.assigned_to;
-      if (name) {
-        if (!map[name]) {
-          map[name] = { name, projects: 0, reports: 0, streak: Number(p.daily_streak || 0) };
-        }
-        map[name].projects += 1;
-        map[name].reports += Number(p.total_dpr_count || 1);
-      }
-    });
-    return Object.values(map);
-  }, [projects, leaderboardData]);
-
   const ranked = useMemo(() => {
-    if (Array.isArray(leaderboardData)) {
-      return jes;
-    }
-    return [...jes].sort((a, b) => (b.reports * 2 + b.streak * 5 + b.projects) - (a.reports * 2 + a.streak * 5 + a.projects));
-  }, [jes, leaderboardData]);
+    const stats = buildJeStats(projects, leaderboardData);
+    // Sort deterministically: score DESC, then projects DESC, then reports DESC, then name ASC
+    return stats.sort((a, b) => b.score - a.score || b.projects - a.projects || b.reports - a.reports || a.name.localeCompare(b.name));
+  }, [projects, leaderboardData]);
 
   const totalPages = Math.ceil(ranked.length / rowsPerPage) || 1;
   const paged = ranked.slice((page - 1) * rowsPerPage, page * rowsPerPage);
@@ -1730,465 +405,6 @@ const JeLeaderboard = ({ projects, selectedZoName, leaderboardData = [] }) => {
   );
 };
 
-/* ─── Executive KPI Strip (10 tiles) ─────────────────────────────── */
-const ExecutiveKpiStrip = ({ projects, summaryKpis }) => {
-  const { isDark } = useTheme();
-  const pList = projects || [];
-
-  const totalWO = summaryKpis?.totalWorkOrders?.total ?? pList.length;
-  const running = summaryKpis?.totalWorkOrders?.running ?? pList.filter(p => !['Completed', 'Closed'].includes(p.status)).length;
-  const completed = summaryKpis?.totalWorkOrders?.completed ?? pList.filter(p => ['Completed', 'Closed'].includes(p.status)).length;
-  const pending = summaryKpis?.totalWorkOrders?.pending ?? pList.filter(p => p.status === 'Pending').length;
-  const totalWOVal = summaryKpis?.totalWOValue ?? pList.reduce((a, p) => a + Number(p.work_order_value || 0), 0);
-  const totalEst = summaryKpis?.totalEstimateAmount?.amount ?? pList.reduce((a, p) => a + Number(p.estimate_amount || p.work_order_value || 0), 0);
-  const totalReq = summaryKpis?.totalRequisition?.amount ?? pList.reduce((a, p) => a + Number(p.requisition_amount || p.approved_requisitions_amount || 0), 0);
-  const approvedReq = summaryKpis?.totalApproved?.amount ?? pList.reduce((a, p) => a + Number(p.approved_requisitions_amount || p.approved_amount || 0), 0);
-  const zoBalance = summaryKpis?.zoAvailableBalance ?? pList.reduce((a, p) => a + Number(p.balance || p.available_balance || 0), 0);
-  const refund = summaryKpis?.totalRefundAmount ?? pList.reduce((a, p) => a + Number(p.refund_amount || 0), 0);
-  const grossBill = summaryKpis?.grossBillAmount?.amount ?? pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
-  const agencyPay = summaryKpis?.agencyPayment?.amount ?? pList.reduce((a, p) => a + Number(p.agency_paid || p.agency_payment || 0), 0);
-  const dueBill = summaryKpis?.dueBill?.amount ?? Math.max(0, totalWOVal - grossBill);
-
-  const kpis = [
-    { id: 'wo', title: 'TOTAL WORK ORDERS', description: 'Total active and completed work orders in zone.', formula: 'Count(zonal_projects)', color: '#60a5fa', glow: 'linear-gradient(90deg, #3b82f6, transparent)', value: totalWO, subtext: `Running: ${running} | Completed: ${completed}\nPending: ${pending}` },
-    { id: 'woval', title: 'TOTAL WO VALUE', description: 'Consolidated monetary value of all awarded zonal work orders.', formula: 'Sum(work_order_value)', color: '#34d399', glow: 'linear-gradient(90deg, #10b981, transparent)', value: fmtCr(totalWOVal), subtext: null },
-    { id: 'est', title: 'TOTAL ESTIMATE AMOUNT', description: 'Aggregated cost estimate value of final approved sheets in zone.', formula: 'Sum(estimate_amount where status = \'Final Approved\')', color: '#c084fc', glow: 'linear-gradient(90deg, #a855f7, transparent)', value: fmtCr(totalEst), subtext: `${totalWOVal ? ((totalEst / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
-    { id: 'req', title: 'TOTAL REQUISITION (ZO → JE)', description: 'Total site fund requisitions processed for Junior Engineers by Zonal Office.', formula: 'Sum(approved_amount where status = \'Approved\')', color: '#fb923c', glow: 'linear-gradient(90deg, #f97316, transparent)', value: fmtCr(totalReq), subtext: `${totalEst ? ((totalReq / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'app', title: 'TOTAL APPROVED (HO→ZO)', description: 'Total funds authorized and allocated from Head Office to Zone.', formula: 'Sum(approve_ho_amount where status = \'Approved\')', color: '#fbbf24', glow: 'linear-gradient(90deg, #f59e0b, transparent)', value: fmtCr(approvedReq), subtext: `${totalReq ? ((approvedReq / totalReq) * 100).toFixed(1) : 0}% of Requisition` },
-    { id: 'bal', title: 'ZO AVAILABLE BALANCE', description: 'Liquid fund balance currently available in Zonal Office ledger.', formula: 'Sum(available_balance)', color: '#38bdf8', glow: 'linear-gradient(90deg, #0284c7, transparent)', value: fmtCr(zoBalance), subtext: null },
-    { id: 'ref', title: 'TOTAL REFUND AMOUNT', description: 'Unspent excess funds returned from Zonal Office to Head Office.', formula: 'Sum(transaction_type = \'RETURN\')', color: '#2dd4bf', glow: 'linear-gradient(90deg, #14b8a6, transparent)', value: fmtCr(refund), subtext: null },
-    { id: 'gb', title: 'GROSS BILL AMOUNT', description: 'Gross contractor billings submitted across zonal work orders.', formula: 'Sum(gross_bill)', color: '#f87171', glow: 'linear-gradient(90deg, #ef4444, transparent)', value: fmtCr(grossBill), subtext: `${totalEst ? ((grossBill / totalEst) * 100).toFixed(1) : 0}% of Estimate` },
-    { id: 'ap', title: 'AGENCY PAYMENT', description: 'Net payments disbursed to contractors after statutory withholdings.', formula: 'Sum(agency_payment)', color: '#818cf8', glow: 'linear-gradient(90deg, #6366f1, transparent)', value: fmtCr(agencyPay), subtext: `${grossBill ? ((agencyPay / grossBill) * 100).toFixed(1) : 0}% of Gross Bill` },
-    { id: 'due', title: 'REMAINING BILL AMOUNT', description: 'Pending unbilled work order value exposure remaining in zone.', formula: 'Total WO Value - Gross Bill Amount', color: '#ec4899', glow: 'linear-gradient(90deg, #db2777, transparent)', value: fmtCr(dueBill), subtext: `${totalWOVal ? ((dueBill / totalWOVal) * 100).toFixed(1) : 0}% of WO Value` },
-  ];
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 mb-6">
-      {kpis.map((kpi) => (
-        <div
-          key={kpi.id}
-          className={`relative p-3.5 rounded-2xl border flex flex-col justify-between transition-all duration-300 hover:-translate-y-0.5 overflow-hidden ${isDark ? 'bg-[#101520]/90 border-white/10 shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:border-white/20' : 'bg-white border-slate-200 shadow-sm hover:shadow-md'}`}
-          style={{ minHeight: '130px' }}
-        >
-          <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: kpi.glow }} />
-          <div className="absolute top-2.5 right-2.5 z-10">
-            <ChartInfoTooltip description={kpi.description} formula={kpi.formula} />
-          </div>
-          <p className="text-[9.5px] font-black tracking-wider uppercase leading-snug pr-6 truncate" style={{ color: kpi.color }} title={kpi.title}>{kpi.title}</p>
-          <div className="my-auto py-1">
-            <span className={`text-base xl:text-lg font-bold font-mono tracking-tight ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{kpi.value}</span>
-          </div>
-          {kpi.subtext ? (
-            <p className={`text-[9.5px] font-medium leading-tight whitespace-pre-line ${isDark ? 'text-slate-400/80' : 'text-slate-600'}`}>{kpi.subtext}</p>
-          ) : <div className="h-3" />}
-        </div>
-      ))}
-    </div>
-  );
-};
-
-/* ─── Work Order Telemetry Table ─────────────────────────────────── */
-const WorkOrderTelemetryTable = ({ data, availableZos, selectedZo, onSelectZo, getZoDisplayName }) => {
-  const navigate = useNavigate();
-  const [search, setSearch] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
-  const [sortField, setSortField] = useState('health_score');
-  const [sortAsc, setSortAsc] = useState(false);
-  const [page, setPage] = useState(1);
-  const rowsPerPage = 5;
-
-  const pList = data || [];
-  const filtered = pList.filter(p => {
-    const q = search.toLowerCase().trim();
-    const matchSearch = !q || (p.work_order_no || '').toLowerCase().includes(q) || (p.site_details || '').toLowerCase().includes(q) || (p.department || '').toLowerCase().includes(q) || (p.zo_name || p.zo_user_id || p.zone || '').toLowerCase().includes(q) || (p.district || '').toLowerCase().includes(q);
-    const matchZo = !selectedZo || (p.zo_user_id || p.zo_name || p.zone || '').toLowerCase().trim() === selectedZo.toLowerCase().trim();
-    const matchDept = !deptFilter || (p.department || '').toLowerCase().trim() === deptFilter.toLowerCase().trim();
-    return matchSearch && matchZo && matchDept;
-  });
-
-  const depts = Array.from(new Set(pList.map(p => p.department).filter(Boolean))).sort();
-
-  const sorted = [...filtered].sort((a, b) => {
-    const aVal = a[sortField] ?? 0, bVal = b[sortField] ?? 0;
-    if (aVal < bVal) return sortAsc ? -1 : 1;
-    if (aVal > bVal) return sortAsc ? 1 : -1;
-    return 0;
-  });
-
-  const totalPages = Math.ceil(sorted.length / rowsPerPage) || 1;
-  const paginated = sorted.slice((page - 1) * rowsPerPage, page * rowsPerPage);
-
-  const handleSort = (field) => {
-    if (sortField === field) setSortAsc(!sortAsc);
-    else { setSortField(field); setSortAsc(false); }
-    setPage(1);
-  };
-
-  const handleExport = () => {
-    if (sorted.length === 0) return;
-    exportProjectsToExcel(sorted);
-  };
-
-  return (
-    <div className="relative w-full glass-panel p-6 rounded-3xl border border-white/5 bg-slate-900/10 mb-8 text-xs">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <ChartInfoTooltip
-            description="High-density project tracking telemetry table with real-time health score metrics for zonal projects."
-            formula="Health Score = 100 - (Days Since DPR × 2) - (Budget Overrun %)"
-          />
-          <div>
-            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">Work Order Telemetry</h3>
-            <p className="text-[9px] text-slate-500 uppercase font-black tracking-wider mt-1">High-density zonal project tracking and performance telemetry</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleExport}
-            disabled={sorted.length === 0}
-            className="px-3.5 py-2 rounded-xl bg-emerald-500 text-black text-[9px] font-black uppercase tracking-widest hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer"
-          >
-            Export Excel
-          </button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 items-center">
-        <input
-          type="text" placeholder="Search work order or site..."
-          value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-white/20 transition"
-        />
-        <select value={deptFilter} onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-white/10 rounded-xl px-4 py-2 text-[10px] text-slate-300 focus:outline-none focus:border-white/20 transition">
-          <option value="">All Departments</option>
-          {depts.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
-
-        {/* Paginated ZO Selector Component */}
-        <PaginatedZoSelector
-          availableZos={availableZos}
-          selectedZo={selectedZo}
-          onSelectZo={(zoId) => { onSelectZo(zoId); setPage(1); }}
-          getZoDisplayName={getZoDisplayName}
-        />
-
-        <div className="flex items-center justify-between sm:justify-end gap-2">
-          {(search || deptFilter || selectedZo) && (
-            <button onClick={() => { setSearch(''); setDeptFilter(''); onSelectZo(null); setPage(1); }}
-              className="px-3 py-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-bold uppercase tracking-wider hover:bg-rose-500/20 transition cursor-pointer">
-              Reset Filters
-            </button>
-          )}
-          <span className="text-[10px] text-slate-500 font-bold font-mono">{filtered.length} / {data.length} WOs</span>
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-white/5 pb-2 text-slate-500 select-none">
-              <th onClick={() => handleSort('work_order_no')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest">WO No {sortField === 'work_order_no' && (sortAsc ? '▲' : '▼')}</th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">ZO Name</th>
-              <th className="py-2.5 text-[9px] font-bold uppercase tracking-widest">Dept</th>
-              <th onClick={() => handleSort('work_order_value')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Value {sortField === 'work_order_value' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('approved_requisitions_amount')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Spent {sortField === 'approved_requisitions_amount' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('physical_progress')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Progress {sortField === 'physical_progress' && (sortAsc ? '▲' : '▼')}</th>
-              <th onClick={() => handleSort('health_score')} className="py-2.5 cursor-pointer hover:text-white text-[9px] font-bold uppercase tracking-widest text-center">Health {sortField === 'health_score' && (sortAsc ? '▲' : '▼')}</th>
-              <th className="py-2.5 text-right text-[9px] font-bold uppercase tracking-widest">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-white/5">
-            {paginated.map((row, idx) => {
-              const scoreBg = row.health_score >= 80 ? 'bg-emerald-900/20 text-emerald-400 border border-emerald-500/20'
-                : row.health_score >= 60 ? 'bg-amber-900/20 text-amber-400 border border-amber-500/20'
-                : 'bg-rose-900/20 text-rose-400 border border-rose-500/20';
-              const zoDisplayName = getZoDisplayName ? getZoDisplayName(row.zo_name || row.zo_user_id || row.zone) : (row.zo_name || row.zo_user_id || row.zone || 'N/A');
-              return (
-                <tr key={idx} className="hover:bg-white/5 transition-colors">
-                  <td onClick={() => navigate(`/projects/${row.work_order_no}/digital-twin`)} className="py-3.5 font-extrabold text-sky-400 hover:underline cursor-pointer font-mono">{row.work_order_no}</td>
-                  <td className="py-3.5 text-slate-300 font-bold uppercase">{zoDisplayName}</td>
-                  <td className="py-3.5 text-slate-400">{row.department}</td>
-                  <td className="py-3.5 text-center font-mono text-slate-300">{formatINR(row.work_order_value)}</td>
-                  <td className="py-3.5 text-center font-mono text-emerald-400">{formatINR(row.approved_requisitions_amount)}</td>
-                  <td className="py-3.5 text-center"><span className="font-extrabold text-slate-200">{row.physical_progress}%</span></td>
-                  <td className="py-3.5 text-center"><span className={`px-2 py-0.5 rounded text-[9px] font-extrabold ${scoreBg}`}>{Math.round(row.health_score)}</span></td>
-                  <td className="py-3.5 text-right">
-                    <span className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${row.health_status === 'Critical' ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : row.health_status === 'Warning' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>{row.health_status || 'Healthy'}</span>
-                  </td>
-                </tr>
-              );
-            })}
-            {paginated.length === 0 && (
-              <tr><td colSpan="8" className="py-8 text-center text-slate-500 font-bold uppercase tracking-widest">No work orders match current filters</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      {totalPages > 1 && (
-        <div className="flex justify-between items-center mt-6 pt-4 border-t border-white/5 select-none">
-          <span className="text-[10px] text-slate-500 font-bold uppercase">Page {page} of {totalPages} ({sorted.length} records)</span>
-          <div className="flex gap-2">
-            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-              className="px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider text-slate-300 transition cursor-pointer">
-              Prev
-            </button>
-            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-              className="px-3 py-1.5 rounded-xl border border-white/10 hover:bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed text-[10px] font-bold uppercase tracking-wider text-slate-300 transition cursor-pointer">
-              Next
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-/* ─── Zonal Control & Credit Overview Component (homedashboard.html ZO view) ─── */
-const ZoHomedashboardOverview = ({ selectedZoName, projects, balancesRes, isDark }) => {
-  const navigate = useNavigate();
-
-  // Find active ZO balance
-  const activeBal = useMemo(() => {
-    const list = balancesRes?.balances || (balancesRes?.balance ? [balancesRes.balance] : []);
-    if (!list.length) return { available_balance: 0, assigned_credit_limit: 0 };
-    if (!selectedZoName) return list[0] || { available_balance: 0, assigned_credit_limit: 0 };
-    const match = list.find(b => {
-      const name = (b.zo_name || b.zo_user_id || '').toLowerCase();
-      return name.includes(selectedZoName.toLowerCase());
-    });
-    return match || list[0];
-  }, [balancesRes, selectedZoName]);
-
-  const availBal = activeBal.available_balance ?? 0;
-  const limitBal = activeBal.assigned_credit_limit ?? activeBal.allocated_amount ?? 0;
-
-  // Calculate JE productivity list from projects fallback
-  const jeStats = useMemo(() => {
-    const map = new Map();
-    (projects || []).forEach(p => {
-      const jeName = p.je_name || p.assigned_je || p.assigned_to || 'Unassigned JE';
-      if (!map.has(jeName)) {
-        map.set(jeName, { name: jeName, count: 0, totalProgress: 0, streak: Number(p.daily_streak || p.je_daily_streak || 0) });
-      }
-      const item = map.get(jeName);
-      item.count += 1;
-      item.totalProgress += Number(p.physical_progress || 0);
-      if (p.daily_streak || p.je_daily_streak) {
-        item.streak = Math.max(item.streak, Number(p.daily_streak || p.je_daily_streak || 0));
-      }
-    });
-
-    return Array.from(map.values()).map(je => {
-      const avg = je.count > 0 ? Math.round(je.totalProgress / je.count) : 0;
-      let status = 'Active';
-      let streak = je.streak || 0;
-      if (avg >= 70) status = 'Excellent';
-      else if (avg < 40) status = 'Warning';
-      return { ...je, avg, status, streak };
-    }).sort((a, b) => b.count - a.count);
-  }, [projects]);
-
-  return (
-    <div className={`p-6 rounded-3xl border mb-8 transition-all ${isDark ? 'bg-[#0f141f]/80 border-white/10 text-slate-100 shadow-2xl' : 'bg-white border-slate-200 text-slate-900 shadow-xl'}`}>
-      
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-white/10 mb-6">
-        <div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-500 font-mono">
-            {selectedZoName || 'Zonal Office Session'}
-          </span>
-          <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight mt-0.5">
-            Zonal Credit Limit Ledger
-          </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Available credit, assigned projects, and junior engineer productivity for your zone.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={() => navigate('/fund-requests')}
-            className="px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-extrabold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-sm"
-          >
-            <span>💸 Fund Request</span>
-            <span className="text-amber-300">→</span>
-          </button>
-          <button
-            onClick={() => navigate('/zonal-balances')}
-            className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 text-slate-200 font-extrabold text-xs uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
-          >
-            <span>📊 Zonal Ledger</span>
-            <span className="text-slate-400">→</span>
-          </button>
-        </div>
-      </div>
-
-      {/* KPI Row (Available Credit Balance, Total Limit, Mapped Projects) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-emerald-950/20 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200'}`}>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Available Credit Balance</span>
-          <div className="text-2xl font-black text-emerald-400 mt-1">{fmtCr(availBal)}</div>
-          <span className="text-[10px] text-emerald-500/80 font-mono mt-1 block">Ready for requisition payout</span>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-slate-900/60 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Total Assigned Limit</span>
-          <div className="text-2xl font-black text-slate-100 mt-1">{fmtCr(limitBal)}</div>
-          <span className="text-[10px] text-slate-400 font-mono mt-1 block">Sanctioned Zonal Credit Cap</span>
-        </div>
-        <div className={`p-4 rounded-2xl border ${isDark ? 'bg-amber-950/20 border-amber-500/20' : 'bg-amber-50 border-amber-200'}`}>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Mapped Active Projects</span>
-          <div className="text-2xl font-black text-amber-400 mt-1">{projects.length} WO Sites</div>
-          <span className="text-[10px] text-amber-500/80 font-mono mt-1 block">Active sites under monitoring</span>
-        </div>
-      </div>
-
-      {/* Grid Content: JE Productivity & Workload (Left) + Zonal Controls & Fund Feed (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: JE Productivity & Workload Distribution */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className={`p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200">
-                Junior Engineer Productivity <span className="text-slate-500 font-normal">· {jeStats.length} JEs</span>
-              </span>
-              <button onClick={() => navigate('/analytics/leaderboard')} className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:underline">
-                Full Leaderboard →
-              </button>
-            </div>
-            
-            {jeStats.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-500 italic">No JEs currently mapped to this zone</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-white/10 text-[9px] font-black uppercase text-slate-400">
-                      <th className="pb-2">JE Name</th>
-                      <th className="pb-2 text-center">Assigned Sites</th>
-                      <th className="pb-2 text-center">Daily Streak</th>
-                      <th className="pb-2 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {jeStats.slice(0, 5).map((je, idx) => (
-                      <tr key={idx} className="hover:bg-white/5 transition">
-                        <td className="py-2.5 font-bold text-slate-200">{je.name}</td>
-                        <td className="py-2.5 text-center font-mono text-slate-300">{je.count}</td>
-                        <td className="py-2.5 text-center font-mono text-amber-400">🔥 {je.streak} days</td>
-                        <td className="py-2.5 text-right">
-                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
-                            je.status === 'Excellent' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                            je.status === 'Active' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' :
-                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          }`}>
-                            {je.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Workload Distribution Progress Bars */}
-          <div className={`p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-4">
-              Zonal Workload Distribution
-            </span>
-            <div className="space-y-3">
-              {jeStats.slice(0, 4).map((je, idx) => {
-                const pct = Math.min(100, Math.round((je.count / (projects.length || 1)) * 100));
-                return (
-                  <div key={idx}>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                      <span className="text-slate-300">{je.name}</span>
-                      <span className="text-slate-500 font-mono">{je.count} mapped work orders ({pct}%)</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-white/5 border border-white/5 overflow-hidden">
-                      <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Zonal Controls & Ledger */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          {/* Quick Zonal Controls Panel */}
-          <div className={`p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-4">
-              Zonal Quick Controls
-            </span>
-            <div className="space-y-2.5">
-              <button
-                onClick={() => navigate('/fund-requests')}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-amber-500/40 hover:bg-amber-500/10 text-left transition group cursor-pointer"
-              >
-                <div>
-                  <div className="text-xs font-bold text-slate-200 group-hover:text-amber-400">Initiate Zonal Fund Request</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Current balance: {fmtCr(availBal)}</div>
-                </div>
-                <span className="text-amber-400 font-bold text-sm">→</span>
-              </button>
-
-              <button
-                onClick={() => navigate('/zonal-balances')}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-sky-500/40 hover:bg-sky-500/10 text-left transition group cursor-pointer"
-              >
-                <div>
-                  <div className="text-xs font-bold text-slate-200 group-hover:text-sky-400">Inspect Zonal Ledger</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Full transaction history &amp; credit cap</div>
-                </div>
-                <span className="text-sky-400 font-bold text-sm">→</span>
-              </button>
-
-              <button
-                onClick={() => navigate('/daily-progress')}
-                className="w-full flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/40 hover:bg-emerald-500/10 text-left transition group cursor-pointer"
-              >
-                <div>
-                  <div className="text-xs font-bold text-slate-200 group-hover:text-emerald-400">Audit Site Progress Logs</div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">DPR visits &amp; site photos feedback</div>
-                </div>
-                <span className="text-emerald-400 font-bold text-sm">→</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Recent Zonal Activity Timeline */}
-          <div className={`p-4 sm:p-5 rounded-2xl border ${isDark ? 'bg-slate-900/40 border-white/5' : 'bg-slate-50 border-slate-200'}`}>
-            <span className="text-xs font-extrabold uppercase tracking-widest text-slate-200 block mb-3">
-              Zonal Site Timeline
-            </span>
-            <div className="space-y-3 text-xs">
-              <div className="flex gap-3 items-start">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                <div>
-                  <div className="text-slate-200 font-bold">DPR Progress Update Submitted</div>
-                  <div className="text-[10px] text-slate-500 font-mono">Mapped JE logged site progress (WO Active)</div>
-                </div>
-              </div>
-              <div className="flex gap-3 items-start">
-                <span className="w-2 h-2 rounded-full bg-amber-400 mt-1.5 shrink-0" />
-                <div>
-                  <div className="text-slate-200 font-bold">Zonal Requisition Processed</div>
-                  <div className="text-[10px] text-slate-500 font-mono">Disbursement recorded in credit balance</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /* ─── Main ZoDashboard ────────────────────────────────────────────── */
 const ZoDashboard = () => {
   const navigate = useNavigate();
@@ -2201,8 +417,8 @@ const ZoDashboard = () => {
 
   const [alertMsg, setAlertMsg] = useState(null);
   const [alertType, setAlertType] = useState('success');
-  const [activeTab, setActiveTab] = useState('overview');
-  const [activeView, setActiveView] = useState('all');
+  const [_activeTab, _setActiveTab] = useState('overview'); // reserved for future tab navigation
+  const [activeView, _setActiveView] = useState('all');
   const [selectedZo, setSelectedZo] = useState(null);
   const [zoomedChart, setZoomedChart] = useState(null);
   const [kpiDetailModal, setKpiDetailModal] = useState(null);
@@ -2240,10 +456,11 @@ const ZoDashboard = () => {
   /* ── Data Queries ── */
   const { data: insightsRes } = useQuery({
     queryKey: ['zoInsights'],
-    queryFn: async () => { const res = await getHoActionableInsights(); return res.data; }
+    queryFn: async () => { const res = await getHoActionableInsights(); return res.data; },
+    staleTime: 5 * 60 * 1000
   });
 
-  const { data: chartRes } = useQuery({
+  const { data: chartRes, isError: isChartError, refetch: refetchChart } = useQuery({
     queryKey: ['zoChartData', activeView, selectedZo, projectStatusFilter, startDate, endDate],
     queryFn: async () => {
       const res = await getHoChartData({
@@ -2254,7 +471,8 @@ const ZoDashboard = () => {
         end_date: endDate || undefined
       });
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: leaderboardRes } = useQuery({
@@ -2262,12 +480,14 @@ const ZoDashboard = () => {
     queryFn: async () => {
       const res = await getJeLeaderboard({ timeframe: 'weekly', zone: selectedZo || undefined });
       return res.data;
-    }
+    },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: projectsRes } = useQuery({
     queryKey: ['projectsHealthList'],
-    queryFn: async () => { const res = await getProjectsHealth(); return res.data; }
+    queryFn: async () => { const res = await getProjectsHealth(); return res.data; },
+    staleTime: 5 * 60 * 1000
   });
 
   const { data: balancesRes } = useQuery({
@@ -2282,7 +502,7 @@ const ZoDashboard = () => {
     staleTime: 60000
   });
 
-  const projectsList = projectsRes?.data || [];
+  const projectsList = projectsRes?.data ?? EMPTY_ARRAY;
 
   /* ── Derived ZO Display Names & List for Dropdown Filter ── */
   const availableZos = useMemo(() => {
@@ -2345,7 +565,7 @@ const ZoDashboard = () => {
     return m;
   }, [availableZos]);
 
-  const getZoDisplayName = (zoIdOrName) => {
+  const getZoDisplayName = useCallback((zoIdOrName) => {
     if (!zoIdOrName) return 'Unassigned ZO';
     if (zoNameMap[zoIdOrName]) return zoNameMap[zoIdOrName];
     if (typeof zoIdOrName === 'string' && /^[0-9a-fA-F]{8,}$/.test(zoIdOrName)) {
@@ -2357,12 +577,12 @@ const ZoDashboard = () => {
       return `ZO (${zoIdOrName.slice(0, 10)})`;
     }
     return zoIdOrName;
-  };
+  }, [availableZos, zoNameMap]);
 
   const selectedZoName = useMemo(() => {
     if (!selectedZo) return null;
     return getZoDisplayName(selectedZo);
-  }, [selectedZo, zoNameMap]);
+  }, [selectedZo, getZoDisplayName]);
 
   const refreshMutation = useMutation({
     mutationFn: refreshAnalyticsViews,
@@ -2383,7 +603,7 @@ const ZoDashboard = () => {
   };
 
   const insights = insightsRes || {};
-  const stalledProjects = insights.stalledProjects || [];
+  const stalledProjects = insights.stalledProjects ?? EMPTY_ARRAY;
   const lowRunwayZones = (insights.runwayData || []).filter(z => z.runway_days !== null && z.runway_days < 21);
 
   /* ── Strictly Filter Projects by Selected ZO Name & Project Status ── */
@@ -2646,7 +866,31 @@ const ZoDashboard = () => {
         </span>
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
-      <ExecutiveKpiStrip projects={filteredProjects} summaryKpis={chartRes?.executiveSummaryKpis} />
+      {isChartError && (
+        <div className="col-span-full p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs font-bold flex items-center justify-between mb-4">
+          <span>Couldn&apos;t load analytics data. This might be temporary.</span>
+          <button type="button" onClick={() => refetchChart()} className="underline">Retry</button>
+        </div>
+      )}
+      <ExecutiveKpiStrip data={chartRes?.executiveSummaryKpis} projects={filteredProjects} />
+
+      {/* ── Section: Fund Flow & Risk ── */}
+      <SectionLabel>Fund Flow &amp; Risk {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <FundFlowWaterfallChart
+              data={chartRes?.waterfallData}
+              projects={filteredProjects}
+            />
+          </div>
+        </ZoomCard>
+        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+          <div style={{ minHeight: '480px' }} className="h-full">
+            <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
+          </div>
+        </ZoomCard>
+      </div>
 
       {/* ── Section: Performance Overview ── */}
       <SectionLabel>Performance Overview {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
@@ -2658,7 +902,7 @@ const ZoDashboard = () => {
         </ZoomCard>
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
           <div style={{ minHeight: '520px' }} className="h-full">
-            <DepartmentWiseEstimate projects={filteredProjects} />
+            <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} />
           </div>
         </ZoomCard>
         <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
@@ -2668,26 +912,11 @@ const ZoDashboard = () => {
         </ZoomCard>
       </div>
 
-      {/* ── Section: Fund Flow & Risk ── */}
-      <SectionLabel>Fund Flow &amp; Risk {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
-          <div style={{ minHeight: '480px' }} className="h-full">
-            <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
-          </div>
-        </ZoomCard>
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
-          <div style={{ minHeight: '480px' }} className="h-full">
-            <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
-          </div>
-        </ZoomCard>
-      </div>
-
       {/* ── Section: Trends & Projections ── */}
       <SectionLabel>Trends &amp; Projections {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
-          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
+          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} />
         </ZoomCard>
         <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('jeleaderboard')}>
           <JeLeaderboard projects={filteredProjects} selectedZoName={selectedZoName} leaderboardData={leaderboardRes?.leaderboard} />
@@ -2697,7 +926,7 @@ const ZoDashboard = () => {
       {/* ── Section: Financial Realization Pipeline ── */}
       <SectionLabel>Financial Realization &amp; Bill Recovery {selectedZoName ? `— ${selectedZoName}` : ''}</SectionLabel>
       <ZoomCard className="mb-6" onZoom={() => setZoomedChart('revision')}>
-        <InvestmentRecoveryPlot projects={filteredProjects} />
+        <InvestmentRecoveryPlot projects={filteredProjects} showBillRecoveryKpi={true} />
       </ZoomCard>
 
       {/* ── Section: Project Health Summary ── */}
@@ -2750,6 +979,7 @@ const ZoDashboard = () => {
           selectedZo={selectedZo}
           onSelectZo={setSelectedZo}
           getZoDisplayName={getZoDisplayName}
+          hideZoSelector={isZoRole}
         />
       </div>
 
@@ -2761,27 +991,31 @@ const ZoDashboard = () => {
       )}
       {zoomedChart === 'department' && (
         <ChartModal title={`Department Wise Work Order Value Breakdown — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} onClose={() => setZoomedChart(null)}>
-          <DepartmentWiseEstimate projects={filteredProjects} />
+          <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'key_financials' && (
         <ChartModal title={`Key Financial Indicators — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} onClose={() => setZoomedChart(null)}>
-          <KeyFinancialIndicators projects={filteredProjects} />
+          <KeyFinancialIndicators projects={filteredProjects} data={chartRes?.keyFinancialIndicators} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'bubble' && (
         <ChartModal title={`Bubble Risk Matrix Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <BubbleRiskMatrix projects={filteredProjects} bubbleMatrixData={chartRes?.bubbleMatrix} />
+          <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'fundflow' && (
         <ChartModal title={`Fund Flow Pipeline Inspection — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <FundFlowWaterfall data={chartRes?.waterfallData} projects={filteredProjects} />
+          <FundFlowWaterfallChart
+            data={chartRes?.waterfallData}
+            projects={filteredProjects}
+            isModal={true}
+          />
         </ChartModal>
       )}
       {zoomedChart === 'scurve' && (
         <ChartModal title={`S-Curve Performance Progress — ${selectedZoName || 'All ZO Names'}`} isDark={isDark} width="96vw" height="92vh" maxWidth="96vw" maxHeight="92vh" onClose={() => setZoomedChart(null)}>
-          <SCurveProgress projects={filteredProjects} sCurveData={chartRes?.sCurveData} />
+          <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'revision' && (
@@ -2796,7 +1030,7 @@ const ZoDashboard = () => {
           maxHeight="92vh"
           onClose={() => setZoomedChart(null)}
         >
-          <InvestmentRecoveryPlot projects={filteredProjects} isModal={true} />
+          <InvestmentRecoveryPlot projects={filteredProjects} isModal={true} showBillRecoveryKpi={true} />
         </ChartModal>
       )}
       {zoomedChart === 'jeleaderboard' && (

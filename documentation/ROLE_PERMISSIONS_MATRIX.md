@@ -56,6 +56,10 @@ This document maps all the functions and modules of the Integrated Digital Busin
 | View running bills ledger & summary statistics | ❌ | ✅ | ✅ | ✅ |
 | Create, calculate, and submit sequential bills | ❌ | ✅ | ❌ | ✅ |
 | Upload final/signed copies of billing files | ❌ | ✅ | ❌ | ✅ |
+| **Estimated Bills (Cash-Flow Forecasting)** | | | | |
+| View estimated bills list, statistics & forecast variance | ❌ | ✅ | ✅ | ✅ |
+| Create or update estimated bill & surety % for Work Order | ❌ | ✅ | ✅ | ✅ |
+
 | **Fund Reports** | | | | |
 | View active reports & stats dashboard | ✅ | ✅ | ✅ | ✅ |
 | Create, view details, or edit report logs | ✅ | ✅ | ✅ | ✅ |

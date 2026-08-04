@@ -425,43 +425,12 @@ async function getProjectDigitalTwin(req, res) {
       department: coordsRes.data?.department || null
     } : null;
 
-    // Resolve signed Supabase storage URLs for daily site photos
-    const rawPhotos = photosRes.data || [];
-    const photosWithUrls = await Promise.all(
-      rawPhotos.map(async (photo) => {
-        let photo_url = photo.daily_site_photo_url;
-        if (photo_url && !photo_url.startsWith('http://') && !photo_url.startsWith('https://') && !photo_url.startsWith('data:')) {
-          try {
-            const { data: signData } = await supabase.storage
-              .from('daily-progress-photos')
-              .createSignedUrl(photo_url, 3600);
-            
-            if (signData?.signedUrl) {
-              photo_url = signData.signedUrl;
-            } else {
-              const { data: pubData } = supabase.storage
-                .from('daily-progress-photos')
-                .getPublicUrl(photo_url);
-              if (pubData?.publicUrl) photo_url = pubData.publicUrl;
-            }
-          } catch (e) {
-            console.warn('[ANALYTICS] Failed to generate photo URL for:', photo_url);
-          }
-        }
-        return {
-          ...photo,
-          daily_site_photo_url: photo_url
-        };
-      })
-    );
-
     return res.status(200).json({
       success: true,
       overview: overviewData,
       materials: materialsRes.data || [],
       approvals: approvalsRes.data || [],
       budget: budgetRes.data || null,
-      photos: siteMedia,
       media: siteMedia,
       audits: enrichedAudits
     });
@@ -507,6 +476,9 @@ async function getProjectsHealth(req, res) {
         supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true).in('work_order_no', woNumbers)
       ]);
 
+      if (pmRes.error) throw pmRes.error;
+      if (woMapRes.error) throw woMapRes.error;
+
       const deptMap = {};
       (pmRes.data || []).forEach(p => {
         if (p.department) deptMap[p.work_order_no] = p.department;
@@ -515,7 +487,10 @@ async function getProjectsHealth(req, res) {
       const jeMobileMap = {};
       const jeMobiles = [];
       (woMapRes.data || []).forEach(m => {
-        jeMobileMap[m.work_order_no] = m.je_user_id;
+        if (!jeMobileMap[m.work_order_no]) {
+          jeMobileMap[m.work_order_no] = [];
+        }
+        jeMobileMap[m.work_order_no].push(m.je_user_id);
         if (m.je_user_id) jeMobiles.push(m.je_user_id);
       });
 
@@ -531,14 +506,22 @@ async function getProjectsHealth(req, res) {
       }
 
       enrichedData = enrichedData.map(p => {
-        const jeMobile = jeMobileMap[p.work_order_no];
-        const jeName = jeMobile ? (userMap[jeMobile] || jeMobile) : undefined;
+        const jeMobilesForProject = jeMobileMap[p.work_order_no] || [];
+        const assignedJes = jeMobilesForProject.map(mobile => ({
+          mobile_number: mobile,
+          name: userMap[mobile] || mobile
+        }));
+
+        const commaSeparatedNames = assignedJes.map(j => j.name).join(', ') || undefined;
+        const mainJeMobile = jeMobilesForProject[0] || undefined;
+
         return {
           ...p,
           department: p.department || deptMap[p.work_order_no] || 'General',
-          je_user_id: p.je_user_id || jeMobile,
-          je_name: p.je_name || jeName,
-          assigned_je: p.assigned_je || jeName
+          je_user_id: p.je_user_id || mainJeMobile,
+          je_name: p.je_name || commaSeparatedNames,
+          assigned_je: p.assigned_je || commaSeparatedNames,
+          assigned_jes: assignedJes
         };
       });
     }
@@ -605,19 +588,24 @@ async function getHoActionableInsights(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied. Authorized executive and zonal roles only.' });
     }
 
-    // 1. Fetch all ZO balances
-    const { data: balances, error: balErr } = await supabase
-      .from('zo_balances')
-      .select('zo_user_id, available_balance');
+    const isZo = req.user.role === 'zo';
+    const callerZo = req.user.mobile_number;
+
+    // 1. Fetch ZO balances — scoped for ZO callers
+    let balQuery = supabase.from('zo_balances').select('zo_user_id, available_balance');
+    if (isZo) balQuery = balQuery.eq('zo_user_id', callerZo);
+    const { data: balances, error: balErr } = await balQuery;
     if (balErr) throw balErr;
 
-    // 2. Fetch last-30-day requisition burns per ZO
+    // 2. Fetch last-30-day requisition burns per ZO — scoped for ZO callers
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const { data: burns, error: burnErr } = await supabase
+    let burnQuery = supabase
       .from('requisitions')
       .select('zo_user_id, approved_amount')
       .eq('requisition_status', 'Approved')
       .gte('payment_date', thirtyDaysAgo);
+    if (isZo) burnQuery = burnQuery.eq('zo_user_id', callerZo);
+    const { data: burns, error: burnErr } = await burnQuery;
     if (burnErr) throw burnErr;
 
     // 3. Aggregate burn per ZO
@@ -642,23 +630,41 @@ async function getHoActionableInsights(req, res) {
       };
     });
 
-    // 5. Stalled projects from project_health_mv view
-    const { data: stalled, error: stalledErr } = await supabase
+    // 5. Stalled projects from project_health_mv view — scoped for ZO callers
+    let stalledQuery = supabase
       .from('project_health_mv')
-      .select('work_order_no, site_details, days_since_last_progress_report, physical_progress')
+      .select('work_order_no, site_details, days_since_last_progress_report, physical_progress, zo_user_id')
       .lt('physical_progress', 100)
       .gt('days_since_last_progress_report', 7)
       .order('days_since_last_progress_report', { ascending: false });
+    if (isZo) stalledQuery = stalledQuery.eq('zo_user_id', callerZo);
+    const { data: stalled, error: stalledErr } = await stalledQuery;
     if (stalledErr) throw stalledErr;
 
-    // 6. High-revision projects (>3 revisions)
-    const { data: allEstimates, error: estErr } = await supabase
-      .from('project_cost_estimates')
-      .select('work_order_no');
-    if (estErr) throw estErr;
+    // 6. High-revision projects (>3 revisions) — scoped for ZO callers
+    let allEstimates;
+    if (isZo) {
+      const { data: myWos, error: woErr } = await supabase
+        .from('projects_master')
+        .select('work_order_no')
+        .eq('zo_user_id', callerZo);
+      if (woErr) throw woErr;
+      const myWoSet = new Set((myWos || []).map(w => w.work_order_no));
+      const { data: estimates, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no');
+      if (estErr) throw estErr;
+      allEstimates = (estimates || []).filter(e => myWoSet.has(e.work_order_no));
+    } else {
+      const { data: estimates, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no');
+      if (estErr) throw estErr;
+      allEstimates = estimates || [];
+    }
 
     const revisionCount = {};
-    (allEstimates || []).forEach(e => {
+    allEstimates.forEach(e => {
       revisionCount[e.work_order_no] = (revisionCount[e.work_order_no] || 0) + 1;
     });
     const highRevisionProjects = Object.entries(revisionCount)
@@ -713,7 +719,7 @@ async function getHoChartData(req, res) {
         supabase.from('zo_fund_ledger').select('zo_user_id, transaction_type, amount, created_at').gte('created_at', twelveMonthsAgo).order('created_at', { ascending: true }),
         supabase.from('daily_progress_reports').select('work_order_no, physical_work_progress, login_date').order('login_date', { ascending: true }),
         supabase.from('zone_performance_mv').select('*'),
-        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id'),
+        supabase.from('projects_master').select('work_order_no, department, work_order_value, earnest_money_deposit, status, zo_user_id, project_start_date, project_end_date, created_at'),
         supabase.from('zo_balances').select('zo_user_id, available_balance'),
         supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true),
         supabase.from('je_zo_mappings').select('je_user_id, zo_user_id').eq('is_active', true)
@@ -723,6 +729,7 @@ async function getHoChartData(req, res) {
     for (const r of [healthRes, fundReqsRes, reqsRes, billsRes, ledgerRes, dprRes, zoneRes, projectsRes, zoBalRes]) {
       if (r.error) throw r.error;
     }
+
 
     let estimatesRes = await supabase
       .from('project_cost_estimates')
@@ -776,6 +783,7 @@ async function getHoChartData(req, res) {
       };
     });
 
+
     if (project_status && !project_status.toLowerCase().includes('all')) {
       const normStatus = project_status.toLowerCase().trim();
       allProjects = allProjects.filter(p => (p.status || '').toLowerCase().trim() === normStatus);
@@ -813,7 +821,10 @@ async function getHoChartData(req, res) {
     });
     let filteredReqs = (reqsRes.data || []).filter(r => allowedWoSet.has(r.work_order_no) && isWithinDateRange(r.payment_date || r.created_at));
     let filteredBills = (billsRes.data || []).filter(b => allowedWoSet.has(b.work_order_no) && isWithinDateRange(b.created_at));
-    let filteredLedger = (ledgerRes.data || []).filter(l => isWithinDateRange(l.created_at));
+    let filteredLedger = (ledgerRes.data || []).filter(l => {
+      const matchZo = !effectiveZone || (l.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+      return matchZo && isWithinDateRange(l.created_at);
+    });
     let filteredDpr = (dprRes.data || []).filter(d => allowedWoSet.has(d.work_order_no) && isWithinDateRange(d.login_date));
 
     // === Build bubbleMatrix ===
@@ -868,6 +879,7 @@ async function getHoChartData(req, res) {
 
     const grossHoAllocated = sumOf(approvedFunds, 'approve_ho_amount');
     const netHoAllocated = Math.max(0, grossHoAllocated - totalExcessReturned);
+    const grossBilledAmount = sumOf(filteredBills, 'gross_bill');
 
     const waterfallData = [
       { stage: 'Final Approved Estimate', amount: sumOf(finalEstimates, 'estimate_amount') },
@@ -875,9 +887,11 @@ async function getHoChartData(req, res) {
       { stage: 'Excess Returned to HO',   amount: totalExcessReturned, isRefund: true },
       { stage: 'HO Allocated (Net)',      amount: netHoAllocated },
       { stage: 'Requisitions Approved',   amount: sumOf(approvedReqs,   'approved_amount') },
-      { stage: 'Gross Billed',            amount: sumOf(filteredBills,  'gross_bill') },
+      { stage: 'Gross Billed',            amount: grossBilledAmount },
       { stage: 'Agency Paid',             amount: sumOf(filteredBills,  'agency_payment') }
     ];
+
+
 
     // === Build zonalHeatmap ===
     let zonalHeatmap = (zoneRes.data || []).map(z => {
@@ -933,9 +947,19 @@ async function getHoChartData(req, res) {
       }
     });
 
+    const projectDatesByWo = {};
+    allProjects.forEach(p => {
+      projectDatesByWo[p.work_order_no] = {
+        project_start_date: p.project_start_date || null,
+        project_end_date: p.project_end_date || null
+      };
+    });
+
     const sCurveData = Object.entries(dprByWO).map(([wo, actuals]) => ({
       work_order_no: wo,
-      actuals
+      actuals,
+      project_start_date: projectDatesByWo[wo]?.project_start_date || null,
+      project_end_date: projectDatesByWo[wo]?.project_end_date || null
     }));
 
     // === Build runwayTrend ===
@@ -1190,7 +1214,11 @@ async function getHoChartData(req, res) {
     const totalSgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.sgst || 0), 0);
     const totalCgst  = (filteredBills || []).reduce((acc, b) => acc + Number(b.cgst || 0), 0);
 
-    const totalNotUtilized = (zoBalRes.data || []).reduce((acc, b) => acc + Number(b.available_balance || 0), 0);
+    const filteredZoBalances = (zoBalRes.data || []).filter(b => {
+      if (!effectiveZone) return true;
+      return (b.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
+    });
+    const totalNotUtilized = filteredZoBalances.reduce((acc, b) => acc + Number(b.available_balance || 0), 0);
 
     const keyFinancialIndicators = {
       emdAmount: totalEmd,
@@ -1211,10 +1239,6 @@ async function getHoChartData(req, res) {
     const totalEstAmt = sumOf(finalEstimates, 'estimate_amount');
     const totalReqAmt = sumOf(approvedReqs, 'approved_amount');
     const totalHoApprAmt = sumOf(approvedFunds, 'approve_ho_amount');
-    const filteredZoBalances = (zoBalRes.data || []).filter(b => {
-      if (!effectiveZone) return true;
-      return (b.zo_user_id || '').toLowerCase().trim() === effectiveZone.toLowerCase().trim();
-    });
     const totalZoBalAmt = sumOf(filteredZoBalances, 'available_balance');
     const totalRefundAmt = Math.abs(totalExcessReturned);
 
@@ -1297,28 +1321,9 @@ async function getHoChartData(req, res) {
     });
   } catch (error) {
     console.error('[ANALYTICS] Error in getHoChartData:', error.message || error);
-    return res.status(200).json({
-      success: true,
-      bubbleMatrix: [],
-      waterfallData: [
-        { stage: 'Final Approved Estimate', amount: 0 },
-        { stage: 'HO Allocated (Gross)',    amount: 0 },
-        { stage: 'Excess Returned to HO',   amount: 0, isRefund: true },
-        { stage: 'HO Allocated (Net)',      amount: 0 },
-        { stage: 'Requisitions Approved',   amount: 0 },
-        { stage: 'Gross Billed',            amount: 0 },
-        { stage: 'Agency Paid',             amount: 0 }
-      ],
-      zonalHeatmap: [],
-      runwayTrend: [],
-      sCurveData: [],
-      revisionHeatmap: [],
-      departmentWiseEstimate: [],
-      physicalProgressMetrics: {},
-      jeVisitFrequencyMetrics: {},
-      keyFinancialIndicators: {},
-      executiveSummaryKpis: {},
-      projectsList: []
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to load analytics chart data. Please try again.'
     });
   }
 }
@@ -1438,7 +1443,14 @@ async function getJeLeaderboard(req, res) {
           score
         };
       })
-      .filter(u => u.total_reports > 0 || u.daily_streak > 0); // Exclude zero-activity inactive accounts
+      .filter(u => {
+        // If a ZO is requesting, include every JE currently mapped to that ZO in the active mapping table
+        if (effectiveZone && allowedJeSet) {
+          return allowedJeSet.has(u.mobile_number);
+        }
+        // Otherwise, for HO/Global views, keep active JEs with logged reports or streak
+        return u.total_reports > 0 || u.daily_streak > 0;
+      });
 
     // Sort by score descending, then total_reports descending
     leaderboard.sort((a, b) => b.score - a.score || b.total_reports - a.total_reports);
@@ -1476,3 +1488,4 @@ module.exports = {
   getHoChartData,
   getJeLeaderboard
 };
+

@@ -4,11 +4,19 @@ const { supabase } = require('../../../src/db/supabase');
 const { uploadSitePhoto } = require('../../../src/controllers/dailyProgress.uploads.controller');
 const mockRes = require('../../helpers/mockRes');
 
+const http = require('http');
+
 function checkUrlPrivate(url) {
+  const client = url.startsWith('https:') ? https : http;
   return new Promise((resolve) => {
-    https.get(url, (res) => {
-      const isPrivate = res.statusCode === 400 || res.statusCode === 403;
-      resolve(isPrivate);
+    client.get(url, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        const isErrorJson = data.includes('"error"') || data.includes('Not Found') || data.includes('statusCode');
+        const isPrivate = res.statusCode !== 200 || isErrorJson;
+        resolve(isPrivate);
+      });
     }).on('error', () => {
       resolve(true);
     });

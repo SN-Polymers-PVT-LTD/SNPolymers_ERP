@@ -5,7 +5,6 @@ import { ThemeProvider } from './components/ThemeContext';
 import { ModalProvider } from './components/ModalContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
-import ErrorBoundary from './components/ErrorBoundary';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Views (Static for auth entrypoints)
@@ -35,7 +34,10 @@ const UserMappings = React.lazy(() => import('./pages/UserMappings'));
 const WorkOrderMappings = React.lazy(() => import('./pages/WorkOrderMappings'));
 const ZonalBalances = React.lazy(() => import('./pages/ZonalBalances'));
 const ExcessFundReturns = React.lazy(() => import('./pages/ExcessFundReturns'));
+const EstimatedBill = React.lazy(() => import('./pages/EstimatedBill'));
+const EstimatedBillLedger = React.lazy(() => import('./pages/EstimatedBillLedger'));
 const Profile = React.lazy(() => import('./pages/Profile'));
+
 const HoDashboard = React.lazy(() => import('./pages/HoDashboard'));
 const ZoDashboard = React.lazy(() => import('./pages/ZoDashboard'));
 const AuditComplianceCenter = React.lazy(() => import('./pages/AuditComplianceCenter'));
@@ -122,11 +124,14 @@ function App() {
                 {/* RA/Final Bills & User/Work Order Mappings Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'ho', 'admin']} />}>
                   <Route path="/ra-final-bills" element={<React.Suspense fallback={<AppChunkLoader />}><RAFinalBill /></React.Suspense>} />
+                  <Route path="/estimated-bills" element={<React.Suspense fallback={<AppChunkLoader />}><EstimatedBill /></React.Suspense>} />
+                  <Route path="/estimated-bills/ledger/:work_order_no" element={<React.Suspense fallback={<AppChunkLoader />}><EstimatedBillLedger /></React.Suspense>} />
                   <Route path="/user-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><UserMappings /></React.Suspense>} />
                   <Route path="/work-order-mappings" element={<React.Suspense fallback={<AppChunkLoader />}><WorkOrderMappings /></React.Suspense>} />
                   <Route path="/zonal-balances" element={<React.Suspense fallback={<AppChunkLoader />}><ZonalBalances /></React.Suspense>} />
                   <Route path="/excess-fund-returns" element={<React.Suspense fallback={<AppChunkLoader />}><ExcessFundReturns /></React.Suspense>} />
                 </Route>
+
 
                 {/* Admin Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>

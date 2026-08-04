@@ -96,6 +96,20 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     if (eErr) console.error('SETUP Estimate error:', eErr);
     estimateId = estData?.estimate_id;
 
+    if (estimateId) {
+      const { error: itemErr } = await supabase.from('project_cost_estimate_items').insert([{
+        estimate_id: estimateId,
+        material_main_head: `Material M6-${suffix}`,
+        material_sub_head: 'Subhead',
+        material_details: 'Details',
+        unit: 'Unit',
+        qty: 10,
+        rate: 5000,
+        amount: 50000.00
+      }]);
+      if (itemErr) console.error('SETUP Estimate Item error:', itemErr);
+    }
+
     // Create Material Master reference (required for requisitions creation)
     const { error: mmErr } = await supabase.from('material_master').insert([
       {

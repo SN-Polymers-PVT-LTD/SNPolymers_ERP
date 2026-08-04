@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProjectDigitalTwin } from '../api/analyticsApi';
 import Modal from '../components/ui/Modal';
+import { useAuth } from '../components/AuthContext';
+import { SuccessPopup } from '../components/ui';
+import EstimatedBillEntryModal from '../components/estimatedBill/EstimatedBillEntryModal';
+import {
+  getEstimatedBillLedger,
+  createEstimatedBillEntry
+} from '../api/estimatedBillsApi';
+import { canManageEstimatedBills } from '../utils/estimatedBillPermissions';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -19,6 +27,7 @@ const resolvePhotoUrl = (url) => {
   return `https://ervvwrmgkiyfzbqjqbcg.supabase.co/storage/v1/object/public/daily-progress-photos/${url}`;
 };
 
+// eslint-disable-next-line no-unused-vars
 const SitePhotoCard = ({ item, idx }) => {
   const [imgError, setImgError] = useState(false);
   const photoUrl = resolvePhotoUrl(item.daily_site_photo_url);
@@ -90,6 +99,108 @@ const ProjectDigitalTwin = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Modal + feedback state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [mutationError, setMutationError] = useState('');
+  const [successPopup, setSuccessPopup] = useState({ isOpen: false, message: '' });
+
+  // Fetch billing forecast timeline ledger for this project
+  const { data: ledgerData, isLoading: isLedgerLoading } = useQuery({
+    queryKey: ['estimated-bill-ledger', work_order_no],
+    queryFn: async () => {
+      const res = await getEstimatedBillLedger(work_order_no);
+      return res.data || { data: [], project: null };
+    },
+    enabled: !!work_order_no
+  });
+
+  // Helper to format dates for display — keeps API data and presentation data separate.
+  const formatDisplayDate = (dateStr, opts = { day: '2-digit', month: 'short', year: 'numeric' }) =>
+    dateStr ? new Date(dateStr).toLocaleDateString('en-IN', opts) : '—';
+
+  // Memoize entries — API returns created_at DESC, explicit sort() as safety net.
+  // Each entry is given a nested `display` object for UI-only formatted strings,
+  // keeping raw API fields untouched and conceptually separate from presentation data.
+  const estimatedBills = useMemo(() =>
+    (ledgerData?.data ?? [])
+      .slice()
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .map(entry => ({
+        ...entry,
+        display: {
+          paymentDate: formatDisplayDate(entry.estimated_payment_date),
+          createdAt:   formatDisplayDate(entry.created_at, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        }
+      })),
+    [ledgerData]
+  );
+
+  // COUPLING NOTE: forecastWorkOrderOptions is sourced from the ledger endpoint's
+  // `project` key (not from the Digital Twin endpoint). This is intentional — the
+  // ledger response returns exactly the shape required by EstimatedBillEntryModal.
+  // If the ledger endpoint removes the `project` key in future, the modal will
+  // silently receive an empty options array and the Work Order will not pre-fill.
+  const ledgerProject = ledgerData?.project ?? null;
+
+  const forecastWorkOrderOptions = useMemo(() =>
+    ledgerProject ? [{
+      work_order_no: ledgerProject.work_order_no || work_order_no,
+      site_details: ledgerProject.site_details,
+      work_order_value: ledgerProject.work_order_value,
+      zone: ledgerProject.zone,
+      department: ledgerProject.department,
+      state: ledgerProject.state,
+      district: ledgerProject.district
+    }] : [],
+    [ledgerProject, work_order_no]
+  );
+
+  // Memoize summary stats for the KPI strip.
+  // latestPaymentEntry uses reduce() with Date object comparison — resilient to
+  // any ISO 8601 format (date-only or datetime), not just lexicographic string order.
+  const forecastStats = useMemo(() => {
+    if (estimatedBills.length === 0) return null;
+    const totalAmount = estimatedBills.reduce((s, e) => s + Number(e.estimated_bill_amount || 0), 0);
+    const weightedSum = estimatedBills.reduce((s, e) => s + (Number(e.estimated_bill_amount || 0) * Number(e.surety_pct || 0)), 0);
+    const wtdForecast = totalAmount > 0 ? weightedSum / 100 : 0;
+    const latestPaymentEntry = estimatedBills.reduce((latest, entry) => {
+      if (!entry.estimated_payment_date) return latest;
+      if (!latest || new Date(entry.estimated_payment_date) > new Date(latest.estimated_payment_date)) {
+        return entry;
+      }
+      return latest;
+    }, null);
+    return {
+      totalAmount,
+      wtdForecast,
+      count: estimatedBills.length,
+      latestPaymentDisplay: latestPaymentEntry?.display?.paymentDate ?? '—'
+    };
+  }, [estimatedBills]);
+
+  // Mutation: append-only forecast entry
+  const addMutation = useMutation({
+    mutationFn: (payload) => createEstimatedBillEntry(payload),
+    onMutate: () => {
+      // Clear any previous error immediately when a new attempt fires
+      setMutationError('');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['estimated-bill-ledger', work_order_no] });
+      queryClient.invalidateQueries({ queryKey: ['estimated-bills'] });
+      setIsModalOpen(false);
+      setSuccessPopup({ isOpen: true, message: 'Forecast saved successfully.' });
+    },
+    onError: (err) => {
+      setMutationError(err.response?.data?.message || 'Failed to save forecast. Please try again.');
+    }
+  });
+
+
+
   // Fetch all component-level digital twin metrics for this project
   const { data: twinData, isLoading, error } = useQuery({
     queryKey: ['projectDigitalTwin', work_order_no],
@@ -107,19 +218,28 @@ const ProjectDigitalTwin = () => {
   const approvals = twinData?.approvals || [];
   const budget = twinData?.budget || {};
   const media = twinData?.media || [];
+
+  const canManageForecast = canManageEstimatedBills({
+    role: user?.role,
+    status: overview?.status,
+    finalBillExists: ledgerData?.project?.final_bill_exists
+  });
+
   const approvedRequisitionAmt = budget.approved_requisitions_amount || 0;
   const overrunAmt = Math.max(0, approvedRequisitionAmt - (overview.work_order_value || 0));
   const overrunPct = Math.max(0, (budget.budget_variance_pct || 0) - 100);
-  const photos = (twinData?.photos || []).slice(0, 2);
+  // media is the canonical gallery field; keep a 2-item slice for future quick-access use
+  const _recentMedia = (twinData?.media || []).slice(0, 2); // eslint-disable-line no-unused-vars
   const audits = twinData?.audits || [];
 
-  // Tab definitions
+  // Tab definitions (No emojis)
   const tabs = [
-    { id: 'overview', label: 'Overview & Media', icon: '📋' },
-    { id: 'financials', label: 'Financials & Materials', icon: '💰' },
-    { id: 'progress', label: 'Progress & Timeline', icon: '📈' },
-    { id: 'insights', label: 'Insights & Risks', icon: '⚠️' },
-    { id: 'logs', label: 'Activity & Audit Logs', icon: '🔍' }
+    { id: 'overview',    label: 'Overview & Media' },
+    { id: 'financials',  label: 'Financials & Materials' },
+    { id: 'progress',    label: 'Progress & Timeline' },
+    { id: 'forecast',    label: 'Billing Forecast' },
+    { id: 'insights',    label: 'Insights & Risks' },
+    { id: 'logs',        label: 'Activity & Audit Logs' }
   ];
 
   if (isForbidden) {
@@ -176,7 +296,6 @@ const ProjectDigitalTwin = () => {
                         : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5'
                     }`}
                   >
-                    <span>{tab.icon}</span>
                     <span>{tab.label}</span>
                   </button>
                 ))}
@@ -477,6 +596,138 @@ const ProjectDigitalTwin = () => {
                   </div>
                 )}
 
+                {/* 4. Billing Forecast Tab */}
+                {activeTab === 'forecast' && (
+                  <div className="space-y-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-3">
+                      <div>
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-slate-400">Billing Forecast</h2>
+                        <p className="text-[10px] text-slate-500 font-mono mt-0.5">Cash-flow projections — Work Order: {work_order_no}</p>
+                      </div>
+                      {canManageForecast && (
+                        <button
+                          onClick={() => { setMutationError(''); setIsModalOpen(true); }}
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black text-xs font-black uppercase tracking-wider transition cursor-pointer self-start sm:self-auto shadow-sm"
+                        >
+                          + New Forecast
+                        </button>
+                      )}
+                    </div>
+
+                    {mutationError && (
+                      <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
+                        {mutationError}
+                      </div>
+                    )}
+
+                    {isLedgerLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3].map(i => (
+                          <div key={i} className="h-24 rounded-2xl bg-white/[0.02] border border-white/5 animate-pulse" />
+                        ))}
+                      </div>
+                    ) : estimatedBills.length === 0 ? (
+                      <div className="p-10 rounded-2xl bg-white/[0.01] border border-white/5 text-center flex flex-col items-center gap-3">
+                        <p className="text-xs text-slate-400 font-medium">No billing forecasts have been submitted for this project yet.</p>
+                        <p className="text-[10px] text-slate-500">Forecasts help estimate future cash flow for this project.</p>
+                        {canManageForecast && (
+                          <button
+                            onClick={() => { setMutationError(''); setIsModalOpen(true); }}
+                            className="text-[10px] font-extrabold uppercase tracking-wider text-amber-500 hover:underline"
+                          >
+                            Submit First Forecast →
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {/* Summary KPI Strip */}
+                        {forecastStats && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Total Forecast</span>
+                              <div className="text-base font-black text-slate-100 mt-1 font-mono tabular-nums">{formatINR(forecastStats.totalAmount)}</div>
+                            </div>
+                            <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Weighted Forecast</span>
+                              <div className="text-base font-black text-emerald-400 mt-1 font-mono tabular-nums">{formatINR(forecastStats.wtdForecast)}</div>
+                            </div>
+                            <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Entries</span>
+                              <div className="text-base font-black text-slate-200 mt-1">{forecastStats.count}</div>
+                            </div>
+                            <div className="glass-panel p-4 rounded-2xl bg-white/[0.01]">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block">Latest Expected Payment</span>
+                              <div className="text-sm font-black text-amber-400 mt-1">{forecastStats.latestPaymentDisplay}</div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Vertical Timeline */}
+                        <div className="relative pl-4">
+                          <div className="absolute left-0 top-0 bottom-0 w-px bg-white/10" />
+                          <div className="space-y-4">
+                            {estimatedBills.map((entry, idx) => {
+                              const surety = Number(entry.surety_pct || 0);
+                              const suretyAmt = (Number(entry.estimated_bill_amount || 0) * surety / 100);
+                              const suretyColor = surety >= 90
+                                ? 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10'
+                                : surety >= 70
+                                ? 'text-sky-400 border-sky-500/20 bg-sky-500/10'
+                                : surety >= 50
+                                ? 'text-amber-400 border-amber-500/20 bg-amber-500/10'
+                                : 'text-rose-400 border-rose-500/20 bg-rose-500/10';
+
+                              return (
+                                <div key={entry.id || idx} className="relative pl-6">
+                                  <span className="absolute -left-[5px] top-4 w-2.5 h-2.5 rounded-full bg-amber-500 border-2 border-slate-900" />
+                                  <div className="glass-panel p-4 rounded-2xl border border-white/5 bg-white/[0.01] space-y-3">
+                                    <div className="flex flex-wrap gap-3 items-start justify-between">
+                                      <div>
+                                        <span className="text-[10px] text-slate-500 uppercase font-mono block">Entry #{estimatedBills.length - idx}</span>
+                                        <span className="text-base font-black text-slate-100 font-mono tabular-nums">
+                                          {formatINR(entry.estimated_bill_amount)}
+                                        </span>
+                                      </div>
+                                      <span className={`px-2.5 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider ${suretyColor}`}>
+                                        {surety}% Surety
+                                      </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                                      <div>
+                                        <span className="text-slate-500 block text-[10px] uppercase">Expected Payment</span>
+                                        <span className="text-slate-200 font-bold">{entry.display.paymentDate}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500 block text-[10px] uppercase">Surety Amount</span>
+                                        <span className="text-emerald-400 font-bold font-mono tabular-nums">{formatINR(suretyAmt)}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500 block text-[10px] uppercase">Submitted By</span>
+                                        <span className="text-slate-300 font-bold">{entry.created_by_name || entry.created_by || '—'}</span>
+                                      </div>
+                                      <div>
+                                        <span className="text-slate-500 block text-[10px] uppercase">Submitted On</span>
+                                        <span className="text-slate-400 font-mono">{entry.display.createdAt}</span>
+                                      </div>
+                                      {entry.remarks && (
+                                        <div className="col-span-2">
+                                          <span className="text-slate-500 block text-[10px] uppercase">Remarks</span>
+                                          <span className="text-slate-300 italic">{entry.remarks}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {/* 4. Insights & Risks Tab */}
                 {activeTab === 'insights' && (
                   <div className="space-y-6">
@@ -668,6 +919,24 @@ const ProjectDigitalTwin = () => {
           </div>
         </Modal>
       )}
+      {/* Billing Forecast Entry Modal */}
+      <EstimatedBillEntryModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        initialWorkOrderNo={work_order_no}
+        lockWorkOrder={true}
+        workOrderOptions={forecastWorkOrderOptions}
+        onSave={(payload) => addMutation.mutate(payload)}
+        isSaving={addMutation.isPending}
+      />
+
+      {/* Success Feedback Popup */}
+      <SuccessPopup
+        isOpen={successPopup.isOpen}
+        title="Forecast Saved"
+        description={successPopup.message}
+        onClose={() => setSuccessPopup(prev => ({ ...prev, isOpen: false }))}
+      />
     </>
   );
 };

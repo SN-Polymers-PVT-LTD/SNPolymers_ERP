@@ -8,3 +8,6 @@ export { default as Modal } from './Modal';
 export { Table, TableHeader, TableBody, TableRow, TableCell } from './Table';
 export { default as Skeleton, SkeletonCard, SkeletonTable, SkeletonPage } from './Skeleton';
 export { default as Pagination, getVisiblePageNumbers } from './Pagination';
+export { default as SuccessPopup } from './SuccessPopup';
+export { default as ErrorPopup } from './ErrorPopup';
+

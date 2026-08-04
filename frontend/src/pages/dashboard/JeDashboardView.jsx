@@ -5,12 +5,21 @@ import { useAuth } from '../../components/AuthContext';
 import authApi from '../../api/authApi';
 import { getProgressReports } from '../../api/dailyProgressApi';
 import { getUserMappings } from '../../api/userMappingsApi';
+import DashboardErrorBanner from '../../components/dashboard/DashboardErrorBanner';
+import { EMPTY_ARRAY } from '../../utils/constants';
+import {
+  buildJeMappedProjects,
+  resolveJeStreakCount,
+  resolveActiveZoMapping,
+  countEstimateBuckets,
+  DEFAULT_ESTIMATE_STATUS
+} from '../../utils/jeDashboard';
 
 const JeDashboardView = () => {
   const { user } = useAuth();
 
   // 1. Fetch Projects assigned to JE
-  const { data: projectsRes } = useQuery({
+  const projectsQ = useQuery({
     queryKey: ['dashboardProjects'],
     queryFn: async () => {
       const res = await authApi.get('/projects');
@@ -19,10 +28,10 @@ const JeDashboardView = () => {
     staleTime: 30000
   });
 
-  const projects = projectsRes?.projects || [];
+  const projects = projectsQ.data?.projects ?? EMPTY_ARRAY;
 
   // 2. Fetch Estimates
-  const { data: estimatesRes } = useQuery({
+  const estimatesQ = useQuery({
     queryKey: ['estimates', { limit: 100 }],
     queryFn: async () => {
       const res = await authApi.get('/estimates?limit=100');
@@ -31,10 +40,10 @@ const JeDashboardView = () => {
     staleTime: 60000
   });
 
-  const estimates = estimatesRes?.estimates || [];
+  const estimates = estimatesQ.data?.estimates ?? EMPTY_ARRAY;
 
   // 3. Fetch Requisitions
-  const { data: requisitionsRes } = useQuery({
+  const requisitionsQ = useQuery({
     queryKey: ['jeDashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
@@ -43,10 +52,10 @@ const JeDashboardView = () => {
     staleTime: 60000
   });
 
-  const requisitions = requisitionsRes?.requisitions || [];
+  const requisitions = requisitionsQ.data?.requisitions ?? EMPTY_ARRAY;
 
   // 4. Fetch JE's Daily Progress Reports
-  const { data: dprRes } = useQuery({
+  const dprQ = useQuery({
     queryKey: ['jeDprReports'],
     queryFn: async () => {
       const res = await getProgressReports({ limit: 50 });
@@ -55,10 +64,10 @@ const JeDashboardView = () => {
     staleTime: 30000
   });
 
-  const dprReports = dprRes?.reports || [];
+  const dprReports = dprQ.data?.reports ?? EMPTY_ARRAY;
 
   // 5. Fetch User Mappings for assigned ZO Office details
-  const { data: mappingsRes } = useQuery({
+  const mappingsQ = useQuery({
     queryKey: ['jeZoUserMappings'],
     queryFn: async () => {
       const res = await getUserMappings();
@@ -67,72 +76,42 @@ const JeDashboardView = () => {
     staleTime: 60000
   });
 
-  const activeZoMapping = useMemo(() => {
-    const list = mappingsRes?.mappings || (Array.isArray(mappingsRes) ? mappingsRes : []);
-    if (list.length > 0) {
-      const mob = (user?.mobile_number || '').replace(/\D/g, '');
-      const match = list.find(m => {
-        const jMob = (m.je_user_id || '').replace(/\D/g, '');
-        return (jMob && mob && jMob === mob) || m.je_user_id === user?.mobile_number;
-      });
-      if (match) return match;
-      return list.find(m => m.is_active !== false) || list[0];
-    }
+  const mappingsRes = mappingsQ.data;
 
-    // Fallback from assigned project ZO metadata
-    const projWithZo = projects.find(p => p.zo_name || p.zo_user_id || p.zone);
-    if (projWithZo) {
-      return {
-        zo_name: projWithZo.zo_name || projWithZo.zone || 'Zonal Office',
-        zo_user_id: projWithZo.zo_user_id || 'N/A'
-      };
-    }
+  const hasAnyError = projectsQ.isError || estimatesQ.isError || requisitionsQ.isError || dprQ.isError || mappingsQ.isError;
 
-    return null;
-  }, [mappingsRes, user, projects]);
+  const handleRetry = () => {
+    if (projectsQ.isError) projectsQ.refetch();
+    if (estimatesQ.isError) estimatesQ.refetch();
+    if (requisitionsQ.isError) requisitionsQ.refetch();
+    if (dprQ.isError) dprQ.refetch();
+    if (mappingsQ.isError) mappingsQ.refetch();
+  };
 
-  // Map everything to a unified projects list for the JE
-  const mappedProjects = useMemo(() => {
-    return projects.map(p => {
-      const matchingEst = estimates.find(e => e.work_order_no === p.work_order_no);
-      const reqCount = requisitions.filter(r => r.work_order_no === p.work_order_no).length;
+  const activeZoMapping = useMemo(
+    () => resolveActiveZoMapping(mappingsRes, user, projects),
+    [mappingsRes, user, projects]
+  );
 
-      // Find latest DPR for this work order
-      const projectDprs = dprReports.filter(d => d.work_order_no === p.work_order_no);
-      const latestDpr = projectDprs.length > 0
-        ? projectDprs.reduce((max, curr) => (Number(curr.physical_work_progress || 0) > Number(max.physical_work_progress || 0) ? curr : max), projectDprs[0])
-        : null;
+  const mappedProjects = useMemo(
+    () => buildJeMappedProjects(projects, estimates, requisitions, dprReports),
+    [projects, estimates, requisitions, dprReports]
+  );
 
-      const physicalProg = latestDpr ? Number(latestDpr.physical_work_progress || 0) : Number(p.physical_progress || 0);
-
-      const lastLoggedText = latestDpr?.site_visit_date 
-        ? `logged ${new Date(latestDpr.site_visit_date).toLocaleDateString('en-IN')}` 
-        : 'no logs yet';
-
-      return {
-        wo: p.work_order_no,
-        location: p.site_details || 'Site Location',
-        progress: physicalProg,
-        estimates: matchingEst?.estimate_status || 'Under ZO Review',
-        requisitions: reqCount,
-        lastLogged: lastLoggedText
-      };
-    });
-  }, [projects, estimates, requisitions, dprReports]);
-
-  // Derive stats
   const totalDprs = dprReports.length;
-  const approvedEstsCount = estimates.filter(e => (e.estimate_status || '').toLowerCase().includes('approved')).length;
-  const pendingEstsCount = estimates.filter(e => !(e.estimate_status || '').toLowerCase().includes('approved')).length;
+  const { approvedEstsCount, pendingEstsCount } = useMemo(
+    () => countEstimateBuckets(estimates),
+    [estimates]
+  );
 
-  const streakCount = useMemo(() => {
-    if (user?.daily_streak && Number(user.daily_streak) > 0) return Number(user.daily_streak);
-    const dates = Array.from(new Set(dprReports.map(r => r.site_visit_date).filter(Boolean))).sort().reverse();
-    return dates.length > 0 ? dates.length : 0;
-  }, [user, dprReports]);
+  const streakCount = useMemo(
+    () => resolveJeStreakCount(user, dprReports),
+    [user, dprReports]
+  );
 
   return (
     <div className="space-y-8 pb-12">
+      <DashboardErrorBanner visible={hasAnyError} onRetry={handleRetry} />
       {/* Top Streak Header Strip */}
       <div className="glass-panel p-6 rounded-3xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 border border-white/5">
         <div className="flex items-center gap-4">
@@ -182,7 +161,11 @@ const JeDashboardView = () => {
                         <td className="py-3.5 text-xs font-bold text-sky-400 font-mono">{row.wo}</td>
                         <td className="py-3.5 text-xs font-semibold text-slate-200">{row.location}</td>
                         <td className="py-3.5 text-center">
-                          <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                            row.estimates === DEFAULT_ESTIMATE_STATUS
+                              ? 'bg-slate-500/10 text-slate-400 border border-slate-500/20'
+                              : 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
+                          }`}>
                             {row.estimates}
                           </span>
                         </td>

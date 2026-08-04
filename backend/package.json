@@ -6,14 +6,16 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "vitest run",
+    "migrate": "node scripts/apply-migrations.js",
+    "test": "npm run test:local",
+    "test:local": "bash scripts/test-local.sh",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:milestone1": "vitest run tests/vitest/milestones/milestone1.test.js",
-    "test:p7:db": "node tests/milestones/test_milestone_p7_db.js",
-    "test:p7:api": "node tests/milestones/test_milestone_p7_api.js",
-    "test:p7:uat": "node tests/milestones/test_milestone_p7_uat.js",
-    "test:p7:all": "node tests/milestones/test_milestone_p7_db.js && node tests/milestones/test_milestone_p7_api.js && node tests/milestones/test_milestone_p7_uat.js",
+    "test:p7:db": "bash scripts/test-p7-local.sh db",
+    "test:p7:api": "bash scripts/test-p7-local.sh api",
+    "test:p7:uat": "bash scripts/test-p7-local.sh uat",
+    "test:p7:all": "bash scripts/test-p7-local.sh",
     "test:p7": "npm run test:p7:all"
   },
   "dependencies": {
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@vitest/ui": "^4.1.9",
     "nodemon": "^3.1.2",
+    "pg": "^8.13.3",
     "vitest": "^4.1.9"
   }
 }

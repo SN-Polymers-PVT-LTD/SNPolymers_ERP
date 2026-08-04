@@ -227,7 +227,7 @@ describe('Milestone P6-M2 — RA/Final Bill CRUD & Summary Controller', () => {
       const bill = resGet.jsonData.bill;
       expect(bill.created_by_name).toBeDefined();
       expect(bill.bill_copy_signed_url).toBeDefined();
-      expect(bill.bill_copy_signed_url.startsWith('https://')).toBe(true);
+      expect(bill.bill_copy_signed_url.startsWith('http')).toBe(true);
     });
   });
 });

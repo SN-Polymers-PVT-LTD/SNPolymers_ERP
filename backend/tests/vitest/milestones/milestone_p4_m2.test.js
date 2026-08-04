@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createRequisition,
   getRequisitions,
@@ -15,9 +16,9 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
   let testWorkOrder;
   let testEstimateNo;
   let estimateId = null;
-  const jeUser = { role: 'je', mobile_number: '+918000000002' }; // Owner/creator (actual je in DB)
-  const jeUser2 = { role: 'je', mobile_number: '+918000000003' }; // Non-owner (actual je in DB)
-  const zoUser = { role: 'zo', mobile_number: '+918000000001' };
+  let jeUser;
+  let jeUser2;
+  let zoUser;
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
@@ -27,6 +28,15 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     testReqNo = `REQ_M2_API_${suffix}`;
     testWorkOrder = `TEST_WO_M2_${suffix}`;
     testEstimateNo = `EST_M2_${suffix}`;
+    jeUser = { role: 'je', mobile_number: `9101${suffix}` };
+    jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
+    zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
+
+    await setupUsers([
+      { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
+      { mobile_number: jeUser2.mobile_number, role: 'je', is_active: true, display_name: `JE 2 ${suffix}` },
+      { mobile_number: zoUser.mobile_number, role: 'zo', is_active: true, display_name: `ZO ${suffix}` }
+    ]);
 
     // 1. Create a fresh project with zo_user_id set
     const { error: projErr } = await supabase.from('projects_master').insert({
@@ -52,7 +62,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
       is_active: true,
       assigned_by: zoUser.mobile_number
     }).select('id').single();
-    if (jeZoErr) console.error('JE-ZO Mapping insert error:', jeZoErr);
+    if (jeZoErr) throw new Error(`JE-ZO Mapping insert error: ${jeZoErr.message}`);
     jeZoMappingId = jeZoData?.id || null;
 
     // 1c. Now create the work_order_mapping for JE (trigger checks je_zo_mappings)
@@ -120,6 +130,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     }
 
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    if (jeUser) await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number]);
   });
 
   describe('Requisition Creation', () => {

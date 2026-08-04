@@ -74,8 +74,9 @@
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
-  .glass-panel .bg-white\/2:hover,
-  .glass-panel .bg-white\/5:hover {
+  body:not(.light):not(.theme-pure-black) .glass-panel .bg-white\/2:hover,
+  body:not(.light):not(.theme-pure-black) .glass-panel .bg-white\/5:hover,
+  body:not(.light):not(.theme-pure-black) .glass-panel [class*="hover:bg-white"]:hover {
     background-color: rgba(15, 23, 42, 0.70) !important;
     border-color: rgba(255, 255, 255, 0.15) !important;
   }
@@ -502,10 +503,11 @@ body.light .bg-black\/60 {
 
 body.light .glass-panel .bg-white\/2:hover,
 body.light .glass-panel .bg-white\/5:hover,
+body.light .glass-panel [class*="hover:bg-white"]:hover,
 body.light .bg-white\/5:hover,
 body.light .bg-slate-900\/20:hover {
-  background-color: rgba(255, 255, 255, 0.55) !important;
-  border-color: rgba(245, 158, 11, 0.4) !important;
+  background-color: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.3) !important;
 }
 
 /* Translucent Data Grid Tables in Light Mode */
@@ -525,10 +527,13 @@ body.light table thead td {
 body.light table tbody tr {
   background-color: transparent !important;
   border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-body.light table tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.45) !important;
+body.light table tbody tr:hover,
+body.light table tbody tr[class*="hover:bg-white"]:hover {
+  background-color: rgba(245, 158, 11, 0.08) !important;
+  color: #0f172a !important;
 }
 
 /* Hoverable Glass Card overrides */
@@ -972,11 +977,13 @@ body.light .doc-portal-layout footer {
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 input[type="number"] {
   -moz-appearance: textfield;
+  appearance: textfield;
   /* Firefox */
 }
 

@@ -35,38 +35,51 @@ authApi.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response && error.response.status === 401 && !originalRequest._retry) {
-      // If /me or /refresh returns 401, session is completely expired -> trigger auth-failure
-      if (originalRequest.url?.includes('/me') || originalRequest.url?.includes('/refresh') || originalRequest.url?.includes('/login')) {
-        window.dispatchEvent(new Event('auth-failure'));
+    if (error.response && error.response.status === 401) {
+      const url = originalRequest.url || '';
+
+      // Immediately reject auth flow endpoints without retrying, refreshing, or dispatching auth-failure
+      if (
+        url.includes('/logout') ||
+        url.includes('/request-otp') ||
+        url.includes('/verify-otp')
+      ) {
         return Promise.reject(error);
       }
 
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject });
-        })
-          .then(() => {
-            return authApi(originalRequest);
+      if (!originalRequest._retry) {
+        // If /me or /refresh returns 401, session is completely expired -> trigger auth-failure
+        if (url.includes('/me') || url.includes('/refresh') || url.includes('/login')) {
+          window.dispatchEvent(new Event('auth-failure'));
+          return Promise.reject(error);
+        }
+
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject });
           })
-          .catch((err) => {
-            return Promise.reject(err);
-          });
-      }
+            .then(() => {
+              return authApi(originalRequest);
+            })
+            .catch((err) => {
+              return Promise.reject(err);
+            });
+        }
 
-      originalRequest._retry = true;
-      isRefreshing = true;
+        originalRequest._retry = true;
+        isRefreshing = true;
 
-      try {
-        await axios.post(`${API_URL}/refresh`, {}, { withCredentials: true });
-        processQueue(null);
-        isRefreshing = false;
-        return authApi(originalRequest);
-      } catch (refreshError) {
-        processQueue(refreshError);
-        isRefreshing = false;
-        window.dispatchEvent(new Event('auth-failure'));
-        return Promise.reject(refreshError);
+        try {
+          await axios.post(`${API_URL}/refresh`, {}, { withCredentials: true });
+          processQueue(null);
+          isRefreshing = false;
+          return authApi(originalRequest);
+        } catch (refreshError) {
+          processQueue(refreshError);
+          isRefreshing = false;
+          window.dispatchEvent(new Event('auth-failure'));
+          return Promise.reject(refreshError);
+        }
       }
     }
 

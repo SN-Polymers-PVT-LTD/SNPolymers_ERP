@@ -32,6 +32,8 @@ const workOrderMappingsRoutes = require('./routes/workOrderMappings.routes');
 const excessFundReturnsRoutes = require('./routes/fundReturns.routes');
 const zoBalancesRoutes = require('./routes/zoBalances.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
+const estimatedBillsRoutes = require('./routes/estimatedBills.routes');
+
 
 const { startPolling, registerWebhook } = require('./services/telegram.service');
 const { handleTelegramWebhook } = require('./controllers/telegram.webhook.controller');
@@ -114,6 +116,8 @@ app.use('/api/v1/auth/work-order-mappings', workOrderMappingsRoutes);
 app.use('/api/v1/auth/excess-fund-returns', excessFundReturnsRoutes);
 app.use('/api/v1/auth/zo-balances', zoBalancesRoutes);
 app.use('/api/v1/auth/analytics', analyticsRoutes);
+app.use('/api/v1/auth/estimated-bills', estimatedBillsRoutes);
+
 
 // Health check route with database connectivity ping
 app.get('/health', async (req, res) => {

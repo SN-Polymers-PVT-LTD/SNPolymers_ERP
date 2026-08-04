@@ -356,13 +356,24 @@ describe('Milestone 3 — Cost Estimates CRUD API', () => {
     test('Test 7: Blocks unauthorized JEs from modifying estimate with 403', async () => {
       expect(createdEstimateId).not.toBeNull();
 
+      const unassignedJE = `9999${suffix}`;
+      await supabase.from('authorised_users').insert({
+        mobile_number: unassignedJE,
+        display_name: 'Unassigned JE',
+        role: 'je',
+        is_active: true,
+        permissions: {}
+      });
+
       const req = {
         params: { id: createdEstimateId },
-        user: { mobile_number: mobileJE_B, role: 'je' },
+        user: { mobile_number: unassignedJE, role: 'je' },
         body: { items: [] }
       };
       const res = mockRes();
       await saveDraftItems(req, res);
+
+      await supabase.from('authorised_users').delete().eq('mobile_number', unassignedJE);
 
       expect(res.statusCode).toBe(403);
       expect(res.jsonData.message).toContain('Access denied');

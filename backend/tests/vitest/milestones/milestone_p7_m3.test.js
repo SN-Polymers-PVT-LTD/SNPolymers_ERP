@@ -259,7 +259,7 @@ describe('Milestone P7-M3 — Work Order Mappings Controller Integration Tests',
 
     expect(res.statusCode).toBe(400);
     expect(res.jsonData.success).toBe(false);
-    expect(res.jsonData.message).toContain('Mismatched ZO assignment');
+    expect(res.jsonData.message).toContain('Zonal Office mismatch');
   });
 
   test('M3-TC-07: Successfully creates active Work Order mapping (201)', async () => {

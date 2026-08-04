@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import authApi from '../../api/authApi';
 import { SkeletonCard } from '../../components/ui/Skeleton';
+import DashboardErrorBanner from '../../components/dashboard/DashboardErrorBanner';
+import { EMPTY_ARRAY } from '../../utils/constants';
+import { filterStaffPendingRequisitions, getPendingRequisitionAmount } from '../../utils/staffDashboard';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -15,7 +18,7 @@ const formatINR = (value) => {
 
 const StaffDashboardView = () => {
   // Fetch payment requisitions
-  const { data: requisitionsRes, isLoading } = useQuery({
+  const requisitionsQ = useQuery({
     queryKey: ['staffDashboardRequisitions'],
     queryFn: async () => {
       const res = await authApi.get('/requisitions');
@@ -24,14 +27,24 @@ const StaffDashboardView = () => {
     staleTime: 60 * 1000
   });
 
-  const requisitions = requisitionsRes?.requisitions || [];
+  const requisitions = requisitionsQ.data?.requisitions ?? EMPTY_ARRAY;
+  const isLoading = requisitionsQ.isLoading;
+  const hasAnyError = requisitionsQ.isError;
 
-  const pendingRequisitions = useMemo(() => {
-    return requisitions.filter(r => r.requisition_status === 'Pending');
-  }, [requisitions]);
+  const handleRetry = () => {
+    if (requisitionsQ.isError) requisitionsQ.refetch();
+  };
+
+  const pendingRequisitions = useMemo(
+    () => filterStaffPendingRequisitions(requisitions),
+    [requisitions]
+  );
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
+      <div className="lg:col-span-3">
+        <DashboardErrorBanner visible={hasAnyError} onRetry={handleRetry} />
+      </div>
       {/* Left Column (2/3) */}
       <div className="lg:col-span-2 space-y-8">
         <div className="glass-panel p-6 rounded-3xl">
@@ -58,7 +71,7 @@ const StaffDashboardView = () => {
                   <div className="mt-4 md:mt-0 flex items-center justify-between md:justify-end gap-6">
                     <div className="text-left md:text-right">
                       <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-bold">Amount Requested</span>
-                      <span className="text-xs font-bold text-slate-200">{formatINR(req.approved_amount)}</span>
+                      <span className="text-xs font-bold text-slate-200">{formatINR(getPendingRequisitionAmount(req))}</span>
                     </div>
                     <Link to="/requisitions" className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase bg-amber-500 text-slate-950 hover:bg-amber-400 transition-colors">
                       Review

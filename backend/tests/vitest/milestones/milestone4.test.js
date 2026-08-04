@@ -289,12 +289,23 @@ describe('Milestone 4 — Cost Estimates Submission & Revision Workflow API', ()
     test('Test 5: Blocks submitEstimate ownership gating with 403', async () => {
       expect(createdEstimateId).not.toBeNull();
 
+      const unassignedJE = `9998${suffix}`;
+      await supabase.from('authorised_users').insert({
+        mobile_number: unassignedJE,
+        display_name: 'Unassigned JE M4',
+        role: 'je',
+        is_active: true,
+        permissions: {}
+      });
+
       const req = {
         params: { id: createdEstimateId },
-        user: { mobile_number: mobileJE_Other, role: 'je' }
+        user: { mobile_number: unassignedJE, role: 'je' }
       };
       const res = mockRes();
       await submitEstimate(req, res);
+
+      await supabase.from('authorised_users').delete().eq('mobile_number', unassignedJE);
 
       expect(res.statusCode).toBe(403);
       expect(res.jsonData.message).toContain('Access denied');

@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
+const setupUsers = require('../../helpers/setupUsers');
 
 describe('Milestone 1 — Database Foundation', () => {
   let testMobile;
@@ -19,6 +20,11 @@ describe('Milestone 1 — Database Foundation', () => {
   beforeAll(async () => {
     testWorkOrder = `TEST_WO_M1_${crypto.randomUUID().substring(0, 8)}`;
     testEstimateNo = `EST_M1_${crypto.randomUUID().substring(0, 8)}`;
+
+    // Ensure the admin user exists
+    await setupUsers([
+      { mobile_number: testAdminMobile, display_name: 'Test Admin User', role: 'admin', permissions: {}, is_active: true }
+    ]);
 
     // Clean up any potential leftovers first
     await supabase.from('project_cost_estimate_items').delete().filter('material_main_head', 'eq', 'TEST_MAIN_1');

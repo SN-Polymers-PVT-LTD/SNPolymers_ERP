@@ -1,7 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 const { supabase } = require('../../../src/db/supabase');
 const requireRole = require('../../../src/middleware/requireRole');
 const mockRes = require('../../helpers/mockRes');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   getPurchaseOptions,
   createPurchaseOption,
@@ -10,6 +11,18 @@ const {
 } = require('../../../src/controllers/purchaseData.controller');
 
 describe('Milestone 2 — Integration Tests', () => {
+  const adminMobile = '+918276071523';
+
+  beforeAll(async () => {
+    await setupUsers([
+      { mobile_number: adminMobile, display_name: 'Test Admin User', role: 'admin', permissions: {}, is_active: true }
+    ]);
+  });
+
+  afterAll(async () => {
+    await supabase.from('authorised_users').delete().eq('mobile_number', adminMobile);
+  });
+
   beforeEach(async () => {
     // Clean up any test leftovers
     await supabase.from('purchase_data').delete().filter('name', 'ilike', 'TEST_M2_%');

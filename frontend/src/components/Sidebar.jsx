@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import { useTheme } from './ThemeContext';
 
@@ -81,6 +81,16 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/estimated-bills',
+        label: 'Estimated Bills',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+
       finItems.push({
         to: '/zonal-balances',
         label: 'Zonal Balances',
@@ -350,14 +360,16 @@ const Sidebar = () => {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const currentPath = location.pathname;
+  const navigate = useNavigate();
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
-  const displayCollapsed = isCollapsed && !isHovered;
+  const isExpanded = !isCollapsed || isHovered;
+  const sidebarRef = useRef(null);
 
   const [pinnedProjects, setPinnedProjects] = useState([]);
   const storageKey = user?.mobile_number ? `pinnedProjects_${user.mobile_number}` : 'pinnedProjects';
 
-  const loadPinnedProjects = () => {
+  const loadPinnedProjects = useCallback(() => {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
@@ -369,7 +381,7 @@ const Sidebar = () => {
       console.error(e);
       setPinnedProjects([]);
     }
-  };
+  }, [storageKey]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -378,7 +390,7 @@ const Sidebar = () => {
     return () => {
       window.removeEventListener('pinned-projects-updated', loadPinnedProjects);
     };
-  }, [storageKey]);
+  }, [storageKey, loadPinnedProjects]);
 
   useEffect(() => {
     const handleCollapseEvent = (e) => {
@@ -390,9 +402,32 @@ const Sidebar = () => {
     };
   }, []);
 
+  // Handle ESC key and outside clicks to dismiss overlay
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsHovered(false);
+        setIsCollapsed(true);
+      }
+    };
+    const handleClickOutside = (e) => {
+      if (isExpanded && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+        setIsHovered(false);
+        if (!isCollapsed) setIsCollapsed(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExpanded, isCollapsed]);
+
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
   const isAnalyticsModule = currentPath.startsWith('/analytics') || currentPath.includes('/digital-twin');
@@ -469,6 +504,16 @@ const Sidebar = () => {
             </svg>
           )
         },
+        {
+          to: '/estimated-bills',
+          label: 'Estimated Bills',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )
+        },
+
         {
           to: '/zonal-balances',
           label: 'Zonal Balances',
@@ -603,241 +648,243 @@ const Sidebar = () => {
   }
 
   return (
-    <aside
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 overflow-x-hidden overflow-y-auto transition-[width] duration-300 ease-in-out p-4 ${
-        displayCollapsed ? 'w-20' : 'w-72'
-      }`}
-    >
-      {/* Brand Header */}
-      <div className="flex items-center gap-3 mb-8 shrink-0 min-w-0 px-1">
-        <Link to="/dashboard" className="shrink-0 flex items-center justify-center w-10 h-10">
-          <img
-            src="/assets/logo.png"
-            alt="SN Polymers Pvt LTD Logo"
-            className="w-auto h-9 object-contain"
-          />
-        </Link>
-        <div
-          className={`flex flex-col transition-[opacity,max-width] duration-300 ease-in-out origin-left whitespace-nowrap overflow-hidden flex-1 ${
-            displayCollapsed ? 'opacity-0 max-w-0 pointer-events-none' : 'opacity-100 max-w-[200px]'
-          }`}
-        >
-          <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">
-            SN Polymers Pvt LTD
-          </span>
-          <span className="text-[10px] text-amber-500 font-extrabold tracking-widest uppercase mt-0.5">
-            ERP Console
-          </span>
+    <div ref={sidebarRef} className="relative z-40">
+      {/* Fixed 80px Rail in Flex Container (Maintains 100% constant layout width for dashboard) */}
+      <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className="hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 w-20 p-4 justify-between items-center"
+      >
+        {/* Brand Logo Header (Fixed Rail) */}
+        <div className="flex flex-col items-center gap-4 shrink-0">
+          <Link to="/dashboard" className="flex items-center justify-center w-10 h-10">
+            <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="w-auto h-9 object-contain" />
+          </Link>
         </div>
 
-        {!displayCollapsed && (
-          <button
-            onClick={() => setIsCollapsed((prev) => !prev)}
-            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-400 hover:text-slate-200 transition shrink-0"
-            title={isCollapsed ? 'Pin Sidebar' : 'Unpin Sidebar'}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {isCollapsed ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7M19 19l-7-7 7-7" />
-              )}
-            </svg>
-          </button>
-        )}
-      </div>
-
-      <nav className="flex-grow space-y-2 min-w-0">
-        {/* Back to Console Button */}
-        {currentPath !== '/dashboard' && (
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden mb-6 bg-slate-500/5 hover:bg-slate-500/10 border border-slate-500/25 text-slate-400"
-            title="Back to Console"
-          >
-            <div className="w-5 h-5 flex items-center justify-center shrink-0">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        {/* Dynamic Icons (Fixed Rail) */}
+        <nav className="flex flex-col items-center gap-3 my-auto">
+          {currentPath !== '/dashboard' && (
+            <button
+              onClick={() => navigate(-1)}
+              className="p-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 transition border border-transparent"
+              title="Back"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
+            </button>
+          )}
+          {navItems.map(({ to, label, icon }) => {
+            const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={`p-2.5 rounded-xl transition-all ${
+                  isActive
+                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
+                }`}
+                title={label}
+              >
+                {icon}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Profile Avatar, Theme Switch, Privacy & Logout (Fixed Rail) */}
+        <div className="flex flex-col items-center gap-2.5 shrink-0">
+          <button
+            onClick={toggleTheme}
+            title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:text-slate-100 transition"
+          >
+            {theme === 'light' ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+              </svg>
+            )}
+          </button>
+          {user && (
+            <>
+              <Link
+                to="/profile"
+                className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-xs shadow-md select-none"
+                title={`${user.display_name || 'Operator'} (${user.role})`}
+              >
+                {(user.display_name || 'U')[0].toUpperCase()}
+              </Link>
+              <Link
+                to="/privacy-policy"
+                title="Privacy Policy"
+                className="p-2 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 transition"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </Link>
+              <button
+                onClick={logout}
+                title="Sign Out"
+                className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20 hover:text-rose-300 transition"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </>
+          )}
+        </div>
+      </aside>
+
+      {/* GPU-Accelerated Floating Overlay Drawer (Renders over layout without causing reflow) */}
+      <aside
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{ willChange: 'transform, opacity' }}
+        className={`hidden md:flex fixed top-0 left-0 h-screen w-72 glass-nav border-r border-white/10 z-40 flex-col p-4 justify-between transition-all duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
+          isExpanded
+            ? 'translate-x-0 opacity-100 pointer-events-auto'
+            : '-translate-x-full opacity-0 pointer-events-none'
+        }`}
+      >
+        {/* Brand Header */}
+        <div className="flex items-center justify-between mb-6 shrink-0 px-1">
+          <Link to="/dashboard" className="flex items-center gap-3">
+            <img src="/assets/logo.png" alt="SN Polymers Pvt LTD Logo" className="w-auto h-9 object-contain" />
+            <div className="flex flex-col">
+              <span className="font-extrabold text-xs tracking-wider text-slate-100 uppercase">SN Polymers Pvt LTD</span>
+              <span className="text-[10px] text-amber-500 font-extrabold tracking-widest uppercase mt-0.5">ERP Console</span>
             </div>
-            <span
-              className={`transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[200px]'
-              }`}
-            >
-              Back to Console
-            </span>
           </Link>
-        )}
+        </div>
 
         {/* Dynamic Contextual Sub-Nav Items */}
-        {navItems.map(({ to, label, icon }) => {
-          const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
-          return (
-            <Link
-              key={to}
-              to={to}
-              className={`flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-                isActive
-                  ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.02)]'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5'
-              }`}
-              title={displayCollapsed ? label : undefined}
+        <nav className="flex-grow space-y-2 overflow-y-auto pr-1 no-scrollbar min-w-0">
+          {currentPath !== '/dashboard' && (
+            <button
+              onClick={() => navigate(-1)}
+              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden mb-4 bg-slate-500/5 hover:bg-slate-500/10 border border-slate-500/25 text-slate-400"
             >
-              <div className={`w-5 h-5 flex items-center justify-center shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`}>
-                {icon}
-              </div>
-              <span
-                className={`transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                  displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[240px]'
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Back</span>
+            </button>
+          )}
+          {navItems.map(({ to, label, icon }) => {
+            const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
+            return (
+              <Link
+                key={to}
+                to={to}
+                className={`flex items-center gap-3 px-3 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+                  isActive
+                    ? 'bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.02)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent hover:border-white/5'
                 }`}
               >
-                {label}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
+                <div className={`w-5 h-5 flex items-center justify-center shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`}>
+                  {icon}
+                </div>
+                <span className="truncate">{label}</span>
+              </Link>
+            );
+          })}
+        </nav>
 
-      {/* Pinned Project Shortcuts (For ZO, HO, and Admin) */}
-      {pinnedProjects.length > 0 && ['zo', 'ho', 'admin'].includes(user?.role) && (
-        <div className="border-t border-white/5 pt-4 mb-4 mt-auto shrink-0 flex flex-col gap-2 min-w-0">
-          <span
-            className={`text-[9px] font-bold text-slate-500 uppercase tracking-widest transition-all duration-300 overflow-hidden ${
-              displayCollapsed ? 'opacity-0 max-w-0 h-0' : 'px-2 mb-1 opacity-100 max-w-[200px]'
-            }`}
-          >
-            Pinned Twins
-          </span>
-          <div className="flex flex-col gap-1.5">
-            {pinnedProjects.map((workOrderNo) => {
-              const shortLabel = workOrderNo.replace('WO-', '');
-              return (
+        {/* Pinned Projects */}
+        {pinnedProjects.length > 0 && ['zo', 'ho', 'admin'].includes(user?.role) && (
+          <div className="border-t border-white/5 pt-4 mb-4 mt-auto shrink-0 flex flex-col gap-2 min-w-0">
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-2 mb-1">
+              Pinned Twins
+            </span>
+            <div className="flex flex-col gap-1.5">
+              {pinnedProjects.map((workOrderNo) => (
                 <Link
                   key={workOrderNo}
                   to={`/projects/${workOrderNo}/digital-twin`}
                   className="flex items-center gap-3 px-3 py-2 rounded-xl bg-sky-500/5 hover:bg-sky-500/10 border border-sky-500/10 text-slate-300 hover:text-sky-400 transition-all duration-200"
-                  title={workOrderNo}
                 >
-                  <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                    <svg className="w-3.5 h-3.5 text-sky-400 fill-current transform rotate-[30deg]" viewBox="0 0 24 24">
-                      <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
-                    </svg>
-                  </div>
-                  <span
-                    className={`text-xs font-mono font-bold transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                      displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[150px]'
-                    }`}
-                  >
-                    {shortLabel}
-                  </span>
+                  <svg className="w-3.5 h-3.5 text-sky-400 fill-current transform rotate-[30deg] shrink-0" viewBox="0 0 24 24">
+                    <path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z" />
+                  </svg>
+                  <span className="text-xs font-mono font-bold truncate">{workOrderNo.replace('WO-', '')}</span>
                 </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Operator Profile and Logout */}
-      {user && (
-        <div className="border-t border-white/5 pt-4 shrink-0 min-w-0">
-          {/* Theme Toggle Button */}
-          <button
-            onClick={toggleTheme}
-            title={theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-slate-100 text-xs font-bold uppercase tracking-wider transition-all duration-200 mb-3 overflow-hidden shrink-0"
-          >
-            <div className="w-5 h-5 flex items-center justify-center shrink-0">
-              {theme === 'light' ? (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-                </svg>
-              )}
+              ))}
             </div>
-            <span
-              className={`transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[120px]'
-              }`}
-            >
-              {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-            </span>
-          </button>
+          </div>
+        )}
 
-          <div className="flex flex-col gap-2">
-            {/* Operator profile card */}
-            <Link
-              to="/profile"
-              className="flex items-center gap-3 px-3 py-2 rounded-xl group cursor-pointer transition-all duration-200 overflow-hidden"
-              title={`${user.display_name || 'Operator'} (${user.role})`}
-            >
-              <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-xs select-none shadow-md">
-                  {(user.display_name || 'U')[0].toUpperCase()}
-                </div>
-              </div>
-              <div
-                className={`flex flex-col truncate transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                  displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[150px]'
-                }`}
-              >
-                <span className="text-xs font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors">
-                  {user.display_name || 'Operator'}
-                </span>
-                <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
-                  {user.role}
-                </span>
-              </div>
-            </Link>
-
-            {/* Logout Button */}
+        {/* Operator Profile and Logout Footer */}
+        {user && (
+          <div className="border-t border-white/5 pt-4 shrink-0 min-w-0">
             <button
-              onClick={logout}
-              title="Sign Out"
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden shrink-0"
+              onClick={toggleTheme}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-slate-100 text-xs font-bold uppercase tracking-wider transition-all duration-200 mb-3 overflow-hidden shrink-0"
             >
               <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
-                </svg>
+                {theme === 'light' ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                  </svg>
+                )}
               </div>
-              <span
-                className={`transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                  displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[100px]'
-                }`}
-              >
-                Sign Out
-              </span>
+              <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
             </button>
 
-            {/* Privacy Policy */}
-            <Link
-              to="/privacy-policy"
-              title="Privacy Policy"
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-all duration-200 text-[10px] font-bold uppercase tracking-wider overflow-hidden shrink-0"
-            >
-              <div className="w-5 h-5 flex items-center justify-center shrink-0">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex flex-col gap-2">
+              <Link
+                to="/profile"
+                className="flex items-center gap-3 px-3 py-2 rounded-xl group cursor-pointer transition-all duration-200 overflow-hidden"
+              >
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-xs select-none shadow-md shrink-0">
+                  {(user.display_name || 'U')[0].toUpperCase()}
+                </div>
+                <div className="flex flex-col truncate">
+                  <span className="text-xs font-extrabold text-slate-200 truncate group-hover:text-amber-400 transition-colors">
+                    {user.display_name || 'Operator'}
+                  </span>
+                  <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
+                    {user.role}
+                  </span>
+                </div>
+              </Link>
+
+              <button
+                onClick={logout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold uppercase tracking-wider transition-all duration-200 overflow-hidden shrink-0"
+              >
+                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013 3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Sign Out</span>
+              </button>
+
+              <Link
+                to="/privacy-policy"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-slate-200 transition-all duration-200 text-[10px] font-bold uppercase tracking-wider overflow-hidden shrink-0"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                 </svg>
-              </div>
-              <span
-                className={`transition-[opacity,max-width] duration-300 ease-in-out whitespace-nowrap overflow-hidden ${
-                  displayCollapsed ? 'opacity-0 max-w-0' : 'opacity-100 max-w-[120px]'
-                }`}
-              >
-                Privacy Policy
-              </span>
-            </Link>
+                <span>Privacy Policy</span>
+              </Link>
+            </div>
           </div>
-        </div>
-      )}
-    </aside>
+        )}
+      </aside>
+    </div>
   );
 };
 

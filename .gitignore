@@ -14,3 +14,10 @@ Thumbs.db
 /tests/logs
 
 backend/html/html.meta.json.gz
+
+# Temporary Scratch Files & Directories
+scratch/
+**/scratch/
+scratch_*
+*.scratch.*
+*.zip

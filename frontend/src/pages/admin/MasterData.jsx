@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Modal from '../../components/ui/Modal';
+import { Modal, SuccessPopup, ErrorPopup } from '../../components/ui';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import Pagination from '../../components/ui/Pagination';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
@@ -565,19 +565,19 @@ const MasterData = () => {
           ))}
         </div>
 
-        {/* ── Notifications ── */}
-        {error && (
-          <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5">
-            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-6 flex items-center gap-2.5 animate-pulse-once">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            {success}
-          </div>
-        )}
+        {/* ── Notifications via Premium Popups ── */}
+        <SuccessPopup
+          isOpen={!!success}
+          title="Success"
+          description={success}
+          onClose={() => setSuccess('')}
+        />
+        <ErrorPopup
+          isOpen={!!error}
+          title="Error"
+          description={error}
+          onClose={() => setError('')}
+        />
 
         {/* ── View Selection Tabs ── */}
         <div className="flex gap-2 mb-6 border-b border-white/5 pb-4">

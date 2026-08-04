@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
 const { getRequisitionById } = require('../../../src/controllers/requisitions.controller');
 
 describe('Requisition Budget Reallocation Fix Suite', () => {
@@ -19,6 +20,11 @@ describe('Requisition Budget Reallocation Fix Suite', () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testWorkOrder = `TEST_WO_BUD_${suffix}`;
     testEstimateNo = `EST_BUD_${suffix}`;
+
+    // Ensure the admin user exists
+    await setupUsers([
+      { mobile_number: testMobile, display_name: 'Test Admin User', role: 'admin', permissions: {}, is_active: true }
+    ]);
 
     // 1. Setup project
     await setupProject(testWorkOrder, testEstimateNo, 1000000.00, testMobile);
@@ -116,6 +122,7 @@ describe('Requisition Budget Reallocation Fix Suite', () => {
     if (estimateId) {
       await supabase.from('project_cost_estimates').delete().eq('estimate_id', estimateId);
     }
+    await supabase.from('authorised_users').delete().eq('mobile_number', testMobile);
     // SetupProject deletes the project record automatically if mapped correctly
   });
 

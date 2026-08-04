@@ -111,7 +111,7 @@ async function createProgressReport(req, res) {
     // 2. Determine if it is a back-dated submission
     const [year, month, day] = site_visit_date.split('-').map(Number);
     const inputDate = new Date(year, month - 1, day);
-    
+
     const options = { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' };
     const formatter = new Intl.DateTimeFormat('en-CA', options);
     const [tYear, tMonth, tDay] = formatter.format(new Date()).split('-').map(Number);

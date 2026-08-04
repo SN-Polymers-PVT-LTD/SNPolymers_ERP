@@ -802,9 +802,9 @@ const EstimateView = () => {
                                 value={dec?.source_of_purchase || ''}
                                 onChange={(e) => handleDecisionChange(item.item_id, 'source_of_purchase', e.target.value)}
                                 className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-slate-300 ${
-                                  Boolean(item.ho_office_approve) ? 'opacity-60 cursor-not-allowed' : ''
+                                  item.ho_office_approve ? 'opacity-60 cursor-not-allowed' : ''
                                 }`}
-                                disabled={submitting || Boolean(item.ho_office_approve)}
+                                disabled={submitting || !!item.ho_office_approve}
                               >
                                 <option value="" className="bg-slate-900 text-slate-300">Select Source</option>
                                 {purchaseOptions.map(o => (

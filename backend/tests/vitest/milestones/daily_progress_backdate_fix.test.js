@@ -9,6 +9,8 @@ const {
   addAuthorityRemarks
 } = require('../../../src/controllers/dailyProgress.controller');
 
+
+
 describe('Daily Progress Backdate Constraint & Approval Suite', () => {
   let suffix;
   let testWorkOrder;
@@ -41,31 +43,40 @@ describe('Daily Progress Backdate Constraint & Approval Suite', () => {
       .eq('work_order_no', testWorkOrder);
 
     // Setup JE-ZO mapping so createProgressReport can resolve zo_user_id
-    const { data: mappingData } = await supabase.from('je_zo_mappings').insert({
+    const { data: mappingData, error: jeZoErr } = await supabase.from('je_zo_mappings').insert({
       je_user_id: testMobile,
       zo_user_id: testZoMobile,
       is_active: true,
       assigned_by: testZoMobile
     }).select('id').single();
+    if (jeZoErr) throw jeZoErr;
     jeZoMappingId = mappingData?.id || null;
 
     // Setup Work Order mapping so JE is mapped to the work order
-    const { data: woMappingData } = await supabase.from('work_order_mappings').insert({
+    const { data: woMappingData, error: woMapErr } = await supabase.from('work_order_mappings').insert({
       work_order_no: testWorkOrder,
       je_user_id: testMobile,
       is_active: true,
       reason: 'Assigned',
       assigned_by: testZoMobile
     }).select('id').single();
+    if (woMapErr) throw woMapErr;
     workOrderMappingId = woMappingData?.id || null;
   });
 
   afterAll(async () => {
+    // Clean up created mappings
     if (jeZoMappingId) {
       await supabase.from('je_zo_mappings').delete().eq('id', jeZoMappingId);
     }
     if (workOrderMappingId) {
       await supabase.from('work_order_mappings').delete().eq('id', workOrderMappingId);
+    }
+    if (testWorkOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    }
+    if (testMobile) {
+      await supabase.from('authorised_users').delete().in('mobile_number', [testMobile, testZoMobile]);
     }
     // Cleanup
     if (createdReportId) {

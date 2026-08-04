@@ -319,7 +319,11 @@ const DigitalTwinHub = () => {
                   e.stopPropagation();
                   const updated = pinnedProjects.filter(item => item !== wo);
                   setPinnedProjects(updated);
-                  localStorage.setItem('pinnedProjects', JSON.stringify(updated));
+                  try {
+                    localStorage.setItem(storageKey, JSON.stringify(updated));
+                  } catch (err) {
+                    console.error(err);
+                  }
                   window.dispatchEvent(new Event('pinned-projects-updated'));
                 }}
                 className="text-[10px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300 transition-colors"

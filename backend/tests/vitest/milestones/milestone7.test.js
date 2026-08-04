@@ -8,6 +8,9 @@ const {
   submitReview
 } = require('../../../src/controllers/estimates.controller');
 
+const setupProject = require('../../helpers/setupProject');
+const setupUsers = require('../../helpers/setupUsers');
+
 describe('Milestone 7 — Cost Estimates HO Review API', () => {
   let suffix;
   let testZoMobile;
@@ -23,36 +26,21 @@ describe('Milestone 7 — Cost Estimates HO Review API', () => {
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
-    testZoMobile = `+91800000_${suffix.substring(0, 4)}`;
-    testJeMobile = `+91800001_${suffix.substring(0, 4)}`;
-    testOtherMobile = `+91800002_${suffix.substring(0, 4)}`;
-    testHoMobile = `+91800003_${suffix.substring(0, 4)}`;
-    testAdminMobile = '+918276071523';
-    testWorkOrder = 'WB_BAN_102'; // Running work order
+    testZoMobile = `9501${suffix}`;
+    testJeMobile = `9502${suffix}`;
+    testOtherMobile = `9503${suffix}`;
+    testHoMobile = `9504${suffix}`;
+    testAdminMobile = `9505${suffix}`;
+    testWorkOrder = `TEST_WO_M7_${suffix}`;
 
-    // Preserve original admin display name
-    const { data: adminUserRec } = await supabase
-      .from('authorised_users')
-      .select('display_name')
-      .eq('mobile_number', testAdminMobile)
-      .maybeSingle();
-
-    if (adminUserRec) {
-      global.__originalAdminName = adminUserRec.display_name;
-    }
-
-    // Setup test users and estimate
-    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile]);
-
-    // Insert / Upsert Users
-    const { error: userError } = await supabase.from('authorised_users').upsert([
-      { mobile_number: testZoMobile, display_name: 'Test ZO User', role: 'zo', is_active: true },
-      { mobile_number: testJeMobile, display_name: 'Test JE User', role: 'je', is_active: true },
-      { mobile_number: testOtherMobile, display_name: 'Other JE User', role: 'je', is_active: true },
-      { mobile_number: testHoMobile, display_name: 'Test HO User', role: 'ho', is_active: true },
-      { mobile_number: testAdminMobile, display_name: 'Test Admin User', role: 'admin', is_active: true }
-    ], { onConflict: 'mobile_number' });
-    if (userError) throw userError;
+    await setupUsers([
+      { mobile_number: testZoMobile, role: 'zo', is_active: true, display_name: `ZO M7 ${suffix}` },
+      { mobile_number: testJeMobile, role: 'je', is_active: true, display_name: `JE M7 ${suffix}` },
+      { mobile_number: testOtherMobile, role: 'je', is_active: true, display_name: `Other JE ${suffix}` },
+      { mobile_number: testHoMobile, role: 'ho', is_active: true, display_name: `HO M7 ${suffix}` },
+      { mobile_number: testAdminMobile, role: 'admin', is_active: true, display_name: `Admin M7 ${suffix}` }
+    ]);
+    await setupProject(testWorkOrder, `EST_M7_${suffix}`, 500000.00, testJeMobile);
 
     // Clear active estimates for this work order to bypass unique checks
     await supabase.from('project_cost_estimates')
@@ -117,35 +105,15 @@ describe('Milestone 7 — Cost Estimates HO Review API', () => {
 
   afterAll(async () => {
     if (testEstimateIdZeroItems) {
-      await supabase.from('project_cost_estimates').update({
-        work_order_no: 'WB_BAN_102',
-        created_by: '+918276071523',
-        last_modified_by: '+918276071523',
-        je_user_id: '+918276071523',
-        zo_approved_by: null,
-        ho_approved_by: null
-      }).eq('estimate_id', testEstimateIdZeroItems);
+      await supabase.from('project_cost_estimates').delete().eq('estimate_id', testEstimateIdZeroItems);
     }
     if (testEstimateId) {
       await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', testEstimateId);
-      await supabase.from('project_cost_estimates')
-        .update({
-          estimate_status: 'Rejected by ZO',
-          created_by: '+918276071523',
-          last_modified_by: '+918276071523',
-          je_user_id: '+918276071523',
-          zo_approved_by: null,
-          ho_approved_by: null
-        })
-        .eq('estimate_id', testEstimateId);
       await supabase.from('estimate_revision_log').delete().eq('estimate_id', testEstimateId);
+      await supabase.from('project_cost_estimates').delete().eq('estimate_id', testEstimateId);
     }
-    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile]);
-    if (global.__originalAdminName !== undefined) {
-      await supabase.from('authorised_users')
-        .update({ display_name: global.__originalAdminName })
-        .eq('mobile_number', testAdminMobile);
-    }
+    if (testWorkOrder) await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile, testAdminMobile]);
   });
 
   describe('HO Start Review & Gating', () => {
@@ -333,7 +301,7 @@ describe('Milestone 7 — Cost Estimates HO Review API', () => {
       expect(est.ho_approval_date).not.toBeNull();
     });
 
-    test('Test 8: Transitions to Rejected by HO (retains total amount, sets stamps)', async () => {
+    test('Test 8: Blocks submitReview with 422 when an item is marked Not Approve (requires Revision Request)', async () => {
       expect(testEstimateId).not.toBeNull();
 
       await supabase.from('project_cost_estimates')
@@ -341,7 +309,7 @@ describe('Milestone 7 — Cost Estimates HO Review API', () => {
         .eq('estimate_id', testEstimateId);
 
       await supabase.from('project_cost_estimate_items')
-        .update({ ho_office_approve: 'Not Approve', ho_remarks: 'Rejected item' })
+        .update({ ho_office_approve: 'Not Approve', ho_remarks: 'Disapproved by HO' })
         .eq('item_id', testItemId2);
 
       const req = {
@@ -352,15 +320,8 @@ describe('Milestone 7 — Cost Estimates HO Review API', () => {
       const res = mockRes();
       await submitReview(req, res);
 
-      expect(res.statusCode).toBe(200);
-      expect(res.jsonData.success).toBe(true);
-
-      const est = res.jsonData.estimate;
-      expect(est.estimate_status).toBe('Rejected by HO');
-      expect(est.ho_approved_by).toBe(testHoMobile);
-      expect(est.ho_remarks).toBe('HO Reject Remarks');
-      expect(est.ho_approval_date).not.toBeNull();
-      expect(Number(est.estimate_amount)).toBe(150000);
+      expect(res.statusCode).toBe(422);
+      expect(res.jsonData.message).toContain('Final review cannot be submitted while one or more items are marked Not Approve');
     });
 
     test('Test 9: Verifies Admin actor successfully executes the full HO review sequence', async () => {
