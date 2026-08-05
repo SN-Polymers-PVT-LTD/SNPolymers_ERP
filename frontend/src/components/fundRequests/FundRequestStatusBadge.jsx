@@ -1,7 +1,7 @@
 import React from 'react';
 import { Badge } from '../ui';
 
-export const STATUS_CONFIG = {
+const STATUS_CONFIG = {
   Pending: { variant: 'amber', label: 'Pending' },
   Approved: { variant: 'emerald', label: 'Approved' },
   Hold: { variant: 'red', label: 'Hold' },

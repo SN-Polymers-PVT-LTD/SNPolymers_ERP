@@ -3,6 +3,7 @@ import TimelineProgress from './TimelineProgress';
 import { getProjects } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getFundRequests } from '../../api/fundRequests';
+import { FormattedCurrencyInput } from '../ui';
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
@@ -423,14 +424,13 @@ const RequestDetailPanel = ({
               <div className="md:col-span-1 border border-emerald-500/25 bg-emerald-500/[0.02] p-5 rounded-2xl flex flex-col justify-center items-center min-h-[120px]">
                 <span className="text-[8px] font-bold uppercase tracking-widest text-emerald-400">Requested Amount</span>
                 {isCreate ? (
-                  <input
-                    type="number"
+                  <FormattedCurrencyInput
                     value={zoFrAmount}
-                    onChange={(e) => setZoFrAmount(e.target.value)}
+                    onValueChange={(val) => setZoFrAmount(val)}
                     placeholder="0.00"
-                    step="0.01"
                     disabled={actionSubmitting}
-                    className="w-full text-center bg-transparent outline-none border-b border-slate-700 focus:border-amber-500 text-lg font-black text-slate-100 font-mono mt-2"
+                    className="!w-full text-center !bg-transparent outline-none !border-x-0 !border-t-0 !border-b !border-slate-700 focus:!border-amber-500 text-lg font-black text-slate-100 font-mono mt-2 !px-0 !py-1 !rounded-none"
+                    containerClassName="w-full"
                   />
                 ) : (
                   <span className="text-xl font-black text-emerald-400 font-mono mt-3">
@@ -583,15 +583,14 @@ const RequestDetailPanel = ({
                     <>
                       <div>
                         <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Approved Amount (₹)</label>
-                        <input
-                          type="number"
-                          value={hoAmount}
-                          onChange={(e) => setHoAmount(e.target.value)}
+                        <FormattedCurrencyInput
                           placeholder="Approved amount..."
-                          step="0.01"
+                          value={hoAmount}
+                          onValueChange={(val) => setHoAmount(val)}
                           required
                           disabled={actionSubmitting}
-                          className="w-full glass-input rounded-lg px-3 py-2 text-xs font-mono"
+                          className="font-mono text-xs"
+                          size="sm"
                         />
                       </div>
                       <div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getProjects } from '../api/projectsApi';
 import {
@@ -387,21 +387,6 @@ const RAFinalBill = () => {
     }
   };
 
-  // Helper: clamp numeric input to non-negative on change
-  const handleNumericInput = (field) => (e) => {
-    const raw = e.target.value;
-    // Allow empty string for clearing
-    if (raw === '' || raw === '-') {
-      setFormState(prev => ({ ...prev, [field]: raw === '-' ? '' : raw }));
-      return;
-    }
-    const num = parseFloat(raw);
-    if (!isNaN(num) && num < 0) {
-      setFormState(prev => ({ ...prev, [field]: '0' }));
-    } else {
-      setFormState(prev => ({ ...prev, [field]: raw }));
-    }
-  };
 
   // Form Reset
   const handleReset = () => {
@@ -1413,14 +1398,11 @@ const RAFinalBill = () => {
 
               {/* Field 1: Gross Bill — highlighted */}
               <div className="p-3 rounded-xl bg-amber-950/10 border border-amber-900/25">
-                <Input
+                <FormattedCurrencyInput
                   label="Gross Bill (Field 1)"
-                  type="number"
                   placeholder="Enter Gross Bill Amount"
-                  step="0.01"
-                  min="0"
                   value={formState.gross_bill}
-                  onChange={handleNumericInput('gross_bill')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, gross_bill: val }))}
                   disabled={submitting}
                   size="sm"
                   iconLeft={<span className="text-xs text-amber-500 font-bold">₹</span>}
@@ -1430,74 +1412,74 @@ const RAFinalBill = () => {
 
               {/* Fields 2–9: Breakdown deduction/payment fields */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <Input
+                <FormattedCurrencyInput
                   label="Agency Payment"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.agency_payment}
-                  onChange={handleNumericInput('agency_payment')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, agency_payment: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="Security Deposit Amt"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.security_deposit_amount}
-                  onChange={handleNumericInput('security_deposit_amount')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, security_deposit_amount: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="Special Security Amt"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.special_security_amount}
-                  onChange={handleNumericInput('special_security_amount')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, special_security_amount: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="Other Retention"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.other_retention}
-                  onChange={handleNumericInput('other_retention')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, other_retention: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="IT TDS"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.it_tds}
-                  onChange={handleNumericInput('it_tds')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, it_tds: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="SGST"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.sgst}
-                  onChange={handleNumericInput('sgst')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, sgst: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="CGST"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.cgst}
-                  onChange={handleNumericInput('cgst')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, cgst: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"
                 />
-                <Input
+                <FormattedCurrencyInput
                   label="SD"
-                  type="number" placeholder="0.00" step="0.01" min="0"
+                  placeholder="0.00"
                   value={formState.sd}
-                  onChange={handleNumericInput('sd')}
+                  onValueChange={(val) => setFormState(prev => ({ ...prev, sd: val }))}
                   disabled={submitting} size="sm"
                   iconLeft={<span className="text-xs text-slate-500 font-bold">₹</span>}
                   className="font-mono"

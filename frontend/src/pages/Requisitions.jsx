@@ -16,7 +16,7 @@ import {
   getMainHeadCapacity
 } from '../api/requisitionsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
-import { Button, Input, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Helper for currency formatting
@@ -512,14 +512,11 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
               )}
             </div>
 
-            <Input
+            <FormattedCurrencyInput
               label="Approved Amount (₹)"
-              type="number"
               value={approvedAmount}
-              onChange={(e) => setApprovedAmount(e.target.value)}
+              onValueChange={(val) => setApprovedAmount(val)}
               placeholder="0.00"
-              step="0.01"
-              min="0.01"
               required
               disabled={submitting}
             />
@@ -1175,14 +1172,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             )}
           </div>
 
-          <Input
+          <FormattedCurrencyInput
             label="Requisition Amount (₹)"
-            type="number"
             value={reqAmount}
-            onChange={(e) => setReqAmount(e.target.value)}
+            onValueChange={(val) => setReqAmount(val)}
             placeholder="0.00"
-            step="0.01"
-            min="0.01"
             required
             disabled={submitting}
           />

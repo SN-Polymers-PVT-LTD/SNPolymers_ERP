@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Input, TextArea, Button } from '../ui';
+import { Modal, Input, FormattedCurrencyInput, TextArea, Button } from '../ui';
 
 const NewFundRequestModal = ({ user, onClose, onSave }) => {
   const [form, setForm] = useState({ zo_fr_no: '', zo_fr_amount: '', zo_remarks: '' });
@@ -119,15 +119,12 @@ const NewFundRequestModal = ({ user, onClose, onSave }) => {
         />
 
         {/* Amount */}
-        <Input
+        <FormattedCurrencyInput
           label="Requested Amount (₹)"
-          type="number"
           name="zo_fr_amount"
           value={form.zo_fr_amount}
-          onChange={handleChange}
+          onValueChange={(val) => setForm(prev => ({ ...prev, zo_fr_amount: val }))}
           placeholder="0.00"
-          step="0.01"
-          min="0.01"
           required
           disabled={submitting}
         />

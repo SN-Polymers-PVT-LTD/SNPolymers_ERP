@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, TextArea, Badge, Modal, SkeletonTable } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Badge, Modal, SkeletonTable } from '../components/ui';
 import { getReports, getDeletedReports, createReport, updateReport, deleteReport, restoreReport } from '../api/reportsApi';
 import { getProjects } from '../api/projectsApi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -152,12 +152,11 @@ const ReportFormModal = ({ mode, initial, projects, onClose, onSave }) => {
             disabled={mode === 'edit' || submitting}
             size="sm"
           />
-          <Input
+          <FormattedCurrencyInput
             label="Disbursed Amount (INR)"
             name="amount"
-            type="number"
             value={form.amount}
-            onChange={handleChange}
+            onValueChange={(val) => setForm(prev => ({ ...prev, amount: val }))}
             placeholder="0.00"
             required
             disabled={isClosed || submitting}

@@ -18,15 +18,24 @@ module.exports = defineConfig({
     // 60s for hooks (seeding takes time)
     hookTimeout: 60000,
 
-    include: ['tests/vitest/**/*.test.js'],
+    // Layer order: unit → contracts → regression → milestones → legacy root integration
+    include: [
+      'tests/vitest/unit/**/*.test.js',
+      'tests/vitest/contracts/**/*.test.js',
+      'tests/vitest/regression/**/*.test.js',
+      'tests/vitest/milestones/**/*.test.js',
+      'tests/vitest/*.test.js'
+    ],
 
-    // Never accidentally pick up legacy files
+    // Never accidentally pick up legacy files outside vitest/
     exclude: [
       'tests/milestones/**',
       'tests/hardening/**',
       'tests/phase2/**',
       'node_modules/**'
     ],
+
+    passWithNoTests: true,
 
     // Default terminal output plus HTML reporting
     reporters: ['default', 'html'],

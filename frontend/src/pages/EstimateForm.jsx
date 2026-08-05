@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, TextArea, Select, Modal } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Select, Modal } from '../components/ui';
 import authApi from '../api/authApi';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -202,7 +202,6 @@ const EstimateForm = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     initForm();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
@@ -646,10 +645,10 @@ const EstimateForm = () => {
                 <tr className="border-b border-white/5 bg-white/[0.02] text-[9px] uppercase tracking-widest text-slate-400 font-mono">
                   <th className="py-4 px-6 w-48">Main Category</th>
                   <th className="py-4 px-6 w-48">Sub Head</th>
-                  <th className="py-4 px-6">Material Details</th>
+                  <th className="py-4 px-6 w-56 min-w-[210px]">Material Details</th>
                   <th className="py-4 px-6 w-24">Unit</th>
-                  <th className="py-4 px-6 w-24">Qty</th>
-                  <th className="py-4 px-6 w-28">Rate (₹)</th>
+                  <th className="py-4 px-6 w-32">Qty</th>
+                  <th className="py-4 px-6 w-36">Rate (₹)</th>
                   <th className="py-4 px-6 w-36">Rate Reference</th>
                   <th className="py-4 px-6 w-40">Source of Purchase</th>
                   <th className="py-4 px-6 w-32">Amount</th>
@@ -698,7 +697,7 @@ const EstimateForm = () => {
                           {item.subHeadsList?.map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 min-w-[210px]">
                         <select
                            value={item.material_details}
                            onChange={(e) => handleItemChange(idx, 'material_details', e.target.value)}
@@ -733,13 +732,10 @@ const EstimateForm = () => {
                         />
                       </td>
                       <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="any"
+                        <FormattedCurrencyInput
                           value={item.rate || ''}
-                          onChange={(e) => handleItemChange(idx, 'rate', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs font-semibold text-center"
+                          onValueChange={(val) => handleItemChange(idx, 'rate', val)}
+                          className="w-full p-2 rounded-lg text-xs font-semibold text-center"
                           disabled={isFormLockedByExpiry || submitting || isLocked}
                         />
                       </td>

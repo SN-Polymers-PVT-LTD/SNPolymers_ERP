@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { FormattedCurrencyInput } from '../ui';
 
 const HOActionModal = ({ user, request, onClose, onSave }) => {
   const [action, setAction] = useState('Approve'); // 'Approve' | 'Hold'
-  const [amount, setAmount] = useState(request?.zo_fr_amount || '');
+  const [amount, setAmount] = useState(String(request?.zo_fr_amount ?? ''));
   const [account, setAccount] = useState('');
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -148,16 +149,13 @@ const HOActionModal = ({ user, request, onClose, onSave }) => {
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
               Approved Amount (₹) {!isHold && <span className="text-red-400">*</span>}
             </label>
-            <input
-              type="number"
+            <FormattedCurrencyInput
               value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+              onValueChange={(val) => setAmount(val)}
               placeholder={isHold ? "N/A — Hold" : "0.00"}
-              step="0.01"
-              min="0.01"
               disabled={isHold || submitting}
               required={!isHold}
-              className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold text-slate-100 transition ${isHold ? 'opacity-40 cursor-not-allowed bg-slate-900/50' : ''}`}
+              className={isHold ? 'opacity-40 cursor-not-allowed bg-slate-900/50' : ''}
             />
           </div>
 

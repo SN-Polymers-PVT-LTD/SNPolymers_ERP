@@ -3,7 +3,7 @@ import React from 'react';
 /**
  * Calculates a sliding window of visible page numbers, capped at `maxVisible` (default 5).
  */
-export const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
+const getVisiblePageNumbers = (currentPage, totalPages, maxVisible = 5) => {
   if (!totalPages || totalPages <= 0) return [];
   if (totalPages <= maxVisible) {
     return Array.from({ length: totalPages }, (_, i) => i + 1);

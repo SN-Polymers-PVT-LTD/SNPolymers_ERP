@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import Modal from '../components/ui/Modal';
+import FormattedCurrencyInput from '../components/ui/FormattedCurrencyInput';
 import {
   getReturnRequests,
   createReturnRequest,
@@ -558,13 +559,10 @@ const ExcessFundReturns = () => {
 
           <div className="space-y-2">
             <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Requested Return Amount (INR)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
+            <FormattedCurrencyInput
               placeholder="0.00"
               value={requestAmount}
-              onChange={(e) => setRequestAmount(e.target.value)}
+              onValueChange={(val) => setRequestAmount(val)}
               className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
               required
             />
@@ -788,13 +786,10 @@ const ExcessFundReturns = () => {
                 <label className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">
                   New Requested Amount (₹)
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
+                <FormattedCurrencyInput
                   placeholder="Enter new requested amount..."
                   value={hoRequestedAmount}
-                  onChange={(e) => setHoRequestedAmount(e.target.value)}
+                  onValueChange={(val) => setHoRequestedAmount(val)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xs text-slate-100 focus:outline-none focus:border-amber-500/50"
                   required
                 />

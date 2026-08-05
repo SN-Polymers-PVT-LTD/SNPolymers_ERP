@@ -55,7 +55,6 @@ const DigitalTwinHub = () => {
   const paginatedProjects = filteredProjects.slice((page - 1) * CARDS_PER_PAGE, page * CARDS_PER_PAGE);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
   }, [searchTerm, statusFilter, zoneFilter]);
 
@@ -69,7 +68,6 @@ const DigitalTwinHub = () => {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setPinnedProjects(JSON.parse(stored));
       } else {
         setPinnedProjects([]);
