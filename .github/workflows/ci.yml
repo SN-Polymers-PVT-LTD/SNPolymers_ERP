@@ -129,6 +129,16 @@ jobs:
         working-directory: backend
         run: npm run migrate
 
+      - name: Verify manifests are up to date
+        working-directory: backend
+        run: |
+          npm run generate:manifests
+          git diff --exit-code tests/manifests/
+
+      - name: Run DB contract tests
+        working-directory: backend
+        run: npm run test:contracts:db
+
       - name: Run integration tests
         working-directory: backend
         run: npm run test:integration

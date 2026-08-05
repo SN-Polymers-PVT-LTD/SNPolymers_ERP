@@ -4,6 +4,8 @@ node_modules/
 # Environment Variables
 .env
 .env.local
+.env.dev-db
+.env.prod-db
 
 
 # Logs

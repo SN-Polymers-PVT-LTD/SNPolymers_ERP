@@ -15,9 +15,9 @@
 
 'use strict';
 
-const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { createPgClient } = require('./lib/pg-connect');
 
 const MIGRATIONS_DIR = path.join(__dirname, '../src/db/migrations');
 
@@ -64,7 +64,7 @@ async function main() {
     process.exit(1);
   }
 
-  const client = new Client({ connectionString: dbUri });
+  const client = await createPgClient(dbUri);
 
   try {
     await client.connect();
@@ -142,6 +142,20 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n[apply-migrations] Fatal error:', err.message);
+  const message = err.message || String(err);
+  if (message.includes('ENOTFOUND') && process.env.SUPABASE_TEST_DB_URI?.includes('db.')) {
+    console.error(
+      '\n[apply-migrations] Hint: db.*.supabase.co is IPv6-only on free tier.\n' +
+        '  Use Session pooler URL in .env.dev-db / .env.prod-db instead.\n' +
+        '  Supabase Dashboard → Connect → Session pooler → copy URI\n'
+    );
+  }
+  if (message.includes('ENETUNREACH') && process.env.SUPABASE_TEST_DB_URI?.includes('db.')) {
+    console.error(
+      '\n[apply-migrations] Hint: your network cannot reach Supabase over IPv6.\n' +
+        '  Switch .env.*-db to the Session pooler connection string (IPv4).\n'
+    );
+  }
+  console.error('\n[apply-migrations] Fatal error:', message);
   process.exit(1);
 });

@@ -1,0 +1,11 @@
+[
+  "authorised_users_mobile_number_key",
+  "authorised_users_pkey",
+  "idx_sessions_user_login",
+  "idx_fund_requests_status",
+  "idx_requisitions_work_order",
+  "idx_requisitions_status",
+  "idx_pce_work_order",
+  "idx_projects_zo_user",
+  "idx_project_health_mv_wo"
+]

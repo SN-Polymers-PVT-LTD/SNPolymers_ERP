@@ -1,7 +1,17 @@
 #!/usr/bin/env node
-/**
- * Phase 2: generates tests/manifests/rpcManifest.generated.js from pg_proc.
- * Stub until Phase 2 implementation.
- */
-console.log('generate:rpc-manifest — not implemented yet (Phase 2)');
-process.exit(0);
+'use strict';
+
+const { loadJson, fetchRpcFunctions } = require('./lib/manifest-queries');
+const { writeGeneratedManifest } = require('./lib/write-manifest');
+
+async function main() {
+  const functionNames = loadJson('rpcAllowlist.json');
+  const functions = await fetchRpcFunctions(functionNames);
+  const filePath = writeGeneratedManifest('rpcManifest.generated.js', { functions });
+  console.log(`Wrote ${filePath} (${functionNames.length} functions)`);
+}
+
+main().catch((error) => {
+  console.error(`generate:rpc-manifest failed: ${error.message}`);
+  process.exit(1);
+});
