@@ -671,10 +671,10 @@ const EstimateView = () => {
                       <th className="py-4 px-5 w-12 text-center">Sl.</th>
                       <th className="py-4 px-5 w-40">Main Head</th>
                       <th className="py-4 px-5 w-40">Sub Head</th>
-                      <th className="py-4 px-5">Material Details</th>
+                      <th className="py-4 px-5 w-56 min-w-[210px]">Material Details</th>
                       <th className="py-4 px-5 w-16 text-center">Unit</th>
-                      <th className="py-4 px-5 w-20 text-center">Qty</th>
-                      <th className="py-4 px-5 w-24 text-right">Rate</th>
+                      <th className="py-4 px-5 w-28 text-center">Qty</th>
+                      <th className="py-4 px-5 w-32 text-right">Rate</th>
                       <th className="py-4 px-5 w-28">Rate Ref</th>
                       <th className="py-4 px-5 w-32 text-right">Amount</th>
                       {showReviewPanel ? (
@@ -713,7 +713,7 @@ const EstimateView = () => {
                             </span>
                           </td>
                           <td className="py-4 px-5 text-slate-300 font-semibold">{item.material_sub_head}</td>
-                          <td className="py-4 px-5 font-bold text-slate-200 whitespace-pre-wrap">{item.material_details}</td>
+                          <td className="py-4 px-5 font-bold text-slate-200 whitespace-pre-wrap min-w-[210px]">{item.material_details}</td>
                           <td className="py-4 px-5 text-center text-slate-400 font-mono">{item.unit}</td>
                           <td className="py-4 px-5 text-center font-bold text-slate-300">{item.qty}</td>
                           <td className="py-4 px-5 text-right font-mono">{formatINR(item.rate)}</td>

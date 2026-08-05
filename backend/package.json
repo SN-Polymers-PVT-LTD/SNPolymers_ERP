@@ -11,6 +11,8 @@
     "test:local": "bash scripts/test-local.sh",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "test:unit": "vitest run tests/vitest/mobile.test.js",
+    "test:auth": "vitest run tests/vitest/mobile.test.js tests/vitest/authWhitelist.test.js",
     "test:milestone1": "vitest run tests/vitest/milestones/milestone1.test.js",
     "test:p7:db": "bash scripts/test-p7-local.sh db",
     "test:p7:api": "bash scripts/test-p7-local.sh api",

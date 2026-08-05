@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Select, Input, TextArea, Button } from '../ui';
+import { Modal, Select, Input, FormattedCurrencyInput, TextArea, Button } from '../ui';
 import { useAuth } from '../AuthContext';
 
 export const EstimatedBillEntryModal = ({
@@ -218,10 +218,9 @@ export const EstimatedBillEntryModal = ({
             <label className="block text-xs font-bold text-slate-300 mb-1.5">
               Estimated Bill Amount (₹) <span className="text-amber-500">*</span>
             </label>
-            <Input
-              type="number"
+            <FormattedCurrencyInput
               value={amount}
-              onChange={(e) => handleAmountChange(e.target.value)}
+              onValueChange={(val) => handleAmountChange(val)}
               placeholder="0.00"
               className="font-mono tabular-nums"
             />
