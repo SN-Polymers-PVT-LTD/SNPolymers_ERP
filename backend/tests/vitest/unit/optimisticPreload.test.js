@@ -5,7 +5,6 @@ describe('Optimistic Preloading Logic', () => {
     const mockDashboardImport = vi.fn().mockResolvedValue({ default: () => 'DashboardComponent' });
     const mockDailyProgressImport = vi.fn().mockResolvedValue({ default: () => 'DailyProgressComponent' });
 
-    // Simulate OTP screen optimistic preloader function
     const prefetchRoutes = async () => {
       const results = await Promise.all([
         mockDashboardImport(),

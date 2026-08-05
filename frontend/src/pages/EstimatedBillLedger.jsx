@@ -40,6 +40,8 @@ const formatDate = (dateStr) => {
   }
 };
 
+const EMPTY_ARRAY = [];
+
 export const EstimatedBillLedger = () => {
   const { work_order_no } = useParams();
   const { user } = useAuth();
@@ -70,7 +72,7 @@ export const EstimatedBillLedger = () => {
     }
   });
 
-  const entries = ledgerData?.data || [];
+  const entries = ledgerData?.data || EMPTY_ARRAY;
   const project = ledgerData?.project || null;
 
   const canAddEntry = canManageEstimatedBills({

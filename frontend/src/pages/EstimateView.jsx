@@ -120,7 +120,6 @@ const EstimateView = () => {
         source_of_purchase: item.source_of_purchase || ''
       };
     });
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRowDecisions(initialDecisions);
   }, [estimateData, estimate, items]);
 

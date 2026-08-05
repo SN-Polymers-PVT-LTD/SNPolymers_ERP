@@ -3,7 +3,7 @@ const {
   normalizeMobileNumber,
   mobileNumberVariants,
   toStoredMobileNumber
-} = require('../../src/utils/mobile');
+} = require('../../../src/utils/mobile');
 
 describe('mobile number utilities', () => {
   describe('normalizeMobileNumber', () => {
@@ -65,7 +65,6 @@ describe('mobile number utilities', () => {
   });
 
   describe('frontend ↔ database contract', () => {
-    // Mirrors Login.jsx: last 10 digits → `+91${last10}`
     const frontendLoginPayload = (tenDigits) => `+91${tenDigits}`;
     const productionDbRow = '918276071523';
 

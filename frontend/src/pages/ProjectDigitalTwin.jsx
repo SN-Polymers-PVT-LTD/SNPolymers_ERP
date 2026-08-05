@@ -229,7 +229,7 @@ const ProjectDigitalTwin = () => {
   const overrunAmt = Math.max(0, approvedRequisitionAmt - (overview.work_order_value || 0));
   const overrunPct = Math.max(0, (budget.budget_variance_pct || 0) - 100);
   // media is the canonical gallery field; keep a 2-item slice for future quick-access use
-  const _recentMedia = (twinData?.media || []).slice(0, 2); // eslint-disable-line no-unused-vars
+  const _recentMedia = (twinData?.media || []).slice(0, 2);
   const audits = twinData?.audits || [];
 
   // Tab definitions (No emojis)

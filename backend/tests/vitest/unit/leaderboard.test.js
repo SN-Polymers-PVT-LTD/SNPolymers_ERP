@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const { supabase } = require('../../src/db/supabase');
-const { getJeLeaderboard } = require('../../src/controllers/analytics.controller');
+const { supabase } = require('../../../src/db/supabase');
+const { getJeLeaderboard } = require('../../../src/controllers/analytics.controller');
 
 describe('Analytics Controller - JE Leaderboard', () => {
   let req, res;
@@ -56,18 +56,15 @@ describe('Analytics Controller - JE Leaderboard', () => {
     expect(jsonCall.success).toBe(true);
     expect(jsonCall.leaderboard).toBeDefined();
 
-    // Verify Deactivated JE is excluded
     const deactivatedUser = jsonCall.leaderboard.find(u => u.mobile_number === '+919000000003');
     expect(deactivatedUser).toBeUndefined();
 
-    // Verify Active JE 1 is Ranked #1
     const topJe = jsonCall.leaderboard[0];
     expect(topJe.rank).toBe(1);
     expect(topJe.mobile_number).toBe('+919000000001');
     expect(topJe.total_reports).toBe(2);
     expect(topJe.approved_reports).toBe(2);
     expect(topJe.avg_progress).toBe(60);
-    // Score formula: (2*20) + (5*10) + (60*2) + (2*15) = 40 + 50 + 120 + 30 = 240
     expect(topJe.score).toBe(240);
   });
 

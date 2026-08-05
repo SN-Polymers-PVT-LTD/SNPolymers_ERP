@@ -1,10 +1,10 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
-const { supabase } = require('../../src/db/supabase');
-const { requestOtp, checkLinkStatus, verifyOtpCode } = require('../../src/controllers/auth.controller');
-const { addUser } = require('../../src/controllers/admin.controller');
-const { mobileNumberVariants } = require('../../src/utils/mobile');
-const mockRes = require('../helpers/mockRes');
+const { supabase } = require('../../../src/db/supabase');
+const { requestOtp, checkLinkStatus, verifyOtpCode } = require('../../../src/controllers/auth.controller');
+const { addUser } = require('../../../src/controllers/admin.controller');
+const { mobileNumberVariants } = require('../../../src/utils/mobile');
+const mockRes = require('../../helpers/mockRes');
 
 /**
  * Regression suite for production login failures caused by mobile format drift:
@@ -130,8 +130,9 @@ describe('Auth whitelist — mobile format regression', () => {
     const verifyReq = {
       body: {
         mobileNumber: digitsOnlyUser.frontend,
-        otp: '123456' // NODE_ENV=test bypass in otp.service
-      }
+        otp: '123456'
+      },
+      headers: {}
     };
     const verifyRes = mockRes();
     verifyRes.cookie = function () { return this; };

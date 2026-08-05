@@ -387,21 +387,6 @@ const RAFinalBill = () => {
     }
   };
 
-  // Helper: clamp numeric input to non-negative on change
-  const handleNumericInput = (field) => (e) => {
-    const raw = e.target.value;
-    // Allow empty string for clearing
-    if (raw === '' || raw === '-') {
-      setFormState(prev => ({ ...prev, [field]: raw === '-' ? '' : raw }));
-      return;
-    }
-    const num = parseFloat(raw);
-    if (!isNaN(num) && num < 0) {
-      setFormState(prev => ({ ...prev, [field]: '0' }));
-    } else {
-      setFormState(prev => ({ ...prev, [field]: raw }));
-    }
-  };
 
   // Form Reset
   const handleReset = () => {

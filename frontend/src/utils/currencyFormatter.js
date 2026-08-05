@@ -73,7 +73,7 @@ export function parseCurrencyString(val, options = {}) {
  * @param {Object} options
  * @returns {string} Indian formatted currency string (e.g. "1,50,000.50" or "")
  */
-export function formatIndianCurrency(val, options = {}) {
+export function formatIndianCurrency(val, _options = {}) {
   if (val === '' || val == null) return '';
 
   const str = String(val);

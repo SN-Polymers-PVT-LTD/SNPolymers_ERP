@@ -202,7 +202,6 @@ const EstimateForm = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     initForm();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);

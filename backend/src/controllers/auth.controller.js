@@ -145,8 +145,8 @@ async function verifyOtpCode(req, res) {
 
     // 3. Issue Tokens & Create DB Session
     const refreshJti = uuidv4();
-    const ipAddress = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || 'unknown';
-    const userAgent = req.headers['user-agent'];
+    const ipAddress = (req.headers?.['x-forwarded-for'] || '').split(',')[0].trim() || req.ip || null;
+    const userAgent = req.headers?.['user-agent'];
 
     const session = await createSession({
       userId: user.id,

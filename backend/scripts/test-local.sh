@@ -66,7 +66,11 @@ node scripts/apply-migrations.js
 echo ""
 echo "▶  Running integration tests..."
 # Forward any extra args (e.g. --ui, a specific file) to vitest
-node_modules/.bin/vitest run "$@"
+if [ $# -eq 0 ]; then
+  npm run test:integration
+else
+  node_modules/.bin/vitest run "$@"
+fi
 TEST_EXIT_CODE=$?
 
 # ─── Optionally stop Supabase ─────────────────────────────────────────────────

@@ -384,7 +384,6 @@ const Sidebar = () => {
   }, [storageKey]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadPinnedProjects();
     window.addEventListener('pinned-projects-updated', loadPinnedProjects);
     return () => {

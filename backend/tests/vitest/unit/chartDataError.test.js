@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-const { supabase } = require('../../src/db/supabase');
-const { getHoChartData } = require('../../src/controllers/analytics.controller');
+const { supabase } = require('../../../src/db/supabase');
+const { getHoChartData } = require('../../../src/controllers/analytics.controller');
 
 describe('getHoChartData error handling', () => {
   beforeEach(() => {
