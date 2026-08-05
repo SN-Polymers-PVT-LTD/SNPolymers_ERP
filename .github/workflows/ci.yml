@@ -76,7 +76,13 @@ jobs:
           cache-dependency-path: backend/package-lock.json
 
       - run: npm ci
-      - run: npm run test:contracts
+
+      - name: Run static contract tests
+        env:
+          GIT_SHA: ${{ github.sha }}
+          GIT_BRANCH: ${{ github.ref_name }}
+          BUILD_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
+        run: npm run test:contracts
 
   # ---------------------------------------------------------------------------
   # Docker gate — Supabase + migrate + regression + milestones
@@ -147,5 +153,17 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - run: npm ci
+
+      - name: Verify build env
+        env:
+          CI: 'true'
+          VITE_API_URL: https://snpolymers.onrender.com/api/v1/auth
+        run: npm run verify-build-env
+
       - run: npm test
-      - run: npm run build
+
+      - name: Production build
+        env:
+          CI: 'true'
+          VITE_API_URL: https://snpolymers.onrender.com/api/v1/auth
+        run: npm run build

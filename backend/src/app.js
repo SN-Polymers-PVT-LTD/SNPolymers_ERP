@@ -3,6 +3,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const { supabase } = require('./db/supabase');
+const { getBuildInfo } = require('./utils/buildInfo');
+const { isOriginAllowed } = require('./config/cors');
 require('dotenv').config();
 
 // Production environment sanity checks
@@ -52,32 +54,9 @@ app.use(requestLogger);
 const PORT = process.env.PORT || 5000;
 
 // Configuration
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'https://sn-polymers.vercel.app',
-  'https://snpolymers.vercel.app',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
-].filter(Boolean);
-
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, postman, curl)
-    if (!origin) return callback(null, true);
-    
-    let isVercel = false;
-    try {
-      isVercel = /\.vercel\.app$/.test(new URL(origin).hostname);
-    } catch {
-      isVercel = false;
-    }
-
-    if (
-      allowedOrigins.includes(origin) ||
-      isVercel ||
-      process.env.NODE_ENV !== 'production' ||
-      /^http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)(:\d+)?$/.test(origin)
-    ) {
+    if (isOriginAllowed(origin)) {
       return callback(null, true);
     }
     return callback(new Error('Not allowed by CORS'));
@@ -132,10 +111,30 @@ app.get('/health', async (req, res) => {
       throw error;
     }
 
-    return res.status(200).json({ status: 'OK', database: 'CONNECTED', timestamp: new Date() });
+    const build = getBuildInfo();
+
+    return res.status(200).json({
+      status: 'OK',
+      database: 'CONNECTED',
+      version: build.version,
+      git: build.git,
+      branch: build.branch,
+      built: build.built,
+      timestamp: new Date().toISOString()
+    });
   } catch (err) {
     console.error(`Health check failed: database connection issue — ${err.message}`);
-    return res.status(503).json({ status: 'ERROR', database: 'DISCONNECTED', error: err.message, timestamp: new Date() });
+    const build = getBuildInfo();
+    return res.status(503).json({
+      status: 'ERROR',
+      database: 'DISCONNECTED',
+      error: err.message,
+      version: build.version,
+      git: build.git,
+      branch: build.branch,
+      built: build.built,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

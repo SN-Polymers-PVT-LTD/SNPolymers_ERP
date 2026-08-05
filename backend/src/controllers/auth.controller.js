@@ -6,16 +6,12 @@ const { generateOtp, hashOtp, storeOtp, verifyOtp } = require('../services/otp.s
 const { sendOtp } = require('../services/telegram.service');
 const { JWT_SECRET, generateTokens, createSession, closeSession, formatDuration } = require('../services/session.service');
 const { notifyAdminLogin, notifyAdminLogout } = require('../services/email.service');
+const { getCookieOptions } = require('../config/cookies');
 const validate = require('../validation/validate');
 const { requestOtpSchema, verifyOtpSchema } = require('../validation/auth.schema');
 const { normalizeMobileNumber, mobileNumberVariants } = require('../utils/mobile');
 
-const isProd = process.env.NODE_ENV === 'production';
-const cookieOptions = {
-  httpOnly: true,
-  secure: isProd,
-  sameSite: isProd ? 'none' : 'lax'
-};
+const cookieOptions = getCookieOptions();
 
 async function findAuthorisedUserByMobile(rawMobile, { activeOnly = true } = {}) {
   const variants = mobileNumberVariants(rawMobile);
