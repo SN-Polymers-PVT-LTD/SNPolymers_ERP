@@ -17,7 +17,7 @@
     "test:ui": "vitest --ui",
     "test:unit": "vitest run tests/vitest/unit",
     "test:contracts": "vitest run tests/vitest/contracts/deployContract.test.js tests/vitest/contracts/appBoot.test.js",
-    "test:contracts:db": "vitest run tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js tests/vitest/contracts/indexContract.test.js",
+    "test:contracts:db": "vitest run tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js tests/vitest/contracts/indexContract.test.js tests/vitest/contracts/apiResponseShape.test.js tests/vitest/contracts/apiSnapshots.test.js",
     "test:regression": "vitest run tests/vitest/regression",
     "test:integration": "vitest run tests/vitest/regression tests/vitest/milestones tests/vitest/*.test.js",
     "test:auth": "vitest run tests/vitest/unit/mobile.test.js tests/vitest/regression/authWhitelist.test.js",

@@ -1,6 +1,5 @@
 // AUTO-GENERATED — do not edit. Run: npm run generate:manifests
 module.exports = {
-  "generatedAt": "2026-08-05T19:05:28.478Z",
   "indexes": {
     "authorised_users_mobile_number_key": {
       "table": "authorised_users",
