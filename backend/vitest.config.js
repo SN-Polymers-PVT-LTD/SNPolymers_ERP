@@ -18,7 +18,7 @@ module.exports = defineConfig({
     // 60s for hooks (seeding takes time)
     hookTimeout: 60000,
 
-    // Layer order: unit → contracts → regression → milestones → legacy root integration
+    // @frozen — milestones/ is legacy; do not add new files. New coverage → unit/, contracts/, regression/.
     include: [
       'tests/vitest/unit/**/*.test.js',
       'tests/vitest/contracts/**/*.test.js',

@@ -1,0 +1,8 @@
+[
+  "create_requisition_secure",
+  "increment_otp_attempts",
+  "approve_requisition_transact",
+  "approve_fund_request_transact",
+  "accept_excess_fund_return",
+  "refresh_analytics_views"
+]

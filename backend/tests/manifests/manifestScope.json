@@ -1,0 +1,14 @@
+{
+  "tables": [
+    "authorised_users",
+    "sessions",
+    "otp_requests",
+    "requisitions",
+    "fund_requests",
+    "projects_master",
+    "project_cost_estimates",
+    "zo_balances",
+    "zo_fund_ledger",
+    "estimated_bills"
+  ]
+}

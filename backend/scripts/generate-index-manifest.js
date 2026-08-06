@@ -1,7 +1,17 @@
 #!/usr/bin/env node
-/**
- * Phase 2: generates tests/manifests/indexManifest.generated.js from pg_indexes.
- * Stub until Phase 2 implementation.
- */
-console.log('generate:index-manifest — not implemented yet (Phase 2)');
-process.exit(0);
+'use strict';
+
+const { loadJson, fetchIndexes } = require('./lib/manifest-queries');
+const { writeGeneratedManifest } = require('./lib/write-manifest');
+
+async function main() {
+  const indexNames = loadJson('indexAllowlist.json');
+  const indexes = await fetchIndexes(indexNames);
+  const filePath = writeGeneratedManifest('indexManifest.generated.js', { indexes });
+  console.log(`Wrote ${filePath} (${indexNames.length} indexes)`);
+}
+
+main().catch((error) => {
+  console.error(`generate:index-manifest failed: ${error.message}`);
+  process.exit(1);
+});

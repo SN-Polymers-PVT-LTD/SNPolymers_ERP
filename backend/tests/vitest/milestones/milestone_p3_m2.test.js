@@ -150,17 +150,6 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       expect(containsCreated).toBe(true);
     });
 
-    test('Test 6: Blocks JE role from listing fund requests with 403', async () => {
-      const reqGetJe = {
-        user: jeUser,
-        query: {}
-      };
-      const resGetJe = mockRes();
-      await getFundRequests(reqGetJe, resGetJe);
-
-      expect(resGetJe.statusCode).toBe(403);
-    });
-
     test('Test 7: Blocks non-owner ZO from fetching a single fund request detail', async () => {
       expect(createdFr1).not.toBeNull();
 

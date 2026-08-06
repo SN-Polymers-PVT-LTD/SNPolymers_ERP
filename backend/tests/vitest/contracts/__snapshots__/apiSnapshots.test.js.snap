@@ -1,0 +1,31 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`apiSnapshots — golden response structure > GET /analytics/projects response shape snapshot (JE, empty scope) 1`] = `
+{
+  "data": [],
+  "success": true,
+}
+`;
+
+exports[`apiSnapshots — golden response structure > GET /auth/me response shape snapshot (JE session) 1`] = `
+{
+  "success": true,
+  "user": {
+    "displayName": "Snapshot JE user",
+    "display_name": "Snapshot JE user",
+    "id": "UUID",
+    "mobile_number": "MOBILE",
+    "permissions": {},
+    "role": "je",
+  },
+}
+`;
+
+exports[`apiSnapshots — golden response structure > GET /health response shape snapshot 1`] = `
+{
+  "branch": "main",
+  "database": "CONNECTED",
+  "status": "OK",
+  "version": "1.0.0",
+}
+`;

@@ -1,7 +1,17 @@
 #!/usr/bin/env node
-/**
- * Phase 2: generates tests/manifests/schemaManifest.generated.js from information_schema.
- * Stub until Phase 2 implementation.
- */
-console.log('generate:schema-manifest — not implemented yet (Phase 2)');
-process.exit(0);
+'use strict';
+
+const { loadJson, fetchSchemaTables } = require('./lib/manifest-queries');
+const { writeGeneratedManifest } = require('./lib/write-manifest');
+
+async function main() {
+  const scope = loadJson('manifestScope.json');
+  const tables = await fetchSchemaTables(scope.tables);
+  const filePath = writeGeneratedManifest('schemaManifest.generated.js', { tables });
+  console.log(`Wrote ${filePath} (${scope.tables.length} tables)`);
+}
+
+main().catch((error) => {
+  console.error(`generate:schema-manifest failed: ${error.message}`);
+  process.exit(1);
+});
