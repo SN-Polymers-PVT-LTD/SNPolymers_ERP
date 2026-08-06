@@ -1,0 +1,41 @@
+name: Production smoke
+
+on:
+  schedule:
+    # Every 15 minutes — stateless probes only (no OTP / rate-limited auth flows)
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Stateless production smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run production smoke probes
+        env:
+          SMOKE_API_BASE: https://snpolymers.onrender.com
+          SMOKE_VERIFY_GITHUB_SHA: 'true'
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          SMOKE_GITHUB_BRANCH: main
+          SMOKE_CORS_ORIGIN: https://sn-polymers.vercel.app
+          SMOKE_MAX_LATENCY_MS: '3000'
+        run: npm run smoke:prod
