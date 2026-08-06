@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 const { supabase } = require('../../../src/db/supabase');
-const requireRole = require('../../../src/middleware/requireRole');
 const mockRes = require('../../helpers/mockRes');
 const setupUsers = require('../../helpers/setupUsers');
 const {
@@ -31,31 +30,6 @@ describe('Milestone 2 — Integration Tests', () => {
   afterEach(async () => {
     // Clean up all M2 test rows
     await supabase.from('purchase_data').delete().filter('name', 'ilike', 'TEST_M2_%');
-  });
-
-  describe('requireRole Middleware', () => {
-    test('blocks unauthorized roles (returns 403)', () => {
-      const jeGuard = requireRole(['je', 'admin']);
-      let nextCalled = false;
-      const reqZo = { user: { role: 'zo' } };
-      const resZo = mockRes();
-
-      jeGuard(reqZo, resZo, () => { nextCalled = true; });
-
-      expect(nextCalled).toBe(false);
-      expect(resZo.statusCode).toBe(403);
-    });
-
-    test('allows authorized roles', () => {
-      const jeGuard = requireRole(['je', 'admin']);
-      let nextCalled = false;
-      const reqJe = { user: { role: 'je' } };
-      const resJe = mockRes();
-
-      jeGuard(reqJe, resJe, () => { nextCalled = true; });
-
-      expect(nextCalled).toBe(true);
-    });
   });
 
   describe('Purchase Options CRUD Operations', () => {

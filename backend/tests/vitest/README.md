@@ -1,5 +1,7 @@
 # Vitest Test Suite Usage Guide
 
+> **Policy:** `milestones/` is frozen — do not add new tests there. See [`../README.md`](../README.md) for the decision tree, ownership rules, and dedup policy.
+
 Welcome to the newly migrated backend test suite powered by **Vitest**. This guide explains how to configure, run, and maintain the test suite.
 
 ---

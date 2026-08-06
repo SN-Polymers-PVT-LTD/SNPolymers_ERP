@@ -55,31 +55,6 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
 
   // ── M2 Tests ──────────────────────────────────────────────────────────────
 
-  test('M2.1: Runway data returns correct structure and handles zero-burn ZOs', async () => {
-    const req = { user: { role: 'ho', mobile_number: hoMobile }, query: {} };
-    const res = mockRes();
-    await getHoActionableInsights(req, res);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.jsonData.success).toBe(true);
-    expect(Array.isArray(res.jsonData.runwayData)).toBe(true);
-    expect(Array.isArray(res.jsonData.stalledProjects)).toBe(true);
-    expect(Array.isArray(res.jsonData.highRevisionProjects)).toBe(true);
-
-    res.jsonData.runwayData.forEach(r => {
-      expect(r).toHaveProperty('zo_user_id');
-      expect(r).toHaveProperty('available_balance');
-      expect(r).toHaveProperty('monthly_burn');
-      expect(r).toHaveProperty('daily_burn');
-      expect(r).toHaveProperty('runway_days'); // null or integer — both valid
-    });
-
-    const zeroBurnZO = res.jsonData.runwayData.find(r => r.monthly_burn === 0);
-    if (zeroBurnZO) {
-      expect(zeroBurnZO.runway_days).toBeNull();
-    }
-  });
-
   test('M2.2: Stalled projects only contain projects with progress < 100% and DPR gap > 7 days', async () => {
     const req = { user: { role: 'admin', mobile_number: adminMobile }, query: {} };
     const res = mockRes();
@@ -106,37 +81,6 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
 
   // ── M3 Tests ──────────────────────────────────────────────────────────────
 
-  test('M3.1: Chart data returns all 6 dataset keys as arrays', async () => {
-    const req = { user: { role: 'ho', mobile_number: hoMobile }, query: {} };
-    const res = mockRes();
-    await getHoChartData(req, res);
-
-    expect(res.statusCode).toBe(200);
-    const keys = ['bubbleMatrix', 'waterfallData', 'zonalHeatmap', 'runwayTrend', 'sCurveData', 'revisionHeatmap'];
-    keys.forEach(k => {
-      expect(res.jsonData).toHaveProperty(k);
-      expect(Array.isArray(res.jsonData[k])).toBe(true);
-    });
-  });
-
-  test('M3.2: Waterfall stages are in correct order and amounts are non-negative numbers', async () => {
-    const req = { user: { role: 'ho', mobile_number: hoMobile }, query: {} };
-    const res = mockRes();
-    await getHoChartData(req, res);
-
-    const wf = res.jsonData.waterfallData;
-    expect(wf).toHaveLength(7);
-    expect(wf[0].stage).toBe('Final Approved Estimate');
-    expect(wf[1].stage).toBe('HO Allocated (Gross)');
-    expect(wf[2].stage).toBe('Excess Returned to HO');
-    expect(wf[3].stage).toBe('HO Allocated (Net)');
-    expect(wf[4].stage).toBe('Requisitions Approved');
-    expect(wf[5].stage).toBe('Gross Billed');
-    expect(wf[6].stage).toBe('Agency Paid');
-    wf.forEach(w => expect(Number(w.amount)).toBeGreaterThanOrEqual(0));
-    expect(wf.some(w => w.stage === 'Estimated Bill Forecast')).toBe(false);
-  });
-
   test('M3.3: bubbleMatrix items have finite numeric fields and no NaN values', async () => {
     const req = { user: { role: 'admin', mobile_number: adminMobile }, query: {} };
     const res = mockRes();
@@ -149,18 +93,6 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
       expect(Number.isFinite(item.days_since_dpr)).toBe(true);
       expect(Number.isFinite(item.health_score)).toBe(true);
     });
-  });
-
-  test('M3.4: RBAC — JE role receives HTTP 403 on chart-data while ZO and HO are permitted', async () => {
-    const reqJe = { user: { role: 'je', mobile_number: jeMobile }, query: {} };
-    const resJe = mockRes();
-    await getHoChartData(reqJe, resJe);
-    expect(resJe.statusCode).toBe(403);
-
-    const reqZo = { user: { role: 'zo', mobile_number: zoMobile }, query: {} };
-    const resZo = mockRes();
-    await getHoChartData(reqZo, resZo);
-    expect(resZo.statusCode).toBe(200);
   });
 
   test('M3.5: Zone filter narrows bubbleMatrix to matching zone only', async () => {
