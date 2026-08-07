@@ -6,11 +6,13 @@ import EstimatedBillStats from './EstimatedBillStats';
 describe('EstimatedBillStats Component Tests', () => {
   const sampleData = [
     {
-      estimated_bill_amount: 100000,
+      total_billed: 80000,
+      remaining_value: 120000,
       surety_pct: 100
     },
     {
-      estimated_bill_amount: 200000,
+      total_billed: 50000,
+      remaining_value: 150000,
       surety_pct: 50
     }
   ];
@@ -20,14 +22,16 @@ describe('EstimatedBillStats Component Tests', () => {
     expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
   });
 
-  it('calculates total count, total amount, weighted amount, and average surety correctly', () => {
+  it('calculates work order count, billed total, remaining capacity, and average surety correctly', () => {
     render(<EstimatedBillStats data={sampleData} isLoading={false} />);
-    
+
     expect(screen.getByText('Work Orders')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument(); // Count
-    expect(screen.getByText('Total Estimated Amount')).toBeInTheDocument();
-    expect(screen.getByText('Surety-Weighted Total')).toBeInTheDocument();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('Total RA Billed')).toBeInTheDocument();
+    expect(screen.getByText('Remaining Capacity')).toBeInTheDocument();
     expect(screen.getByText('Avg. % Surety')).toBeInTheDocument();
+    expect(screen.getByText('₹1,30,000')).toBeInTheDocument(); // 80000 + 50000
+    expect(screen.getByText('₹2,70,000')).toBeInTheDocument(); // 120000 + 150000
     expect(screen.getByText('75%')).toBeInTheDocument(); // Avg of 100 and 50
   });
 });
