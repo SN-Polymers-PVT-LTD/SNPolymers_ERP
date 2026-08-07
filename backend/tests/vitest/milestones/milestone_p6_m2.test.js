@@ -39,10 +39,28 @@ describe('Milestone P6-M2 — RA/Final Bill CRUD & Summary Controller', () => {
 
     // 2. Setup a fresh project to guarantee a clean workspace without existing bills
     await setupProject(testWorkOrder, testEstimateNo, 1000000.00, hoUser.mobile_number);
+
+    // 3. Create a Final Approved estimate so that RA Bill overbilling checks pass
+    const { error: estErr } = await supabase
+      .from('project_cost_estimates')
+      .insert({
+        work_order_no: testWorkOrder,
+        estimate_no: testEstimateNo,
+        area_code: 'Kolkata Zone',
+        zonal_office_no: 'ZO-01',
+        estimate_amount: 1000000.00,
+        estimate_status: 'Final Approved',
+        created_by: hoUser.mobile_number,
+        last_modified_by: hoUser.mobile_number
+      });
+
+    if (estErr) throw estErr;
   });
 
   afterAll(async () => {
-    // Attempt clean up of projects_master
+    // Attempt clean up
+    await supabase.from('ra_final_bills').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('project_cost_estimates').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
   });
 

@@ -187,6 +187,12 @@ async function reviewEstimate(req, res) {
 
     // Workflow actor and status check
     const effectiveRole = getEffectiveRole(req.user.role);
+    if (effectiveRole === 'zo') {
+      const canAct = await canViewEstimate(estimate, req.user);
+      if (!canAct) {
+        return res.status(403).json({ success: false, message: 'Access denied. This estimate is not in your zone.' });
+      }
+    }
     const isZoOrAdmin = ['zo', 'admin'].includes(effectiveRole);
     const isHoOrAdmin = ['ho', 'admin'].includes(effectiveRole);
 
@@ -329,6 +335,12 @@ async function submitReview(req, res) {
 
     // Stage Guard
     const effectiveRole = getEffectiveRole(req.user.role);
+    if (effectiveRole === 'zo') {
+      const canAct = await canViewEstimate(estimate, req.user);
+      if (!canAct) {
+        return res.status(403).json({ success: false, message: 'Access denied. This estimate is not in your zone.' });
+      }
+    }
     let rpcResult = null;
 
     if (estimate.estimate_status === ESTIMATE_STATUS.UNDER_ZO_REVIEW) {
@@ -494,6 +506,12 @@ async function requestRevision(req, res) {
 
     // Stage/Status and Role checks
     const effectiveRole = getEffectiveRole(req.user.role);
+    if (effectiveRole === 'zo') {
+      const canAct = await canViewEstimate(estimate, req.user);
+      if (!canAct) {
+        return res.status(403).json({ success: false, message: 'Access denied. This estimate is not in your zone.' });
+      }
+    }
     let stage = null;
     let targetStatus = null;
 

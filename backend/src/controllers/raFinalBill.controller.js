@@ -155,31 +155,7 @@ async function createBill(req, res) {
       });
     }
 
-    // 6. Overbilling check: cumulative billed amount must not exceed work order value
-    const workOrderValue = Number(project.work_order_value || 0);
-    if (workOrderValue > 0 && grossBillNum > 0) {
-      const { data: existingBills, error: existingBillsErr } = await supabase
-        .from('ra_final_bills')
-        .select('gross_bill')
-        .eq('work_order_no', work_order_no);
-
-      if (existingBillsErr) throw existingBillsErr;
-
-      const totalAlreadyBilled = (existingBills || []).reduce(
-        (sum, b) => sum + Number(b.gross_bill || 0), 0
-      );
-      const totalAfterThis = totalAlreadyBilled + grossBillNum;
-
-      if (totalAfterThis > workOrderValue + 0.01) {
-        return res.status(422).json({
-          success: false,
-          message: `Overbilling rejected. Total billed (₹${totalAfterThis.toFixed(2)}) would exceed the Work Order Value (₹${workOrderValue.toFixed(2)}). Maximum allowed for this bill: ₹${Math.max(0, workOrderValue - totalAlreadyBilled).toFixed(2)}.`
-        });
-      }
-    }
-
-    // 7. Construct insert payload
-
+    // 6. Construct insert payload
     const insertPayload = {
       created_by: creatorMobile,
       work_order_no: work_order_no.trim(),
@@ -206,21 +182,43 @@ async function createBill(req, res) {
       remarks: remarks?.trim() || null
     };
 
+    // 7. Call the transactional RPC create_ra_final_bill_secure to insert atomically with lock and capacity check
+    const { data: createdBill, error: rpcErr } = await supabase.rpc('create_ra_final_bill_secure', {
+      p_bill: insertPayload
+    });
 
-    const { data: createdBill, error: insertError } = await supabase
-      .from('ra_final_bills')
-      .insert([insertPayload])
-      .select()
-      .single();
-
-    if (insertError) {
-      if (insertError.code === '23505') {
+    if (rpcErr) {
+      if (rpcErr.message && rpcErr.message.includes('already exists')) {
         return res.status(409).json({
           success: false,
-          message: `A '${payment_type}' entry already exists for this work order.`
+          message: rpcErr.message
         });
       }
-      throw insertError;
+      if (rpcErr.message && rpcErr.message.includes('must be entered before')) {
+        return res.status(422).json({
+          success: false,
+          message: rpcErr.message
+        });
+      }
+      if (rpcErr.message && rpcErr.message.includes('Overbilling rejected')) {
+        return res.status(422).json({
+          success: false,
+          message: rpcErr.message
+        });
+      }
+      if (rpcErr.message && rpcErr.message.includes('No Final Approved cost estimate found')) {
+        return res.status(422).json({
+          success: false,
+          message: rpcErr.message
+        });
+      }
+      if (rpcErr.message && rpcErr.message.includes('Closed work orders')) {
+        return res.status(403).json({
+          success: false,
+          message: rpcErr.message
+        });
+      }
+      throw rpcErr;
     }
 
     return res.status(201).json({

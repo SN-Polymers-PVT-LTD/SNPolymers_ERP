@@ -1,5 +1,6 @@
 const { supabase } = require('../db/supabase');
 const { toStoredMobileNumber, mobileNumberVariants } = require('../utils/mobile');
+const { logError } = require('../utils/logger');
 
 /**
  * GET /api/v1/auth/admin/users
@@ -16,7 +17,7 @@ async function getUsers(req, res) {
 
     return res.status(200).json({ success: true, users });
   } catch (error) {
-    console.error(`Admin getUsers failed: ${error.message}`);
+    logError('getUsers', error);
     return res.status(500).json({ success: false, message: 'Failed to retrieve whitelisted users.' });
   }
 }
@@ -87,7 +88,7 @@ async function addUser(req, res) {
 
     return res.status(201).json({ success: true, user: data, message: 'User whitelisted successfully.' });
   } catch (error) {
-    console.error(`Admin addUser failed: ${error.message}`);
+    logError('addUser', error);
     return res.status(500).json({ success: false, message: 'Failed to whitelist user.' });
   }
 }
@@ -137,7 +138,7 @@ async function updateUser(req, res) {
 
     return res.status(200).json({ success: true, user: data, message: 'User updated successfully.' });
   } catch (error) {
-    console.error(`Admin updateUser failed: ${error.message}`);
+    logError('updateUser', error);
     return res.status(500).json({ success: false, message: 'Failed to update user.' });
   }
 }
@@ -271,7 +272,7 @@ async function removeUser(req, res) {
 
     return res.status(200).json({ success: true, message: 'User removed from whitelist and sessions invalidated.' });
   } catch (error) {
-    console.error(`Admin removeUser failed: ${error.message || error}`);
+    logError('removeUser', error);
     
     // Catch database foreign key constraint violation (e.g. references in project_master, user_mappings, etc.)
     if (error.code === '23503' || (error.message && error.message.includes('foreign key constraint'))) {
@@ -367,7 +368,7 @@ async function getSessions(req, res) {
       }
     });
   } catch (error) {
-    console.error(`Admin getSessions failed: ${error.message}`);
+    logError('getSessions', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch session audit logs.' });
   }
 }

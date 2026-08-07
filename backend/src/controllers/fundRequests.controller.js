@@ -371,53 +371,7 @@ async function actOnFundRequest(req, res) {
         });
       }
 
-      // Fetch final approved estimate amount
-      const { data: approvedEstimate, error: estErr } = await supabase
-        .from('project_cost_estimates')
-        .select('estimate_amount')
-        .eq('work_order_no', fr.work_order_no)
-        .eq('estimate_status', 'Final Approved')
-        .maybeSingle();
-
-      if (estErr) throw estErr;
-
-      // Fetch project to get work_order_value
-      const { data: project, error: projErr } = await supabase
-        .from('projects_master')
-        .select('work_order_value')
-        .eq('work_order_no', fr.work_order_no)
-        .maybeSingle();
-
-      if (projErr) throw projErr;
-      if (!project) {
-        return res.status(400).json({ success: false, message: 'Work Order not found.' });
-      }
-
-      // Fetch approved fund requests for this work order to calculate remaining capacity
-      const { data: approvedReqs, error: approvedErr } = await supabase
-        .from('fund_requests')
-        .select('approve_ho_amount')
-        .eq('work_order_no', fr.work_order_no)
-        .eq('request_status', 'Approved');
-
-      if (approvedErr) throw approvedErr;
-
-      const cumulativeApproved = (approvedReqs || []).reduce(
-        (sum, r) => sum + Number(r.approve_ho_amount || 0),
-        0
-      );
-
-      const fundingCap = approvedEstimate ? Number(approvedEstimate.estimate_amount || 0) : Number(project.work_order_value || 0);
-      const remainingCapacity = fundingCap - cumulativeApproved;
-
-      if (hoAmount > remainingCapacity) {
-        return res.status(400).json({
-          success: false,
-          message: `Approved amount (₹${hoAmount.toLocaleString('en-IN')}) cannot exceed the remaining Cost Estimate funding capacity (₹${remainingCapacity.toLocaleString('en-IN')}).`
-        });
-      }
-
-      // Call database RPC to atomically increment balance, insert ledger entry, and update status
+      // Call database RPC to atomically increment balance, insert ledger entry, and update status under projects_master lock
       const { data: approvedFr, error: rpcErr } = await supabase.rpc('approve_fund_request_transact', {
         p_fund_request_id: id,
         p_approved_amount: hoAmount,
@@ -426,7 +380,21 @@ async function actOnFundRequest(req, res) {
         p_remarks: finalRemarks?.trim() || null
       });
 
-      if (rpcErr) throw rpcErr;
+      if (rpcErr) {
+        if (rpcErr.code === 'BUD02' || rpcErr.message?.includes('exceeds the remaining Cost Estimate funding capacity')) {
+          return res.status(422).json({ success: false, message: rpcErr.message });
+        }
+        if (rpcErr.code === 'EST01' || rpcErr.message?.includes('No Final Approved cost estimate found')) {
+          return res.status(422).json({ success: false, message: rpcErr.message });
+        }
+        if (rpcErr.message && rpcErr.message.includes('not found')) {
+          return res.status(404).json({ success: false, message: rpcErr.message });
+        }
+        if (rpcErr.message && rpcErr.message.includes('status must be Pending or Hold')) {
+          return res.status(400).json({ success: false, message: rpcErr.message });
+        }
+        throw rpcErr;
+      }
       updated = approvedFr;
     }
 

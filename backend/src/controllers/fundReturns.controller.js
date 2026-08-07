@@ -135,99 +135,46 @@ async function acceptReturnRequest(req, res) {
       });
     }
 
-    // 6. Verify ZO has sufficient available balance for each Work Order in the breakdown
-    for (const item of breakdown) {
-      const { data: ledgerEntries, error: ledgerErr } = await supabase
-        .from('zo_fund_ledger')
-        .select('amount')
-        .eq('zo_user_id', returnRequest.zo_user_id)
-        .eq('work_order_no', item.work_order_no);
+    // 6. Call the transactional RPC accept_excess_fund_return to process atomically
+    const { data: updatedRequest, error: rpcErr } = await supabase.rpc('accept_excess_fund_return', {
+      p_return_id: id,
+      p_client_updated_at: client_updated_at,
+      p_actioned_by: req.user.mobile_number,
+      p_breakdown: breakdown
+    });
 
-      if (ledgerErr) throw ledgerErr;
-
-      const currentWoBalance = (ledgerEntries || []).reduce((sum, entry) => sum + Number(entry.amount), 0);
-      if (item.amount > currentWoBalance) {
-        return res.status(422).json({
-          success: false,
-          message: `Insufficient available balance on Work Order ${item.work_order_no}. Available: ₹${currentWoBalance.toLocaleString('en-IN')}, Requested: ₹${item.amount.toLocaleString('en-IN')}.`
-        });
+    if (rpcErr) {
+      if (rpcErr.message && rpcErr.message.includes('Insufficient available balance')) {
+        return res.status(422).json({ success: false, message: rpcErr.message });
       }
-    }
-
-    // 7. Lock and check ZO total balance
-    const { data: zoBal, error: balErr } = await supabase
-      .from('zo_balances')
-      .select('available_balance')
-      .eq('zo_user_id', returnRequest.zo_user_id)
-      .maybeSingle();
-
-    if (balErr) throw balErr;
-    if (!zoBal || Number(zoBal.available_balance) < returnRequest.requested_amount) {
-      return res.status(422).json({ success: false, message: 'Insufficient total available balance.' });
-    }
-
-    // 8. Deduct from total ZO balance
-    const newTotalBalance = Number(zoBal.available_balance) - Number(returnRequest.requested_amount);
-    const { error: updateBalErr } = await supabase
-      .from('zo_balances')
-      .update({ available_balance: newTotalBalance, updated_at: new Date().toISOString() })
-      .eq('zo_user_id', returnRequest.zo_user_id);
-
-    if (updateBalErr) throw updateBalErr;
-
-    // 9. Insert ledger entries for each breakdown item
-    let ledgerInserts;
-    if (breakdown && breakdown.length > 0) {
-      ledgerInserts = breakdown.map(item => ({
-        zo_user_id: returnRequest.zo_user_id,
-        transaction_type: 'RETURN',
-        reference_type: 'RETURN',
-        reference_id: crypto.randomUUID(), // unique UUID to prevent idx_zo_fund_ledger_ref_unique violation
-        amount: -Number(item.amount),
-        work_order_no: item.work_order_no,
-        created_by: req.user.mobile_number
-      }));
-    } else {
-      // Fallback: single entry using the request's work_order_no
-      if (!returnRequest.work_order_no) {
-        return res.status(400).json({ success: false, message: 'Breakdown is required when the return request does not specify a Work Order.' });
+      if (rpcErr.message && rpcErr.message.includes('Insufficient available balance on Work Order')) {
+        return res.status(422).json({ success: false, message: rpcErr.message });
       }
-      ledgerInserts = [{
-        zo_user_id: returnRequest.zo_user_id,
-        transaction_type: 'RETURN',
-        reference_type: 'RETURN',
-        reference_id: id,
-        amount: -Number(returnRequest.requested_amount),
-        work_order_no: returnRequest.work_order_no,
-        created_by: req.user.mobile_number
-      }];
+      if (rpcErr.message && rpcErr.message.includes('Stale acceptance request')) {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.message && rpcErr.message.includes('cannot be accepted')) {
+        return res.status(400).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.message && rpcErr.message.includes('not found')) {
+        return res.status(404).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
     }
-
-    const { error: ledgerInsertErr } = await supabase
-      .from('zo_fund_ledger')
-      .insert(ledgerInserts);
-
-    if (ledgerInsertErr) throw ledgerInsertErr;
-
-    // 10. Update the return request
-    const { data: updatedRequest, error: updateReqErr } = await supabase
-      .from('excess_fund_returns')
-      .update({
-        status: 'Completed',
-        actioned_by: req.user.mobile_number,
-        breakdown,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (updateReqErr) throw updateReqErr;
 
     const { notifyHoExcessReturnAccepted } = require('../services/telegram.service');
     notifyHoExcessReturnAccepted(updatedRequest).catch(err => {
       console.error(`[EXCESS RETURN] Telegram notification failed: ${err.message}`);
     });
+
+    // Refresh materialized views in the background (non-blocking)
+    (async () => {
+      try {
+        await supabase.rpc('refresh_analytics_views');
+      } catch (err) {
+        console.warn(`[EXCESS RETURN] refresh_analytics_views failed: ${err.message}`);
+      }
+    })();
 
     return res.status(200).json({
       success: true,

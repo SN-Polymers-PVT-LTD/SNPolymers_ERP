@@ -258,10 +258,18 @@ export const EstimatedBillLedger = () => {
           <div className="text-[10px] font-extrabold uppercase tracking-widest text-amber-500 font-mono">
             Work Order Contract Master
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-mono block">Work Order Value</span>
               <span className="font-extrabold text-slate-200 font-mono tabular-nums">{formatCurrency(project.work_order_value)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-mono block">Total RA Billed</span>
+              <span className="font-extrabold text-rose-400 font-mono tabular-nums">{formatCurrency(project.total_billed)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] text-slate-500 uppercase font-mono block">Remaining Capacity</span>
+              <span className="font-extrabold text-emerald-400 font-mono tabular-nums">{formatCurrency(project.remaining_value)}</span>
             </div>
             <div>
               <span className="text-[10px] text-slate-500 uppercase font-mono block">Zone / Department</span>
@@ -298,7 +306,7 @@ export const EstimatedBillLedger = () => {
         </div>
         {/* 4. Number of Entries */}
         <div className="glass-panel p-4 rounded-2xl border border-white/10 flex flex-col justify-between">
-          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400"># Entries</span>
+          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Total Entries</span>
           <span className="text-xl font-black text-indigo-400 font-mono mt-1 tabular-nums">{stats.count}</span>
         </div>
         {/* 5. Latest Entry Date */}

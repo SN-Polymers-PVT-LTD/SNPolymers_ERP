@@ -41,6 +41,14 @@ describe('Milestone 8 — Notifications & Audit logs API', () => {
     ]);
     await setupProject(testWorkOrder, `EST_M8_${suffix}`, 500000.00, testJeMobile);
 
+    // Map testJeMobile to testZoMobile so the ZO has access to this cost estimate
+    await supabase.from('je_zo_mappings').insert({
+      je_user_id: testJeMobile,
+      zo_user_id: testZoMobile,
+      is_active: true,
+      assigned_by: testAdminMobile
+    });
+
     // Clear active estimates for this work order to bypass unique checks
     await supabase.from('project_cost_estimates')
       .update({ estimate_status: 'Rejected by ZO', last_modified_by: testAdminMobile })
@@ -93,6 +101,7 @@ describe('Milestone 8 — Notifications & Audit logs API', () => {
       await supabase.from('estimate_revision_log').delete().eq('estimate_id', testEstimateId);
       await supabase.from('project_cost_estimates').delete().eq('estimate_id', testEstimateId);
     }
+    await supabase.from('je_zo_mappings').delete().eq('zo_user_id', testZoMobile);
     if (testWorkOrder) await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testJeMobile, testOtherMobile, testHoMobile, testAdminMobile]);
   });

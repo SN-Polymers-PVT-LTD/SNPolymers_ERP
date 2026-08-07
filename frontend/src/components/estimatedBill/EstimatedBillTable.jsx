@@ -19,7 +19,7 @@ export const EstimatedBillTable = ({
       if (prev.key === key) {
         return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
       }
-      return { key, direction: key.includes('amount') || key.includes('value') || key === 'surety_pct' || key === 'entry_count' ? 'desc' : 'asc' };
+      return { key, direction: key.includes('amount') || key.includes('value') || key.includes('billed') || key.includes('remaining') || key === 'surety_pct' || key === 'entry_count' ? 'desc' : 'asc' };
     });
   };
 
@@ -112,17 +112,20 @@ export const EstimatedBillTable = ({
             <TableCell isHeader onClick={() => handleSort('work_order_value')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               WO Value {renderSortIcon('work_order_value')}
             </TableCell>
+            <TableCell isHeader onClick={() => handleSort('total_billed')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
+              Total RA Billed {renderSortIcon('total_billed')}
+            </TableCell>
+            <TableCell isHeader onClick={() => handleSort('remaining_value')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
+              Remaining Capacity {renderSortIcon('remaining_value')}
+            </TableCell>
             <TableCell isHeader onClick={() => handleSort('estimated_bill_amount')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               Estimated Amount {renderSortIcon('estimated_bill_amount')}
             </TableCell>
             <TableCell isHeader onClick={() => handleSort('surety_pct')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               Wtd. Surety % {renderSortIcon('surety_pct')}
             </TableCell>
-            <TableCell isHeader onClick={() => handleSort('surety_amount')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
-              Surety Amount {renderSortIcon('surety_amount')}
-            </TableCell>
             <TableCell isHeader onClick={() => handleSort('entry_count')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200 text-center">
-              # Entries {renderSortIcon('entry_count')}
+              Entries {renderSortIcon('entry_count')}
             </TableCell>
             <TableCell isHeader onClick={() => handleSort('updated_by_name')} className="text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none group hover:text-slate-200">
               Updated By {renderSortIcon('updated_by_name')}
@@ -147,6 +150,12 @@ export const EstimatedBillTable = ({
               <TableCell className="font-mono text-xs font-bold text-slate-200 tabular-nums">
                 {formatCurrency(row.work_order_value)}
               </TableCell>
+              <TableCell className="font-mono text-xs font-bold text-rose-400 tabular-nums">
+                {formatCurrency(row.total_billed)}
+              </TableCell>
+              <TableCell className="font-mono text-xs font-bold text-emerald-400 tabular-nums">
+                {formatCurrency(row.remaining_value)}
+              </TableCell>
               <TableCell className="font-mono text-xs font-extrabold text-slate-100 tabular-nums">
                 {formatCurrency(row.estimated_bill_amount)}
               </TableCell>
@@ -154,9 +163,6 @@ export const EstimatedBillTable = ({
                 <Badge variant={getSuretyBadgeVariant(row.surety_pct)} showDot={false}>
                   {row.surety_pct}%
                 </Badge>
-              </TableCell>
-              <TableCell className="font-mono text-xs font-bold text-emerald-400 tabular-nums">
-                {formatCurrency(row.surety_amount)}
               </TableCell>
               <TableCell className="text-center text-xs font-bold text-slate-200 font-mono">
                 {row.entry_count || 1}

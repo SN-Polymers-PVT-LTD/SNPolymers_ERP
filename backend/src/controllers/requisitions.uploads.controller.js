@@ -40,6 +40,17 @@ async function uploadRequisitionPdf(req, res) {
   const storagePath = `${sanitizedReqNo}.pdf`;
 
   try {
+    const { data: requisition, error: fetchErr } = await supabase
+      .from('requisitions')
+      .select('requester_user_id')
+      .eq('requisition_no', requisition_no.trim())
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    if (requisition && requisition.requester_user_id !== req.user.mobile_number && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not own this requisition.' });
+    }
     const { error: uploadError } = await supabase.storage
       .from('requisition-pdfs')
       .upload(storagePath, file.buffer, {
@@ -110,6 +121,17 @@ async function uploadGstBillPdf(req, res) {
   const storagePath = `${sanitizedReqNo}_gst.pdf`;
 
   try {
+    const { data: requisition, error: fetchErr } = await supabase
+      .from('requisitions')
+      .select('requester_user_id')
+      .eq('requisition_no', requisition_no.trim())
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    if (requisition && requisition.requester_user_id !== req.user.mobile_number && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not own this requisition.' });
+    }
     const { error: uploadError } = await supabase.storage
       .from('gst-bills')
       .upload(storagePath, file.buffer, {
@@ -153,6 +175,17 @@ async function deleteRequisitionPdf(req, res) {
   const storagePath = `${sanitizedReqNo}.pdf`;
 
   try {
+    const { data: requisition, error: fetchErr } = await supabase
+      .from('requisitions')
+      .select('requester_user_id')
+      .eq('requisition_no', requisition_no.trim())
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    if (requisition && requisition.requester_user_id !== req.user.mobile_number && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not own this requisition.' });
+    }
     const { error } = await supabase.storage
       .from('requisition-pdfs')
       .remove([storagePath]);
@@ -183,6 +216,17 @@ async function deleteGstBillPdf(req, res) {
   const storagePath = `${sanitizedReqNo}_gst.pdf`;
 
   try {
+    const { data: requisition, error: fetchErr } = await supabase
+      .from('requisitions')
+      .select('requester_user_id')
+      .eq('requisition_no', requisition_no.trim())
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+
+    if (requisition && requisition.requester_user_id !== req.user.mobile_number && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not own this requisition.' });
+    }
     const { error } = await supabase.storage
       .from('gst-bills')
       .remove([storagePath]);
