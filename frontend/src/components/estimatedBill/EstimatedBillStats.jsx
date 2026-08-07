@@ -22,7 +22,6 @@ export const EstimatedBillStats = ({ data = [], isLoading = false }) => {
   };
 
   const totalCount = data.length;
-  const totalAmount = data.reduce((sum, item) => sum + (Number(item.estimated_bill_amount) || 0), 0);
   const totalBilled = data.reduce((sum, item) => sum + (Number(item.total_billed) || 0), 0);
   const totalRemaining = data.reduce((sum, item) => sum + (Number(item.remaining_value) || 0), 0);
   const avgSurety = totalCount > 0

@@ -35,7 +35,7 @@ vi.mock('axios', () => ({
 }));
 
 import axios from 'axios';
-import authApi from './authApi';
+import './authApi';
 
 function make401Error(url, retry = false) {
   return {
