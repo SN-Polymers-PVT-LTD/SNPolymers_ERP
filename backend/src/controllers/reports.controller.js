@@ -18,6 +18,35 @@ async function isProjectClosed(workOrderNo) {
 }
 
 /**
+ * Helper: Get work orders whitelisted for the current user's role
+ * Returns array of work order numbers, or null if unrestricted (Admin/HO)
+ */
+async function getAllowedWorkOrders(user) {
+  if (user.role === 'admin' || user.role === 'ho') {
+    return null; // unrestricted
+  }
+
+  if (user.role === 'zo') {
+    const { data: projects } = await supabase
+      .from('projects_master')
+      .select('work_order_no')
+      .eq('zo_user_id', user.mobile_number);
+    return (projects || []).map(p => p.work_order_no);
+  }
+
+  if (user.role === 'je') {
+    const { data: mappings } = await supabase
+      .from('work_order_mappings')
+      .select('work_order_no')
+      .eq('je_user_id', user.mobile_number)
+      .eq('is_active', true);
+    return (mappings || []).map(m => m.work_order_no);
+  }
+
+  return []; // no access by default for other roles
+}
+
+/**
  * GET /api/v1/auth/reports
  * Fetches all active fund reports (is_deleted = false)
  * Performs a live join/lookup to fetch projects_master columns
@@ -27,8 +56,11 @@ async function getReports(req, res) {
     const query = req.query || {};
     const hasPagination = query.page !== undefined || query.limit !== undefined;
 
+    const allowedWOs = await getAllowedWorkOrders(req.user);
+    const isRestricted = allowedWOs !== null;
+
     if (!hasPagination) {
-      const { data: reports, error } = await supabase
+      let dbQuery = supabase
         .from('fund_reports')
         .select(`
           *,
@@ -43,8 +75,13 @@ async function getReports(req, res) {
             status
           )
         `)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
+        .eq('is_deleted', false);
+
+      if (isRestricted) {
+        dbQuery = dbQuery.in('work_order_no', allowedWOs.length > 0 ? allowedWOs : ['dummy_wo']);
+      }
+
+      const { data: reports, error } = await dbQuery.order('created_at', { ascending: false });
 
       if (error) throw error;
       return res.status(200).json({ success: true, reports });
@@ -55,29 +92,36 @@ async function getReports(req, res) {
     const limit = Math.min(parseInt(query.limit || 50), 100);
     const offset = (page - 1) * limit;
 
+    let countQuery = supabase
+      .from('fund_reports')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_deleted', false);
+
+    let dataQuery = supabase
+      .from('fund_reports')
+      .select(`
+        *,
+        projects_master (
+          estimate_no,
+          work_order_value,
+          site_details,
+          state,
+          district,
+          zone,
+          department,
+          status
+        )
+      `)
+      .eq('is_deleted', false);
+
+    if (isRestricted) {
+      countQuery = countQuery.in('work_order_no', allowedWOs.length > 0 ? allowedWOs : ['dummy_wo']);
+      dataQuery = dataQuery.in('work_order_no', allowedWOs.length > 0 ? allowedWOs : ['dummy_wo']);
+    }
+
     const [countRes, reportsRes] = await Promise.all([
-      supabase
-        .from('fund_reports')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_deleted', false),
-      supabase
-        .from('fund_reports')
-        .select(`
-          *,
-          projects_master (
-            estimate_no,
-            work_order_value,
-            site_details,
-            state,
-            district,
-            zone,
-            department,
-            status
-          )
-        `)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1)
+      countQuery,
+      dataQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1)
     ]);
 
     if (countRes.error) throw countRes.error;
@@ -219,6 +263,12 @@ async function getReportById(req, res) {
       return res.status(404).json({ success: false, message: 'Fund report not found.' });
     }
 
+    // Scoping check
+    const allowedWOs = await getAllowedWorkOrders(req.user);
+    if (allowedWOs !== null && !allowedWOs.includes(report.work_order_no)) {
+      return res.status(404).json({ success: false, message: 'Fund report not found.' });
+    }
+
     return res.status(200).json({ success: true, report });
   } catch (error) {
     logError('getReportById', error);
@@ -246,6 +296,12 @@ async function createReport(req, res) {
   }
 
   try {
+    // Scoping check
+    const allowedWOs = await getAllowedWorkOrders(req.user);
+    if (allowedWOs !== null && !allowedWOs.includes(work_order_no)) {
+      return res.status(403).json({ success: false, message: 'Access denied. You cannot create reports for this Work Order.' });
+    }
+
     // Enforce Mutability Gate: Check if project status is Closed
     const isClosed = await isProjectClosed(work_order_no);
     if (isClosed === null) {
@@ -320,6 +376,19 @@ async function updateReport(req, res) {
     if (fetchErr) throw fetchErr;
     if (!current || current.is_deleted) {
       return res.status(404).json({ success: false, message: 'Fund report not found.' });
+    }
+
+    // Scoping check on current work order
+    const allowedWOs = await getAllowedWorkOrders(req.user);
+    if (allowedWOs !== null && !allowedWOs.includes(current.work_order_no)) {
+      return res.status(404).json({ success: false, message: 'Fund report not found.' });
+    }
+
+    // Scoping check on new work order (if changing association)
+    if (work_order_no && work_order_no !== current.work_order_no) {
+      if (allowedWOs !== null && !allowedWOs.includes(work_order_no)) {
+        return res.status(403).json({ success: false, message: 'Access denied. You cannot associate reports with this Work Order.' });
+      }
     }
 
     // 2. Enforce Mutability Gate for current project

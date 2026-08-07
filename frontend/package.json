@@ -15,13 +15,13 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
-    "axios": "^1.7.2",
+    "axios": "^1.18.0",
     "html2pdf.js": "^0.14.0",
     "motion": "^12.42.2",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^6.23.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

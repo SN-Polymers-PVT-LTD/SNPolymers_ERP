@@ -14,6 +14,10 @@ module.exports = {
         {
           "name": "p_actioned_by",
           "type": "character varying"
+        },
+        {
+          "name": "p_breakdown",
+          "type": "jsonb DEFAULT NULL::jsonb"
         }
       ],
       "returns": "excess_fund_returns"
@@ -63,6 +67,15 @@ module.exports = {
         }
       ],
       "returns": "requisitions"
+    },
+    "create_ra_final_bill_secure": {
+      "args": [
+        {
+          "name": "p_bill",
+          "type": "jsonb"
+        }
+      ],
+      "returns": "ra_final_bills"
     },
     "create_requisition_secure": {
       "args": [

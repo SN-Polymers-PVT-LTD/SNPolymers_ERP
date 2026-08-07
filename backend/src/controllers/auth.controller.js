@@ -133,7 +133,7 @@ async function verifyOtpCode(req, res) {
     }
 
     // 2. Fetch User to populate payload details (accepts either stored format)
-    const { user, error } = await findAuthorisedUserByMobile(rawMobile, { activeOnly: false });
+    const { user, error } = await findAuthorisedUserByMobile(rawMobile, { activeOnly: true });
 
     if (error || !user) {
       return res.status(403).json({ success: false, message: 'User verification failed.' });

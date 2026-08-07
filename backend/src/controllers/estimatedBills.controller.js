@@ -86,6 +86,25 @@ async function listEstimatedBills(req, res) {
         groups[wo].entries.push(r);
       });
 
+      // Retrieve unique work order numbers from the grouped records
+      const workOrderNos = Object.keys(groups);
+
+      // Fetch all bills for these work orders to calculate total_billed
+      const { data: bills, error: billsErr } = await supabase
+        .from('ra_final_bills')
+        .select('work_order_no, gross_bill')
+        .in('work_order_no', workOrderNos);
+
+      if (billsErr) throw billsErr;
+
+      const billsMap = {};
+      if (bills) {
+        bills.forEach(b => {
+          const wo = b.work_order_no;
+          billsMap[wo] = (billsMap[wo] || 0) + Number(b.gross_bill || 0);
+        });
+      }
+
       // Aggregate each group
       for (const wo of Object.keys(groups)) {
         const g = groups[wo];
@@ -108,12 +127,17 @@ async function listEstimatedBills(req, res) {
         const wtdSuretyPct = totalAmount > 0 ? parseFloat((weightedSuretySum / totalAmount).toFixed(1)) : 0;
         const suretyAmount = g.entries.reduce((sum, e) => sum + (Number(e.estimated_bill_amount || 0) * Number(e.surety_pct || 0) / 100), 0);
 
+        const totalBilled = billsMap[wo] || 0;
+        const remainingValue = Math.max(Number(pm.work_order_value || 0) - totalBilled, 0);
+
         enriched.push({
           id: latest.id,
           work_order_no: wo,
           estimated_bill_amount: totalAmount,
           surety_pct: wtdSuretyPct,
           surety_amount: suretyAmount,
+          total_billed: totalBilled,
+          remaining_value: remainingValue,
           entry_count: g.entries.length,
           remarks: latest.remarks,
           created_by: latest.created_by,
@@ -159,7 +183,7 @@ async function listWorkOrderOptions(req, res) {
 
     let dbQuery = supabase
       .from('eligible_estimated_bill_work_orders')
-      .select('work_order_no, estimate_no, state, district, zone, department, site_details, work_order_value, zo_user_id, status');
+      .select('work_order_no, estimate_no, state, district, zone, department, site_details, work_order_value, zo_user_id, status, total_billed, remaining_value');
 
     if (role === 'zo') {
       dbQuery = dbQuery.eq('zo_user_id', mobile_number);
@@ -178,6 +202,8 @@ async function listWorkOrderOptions(req, res) {
       department: p.department,
       site_details: p.site_details,
       work_order_value: p.work_order_value ? Number(p.work_order_value) : 0,
+      total_billed: p.total_billed ? Number(p.total_billed) : 0,
+      remaining_value: p.remaining_value ? Number(p.remaining_value) : 0,
       label: `${p.work_order_no} — ${p.site_details || p.department}`
     }));
 
@@ -221,15 +247,17 @@ async function getEstimatedBill(req, res) {
       return res.status(404).json({ success: false, message: 'Work order not found.' });
     }
 
-    // Check if Final Bill already exists
-    const { data: finalBill, error: fbErr } = await supabase
+    // Single query: fetch gross_bill + payment_type for capacity calc AND Final Bill check
+    const { data: raBills, error: raErr } = await supabase
       .from('ra_final_bills')
-      .select('bill_id')
-      .eq('work_order_no', work_order_no.trim())
-      .eq('payment_type', 'Final Bill')
-      .maybeSingle();
+      .select('gross_bill, payment_type')
+      .eq('work_order_no', work_order_no.trim());
 
-    if (fbErr) throw fbErr;
+    if (raErr) throw raErr;
+
+    const totalBilled = (raBills || []).reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
+    const remainingValue = Math.max(Number(project.work_order_value || 0) - totalBilled, 0);
+    const finalBill = (raBills || []).find(b => b.payment_type === 'Final Bill') || null;
 
     // Retrieve all timeline entries for this work order ordered by created_at DESC
     const { data: records, error: recErr } = await supabase
@@ -284,6 +312,8 @@ async function getEstimatedBill(req, res) {
         district: project.district,
         site_details: project.site_details,
         work_order_value: project.work_order_value ? Number(project.work_order_value) : null,
+        total_billed: totalBilled,
+        remaining_value: remainingValue,
         status: project.status,
         final_bill_exists: !!finalBill
       }
@@ -334,6 +364,8 @@ async function upsertEstimatedBill(req, res) {
     if (rpcError) {
       if (rpcError.message && (
         rpcError.message.includes('cannot exceed work order value') ||
+        rpcError.message.includes('exceeds remaining Work Order capacity') ||
+        rpcError.message.includes('No remaining Work Order capacity') ||
         rpcError.message.includes('must be greater than zero') ||
         rpcError.message.includes('between 0 and 100') ||
         rpcError.message.includes('not found') ||

@@ -1,9 +1,12 @@
 -- ===========================================================================
--- Migration 007: Enforce Work Order Status & Final Bill Constraints on Estimated Bills
+-- Migration 012: Fix invalid RAISE format in insert_estimated_bill
 -- DB: PostgreSQL (Supabase)
+--
+-- PostgreSQL RAISE uses % placeholders, not printf-style %.2f. The bad format
+-- caused a secondary error when blocking amounts over work order value, which
+-- PostgREST surfaced as "An invalid response was received from the upstream server".
 -- ===========================================================================
 
--- 1. Replace the append-only insert function to check status and final bill existence
 CREATE OR REPLACE FUNCTION public.insert_estimated_bill(
     p_work_order_no  VARCHAR,
     p_amount         NUMERIC,
@@ -19,7 +22,6 @@ DECLARE
     v_final_exists   BOOLEAN;
     v_result         public.estimated_bills;
 BEGIN
-    -- Perform both checks in a single query with FOR UPDATE lock
     SELECT 
         pm.work_order_value, 
         pm.status,
@@ -70,18 +72,3 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 GRANT EXECUTE ON FUNCTION public.insert_estimated_bill(VARCHAR, NUMERIC, DATE, SMALLINT, TEXT, VARCHAR)
   TO anon, authenticated, service_role;
-
--- 2. Create helper view to filter dropdown options at query level
-CREATE OR REPLACE VIEW public.eligible_estimated_bill_work_orders AS
-SELECT 
-    work_order_no, estimate_no, state, district, zone, department, site_details, work_order_value, zo_user_id, status
-FROM public.projects_master pm
-WHERE pm.status = 'Running'
-  AND NOT EXISTS (
-      SELECT 1
-      FROM public.ra_final_bills rb
-      WHERE rb.work_order_no = pm.work_order_no
-        AND rb.payment_type = 'Final Bill'
-  );
-
-GRANT SELECT ON TABLE public.eligible_estimated_bill_work_orders TO anon, authenticated, service_role;

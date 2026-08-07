@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const { logError } = require('../utils/logger');
 
 /**
  * Helper: Enrich audit logs with acting users' display names
@@ -62,7 +63,7 @@ async function getHoKpis(req, res) {
       healthDistribution
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoKpis:', error.message || error);
+    logError('getHoKpis', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching KPIs.' });
   }
 }
@@ -85,7 +86,7 @@ async function getHoResourceUtilization(req, res) {
       data: data || []
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoResourceUtilization:', error.message || error);
+    logError('getHoResourceUtilization', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching resource utilization.' });
   }
 }
@@ -108,7 +109,7 @@ async function getHoApprovalSla(req, res) {
       data: data || []
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoApprovalSla:', error.message || error);
+    logError('getHoApprovalSla', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching approval SLA records.' });
   }
 }
@@ -131,7 +132,7 @@ async function getHoZoneBenchmarking(req, res) {
       data: data || []
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoZoneBenchmarking:', error.message || error);
+    logError('getHoZoneBenchmarking', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching zone benchmarking records.' });
   }
 }
@@ -155,7 +156,7 @@ async function getHoBudgetLeakage(req, res) {
       data: data || []
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoBudgetLeakage:', error.message || error);
+    logError('getHoBudgetLeakage', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching budget leakage anomalies.' });
   }
 }
@@ -183,7 +184,7 @@ async function getZoProductivity(req, res) {
       data: data || []
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getZoProductivity:', error.message || error);
+    logError('getZoProductivity', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching ZO productivity.' });
   }
 }
@@ -258,7 +259,7 @@ async function getRecentActivity(req, res) {
       return res.status(200).json({ success: true, activities: enrichedAudits });
     }
   } catch (error) {
-    console.error('[ANALYTICS] Error in getRecentActivity:', error.message || error);
+    logError('getRecentActivity', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching activities.' });
   }
 }
@@ -304,7 +305,7 @@ async function getAuditLog(req, res) {
       totalPages
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getAuditLog:', error.message || error);
+    logError('getAuditLog', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching audit log.' });
   }
 }
@@ -435,7 +436,7 @@ async function getProjectDigitalTwin(req, res) {
       audits: enrichedAudits
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getProjectDigitalTwin:', error.message || error);
+    logError('getProjectDigitalTwin', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching project digital twin.' });
   }
 }
@@ -531,7 +532,7 @@ async function getProjectsHealth(req, res) {
       data: enrichedData
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getProjectsHealth:', error.message || error);
+    logError('getProjectsHealth', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching project health list.' });
   }
 }
@@ -565,14 +566,14 @@ async function triggerRefresh(req, res) {
   supabase.rpc('refresh_analytics_views')
     .then(({ error }) => {
       if (error) {
-        console.error('[ANALYTICS] Background views refresh failed:', error.message || error);
+        logError('refresh_analytics_views', error);
       } else {
         const duration = Date.now() - startTime;
         console.log(`[ANALYTICS] Background views refresh completed successfully in ${duration} ms.`);
       }
     })
     .catch(err => {
-      console.error('[ANALYTICS] Background views refresh encountered exception:', err.message || err);
+      logError('refresh_analytics_views', err);
     });
 }
 
@@ -679,7 +680,7 @@ async function getHoActionableInsights(req, res) {
       highRevisionProjects
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoActionableInsights:', error.message || error);
+    logError('getHoActionableInsights', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching actionable insights.' });
   }
 }
@@ -1320,7 +1321,7 @@ async function getHoChartData(req, res) {
       projectsList
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getHoChartData:', error.message || error);
+    logError('getHoChartData', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to load analytics chart data. Please try again.'
@@ -1467,7 +1468,7 @@ async function getJeLeaderboard(req, res) {
       leaderboard: rankedLeaderboard
     });
   } catch (error) {
-    console.error('[ANALYTICS] Error in getJeLeaderboard:', error.message || error);
+    logError('getJeLeaderboard', error);
     return res.status(500).json({ success: false, message: 'Internal server error fetching JE leaderboard.' });
   }
 }

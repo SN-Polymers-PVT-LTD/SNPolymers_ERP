@@ -71,8 +71,8 @@ export const EstimatedBillEntryModal = ({
   const handleAmountChange = (val) => {
     setAmount(val);
     setValidationError('');
-    if (selectedWoData?.work_order_value && Number(val) > Number(selectedWoData.work_order_value)) {
-      setValidationError(`Estimated amount cannot exceed Work Order Value (₹${selectedWoData.work_order_value.toLocaleString('en-IN')})`);
+    if (selectedWoData && selectedWoData.remaining_value !== undefined && Number(val) > Number(selectedWoData.remaining_value) + 0.01) {
+      setValidationError(`Estimated amount cannot exceed Remaining Work Order Capacity (₹${selectedWoData.remaining_value.toLocaleString('en-IN')})`);
     }
   };
 
@@ -87,8 +87,8 @@ export const EstimatedBillEntryModal = ({
       setValidationError('Please enter a valid positive estimated bill amount.');
       return;
     }
-    if (selectedWoData?.work_order_value && numAmt > Number(selectedWoData.work_order_value)) {
-      setValidationError(`Estimated bill amount cannot exceed Work Order Value (₹${selectedWoData.work_order_value.toLocaleString('en-IN')}).`);
+    if (selectedWoData && selectedWoData.remaining_value !== undefined && numAmt > Number(selectedWoData.remaining_value) + 0.01) {
+      setValidationError(`Estimated bill amount cannot exceed Remaining Work Order Capacity (₹${selectedWoData.remaining_value.toLocaleString('en-IN')}).`);
       return;
     }
     if (!paymentDate) {
@@ -187,6 +187,18 @@ export const EstimatedBillEntryModal = ({
                 </span>
               </div>
               <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono block">Total RA Billed</span>
+                <span className="font-extrabold text-rose-400 font-mono tabular-nums">
+                  {formatCurrency(selectedWoData.total_billed)}
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-500 uppercase font-mono block">Remaining Capacity</span>
+                <span className="font-extrabold text-emerald-400 font-mono tabular-nums">
+                  {formatCurrency(selectedWoData.remaining_value)}
+                </span>
+              </div>
+              <div>
                 <span className="text-[10px] text-slate-500 uppercase font-mono block">Zone</span>
                 <span className="font-bold text-slate-200">{selectedWoData.zone || '—'}</span>
               </div>
@@ -225,7 +237,7 @@ export const EstimatedBillEntryModal = ({
               className="font-mono tabular-nums"
             />
             <span className="text-[10px] text-slate-500 block mt-1">
-              Must not exceed Work Order Value ({selectedWoData ? formatCurrency(selectedWoData.work_order_value) : '₹0'})
+              Must not exceed Remaining Capacity ({selectedWoData ? formatCurrency(selectedWoData.remaining_value) : '₹0'})
             </span>
           </div>
 
