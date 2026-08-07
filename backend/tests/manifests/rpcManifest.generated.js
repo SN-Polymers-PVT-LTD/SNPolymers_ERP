@@ -17,7 +17,7 @@ module.exports = {
         },
         {
           "name": "p_breakdown",
-          "type": "jsonb"
+          "type": "jsonb DEFAULT NULL::jsonb"
         }
       ],
       "returns": "excess_fund_returns"
