@@ -2,6 +2,7 @@ import { describe, beforeAll, afterAll, test, expect } from 'vitest';
 const crypto = require('crypto');
 import { supabase } from '../../../src/db/supabase';
 const setupUsers = require('../../helpers/setupUsers');
+const setupProject = require('../../helpers/setupProject');
 import { getHoActionableInsights, getHoChartData } from '../../../src/controllers/analytics.controller';
 
 const mockRes = () => {
@@ -17,6 +18,7 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
   let zoMobile;
   let jeMobile;
   let adminMobile;
+  let testWorkOrder;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -24,6 +26,7 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
     zoMobile = `9502${suffix}`;
     jeMobile = `9503${suffix}`;
     adminMobile = `9504${suffix}`;
+    testWorkOrder = `TEST_WO_HO_M3_${suffix}`;
 
     await setupUsers([
       { mobile_number: hoMobile, role: 'ho', is_active: true, display_name: `HO M3 ${suffix}` },
@@ -31,9 +34,12 @@ describe('HO Executive Analytics — Actionable Insights & Chart Data', () => {
       { mobile_number: jeMobile, role: 'je', is_active: true, display_name: `JE M3 ${suffix}` },
       { mobile_number: adminMobile, role: 'admin', is_active: true, display_name: `Admin M3 ${suffix}` }
     ]);
+
+    await setupProject(testWorkOrder, `EST_HO_M3_${suffix}`, 500000, adminMobile);
   });
 
   afterAll(async () => {
+    await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('authorised_users').delete().in('mobile_number', [hoMobile, zoMobile, jeMobile, adminMobile]);
   });
 
