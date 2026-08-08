@@ -100,26 +100,62 @@ async function verifyGithubSha(health, fetchImpl = global.fetch) {
     throw new Error('GITHUB_REPOSITORY is required when SMOKE_VERIFY_GITHUB_SHA=true');
   }
 
-  const { response, body } = await fetchJson(
-    `https://api.github.com/repos/${repo}/commits/${branch}`,
+  const deployedSha = String(health.git).trim();
+  if (!deployedSha) {
+    throw new Error('Health check response is missing a valid git SHA');
+  }
+
+  // 1. Fetch the latest commit on the branch that touched backend/
+  const branchRes = await fetchJson(
+    `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&path=backend&per_page=1`,
     { headers: { 'User-Agent': 'snpolymers-smoke' } },
     fetchImpl
   );
 
-  if (!response.ok) {
-    throw new Error(`GitHub API failed (${response.status}): ${JSON.stringify(body)}`);
+  if (!branchRes.response.ok) {
+    throw new Error(`GitHub API failed to get branch commits (${branchRes.response.status}): ${JSON.stringify(branchRes.body)}`);
   }
 
-  const deployedPrefix = String(health.git).slice(0, 7);
-  const githubPrefix = String(body.sha).slice(0, 7);
+  if (!Array.isArray(branchRes.body) || branchRes.body.length === 0) {
+    throw new Error(`GitHub API returned no commits for path 'backend' on branch '${branch}'`);
+  }
 
-  if (deployedPrefix !== githubPrefix) {
+  const branchLatestBackendSha = branchRes.body[0].sha;
+
+  // 2. Fetch the latest commit in the deployed SHA's history that touched backend/
+  const deployedRes = await fetchJson(
+    `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(deployedSha)}&path=backend&per_page=1`,
+    { headers: { 'User-Agent': 'snpolymers-smoke' } },
+    fetchImpl
+  ).catch(err => {
+    // If the commit is not found (e.g. force pushed / not on remote), return a mock error response
+    return { response: { ok: false, status: 404 }, body: err.message };
+  });
+
+  if (!deployedRes.response.ok) {
+    // If the deployed commit isn't on GitHub, we can't verify history. Fallback to basic SHA match.
+    const deployedPrefix = deployedSha.slice(0, 7);
+    const branchBackendPrefix = branchLatestBackendSha.slice(0, 7);
+    if (deployedPrefix !== branchBackendPrefix) {
+      throw new Error(
+        `Deploy SHA mismatch (fallback): production=${deployedPrefix} is not latest backend commit ${branchBackendPrefix} on ${branch}`
+      );
+    }
+    return { deployedPrefix, githubPrefix: branchBackendPrefix, branch };
+  }
+
+  const deployedLatestBackendSha = deployedRes.body[0].sha;
+
+  const deployedPrefix = deployedSha.slice(0, 7);
+  const branchBackendPrefix = branchLatestBackendSha.slice(0, 7);
+
+  if (branchLatestBackendSha !== deployedLatestBackendSha) {
     throw new Error(
-      `Deploy SHA mismatch: production=${deployedPrefix} github/${branch}=${githubPrefix}`
+      `Deploy is missing backend changes: production is at ${deployedPrefix} (latest backend change in history: ${deployedLatestBackendSha.slice(0, 7)}), but branch ${branch} has newer backend change ${branchBackendPrefix}`
     );
   }
 
-  return { deployedPrefix, githubPrefix, branch };
+  return { deployedPrefix, githubPrefix: branchBackendPrefix, branch };
 }
 
 async function fetchHealthCheck(healthUrl, fetchImpl, maxLatencyMs) {

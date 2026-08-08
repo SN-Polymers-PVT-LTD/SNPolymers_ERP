@@ -265,7 +265,7 @@ const Estimates = () => {
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <span className="text-[9px] font-bold text-amber-500 font-mono tracking-wider block mb-1">WO: {est.work_order_no}</span>
+                          <span className="text-sm font-extrabold text-amber-500 font-mono tracking-wider block mb-1">WO: {est.work_order_no}</span>
                           <h4 className="text-sm font-extrabold text-slate-200 group-hover:text-slate-100 transition-colors">
                             {est.estimate_no || 'Pending Auto ID'}
                           </h4>

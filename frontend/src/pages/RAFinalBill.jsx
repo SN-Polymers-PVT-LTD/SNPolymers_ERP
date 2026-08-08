@@ -9,7 +9,8 @@ import {
   getBillById,
   createBill,
   getBillSummary,
-  uploadBillCopy
+  uploadBillCopy,
+  getWorkOrdersWithoutRaBill
 } from '../api/raFinalBillApi';
 
 // Helper for currency formatting (Indian format)
@@ -156,7 +157,7 @@ const RAFinalBill = () => {
         page,
         limit: 10,
         work_order_no: filterWO || undefined,
-        payment_type: filterType || undefined,
+        payment_type: filterType && filterType !== '__no_ra_bill' ? filterType : undefined,
         date_from: filterDateFrom || undefined,
         date_to: filterDateTo || undefined
       };
@@ -213,6 +214,25 @@ const RAFinalBill = () => {
       finalBillsCount: finalCount
     };
   }, [statsBillsData]);
+
+  // Lazy fetch — only fires when the "No RA Bill" filter is selected
+  const isNoRaBillFilterActive = filterType === '__no_ra_bill';
+
+  const { data: noRaBillProjectsData, isLoading: loadingNoRaBill } = useQuery({
+    queryKey: ['bills', 'work-orders-without-ra-bill', filterWO],
+    queryFn: async () => {
+      const res = await getWorkOrdersWithoutRaBill(
+        filterWO?.trim() ? { work_order_no: filterWO.trim() } : {}
+      );
+      return res.data?.projects ?? [];
+    },
+    enabled: isNoRaBillFilterActive,
+    refetchOnWindowFocus: true,
+    staleTime: 5000
+  });
+
+  const projectsWithNoRaBill = noRaBillProjectsData ?? [];
+
 
   const projectBills = projectBillsData || [];
   const projectSummaryData = useMemo(() => {
@@ -965,6 +985,7 @@ const RAFinalBill = () => {
                       <option value="">All Types</option>
                       <option value="RA Bill">RA Bills</option>
                       <option value="Final Bill">Final Bills</option>
+                      <option value="__no_ra_bill">No RA Bill</option>
                     </Select>
                     <Input
                       label="Date From"
@@ -1003,7 +1024,65 @@ const RAFinalBill = () => {
                   </div>
                 </div>
 
-                {/* Global Ledger Table */}
+                {/* Global Ledger Table — hidden when "No RA Bill" sentinel is active */}
+                {filterType === '__no_ra_bill' ? (
+                  /* ── NO RA BILL VIEW: Work Orders with zero RA bill entries ── */
+                  <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
+                    <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">No RA Bill — Work Orders</span>
+                        <span className="text-[10px] font-mono font-bold text-slate-500">{projectsWithNoRaBill.length} work order(s) with no RA bill</span>
+                      </div>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-slate-600 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        Click a card to add a bill
+                      </span>
+                    </div>
+                    <div className="p-6">
+                      {loadingNoRaBill ? (
+                        <div className="py-16 text-center text-slate-500 text-xs uppercase font-extrabold tracking-widest animate-pulse">
+                          Loading work orders...
+                        </div>
+                      ) : projectsWithNoRaBill.length === 0 ? (
+                        <div className="py-16 text-center text-slate-500 text-xs uppercase font-extrabold tracking-widest">
+                          All work orders already have RA bill entries.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {projectsWithNoRaBill.map(proj => (
+                            <div
+                              key={proj.work_order_no}
+                              onClick={() => setActiveWO(proj)}
+                              className="glass-panel glass-card-hover p-5 rounded-2xl border border-amber-500/10 hover:border-amber-400/30 cursor-pointer flex flex-col justify-between min-h-[160px] transition-all duration-200 group"
+                            >
+                              <div>
+                                <div className="flex justify-between items-start mb-2">
+                                  <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500 font-mono truncate max-w-[160px]" title={proj.department}>
+                                    {proj.department}
+                                  </span>
+                                  <span className="text-[9px] font-bold uppercase tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded-full shrink-0 ml-2">
+                                    No RA Bill
+                                  </span>
+                                </div>
+                                <h3 className="text-sm font-extrabold text-slate-200 font-mono mt-1" title={proj.work_order_no}>
+                                  {proj.work_order_no}
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-1.5 line-clamp-2">
+                                  {proj.site_details}
+                                </p>
+                              </div>
+                              <div className="border-t border-white/5 pt-3 mt-3 flex items-center justify-between">
+                                <span className="text-xs text-slate-400 font-semibold">{proj.state} / {proj.district}</span>
+                                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-widest group-hover:translate-x-1 transition duration-200">
+                                  Open Sheet &rarr;
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
                 <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
                   <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
                     <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Ledger Feed (Global)</span>
@@ -1080,6 +1159,7 @@ const RAFinalBill = () => {
                   {/* Pagination Controls */}
                   <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} maxVisible={5} showLabel={true} />
                 </div>
+                )}
               </div>
             )}
 

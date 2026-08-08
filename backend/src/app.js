@@ -41,6 +41,7 @@ const { startPolling, registerWebhook } = require('./services/telegram.service')
 const { handleTelegramWebhook } = require('./controllers/telegram.webhook.controller');
 const { startReconciliationScheduler } = require('./services/reconciliation.service');
 const { startStreakReminderScheduler } = require('./services/streakNotification.service');
+const { startSiteVisitInactivityScheduler } = require('./services/siteVisitInactivity.service');
 const { startAnalyticsRefreshScheduler } = require('./services/analyticsRefresh.service');
 
 
@@ -160,6 +161,8 @@ if (require.main === module) {
     startReconciliationScheduler();
     // Start daily 1:00 PM streak reminder scheduler
     startStreakReminderScheduler();
+    // Start daily 10:00 AM site-visit inactivity alert scheduler
+    startSiteVisitInactivityScheduler();
     // Start periodic 15-minute materialized views refresh scheduler
     startAnalyticsRefreshScheduler();
   });
