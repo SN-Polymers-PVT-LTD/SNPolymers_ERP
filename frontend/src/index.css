@@ -588,19 +588,30 @@ body.light aside.glass-nav {
     inset 0 1px 1px rgba(255, 255, 255, 0.95) !important;
 }
 
-/* Opaque sidebar drawer panels — wins over .glass-nav translucency in both themes */
+/* Solid sidebar drawer panels — fully opaque, no backdrop-filter (prod compositor safe) */
+aside.sidebar-drawer-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  isolation: isolate;
+}
+
+body.dark aside.sidebar-drawer-panel,
 body:not(.light) aside.sidebar-drawer-panel {
-  background-color: rgba(15, 23, 42, 0.75) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  background: #0f172a !important;
+  background-color: #0f172a !important;
 }
 
 body.light aside.sidebar-drawer-panel {
-  background-color: rgba(255, 255, 255, 0.92) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border-color: rgba(226, 232, 240, 0.9) !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  border-color: #e2e8f0 !important;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+body.theme-pure-black aside.sidebar-drawer-panel {
+  background: #09090b !important;
+  background-color: #09090b !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 @keyframes sidebar-slide-in {
