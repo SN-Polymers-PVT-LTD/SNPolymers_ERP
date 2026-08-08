@@ -261,7 +261,7 @@ export const MobileHeader = () => {
           />
 
           {/* Drawer Panel */}
-          <aside className="fixed top-0 left-0 bottom-0 w-72 bg-[#050814]/20 backdrop-blur-lg border-r border-white/10 z-50 p-6 flex flex-col justify-between shadow-[5px_0_30px_rgba(0,0,0,0.3)] md:hidden animate-in slide-in-from-left duration-300">
+          <aside className="sidebar-drawer-panel sidebar-drawer-slide-in fixed top-0 left-0 bottom-0 w-72 border-r border-white/10 z-50 p-6 flex flex-col justify-between shadow-[5px_0_30px_rgba(0,0,0,0.3)] md:hidden">
             <div>
               {/* Header */}
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/5">
@@ -647,12 +647,17 @@ const Sidebar = () => {
   }
 
   return (
-    <div ref={sidebarRef} className="relative z-40">
+    <div
+      ref={sidebarRef}
+      className="relative z-40 md:w-20"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Fixed 80px Rail in Flex Container (Maintains 100% constant layout width for dashboard) */}
       <aside
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        className="hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 w-20 p-4 justify-between items-center"
+        className={`hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 w-20 p-4 justify-between items-center transition-opacity duration-200 ${
+          isExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
       >
         {/* Brand Logo Header (Fixed Rail) */}
         <div className="flex flex-col items-center gap-4 shrink-0">
@@ -742,12 +747,9 @@ const Sidebar = () => {
         </div>
       </aside>
 
-      {/* GPU-Accelerated Floating Overlay Drawer (Renders over layout without causing reflow) */}
+      {/* Floating Overlay Drawer (Renders over layout without causing reflow) */}
       <aside
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        style={{ willChange: 'transform, opacity' }}
-        className={`hidden md:flex fixed top-0 left-0 h-screen w-72 glass-nav border-r border-white/10 z-40 flex-col p-4 justify-between transition-all duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
+        className={`sidebar-drawer-panel hidden md:flex fixed top-0 left-0 h-screen w-72 border-r border-white/10 z-40 flex-col p-4 justify-between transition-[transform,opacity] duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
           isExpanded
             ? 'translate-x-0 opacity-100 pointer-events-auto'
             : '-translate-x-full opacity-0 pointer-events-none'

@@ -588,6 +588,35 @@ body.light aside.glass-nav {
     inset 0 1px 1px rgba(255, 255, 255, 0.95) !important;
 }
 
+/* Opaque sidebar drawer panels — wins over .glass-nav translucency in both themes */
+body:not(.light) aside.sidebar-drawer-panel {
+  background-color: rgba(15, 23, 42, 0.75) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+}
+
+body.light aside.sidebar-drawer-panel {
+  background-color: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border-color: rgba(226, 232, 240, 0.9) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03) !important;
+}
+
+@keyframes sidebar-slide-in {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.sidebar-drawer-slide-in {
+  animation: sidebar-slide-in 300ms ease-out;
+}
+
 /* Ensure inner nav element inside sidebar is completely transparent with no double box */
 body.light aside nav,
 body.light .glass-nav nav {
