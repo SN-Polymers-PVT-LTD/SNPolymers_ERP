@@ -749,10 +749,10 @@ const Sidebar = () => {
 
       {/* Floating Overlay Drawer (Renders over layout without causing reflow) */}
       <aside
-        className={`sidebar-drawer-panel hidden md:flex fixed top-0 left-0 h-screen w-72 border-r border-white/10 z-40 flex-col p-4 justify-between transition-[transform,opacity] duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
+        className={`sidebar-drawer-panel hidden md:flex fixed top-0 left-0 h-screen w-72 border-r border-white/10 z-40 flex-col p-4 justify-between transition-transform duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
           isExpanded
-            ? 'translate-x-0 opacity-100 pointer-events-auto'
-            : '-translate-x-full opacity-0 pointer-events-none'
+            ? 'translate-x-0 pointer-events-auto'
+            : '-translate-x-full pointer-events-none'
         }`}
       >
         {/* Brand Header */}
