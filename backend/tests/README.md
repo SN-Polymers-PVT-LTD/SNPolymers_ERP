@@ -79,11 +79,25 @@ npm run test:unit              # unit/ only
 npm run test:contracts         # static deploy contracts (no DB)
 npm run test:contracts:db      # schema, RPC, shapes, serialization
 npm run test:regression        # active regression suite
-npm run test:milestones        # frozen legacy suite only
-npm run test:integration       # regression + milestones + root vitest (CI)
+npm run test:milestones        # frozen legacy suite only (starts local Supabase)
+npm run test:integration       # regression + milestones + root vitest (needs local Supabase)
+npm run test:local             # start Supabase, migrate, then test:integration
 ```
 
-Requires local Supabase for DB-backed suites: `npx supabase start` then `npm run migrate`.
+### Full suite (CI-equivalent)
+
+Unit → static contracts → DB contracts → integration (regression + milestones):
+
+```bash
+cd backend
+
+npm run test:unit && \
+npm run test:contracts && \
+bash scripts/test-local.sh tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js tests/vitest/contracts/indexContract.test.js tests/vitest/contracts/apiResponseShape.test.js tests/vitest/contracts/apiSnapshots.test.js tests/vitest/contracts/apiSerialization.test.js tests/vitest/contracts/analyticsContract.test.js && \
+npm run test:local
+```
+
+Requires [local Supabase](https://supabase.com/docs/guides/cli/local-development) (started automatically by `test-local.sh`). Migrations run before DB-backed tests.
 
 ## Further reading
 

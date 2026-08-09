@@ -11,22 +11,36 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
   beforeAll(async () => {
     originalEnvNodeEnv = process.env.NODE_ENV;
 
-    // Preserve original telegram_chat_id
+    // Ensure the test user exists and has a linked Telegram chat ID
     const { data: user } = await supabase
       .from('authorised_users')
       .select('telegram_chat_id')
       .eq('mobile_number', testMobile)
-      .single();
+      .maybeSingle();
 
-    if (user) {
-      originalTelegramChatId = user.telegram_chat_id;
-    }
+    originalTelegramChatId = user?.telegram_chat_id ?? null;
 
-    // Link mobile number with test chat ID
-    await supabase
-      .from('authorised_users')
-      .update({ telegram_chat_id: testChatId })
-      .eq('mobile_number', testMobile);
+    await supabase.from('authorised_users').upsert(
+      {
+        mobile_number: testMobile,
+        role: 'zo',
+        is_active: true,
+        display_name: 'Test ZO User M4',
+        telegram_chat_id: testChatId
+      },
+      { onConflict: 'mobile_number' }
+    );
+
+    await supabase.from('authorised_users').upsert(
+      {
+        mobile_number: '+918000000002',
+        role: 'zo',
+        is_active: true,
+        display_name: 'Test ZO User No Chat M4',
+        telegram_chat_id: null
+      },
+      { onConflict: 'mobile_number' }
+    );
   });
 
   afterAll(async () => {
@@ -56,6 +70,19 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
   test('Test 1: Dispatches Telegram notification and logs status in dev/prod modes', async () => {
     process.env.NODE_ENV = 'development';
 
+    const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+    process.env.TELEGRAM_BOT_TOKEN = '123456:mock_token';
+
+    const originalFetch = global.fetch;
+    let telegramFetchCount = 0;
+    global.fetch = async (url, options) => {
+      if (String(url).includes('api.telegram.org')) {
+        telegramFetchCount += 1;
+        return { json: async () => ({ ok: true, result: { message_id: 1 } }) };
+      }
+      return originalFetch(url, options);
+    };
+
     const originalLog = console.log;
     const originalWarn = console.warn;
     const originalError = console.error;
@@ -79,15 +106,13 @@ describe('Milestone P3-M4 — Fund Request Telegram Notification', () => {
       console.log = originalLog;
       console.warn = originalWarn;
       console.error = originalError;
+      global.fetch = originalFetch;
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
       process.env.NODE_ENV = originalEnvNodeEnv;
     }
 
-    const hasAttempted = logOutput.toLowerCase().includes('sent') || 
-                         logOutput.toLowerCase().includes('failed') ||
-                         logOutput.toLowerCase().includes('disabled') ||
-                         logOutput.toLowerCase().includes('token') ||
-                         logOutput.toLowerCase().includes('warn');
-    expect(hasAttempted).toBe(true);
+    expect(telegramFetchCount).toBeGreaterThan(0);
+    expect(logOutput.toLowerCase()).toContain('sent');
   });
 
   test('Test 2: Gracefully logs warning for users without telegram_chat_id configured', async () => {
