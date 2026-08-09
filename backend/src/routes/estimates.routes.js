@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   getEstimates,
+  getEstimateSummary,
   getEstimateById,
   getEstimateInitData,
   createEstimate,
@@ -27,6 +28,7 @@ const router = express.Router();
 router.use(verifyJwt);
 
 // Read endpoints
+router.get('/summary', getEstimateSummary);
 router.get('/', getEstimates);
 router.get('/init', getEstimateInitData);
 router.get('/:id', getEstimateById);

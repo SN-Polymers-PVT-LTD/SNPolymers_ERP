@@ -221,6 +221,83 @@ async function getEstimates(req, res) {
 }
 
 /**
+ * GET /api/v1/auth/estimates/summary
+ * Unpaginated, role-filtered cost estimate summary (work_order_no + estimate_amount only).
+ */
+async function getEstimateSummary(req, res) {
+  try {
+    const query = req.query || {};
+    const effectiveRole = getEffectiveRole(req.user.role);
+    let dbQuery = supabase
+      .from('project_cost_estimates')
+      .select('work_order_no, estimate_amount');
+
+    if (process.env.IDBP_FILTER_TEST_DATA === 'true' && process.env.NODE_ENV !== 'test') {
+      dbQuery = dbQuery
+        .not('work_order_no', 'like', 'TEST_%')
+        .not('estimate_no', 'like', 'EST_%');
+    }
+
+    if (effectiveRole === 'je') {
+      const { data: mappedWOs, error: mapError } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+
+      if (mapError) throw mapError;
+      const woNos = (mappedWOs || []).map(m => m.work_order_no);
+      dbQuery = dbQuery.in('work_order_no', woNos.length > 0 ? woNos : ['dummy_wo_no']);
+    }
+
+    if (effectiveRole === 'zo') {
+      const { data: mappedJEs, error: jeMapErr } = await supabase
+        .from('je_zo_mappings')
+        .select('je_user_id')
+        .eq('zo_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+
+      if (jeMapErr) throw jeMapErr;
+      const jeIds = (mappedJEs || []).map(m => m.je_user_id);
+
+      if (jeIds.length > 0) {
+        const { data: mappedWOs, error: woMapErr } = await supabase
+          .from('work_order_mappings')
+          .select('work_order_no')
+          .in('je_user_id', jeIds)
+          .eq('is_active', true);
+
+        if (woMapErr) throw woMapErr;
+        const woNos = (mappedWOs || []).map(m => m.work_order_no);
+        dbQuery = dbQuery.in('work_order_no', woNos.length > 0 ? woNos : ['dummy_wo_no']);
+      } else {
+        dbQuery = dbQuery.in('work_order_no', ['dummy_wo_no']);
+      }
+    }
+
+    if (query.status) {
+      dbQuery = dbQuery.eq('estimate_status', query.status);
+    }
+
+    const { data: estimates, error } = await dbQuery
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      estimates: (estimates || []).map(({ work_order_no, estimate_amount }) => ({
+        work_order_no,
+        estimate_amount
+      }))
+    });
+  } catch (error) {
+    console.error(`getEstimateSummary failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve cost estimate summary.' });
+  }
+}
+
+/**
  * GET /api/v1/auth/estimates/:id
  * Single cost estimate retrieval with detail fields, summary, and name resolution.
  */
@@ -373,6 +450,7 @@ async function getEstimateInitData(req, res) {
 module.exports = {
   createEstimate,
   getEstimates,
+  getEstimateSummary,
   getEstimateById,
   getEstimateInitData
 };

@@ -16,10 +16,11 @@ import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModa
 // API Clients
 import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest } from '../api/fundRequests';
 import { getProjects } from '../api/projectsApi';
-import { getEstimatedBills } from '../api/estimatedBillsApi';
+import { getEstimateSummary } from '../api/estimatesApi';
 import { exportFundRequestsToExcel } from '../utils/exportHelpers';
 
 const SUBMITTED_FR_STATUSES = new Set(['Pending', 'Hold', 'Approved']);
+const ELIGIBLE_WO_STATUSES = new Set(['Running', 'Complete Under Maintenance']);
 
 const buildSubmittedFrSumByWo = (requests) => {
   const frSumByWo = {};
@@ -84,24 +85,24 @@ const FundRequests = () => {
   const { data: projectsList = [], isLoading: loadingProjects } = useQuery({
     queryKey: ['projects', 'fundRequestWoFilters'],
     queryFn: async () => {
-      const res = await getProjects({ has_approved_estimate: true });
+      const res = await getProjects();
       return res.data?.projects ?? [];
     },
     enabled: isWoLevelView,
     staleTime: 60 * 1000
   });
 
-  const { data: estimatedBillsList = [], isLoading: loadingEstimatedBills } = useQuery({
-    queryKey: ['estimatedBills', 'fundRequestWoFilters'],
+  const { data: approvedEstimatesList = [], isLoading: loadingEstimates } = useQuery({
+    queryKey: ['estimates', 'finalApproved', 'fundRequestWoFilters'],
     queryFn: async () => {
-      const res = await getEstimatedBills({ status: 'all' });
-      return res.data?.data ?? [];
+      const res = await getEstimateSummary({ status: 'Final Approved' });
+      return res.data?.estimates ?? [];
     },
     enabled: isWoLevelView,
     staleTime: 60 * 1000
   });
 
-  const loadingWoView = isWoLevelView && (loadingProjects || loadingEstimatedBills);
+  const loadingWoView = isWoLevelView && (loadingProjects || loadingEstimates);
 
   // Auto-dismiss success message
   useEffect(() => {
@@ -216,28 +217,26 @@ const FundRequests = () => {
     const wosWithAnyFr = new Set(requests.map((r) => r.work_order_no).filter(Boolean));
 
     const estimatedValueByWo = {};
-    estimatedBillsList.forEach((bill) => {
-      estimatedValueByWo[bill.work_order_no] = Number(bill.estimated_bill_amount || 0);
-    });
-    requests.forEach((r) => {
-      if (r.work_order_no && r.estimated_value != null) {
-        estimatedValueByWo[r.work_order_no] = Number(r.estimated_value);
-      }
+    approvedEstimatesList.forEach((est) => {
+      estimatedValueByWo[est.work_order_no] = Number(est.estimate_amount || 0);
     });
 
-    let rows = projectsList.map((p) => {
-      const estimatedValue = estimatedValueByWo[p.work_order_no] ?? null;
-      const totalFrAmount = frSumByWo[p.work_order_no] || 0;
-      return {
-        work_order_no: p.work_order_no,
-        zo_name: p.zo_user?.display_name || null,
-        zo_user_id: p.zo_user_id,
-        work_order_value: p.work_order_value != null ? Number(p.work_order_value) : null,
-        estimated_value: estimatedValue,
-        total_fr_amount: totalFrAmount,
-        remaining_amount: estimatedValue != null ? estimatedValue - totalFrAmount : null
-      };
-    });
+    let rows = projectsList
+      .filter((p) => ELIGIBLE_WO_STATUSES.has(p.status))
+      .map((p) => {
+        const estimatedValue = estimatedValueByWo[p.work_order_no]
+          ?? (p.work_order_value != null ? Number(p.work_order_value) : null);
+        const totalFrAmount = frSumByWo[p.work_order_no] || 0;
+        return {
+          work_order_no: p.work_order_no,
+          zo_name: p.zo_user?.display_name || null,
+          zo_user_id: p.zo_user_id,
+          work_order_value: p.work_order_value != null ? Number(p.work_order_value) : null,
+          estimated_value: estimatedValue,
+          total_fr_amount: totalFrAmount,
+          remaining_amount: estimatedValue != null ? estimatedValue - totalFrAmount : null
+        };
+      });
 
     if (filters.myRequests) {
       rows = rows.filter((r) => r.zo_user_id === user?.mobile_number);
@@ -255,7 +254,7 @@ const FundRequests = () => {
     }
 
     return rows.sort((a, b) => a.work_order_no.localeCompare(b.work_order_no));
-  }, [isWoLevelView, projectsList, estimatedBillsList, requests, filters, search, user?.mobile_number]);
+  }, [isWoLevelView, projectsList, approvedEstimatesList, requests, filters, search, user?.mobile_number]);
 
   const woViewMode = filters.notSentToHo && filters.remainingFundRequest
     ? 'remainingFundRequest'

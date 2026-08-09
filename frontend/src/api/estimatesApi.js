@@ -8,6 +8,9 @@ import authApi from './authApi';
 /** Fetch all estimates with filtering/pagination (role-filtered by backend) */
 export const getEstimates = (params) => authApi.get('/estimates', { params });
 
+/** Fetch unpaginated estimate summary (work_order_no + estimate_amount only) */
+export const getEstimateSummary = (params) => authApi.get('/estimates/summary', { params });
+
 /** Fetch single estimate by ID (contains items + summary + name resolution) */
 export const getEstimateById = (id) => authApi.get(`/estimates/${id}`);
 
