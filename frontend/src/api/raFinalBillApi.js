@@ -6,6 +6,9 @@ export const createBill         = (data)             => authApi.post('/ra-final-
 export const getBillSummary     = (work_order_no)    =>
   authApi.get(`/ra-final-bills/summary/${encodeURIComponent(work_order_no)}`);
 
+export const getWorkOrdersWithoutRaBill = (params = {}) =>
+  authApi.get('/ra-final-bills/work-orders/without-ra-bill', { params });
+
 export const uploadBillCopy = (file) => {
   const formData = new FormData();
   formData.append('file', file);

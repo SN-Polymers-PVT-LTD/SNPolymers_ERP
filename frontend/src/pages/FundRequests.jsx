@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DashboardMetrics from '../components/fundRequests/DashboardMetrics';
 import RequisitionCharts from '../components/fundRequests/RequisitionCharts';
 import FundRequestTable from '../components/fundRequests/FundRequestTable';
+import WorkOrderFundSummaryTable from '../components/fundRequests/WorkOrderFundSummaryTable';
 import QuickFiltersSidebar from '../components/fundRequests/QuickFiltersSidebar';
 import RequestDetailPanel from '../components/fundRequests/RequestDetailPanel';
 import CancelFundRequestModal from '../components/fundRequests/CancelFundRequestModal';
@@ -14,7 +15,21 @@ import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModa
 
 // API Clients
 import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest } from '../api/fundRequests';
+import { getProjects } from '../api/projectsApi';
+import { getEstimateSummary } from '../api/estimatesApi';
 import { exportFundRequestsToExcel } from '../utils/exportHelpers';
+
+const SUBMITTED_FR_STATUSES = new Set(['Pending', 'Hold', 'Approved']);
+const ELIGIBLE_WO_STATUSES = new Set(['Running', 'Complete Under Maintenance']);
+
+const buildSubmittedFrSumByWo = (requests) => {
+  const frSumByWo = {};
+  requests.forEach((r) => {
+    if (!r.work_order_no || !SUBMITTED_FR_STATUSES.has(r.request_status)) return;
+    frSumByWo[r.work_order_no] = (frSumByWo[r.work_order_no] || 0) + Number(r.zo_fr_amount || 0);
+  });
+  return frSumByWo;
+};
 
 const FundRequests = () => {
   const { user } = useAuth();
@@ -33,6 +48,7 @@ const FundRequests = () => {
   const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null); // { id, no }
   const [isCancelling, setIsCancelling] = useState(false);
+  const [createWorkOrder, setCreateWorkOrder] = useState('');
 
   // Quick Filters State
   const [filters, setFilters] = useState({
@@ -40,7 +56,9 @@ const FundRequests = () => {
     pendingOnly: false,
     approvedThisMonth: false,
     onHoldRequests: false,
-    largeAmount: false
+    largeAmount: false,
+    notSentToHo: false,
+    remainingFundRequest: false
   });
 
   const isZoUser = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
@@ -61,6 +79,30 @@ const FundRequests = () => {
 
   const requests = requestsData || [];
   const displayError = error || queryError?.response?.data?.message || queryError?.message;
+
+  const isWoLevelView = filters.notSentToHo || filters.remainingFundRequest;
+
+  const { data: projectsList = [], isLoading: loadingProjects } = useQuery({
+    queryKey: ['projects', 'fundRequestWoFilters'],
+    queryFn: async () => {
+      const res = await getProjects();
+      return res.data?.projects ?? [];
+    },
+    enabled: isWoLevelView,
+    staleTime: 60 * 1000
+  });
+
+  const { data: approvedEstimatesList = [], isLoading: loadingEstimates } = useQuery({
+    queryKey: ['estimates', 'finalApproved', 'fundRequestWoFilters'],
+    queryFn: async () => {
+      const res = await getEstimateSummary({ status: 'Final Approved' });
+      return res.data?.estimates ?? [];
+    },
+    enabled: isWoLevelView,
+    staleTime: 60 * 1000
+  });
+
+  const loadingWoView = isWoLevelView && (loadingProjects || loadingEstimates);
 
   // Auto-dismiss success message
   useEffect(() => {
@@ -129,6 +171,11 @@ const FundRequests = () => {
     setFilters(prev => ({ ...prev, pendingOnly: true }));
   };
 
+  const handleCreateForWorkOrder = (workOrderNo) => {
+    setCreateWorkOrder(workOrderNo || '');
+    setShowCreateFlow(true);
+  };
+
   // Filter requests list based on search and quick checklist filters
   const getFilteredRequests = () => {
     let list = [...requests];
@@ -163,11 +210,69 @@ const FundRequests = () => {
 
   const filteredRequests = getFilteredRequests();
 
-  const totalPages = Math.ceil(filteredRequests.length / pageSize) || 1;
+  const woSummaryRows = useMemo(() => {
+    if (!isWoLevelView || projectsList.length === 0) return [];
+
+    const frSumByWo = buildSubmittedFrSumByWo(requests);
+    const wosWithAnyFr = new Set(requests.map((r) => r.work_order_no).filter(Boolean));
+
+    const estimatedValueByWo = {};
+    approvedEstimatesList.forEach((est) => {
+      estimatedValueByWo[est.work_order_no] = Number(est.estimate_amount || 0);
+    });
+
+    let rows = projectsList
+      .filter((p) => ELIGIBLE_WO_STATUSES.has(p.status))
+      .map((p) => {
+        const estimatedValue = estimatedValueByWo[p.work_order_no]
+          ?? (p.work_order_value != null ? Number(p.work_order_value) : null);
+        const totalFrAmount = frSumByWo[p.work_order_no] || 0;
+        return {
+          work_order_no: p.work_order_no,
+          zo_name: p.zo_user?.display_name || null,
+          zo_user_id: p.zo_user_id,
+          work_order_value: p.work_order_value != null ? Number(p.work_order_value) : null,
+          estimated_value: estimatedValue,
+          total_fr_amount: totalFrAmount,
+          remaining_amount: estimatedValue != null ? estimatedValue - totalFrAmount : null
+        };
+      });
+
+    if (filters.myRequests) {
+      rows = rows.filter((r) => r.zo_user_id === user?.mobile_number);
+    }
+    if (filters.notSentToHo) {
+      rows = rows.filter((r) => !wosWithAnyFr.has(r.work_order_no));
+    }
+    if (filters.remainingFundRequest) {
+      rows = rows.filter((r) => r.estimated_value != null && r.remaining_amount > 0);
+    }
+
+    const q = search.toLowerCase();
+    if (q) {
+      rows = rows.filter((r) => r.work_order_no?.toLowerCase().includes(q));
+    }
+
+    return rows.sort((a, b) => a.work_order_no.localeCompare(b.work_order_no));
+  }, [isWoLevelView, projectsList, approvedEstimatesList, requests, filters, search, user?.mobile_number]);
+
+  const woViewMode = filters.notSentToHo && filters.remainingFundRequest
+    ? 'remainingFundRequest'
+    : filters.notSentToHo
+      ? 'notSentToHo'
+      : 'remainingFundRequest';
+
+  const activeList = isWoLevelView ? woSummaryRows : filteredRequests;
+  const totalPages = Math.ceil(activeList.length / pageSize) || 1;
   const paginatedRequests = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredRequests.slice(start, start + pageSize);
   }, [filteredRequests, currentPage, pageSize]);
+
+  const paginatedWoRows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return woSummaryRows.slice(start, start + pageSize);
+  }, [woSummaryRows, currentPage, pageSize]);
 
   // Create dynamic recent activity logs
   const activityLogs = requests
@@ -195,7 +300,9 @@ const FundRequests = () => {
               onClose={() => {
                 setActiveRequest(null);
                 setShowCreateFlow(false);
+                setCreateWorkOrder('');
               }}
+              initialWorkOrder={createWorkOrder}
               onSave={handleCreate}
               onAct={handleAct}
               onCancel={handleCancelFromDetail}
@@ -217,7 +324,10 @@ const FundRequests = () => {
               </div>
               {isZoUser && (
                 <Button
-                  onClick={() => setShowCreateFlow(true)}
+                  onClick={() => {
+                    setCreateWorkOrder('');
+                    setShowCreateFlow(true);
+                  }}
                   icon={
                     <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -245,7 +355,9 @@ const FundRequests = () => {
               {/* Left Data Grid (Table) */}
               <div className="lg:col-span-3 glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/10 bg-[#0d131f]/90 backdrop-blur-xl">
                 <div className="p-5 border-b border-white/10 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                  <span className="text-xs font-black uppercase tracking-widest text-slate-300 text-left">Fund Requests List</span>
+                  <span className="text-xs font-black uppercase tracking-widest text-slate-300 text-left">
+                    {isWoLevelView ? 'Work Order Summary' : 'Fund Requests List'}
+                  </span>
                   <div className="flex flex-wrap items-center gap-3">
                     <Input
                       type="text"
@@ -300,12 +412,22 @@ const FundRequests = () => {
                   </div>
                 </div>
 
-                {loading ? (
+                {(loading || loadingWoView) ? (
                   <SkeletonTable rows={6} cols={6} />
-                ) : filteredRequests.length === 0 ? (
+                ) : activeList.length === 0 ? (
                   <div className="text-center p-24 text-slate-400 text-xs uppercase font-extrabold tracking-widest">
-                    No requests matching filters.
+                    No {isWoLevelView ? 'work orders' : 'requests'} matching filters.
                   </div>
+                ) : isWoLevelView ? (
+                  <>
+                    <WorkOrderFundSummaryTable
+                      rows={paginatedWoRows}
+                      mode={woViewMode}
+                      isZoUser={isZoUser}
+                      onCreateRequest={handleCreateForWorkOrder}
+                    />
+                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} maxVisible={5} />
+                  </>
                 ) : (
                   <>
                     <FundRequestTable

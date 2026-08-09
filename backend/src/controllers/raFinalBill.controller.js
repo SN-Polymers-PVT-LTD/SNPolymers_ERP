@@ -482,9 +482,48 @@ async function getBillSummaryByWorkOrder(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/ra-final-bills/work-orders/without-ra-bill
+ *
+ * Returns active Work Orders with no RA bills entered yet.
+ * Scoped automatically by ZO role mapping to ensure data boundary security.
+ */
+async function getWorkOrdersWithoutRaBill(req, res) {
+  try {
+    let query = supabase
+      .from('work_orders_without_ra_bill')
+      .select('work_order_no, site_details, state, district, department, status')
+      .order('work_order_no', { ascending: true });
+
+    // Role-based scoping (ZO only sees their assigned projects)
+    if (req.user.role === 'zo') {
+      query = query.eq('zo_user_id', req.user.mobile_number);
+    }
+
+    const workOrderFilter = req.query.work_order_no?.trim();
+    if (workOrderFilter) {
+      query = query.ilike('work_order_no', `%${workOrderFilter}%`);
+    }
+
+    const { data: projects, error } = await query;
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      projects: projects || []
+    });
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('getWorkOrdersWithoutRaBill failed:', error);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to retrieve work orders without RA bill.' });
+  }
+}
+
 module.exports = {
   createBill,
   getBills,
   getBillById,
-  getBillSummaryByWorkOrder
+  getBillSummaryByWorkOrder,
+  getWorkOrdersWithoutRaBill
 };

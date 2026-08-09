@@ -144,17 +144,38 @@ describe('productionSmoke — runProductionSmoke', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(3);
   });
 
-  test('verifyGithubSha compares production git prefix with GitHub HEAD', async () => {
+  test('verifyGithubSha compares backend tree hashes between main and deployed commit', async () => {
     process.env.SMOKE_VERIFY_GITHUB_SHA = 'true';
     process.env.GITHUB_REPOSITORY = 'owner/repo';
 
+    const sharedBackendTreeSha = 'tree-backend-abc1234567890abcdef1234567890abcd';
+
     const fetchImpl = vi.fn(async (url) => {
-      if (String(url).includes('api.github.com')) {
+      const urlStr = String(url);
+      if (urlStr.endsWith('/commits/main')) {
         return {
           ok: true,
           status: 200,
           headers: mockHeaders({}),
-          text: async () => JSON.stringify({ sha: 'abc1234deadbeef' })
+          text: async () => JSON.stringify({ commit: { tree: { sha: 'root-main' } } })
+        };
+      }
+      if (urlStr.endsWith('/commits/abc1234')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({ commit: { tree: { sha: 'root-deployed' } } })
+        };
+      }
+      if (urlStr.endsWith('/git/trees/root-main') || urlStr.endsWith('/git/trees/root-deployed')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({
+            tree: [{ path: 'backend', type: 'tree', sha: sharedBackendTreeSha }]
+          })
         };
       }
       throw new Error(`Unexpected URL: ${url}`);
@@ -163,23 +184,61 @@ describe('productionSmoke — runProductionSmoke', () => {
     const result = await verifyGithubSha(healthyBody(), fetchImpl);
     expect(result).toEqual({
       deployedPrefix: 'abc1234',
-      githubPrefix: 'abc1234',
-      branch: 'main'
+      githubPrefix: 'tree-ba',
+      branch: 'main',
+      backendTreeSha: sharedBackendTreeSha,
+      deployedBackendTreeSha: sharedBackendTreeSha,
+      backendTreeMatch: true
     });
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 
-  test('verifyGithubSha fails on mismatch', async () => {
+  test('verifyGithubSha fails when backend tree hashes differ', async () => {
     process.env.SMOKE_VERIFY_GITHUB_SHA = 'true';
     process.env.GITHUB_REPOSITORY = 'owner/repo';
 
-    const fetchImpl = vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      headers: mockHeaders({}),
-      text: async () => JSON.stringify({ sha: 'ffffffffffffffffffffffffffffffffffffffff' })
-    }));
+    const fetchImpl = vi.fn(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.endsWith('/commits/main')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({ commit: { tree: { sha: 'root-main' } } })
+        };
+      }
+      if (urlStr.endsWith('/commits/abc1234')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({ commit: { tree: { sha: 'root-deployed' } } })
+        };
+      }
+      if (urlStr.endsWith('/git/trees/root-main')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({
+            tree: [{ path: 'backend', type: 'tree', sha: 'tree-backend-main-version' }]
+          })
+        };
+      }
+      if (urlStr.endsWith('/git/trees/root-deployed')) {
+        return {
+          ok: true,
+          status: 200,
+          headers: mockHeaders({}),
+          text: async () => JSON.stringify({
+            tree: [{ path: 'backend', type: 'tree', sha: 'tree-backend-deployed-version' }]
+          })
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
 
-    await expect(verifyGithubSha(healthyBody(), fetchImpl)).rejects.toThrow(/SHA mismatch/i);
+    await expect(verifyGithubSha(healthyBody(), fetchImpl)).rejects.toThrow(/Backend tree mismatch/i);
   });
 
   test('fetchHealthCheck retries once after cold-start latency breach', async () => {

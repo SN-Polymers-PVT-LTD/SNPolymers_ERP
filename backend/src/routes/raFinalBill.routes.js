@@ -5,7 +5,8 @@ const {
   createBill,
   getBills,
   getBillById,
-  getBillSummaryByWorkOrder
+  getBillSummaryByWorkOrder,
+  getWorkOrdersWithoutRaBill
 } = require('../controllers/raFinalBill.controller');
 const { uploadBillCopy } = require('../controllers/raFinalBill.uploads.controller');
 const verifyJwt   = require('../middleware/verifyJwt'); // Corrected middleware name
@@ -39,6 +40,11 @@ router.post('/upload/bill-copy',
 router.get('/summary/:work_order_no',
   requireRole(authorisedRoles),
   getBillSummaryByWorkOrder);
+
+// Work orders without any RA bills (Database-view driven)
+router.get('/work-orders/without-ra-bill',
+  requireRole(authorisedRoles),
+  getWorkOrdersWithoutRaBill);
 
 // Core CRUD
 router.post('/',

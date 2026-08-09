@@ -18,9 +18,9 @@ const AppLayout = () => {
       <Sidebar />
       <MobileHeader />
 
-      <div className="flex-grow flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-grow flex flex-col min-w-0 overflow-hidden z-0">
         <TopNavbar />
-        <main className="flex-grow p-4 md:p-6 overflow-y-auto no-scrollbar w-full relative z-10">
+        <main className="flex-grow p-4 md:p-6 overflow-y-auto no-scrollbar w-full relative z-0">
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>

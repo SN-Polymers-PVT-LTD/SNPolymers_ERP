@@ -25,6 +25,7 @@ const formatDateTime = (d) => {
 const RequestDetailPanel = ({
   user,
   request,        // null if creating new
+  initialWorkOrder = '',
   onClose,
   onSave,         // ZO submit function
   onAct,          // HO approve/hold action function
@@ -88,6 +89,12 @@ const RequestDetailPanel = ({
         });
     }
   }, [isCreate, user]);
+
+  useEffect(() => {
+    if (isCreate && initialWorkOrder) {
+      setSelectedWorkOrder(initialWorkOrder);
+    }
+  }, [isCreate, initialWorkOrder]);
 
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {

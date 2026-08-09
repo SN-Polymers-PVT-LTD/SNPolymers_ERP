@@ -1852,6 +1852,7 @@ async function notifyHoExcessReturnModified(returnRequest) {
 }
 
 module.exports = {
+  escapeHtml,
   sendOtp,
   startPolling,
   processWebhookUpdate,

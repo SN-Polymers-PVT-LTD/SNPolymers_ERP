@@ -15,7 +15,7 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
     <Table>
       <TableHeader className="bg-slate-900/90 border-b border-white/10">
         <TableRow hover={false} className="border-b border-white/10 bg-slate-900/90">
-           {['FR Order No', 'Work Order No', 'Zonal Office', 'Requested Amount', 'Approved Amount', 'Request Date', 'Status', 'Actions'].map((h) => (
+           {['FR Order No', 'Work Order No', 'Work Order Value', 'Estimated Value', 'Zonal Office', 'Requested Amount', 'Approved Amount', 'Request Date', 'Status', 'Actions'].map((h) => (
             <TableCell key={h} isHeader={true} className="text-slate-300 font-black uppercase tracking-widest text-[10px] py-3.5 px-3 bg-slate-900/90 whitespace-nowrap">
               {h}
             </TableCell>
@@ -50,6 +50,14 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
                 ) : (
                   <span className="text-slate-600 font-bold">—</span>
                 )}
+              </TableCell>
+              {/* Work Order Value — item 4(a) */}
+              <TableCell className="py-3 px-3 font-mono font-black text-violet-400 text-xs tracking-tight whitespace-nowrap">
+                {req.work_order_value != null ? formatCurrency(req.work_order_value) : <span className="text-slate-600 font-bold">—</span>}
+              </TableCell>
+              {/* Estimated Value — item 4(a) */}
+              <TableCell className="py-3 px-3 font-mono font-black text-sky-400 text-xs tracking-tight whitespace-nowrap">
+                {req.estimated_value != null ? formatCurrency(req.estimated_value) : <span className="text-slate-600 font-bold">—</span>}
               </TableCell>
               <TableCell className="py-3 px-3 whitespace-nowrap">
                 <span className="bg-sky-500/10 text-sky-300 border border-sky-500/20 px-2 py-0.5 rounded-full text-xs font-bold inline-block">

@@ -263,19 +263,23 @@ const Estimates = () => {
                       onClick={() => handleCardClick(est.estimate_id)}
                       className="glass-panel p-5 rounded-2xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] cursor-pointer transition duration-300 flex flex-col justify-between gap-4 group relative"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <span className="text-[9px] font-bold text-amber-500 font-mono tracking-wider block mb-1">WO: {est.work_order_no}</span>
-                          <h4 className="text-sm font-extrabold text-slate-200 group-hover:text-slate-100 transition-colors">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                          <span className="text-xl font-black text-amber-500 font-mono tracking-wide block mb-2">
+                            WO: {est.work_order_no}
+                          </span>
+                          <span className="text-xs text-slate-400 font-medium block">Area Code: <span className="font-mono font-bold text-slate-300">{est.area_code}</span></span>
+                        </div>
+                        <div className="flex items-start gap-3 shrink-0">
+                          <h4 className="text-xl font-black text-slate-100 font-mono text-right leading-tight pt-0.5">
                             {est.estimate_no || 'Pending Auto ID'}
                           </h4>
-                          <span className="text-[10px] text-slate-400 font-medium block mt-1">Area Code: <span className="font-mono font-bold text-slate-300">{est.area_code}</span></span>
+                          <button className="h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 flex items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300 shrink-0">
+                            <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
                         </div>
-                        <button className="h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 flex items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300 shrink-0">
-                          <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
                       </div>
 
                       <div className="flex justify-between items-center border-t border-white/5 pt-3.5 mt-2">
@@ -288,7 +292,7 @@ const Estimates = () => {
                         </Badge>
                         <div className="text-right">
                           <span className="text-[9px] text-slate-500 uppercase font-bold block">Estimated Amount</span>
-                          <span className="text-sm font-black text-slate-200 font-mono">{formatINR(est.estimate_amount)}</span>
+                          <span className="text-lg font-black text-slate-200 font-mono">{formatINR(est.estimate_amount)}</span>
                         </div>
                       </div>
                     </div>

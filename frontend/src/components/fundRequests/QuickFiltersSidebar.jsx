@@ -10,7 +10,9 @@ const QuickFiltersSidebar = ({ filters, onFilterChange, activities }) => {
     { key: 'pendingOnly', label: 'Pending Only' },
     { key: 'approvedThisMonth', label: 'Approved This Month' },
     { key: 'onHoldRequests', label: 'On Hold Requests' },
-    { key: 'largeAmount', label: 'Large Amount Requests (> ₹5L)' }
+    { key: 'largeAmount', label: 'Large Amount Requests (> ₹5L)' },
+    { key: 'notSentToHo', label: 'Fund Request Not Sent to HO' },
+    { key: 'remainingFundRequest', label: 'Remaining Fund Request' }
   ];
 
   return (

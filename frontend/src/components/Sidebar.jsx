@@ -649,7 +649,7 @@ const Sidebar = () => {
   return (
     <div
       ref={sidebarRef}
-      className="relative z-40 md:w-20"
+      className="relative z-40 md:w-20 shrink-0"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
