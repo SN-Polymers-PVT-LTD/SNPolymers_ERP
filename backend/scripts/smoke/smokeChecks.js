@@ -88,6 +88,53 @@ function assertSecurityHeaders(headers) {
   }
 }
 
+const GITHUB_HEADERS = { 'User-Agent': 'snpolymers-smoke' };
+
+/**
+ * Resolves the Git tree SHA for a top-level directory at a given commit ref.
+ * The tree SHA fingerprints the exact file contents under that path.
+ */
+async function getDirectoryTreeSha(repo, commitRef, dirPath, fetchImpl = global.fetch) {
+  const commitRes = await fetchJson(
+    `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(commitRef)}`,
+    { headers: GITHUB_HEADERS },
+    fetchImpl
+  );
+
+  if (!commitRes.response.ok) {
+    throw new Error(
+      `GitHub API failed to resolve commit '${commitRef}' (${commitRes.response.status}): ${JSON.stringify(commitRes.body)}`
+    );
+  }
+
+  const rootTreeSha = commitRes.body?.commit?.tree?.sha;
+  if (!rootTreeSha) {
+    throw new Error(`GitHub commit '${commitRef}' is missing a root tree SHA`);
+  }
+
+  const treeRes = await fetchJson(
+    `https://api.github.com/repos/${repo}/git/trees/${rootTreeSha}`,
+    { headers: GITHUB_HEADERS },
+    fetchImpl
+  );
+
+  if (!treeRes.response.ok) {
+    throw new Error(
+      `GitHub API failed to read root tree for '${commitRef}' (${treeRes.response.status}): ${JSON.stringify(treeRes.body)}`
+    );
+  }
+
+  const entry = (treeRes.body?.tree || []).find(
+    (item) => item.path === dirPath && item.type === 'tree'
+  );
+
+  if (!entry?.sha) {
+    throw new Error(`Path '${dirPath}' not found at commit '${commitRef}'`);
+  }
+
+  return entry.sha;
+}
+
 async function verifyGithubSha(health, fetchImpl = global.fetch) {
   if (process.env.SMOKE_VERIFY_GITHUB_SHA !== 'true') {
     return null;
@@ -95,6 +142,7 @@ async function verifyGithubSha(health, fetchImpl = global.fetch) {
 
   const repo = process.env.GITHUB_REPOSITORY;
   const branch = process.env.SMOKE_GITHUB_BRANCH || 'main';
+  const backendPath = process.env.SMOKE_BACKEND_PATH || 'backend';
 
   if (!repo) {
     throw new Error('GITHUB_REPOSITORY is required when SMOKE_VERIFY_GITHUB_SHA=true');
@@ -105,57 +153,29 @@ async function verifyGithubSha(health, fetchImpl = global.fetch) {
     throw new Error('Health check response is missing a valid git SHA');
   }
 
-  // 1. Fetch the latest commit on the branch that touched backend/
-  const branchRes = await fetchJson(
-    `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(branch)}&path=backend&per_page=1`,
-    { headers: { 'User-Agent': 'snpolymers-smoke' } },
-    fetchImpl
-  );
-
-  if (!branchRes.response.ok) {
-    throw new Error(`GitHub API failed to get branch commits (${branchRes.response.status}): ${JSON.stringify(branchRes.body)}`);
-  }
-
-  if (!Array.isArray(branchRes.body) || branchRes.body.length === 0) {
-    throw new Error(`GitHub API returned no commits for path 'backend' on branch '${branch}'`);
-  }
-
-  const branchLatestBackendSha = branchRes.body[0].sha;
-
-  // 2. Fetch the latest commit in the deployed SHA's history that touched backend/
-  const deployedRes = await fetchJson(
-    `https://api.github.com/repos/${repo}/commits?sha=${encodeURIComponent(deployedSha)}&path=backend&per_page=1`,
-    { headers: { 'User-Agent': 'snpolymers-smoke' } },
-    fetchImpl
-  ).catch(err => {
-    // If the commit is not found (e.g. force pushed / not on remote), return a mock error response
-    return { response: { ok: false, status: 404 }, body: err.message };
-  });
-
-  if (!deployedRes.response.ok) {
-    // If the deployed commit isn't on GitHub, we can't verify history. Fallback to basic SHA match.
-    const deployedPrefix = deployedSha.slice(0, 7);
-    const branchBackendPrefix = branchLatestBackendSha.slice(0, 7);
-    if (deployedPrefix !== branchBackendPrefix) {
-      throw new Error(
-        `Deploy SHA mismatch (fallback): production=${deployedPrefix} is not latest backend commit ${branchBackendPrefix} on ${branch}`
-      );
-    }
-    return { deployedPrefix, githubPrefix: branchBackendPrefix, branch };
-  }
-
-  const deployedLatestBackendSha = deployedRes.body[0].sha;
+  const [mainBackendTreeSha, deployedBackendTreeSha] = await Promise.all([
+    getDirectoryTreeSha(repo, branch, backendPath, fetchImpl),
+    getDirectoryTreeSha(repo, deployedSha, backendPath, fetchImpl)
+  ]);
 
   const deployedPrefix = deployedSha.slice(0, 7);
-  const branchBackendPrefix = branchLatestBackendSha.slice(0, 7);
+  const mainBackendTreePrefix = mainBackendTreeSha.slice(0, 7);
+  const deployedBackendTreePrefix = deployedBackendTreeSha.slice(0, 7);
 
-  if (branchLatestBackendSha !== deployedLatestBackendSha) {
+  if (mainBackendTreeSha !== deployedBackendTreeSha) {
     throw new Error(
-      `Deploy is missing backend changes: production is at ${deployedPrefix} (latest backend change in history: ${deployedLatestBackendSha.slice(0, 7)}), but branch ${branch} has newer backend change ${branchBackendPrefix}`
+      `Backend tree mismatch on ${branch}: main=${mainBackendTreePrefix} deployed=${deployedBackendTreePrefix} (deploy commit ${deployedPrefix})`
     );
   }
 
-  return { deployedPrefix, githubPrefix: branchBackendPrefix, branch };
+  return {
+    deployedPrefix,
+    githubPrefix: mainBackendTreePrefix,
+    branch,
+    backendTreeSha: mainBackendTreeSha,
+    deployedBackendTreeSha,
+    backendTreeMatch: true
+  };
 }
 
 async function fetchHealthCheck(healthUrl, fetchImpl, maxLatencyMs) {
@@ -258,6 +278,7 @@ module.exports = {
   assertAuthRouting,
   assertCorsPreflight,
   assertSecurityHeaders,
+  getDirectoryTreeSha,
   verifyGithubSha,
   fetchHealthCheck,
   runProductionSmoke
