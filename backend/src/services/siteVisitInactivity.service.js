@@ -77,17 +77,29 @@ function groupInactiveWorkOrders(mappings, lastVisitMap, todayISTStr, thresholdD
       grouped.set(m.work_order_no, {
         work_order_no: m.work_order_no,
         je_user_ids: new Set(),
-        last_visit: lastVisit || null
+        last_visit: lastVisit || null,
+        assigned_ats: []
       });
     }
     grouped.get(m.work_order_no).je_user_ids.add(m.je_user_id);
+    if (m.assigned_at) {
+      grouped.get(m.work_order_no).assigned_ats.push(m.assigned_at);
+    }
   });
 
-  return Array.from(grouped.values()).map((g) => ({
-    work_order_no: g.work_order_no,
-    je_user_ids: Array.from(g.je_user_ids),
-    last_visit: g.last_visit
-  }));
+  return Array.from(grouped.values()).map((g) => {
+    let earliestAssignedAt = null;
+    if (g.assigned_ats.length > 0) {
+      const dates = g.assigned_ats.map((d) => new Date(d));
+      earliestAssignedAt = new Date(Math.min(...dates));
+    }
+    return {
+      work_order_no: g.work_order_no,
+      je_user_ids: Array.from(g.je_user_ids),
+      last_visit: g.last_visit,
+      earliest_assigned_at: earliestAssignedAt
+    };
+  });
 }
 
 /**
@@ -113,7 +125,7 @@ async function checkSiteVisitInactivity() {
 
     const { data: mappings, error: mapErr } = await supabase
       .from('work_order_mappings')
-      .select('work_order_no, je_user_id')
+      .select('work_order_no, je_user_id, assigned_at')
       .eq('is_active', true);
 
     if (mapErr) throw mapErr;
@@ -218,12 +230,19 @@ async function checkSiteVisitInactivity() {
         .join(', ');
       const lastVisitFormatted = group.last_visit ? formatDateDMY(group.last_visit) : 'No record found';
 
+      const earliestAssignedAtStr = group.earliest_assigned_at
+        ? new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(group.earliest_assigned_at)
+        : null;
+      const daysCount = (group.last_visit || earliestAssignedAtStr)
+        ? Math.round(getDaysSinceVisit(group.last_visit || earliestAssignedAtStr, todayISTStr))
+        : INACTIVITY_DAYS;
+
       const messageText =
         `⚠️ <b>Site Visit Inactivity Alert</b>\n\n` +
         `Work Order: <b>${escapeHtml(group.work_order_no)}</b>\n` +
         `Employee: <b>${escapeHtml(employeeNames)}</b>\n` +
         `Last Site Visit: <b>${escapeHtml(lastVisitFormatted)}</b>\n\n` +
-        `No site-visit photo has been uploaded for the last ${INACTIVITY_DAYS} days.\n` +
+        `No site-visit photo has been uploaded for the last ${daysCount} days.\n` +
         `Please check and take necessary action.`;
 
       const recipientChatIds = new Set();
