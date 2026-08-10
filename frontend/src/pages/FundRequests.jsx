@@ -219,8 +219,7 @@ const FundRequests = () => {
     let rows = projectsList
       .filter((p) => ELIGIBLE_WO_STATUSES.has(p.status))
       .map((p) => {
-        const estimatedValue = estimatedValueByWo[p.work_order_no]
-          ?? (p.work_order_value != null ? Number(p.work_order_value) : null);
+        const estimatedValue = estimatedValueByWo[p.work_order_no] ?? null;
         const totalFrAmount = frSumByWo[p.work_order_no] || 0;
         return {
           work_order_no: p.work_order_no,

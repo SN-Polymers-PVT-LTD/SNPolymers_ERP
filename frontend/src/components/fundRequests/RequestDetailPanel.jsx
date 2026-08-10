@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import TimelineProgress from './TimelineProgress';
 import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
-import { getFundRequests } from '../../api/fundRequests';
 import { FormattedCurrencyInput } from '../ui';
-import { computeFrRemainingForWo } from '../../utils/businessRules/fundRequests';
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
@@ -122,49 +120,32 @@ const RequestDetailPanel = ({
     }
   }, [isCreate, selectedWorkOrder, projects]);
 
-  // Load context details (WO value, cumulative approved, remaining capacity, ZO balance) in viewing mode
+  // Load context details (estimate, remaining capacity, ZO balance) in viewing mode
   useEffect(() => {
-    if (!isCreate && request) {
-      Promise.resolve().then(() => {
-        setLoadingContext(true);
-      });
+    if (!isCreate && request?.work_order_no) {
+      setLoadingContext(true);
       Promise.all([
-        getProjects(),
-        getZonalBalances(),
-        getFundRequests()
-      ]).then(([projectsRes, balancesRes, requestsRes]) => {
-        // 1. Zonal balance
-        const balances = balancesRes.data?.balances || [];
-        const matchedBalance = balances.find((b) => b.zo_user_id === request.zo_user_id);
-        
-        Promise.resolve().then(() => {
-          setDetailZoBalance(matchedBalance ? matchedBalance.available_balance : 0);
-        });
-
-        // 2. Project value
-        const projectsList = projectsRes.data?.projects || [];
-        const matchedProject = projectsList.find((p) => p.work_order_no === request.work_order_no);
-        const woVal = matchedProject ? Number(matchedProject.approved_estimate_amount || 0) : 0;
-        
-        Promise.resolve().then(() => {
-          setDetailProjectValue(woVal);
-        });
-
-        // 3. Remaining capacity (client spec 4c: submitted + approved)
-        const allRequests = requestsRes.data?.fundRequests || [];
-
-        Promise.resolve().then(() => {
+        getProjectCapacity(request.work_order_no),
+        getZonalBalances()
+      ])
+        .then(([capacityRes, balancesRes]) => {
+          const capacity = capacityRes.data?.capacity;
+          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
+          setDetailProjectValue(Number(estimateVal || 0));
           setDetailRemainingCapacity(
-            computeFrRemainingForWo(woVal, allRequests, request.work_order_no)
+            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
           );
-        });
-      }).catch((err) => {
-        console.error('Failed to load request context details', err);
-      }).finally(() => {
-        Promise.resolve().then(() => {
+
+          const balances = balancesRes.data?.balances || [];
+          const matchedBalance = balances.find((b) => b.zo_user_id === request.zo_user_id);
+          setDetailZoBalance(matchedBalance ? matchedBalance.available_balance : 0);
+        })
+        .catch((err) => {
+          console.error('Failed to load request context details', err);
+        })
+        .finally(() => {
           setLoadingContext(false);
         });
-      });
     }
   }, [isCreate, request]);
 
