@@ -48,5 +48,27 @@ describe('Site Visit Inactivity helpers', () => {
     expect(grouped).toHaveLength(1);
     expect(grouped[0].work_order_no).toBe('WO1');
     expect(grouped[0].je_user_ids.sort()).toEqual(['111', '222']);
+    expect(grouped[0].earliest_assigned_at).toBeNull();
+  });
+
+  test('groupInactiveWorkOrders extracts the earliest assigned_at date correctly', () => {
+    const mappings = [
+      { work_order_no: 'WO1', je_user_id: '111', assigned_at: '2026-08-03T10:00:00Z' },
+      { work_order_no: 'WO1', je_user_id: '222', assigned_at: '2026-08-02T12:00:00Z' },
+      { work_order_no: 'WO2', je_user_id: '333', assigned_at: '2026-08-05T09:00:00Z' }
+    ];
+    const lastVisitMap = {
+      WO1: '2026-08-01',
+      WO2: '2026-08-07'
+    };
+
+    const grouped = groupInactiveWorkOrders(mappings, lastVisitMap, '2026-08-08');
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].work_order_no).toBe('WO1');
+    expect(grouped[0].je_user_ids.sort()).toEqual(['111', '222']);
+    expect(grouped[0].earliest_assigned_at).toBeInstanceOf(Date);
+    // The earliest date should be 2026-08-02
+    expect(grouped[0].earliest_assigned_at.toISOString()).toBe('2026-08-02T12:00:00.000Z');
   });
 });
