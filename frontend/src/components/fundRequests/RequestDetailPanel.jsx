@@ -1,8 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import TimelineProgress from './TimelineProgress';
 import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
 import { FormattedCurrencyInput } from '../ui';
+import {
+  computeHoApproveRemaining,
+  computePipelineRemainingAfterApprove
+} from '../../utils/businessRules/fundRequests';
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
@@ -20,6 +24,19 @@ const formatDateTime = (d) => {
     hour12: true
   });
 };
+
+/** Display-only: Final Approved estimate and spec 4(c) remaining (never WO-value fallback). */
+function getFinalApprovedEstimateDisplay(capacity) {
+  if (!capacity || capacity.estimate_amount == null) {
+    return { estimateValue: null, remainingCapacity: null };
+  }
+  const estimateValue = Number(capacity.estimate_amount);
+  const submittedTotal = Number(capacity.fr_submitted_total || 0);
+  return {
+    estimateValue,
+    remainingCapacity: estimateValue - submittedTotal
+  };
+}
 
 const RequestDetailPanel = ({
   user,
@@ -46,12 +63,13 @@ const RequestDetailPanel = ({
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectedWorkOrder, setSelectedWorkOrder] = useState('');
-  const [selectedProjectValue, setSelectedProjectValue] = useState(0);
+  const [selectedProjectValue, setSelectedProjectValue] = useState(null);
   const [remainingCapacity, setRemainingCapacity] = useState(null);
 
   // Detail context states (for viewing mode)
   const [detailProjectValue, setDetailProjectValue] = useState(null);
   const [detailRemainingCapacity, setDetailRemainingCapacity] = useState(null);
+  const [detailHoApproveRemaining, setDetailHoApproveRemaining] = useState(null);
   const [detailZoBalance, setDetailZoBalance] = useState(null);
   const [loadingContext, setLoadingContext] = useState(false);
 
@@ -100,25 +118,22 @@ const RequestDetailPanel = ({
     if (isCreate && selectedWorkOrder) {
       getProjectCapacity(selectedWorkOrder)
         .then((res) => {
-          const capacity = res.data?.capacity;
-          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
-          setSelectedProjectValue(Number(estimateVal || 0));
-          setRemainingCapacity(
-            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
+          const { estimateValue, remainingCapacity: remaining } = getFinalApprovedEstimateDisplay(
+            res.data?.capacity
           );
+          setSelectedProjectValue(estimateValue);
+          setRemainingCapacity(remaining);
         })
         .catch((err) => {
           console.error('Failed to fetch work order capacity', err);
-          const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
-          const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
-          setSelectedProjectValue(woVal);
-          setRemainingCapacity(woVal > 0 ? woVal : null);
+          setSelectedProjectValue(null);
+          setRemainingCapacity(null);
         });
     } else {
-      setSelectedProjectValue(0);
+      setSelectedProjectValue(null);
       setRemainingCapacity(null);
     }
-  }, [isCreate, selectedWorkOrder, projects]);
+  }, [isCreate, selectedWorkOrder]);
 
   // Load context details (estimate, remaining capacity, ZO balance) in viewing mode
   useEffect(() => {
@@ -130,10 +145,15 @@ const RequestDetailPanel = ({
       ])
         .then(([capacityRes, balancesRes]) => {
           const capacity = capacityRes.data?.capacity;
-          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
-          setDetailProjectValue(Number(estimateVal || 0));
-          setDetailRemainingCapacity(
-            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
+          const { estimateValue, remainingCapacity } = getFinalApprovedEstimateDisplay(capacity);
+          setDetailProjectValue(estimateValue);
+          setDetailRemainingCapacity(remainingCapacity);
+          setDetailHoApproveRemaining(
+            computeHoApproveRemaining(
+              capacity?.estimate_amount,
+              capacity?.fr_submitted_total,
+              request
+            )
           );
 
           const balances = balancesRes.data?.balances || [];
@@ -263,8 +283,8 @@ const RequestDetailPanel = ({
         setActionError(`Approved amount cannot exceed requested amount of ${formatCurrency(request.zo_fr_amount)}`);
         return;
       }
-      if (detailRemainingCapacity !== null && parsedAmount > detailRemainingCapacity) {
-        setActionError(`Approved amount cannot exceed the remaining Work Order funding capacity of ${formatCurrency(detailRemainingCapacity)}.`);
+      if (detailHoApproveRemaining !== null && parsedAmount > detailHoApproveRemaining) {
+        setActionError(`Approved amount cannot exceed the remaining Work Order funding capacity of ${formatCurrency(detailHoApproveRemaining)}.`);
         return;
       }
       if (!hoAccount) {
@@ -302,6 +322,34 @@ const RequestDetailPanel = ({
     month: 'short',
     year: 'numeric'
   });
+
+  const showHoApproveHeadroom = !isCreate && isPendingOrHold && isHoOrAdmin;
+  const showDualRemaining =
+    !isCreate && isPendingOrHold && detailHoApproveRemaining != null && detailRemainingCapacity != null;
+  const hoApprovedOnThisFr =
+    !isCreate && request?.request_status === 'Approved' && request?.approve_ho_amount != null
+      ? Number(request.approve_ho_amount)
+      : null;
+
+  const hoApprovePreviewAmount = useMemo(() => {
+    if (!showHoApproveHeadroom || hoAction !== 'Approve') return null;
+    const parsed = parseFloat(hoAmount);
+    if (isNaN(parsed) || parsed <= 0) return null;
+    return parsed;
+  }, [showHoApproveHeadroom, hoAction, hoAmount]);
+
+  const previewPipelineRemaining = useMemo(
+    () => computePipelineRemainingAfterApprove(detailHoApproveRemaining, hoApprovePreviewAmount),
+    [detailHoApproveRemaining, hoApprovePreviewAmount]
+  );
+
+  const isHoApproveLivePreview = previewPipelineRemaining != null;
+  const displayRemainingFr = isHoApproveLivePreview
+    ? previewPipelineRemaining
+    : detailHoApproveRemaining;
+  const displayRemainingAfterFr = isHoApproveLivePreview
+    ? previewPipelineRemaining
+    : detailRemainingCapacity;
 
   return (
     <div className="flex flex-col text-slate-100 font-sans">
@@ -425,11 +473,13 @@ const RequestDetailPanel = ({
                     {selectedWorkOrder && (
                       <div className="grid grid-cols-2 gap-2.5 p-3 rounded-2xl bg-white/[0.01] border border-white/5 text-xs text-left mt-2">
                         <div>
-                          <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Approved Estimate Value</span>
-                          <span className="font-bold text-slate-300 font-mono">{formatCurrency(selectedProjectValue)}</span>
+                          <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Final Approved Estimate</span>
+                          <span className="font-bold text-slate-300 font-mono">
+                            {selectedProjectValue != null ? formatCurrency(selectedProjectValue) : '—'}
+                          </span>
                         </div>
                         <div>
-                          <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining Capacity</span>
+                          <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining FR (Submitted)</span>
                           <span className="font-bold text-amber-400 font-mono">
                             {remainingCapacity !== null ? formatCurrency(remainingCapacity) : '—'}
                           </span>
@@ -490,23 +540,98 @@ const RequestDetailPanel = ({
           </div>
 
           {!isCreate && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-5 rounded-3xl bg-white/[0.02] border border-white/5 text-xs text-left">
+            <div
+              className={`grid grid-cols-2 md:grid-cols-3 gap-4 p-5 rounded-3xl bg-white/[0.02] border border-white/5 text-xs text-left ${
+                showDualRemaining ? 'lg:grid-cols-6' : 'lg:grid-cols-5'
+              }`}
+            >
               <div>
                 <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Work Order</span>
                 <span className="font-bold text-slate-300 font-mono">{request.work_order_no || '—'}</span>
               </div>
               <div>
-                 <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Approved Estimate Value</span>
+                 <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Final Approved Estimate</span>
                  <span className="font-bold text-slate-300 font-mono">
-                   {loadingContext ? 'Loading...' : formatCurrency(detailProjectValue)}
+                   {loadingContext ? 'Loading...' : (detailProjectValue != null ? formatCurrency(detailProjectValue) : '—')}
                  </span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining Capacity</span>
-                <span className="font-bold text-amber-400 font-mono">
-                  {loadingContext ? 'Loading...' : formatCurrency(detailRemainingCapacity)}
-                </span>
+                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">HO Approved (This FR)</span>
+                {hoApprovedOnThisFr != null ? (
+                  <span className="font-bold font-mono text-emerald-400">
+                    {loadingContext ? 'Loading...' : formatCurrency(hoApprovedOnThisFr)}
+                  </span>
+                ) : hoApprovePreviewAmount != null ? (
+                  <>
+                    <span className="font-bold font-mono text-emerald-400">
+                      {loadingContext ? 'Loading...' : formatCurrency(hoApprovePreviewAmount)}
+                    </span>
+                    <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
+                      Preview — not saved yet
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-bold font-mono text-amber-400">
+                      {loadingContext ? 'Loading...' : '—'}
+                    </span>
+                    {!loadingContext && (
+                      <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
+                        {isPendingOrHold ? 'Pending HO approval' : 'Not HO-approved'}
+                      </span>
+                    )}
+                  </>
+                )}
               </div>
+              {showDualRemaining ? (
+                <>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining FR</span>
+                    <span
+                      className={`font-bold font-mono ${
+                        displayRemainingFr != null && displayRemainingFr < 0
+                          ? 'text-red-400'
+                          : isHoApproveLivePreview
+                            ? 'text-cyan-400'
+                            : 'text-emerald-400'
+                      }`}
+                    >
+                      {loadingContext ? 'Loading...' : formatCurrency(displayRemainingFr)}
+                    </span>
+                    <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
+                      {isHoApproveLivePreview
+                        ? 'Preview — WO headroom after approval'
+                        : 'Excl. this pending request'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining After This FR</span>
+                    <span
+                      className={`font-bold font-mono ${
+                        displayRemainingAfterFr != null && displayRemainingAfterFr < 0
+                          ? 'text-red-400'
+                          : isHoApproveLivePreview
+                            ? 'text-cyan-400'
+                            : 'text-amber-400'
+                      }`}
+                    >
+                      {loadingContext ? 'Loading...' : formatCurrency(displayRemainingAfterFr)}
+                    </span>
+                    <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
+                      {isHoApproveLivePreview
+                        ? 'Preview — pipeline after approval'
+                        : 'Incl. all submitted FRs'}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Remaining FR (Submitted)</span>
+                  <span className="font-bold font-mono text-amber-400">
+                    {loadingContext ? 'Loading...' : (detailRemainingCapacity != null ? formatCurrency(detailRemainingCapacity) : '—')}
+                  </span>
+                </div>
+              )}
               <div>
                 <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">ZO Available Balance</span>
                 <span className="font-bold text-emerald-400 font-mono">
@@ -546,10 +671,43 @@ const RequestDetailPanel = ({
                   
                   {hoAction === 'Approve' && (
                     <>
+                      {detailHoApproveRemaining != null && (
+                        <p className="text-[10px] text-slate-400 leading-relaxed rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-3 py-2">
+                          <span className="font-mono font-bold text-emerald-400">
+                            {formatCurrency(detailHoApproveRemaining)}
+                          </span>{' '}
+                          remaining on this WO (excl. this pending request). You may approve up to that on this FR.
+                          {(isHoApproveLivePreview ? previewPipelineRemaining : detailRemainingCapacity) != null && (
+                            <>
+                              {' '}
+                              After this FR,{' '}
+                              <span
+                                className={`font-mono ${
+                                  isHoApproveLivePreview ? 'text-cyan-400/90' : 'text-amber-400/90'
+                                }`}
+                              >
+                                {formatCurrency(
+                                  isHoApproveLivePreview
+                                    ? previewPipelineRemaining
+                                    : detailRemainingCapacity
+                                )}
+                              </span>{' '}
+                              will remain on the WO pipeline
+                              {isHoApproveLivePreview ? ' (preview)' : ''}.
+                            </>
+                          )}
+                        </p>
+                      )}
                       <div>
-                        <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Approved Amount (₹)</label>
+                        <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">
+                          Amount to Approve (₹)
+                        </label>
                         <FormattedCurrencyInput
-                          placeholder="Approved amount..."
+                          placeholder={
+                            detailHoApproveRemaining != null
+                              ? `Max ${formatCurrency(Math.min(detailHoApproveRemaining, Number(request.zo_fr_amount || 0)))}`
+                              : 'Enter amount to approve...'
+                          }
                           value={hoAmount}
                           onValueChange={(val) => setHoAmount(val)}
                           required
@@ -557,6 +715,9 @@ const RequestDetailPanel = ({
                           className="font-mono text-xs"
                           size="sm"
                         />
+                        <p className="text-[9px] text-slate-500 mt-1">
+                          Requested {formatCurrency(request.zo_fr_amount)} — not approved until you save.
+                        </p>
                       </div>
                       <div>
                         <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Transfer From Account</label>
