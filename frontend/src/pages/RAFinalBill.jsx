@@ -12,8 +12,26 @@ import {
   uploadBillCopy,
   getWorkOrdersWithoutRaBill
 } from '../api/raFinalBillApi';
+import {
+  wouldExceedBillingCap,
+  resolveBillingCap,
+  computeBillingRemaining
+} from '../utils/businessRules/raBills';
 
-// Helper for currency formatting (Indian format)
+// Map bill summary API payload into form state shape
+const mapBillSummary = (data = {}) => {
+  const billingCap = resolveBillingCap(data.estimate_amount, data.work_order_value);
+  const previousBilled = Number(data.previous_bill_amount || 0);
+  return {
+    work_order_value: data.work_order_value || 0,
+    estimate_amount: data.estimate_amount ?? null,
+    billing_cap: billingCap,
+    billing_remaining: data.billing_remaining ?? computeBillingRemaining(billingCap, previousBilled),
+    previous_bill_amount: previousBilled,
+    dropdown_options: data.dropdown_options || []
+  };
+};
+
 const formatCurrency = (val) => {
   if (val == null || isNaN(val)) return '₹ 0.00';
   return `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -107,6 +125,9 @@ const RAFinalBill = () => {
   // Summary options specifically for the active form instance
   const [formSummaryData, setFormSummaryData] = useState({
     work_order_value: 0,
+    estimate_amount: null,
+    billing_cap: 0,
+    billing_remaining: 0,
     previous_bill_amount: 0,
     dropdown_options: []
   });
@@ -235,13 +256,7 @@ const RAFinalBill = () => {
 
 
   const projectBills = projectBillsData || [];
-  const projectSummaryData = useMemo(() => {
-    return {
-      work_order_value: projectSummaryResData?.work_order_value || 0,
-      previous_bill_amount: projectSummaryResData?.previous_bill_amount || 0,
-      dropdown_options: projectSummaryResData?.dropdown_options || []
-    };
-  }, [projectSummaryResData]);
+  const projectSummaryData = useMemo(() => mapBillSummary(projectSummaryResData), [projectSummaryResData]);
 
   const loading = loadingBills;
   const loadingProjectBills = loadingProjBills || loadingProjSummary;
@@ -293,11 +308,7 @@ const RAFinalBill = () => {
         site_details: 'Auto',
         earnest_money_deposit: 0
       });
-      setFormSummaryData({
-        work_order_value: 0,
-        previous_bill_amount: 0,
-        dropdown_options: []
-      });
+      setFormSummaryData(mapBillSummary());
       return;
     }
 
@@ -328,11 +339,7 @@ const RAFinalBill = () => {
       // Fetch summary stats & options
       const summaryRes = await getBillSummary(wo);
       if (summaryRes.data?.success) {
-        setFormSummaryData({
-          work_order_value: summaryRes.data.work_order_value,
-          previous_bill_amount: summaryRes.data.previous_bill_amount,
-          dropdown_options: summaryRes.data.dropdown_options
-        });
+        setFormSummaryData(mapBillSummary(summaryRes.data));
         
         // Also ensure formProjectDetails has EMD from live summary if not in local proj object
         setFormProjectDetails(prev => ({
@@ -437,11 +444,7 @@ const RAFinalBill = () => {
     if (currentWO) {
       getBillSummary(currentWO).then(res => {
         if (res.data?.success) {
-          setFormSummaryData({
-            work_order_value: res.data.work_order_value,
-            previous_bill_amount: res.data.previous_bill_amount,
-            dropdown_options: res.data.dropdown_options
-          });
+          setFormSummaryData(mapBillSummary(res.data));
           setFormProjectDetails(prev => ({
             ...prev,
             earnest_money_deposit: res.data.earnest_money_deposit || 0
@@ -481,11 +484,7 @@ const RAFinalBill = () => {
       site_details: 'Auto',
       earnest_money_deposit: 0
     });
-    setFormSummaryData({
-      work_order_value: 0,
-      previous_bill_amount: 0,
-      dropdown_options: []
-    });
+    setFormSummaryData(mapBillSummary());
     setShowCreatePanel(false);
   };
 
@@ -555,16 +554,16 @@ const RAFinalBill = () => {
       return;
     }
 
-    // 5. Overbilling check: current bill + previous bills must not exceed work order value
-    const workOrderValue = formSummaryData.work_order_value || 0;
-    if (workOrderValue > 0) {
+    // 5. Overbilling check: current bill + previous bills must not exceed Final Approved estimate cap
+    const billingCap = formSummaryData.billing_cap || 0;
+    if (billingCap > 0) {
       const prevBilled = formSummaryData.previous_bill_amount || 0;
-      const totalAfterThis = prevBilled + grossBillVal;
-      if (totalAfterThis > workOrderValue) {
+      if (wouldExceedBillingCap(prevBilled, grossBillVal, billingCap)) {
+        const totalAfterThis = prevBilled + grossBillVal;
         setFormError(
           `This bill would cause overbilling. ` +
-          `Total billed (${formatCurrency(totalAfterThis)}) would exceed the Work Order Value (${formatCurrency(workOrderValue)}). ` +
-          `Maximum allowed for this bill: ${formatCurrency(workOrderValue - prevBilled)}.`
+          `Total billed (${formatCurrency(totalAfterThis)}) would exceed the approved estimate cap (${formatCurrency(billingCap)}). ` +
+          `Maximum allowed for this bill: ${formatCurrency(billingCap - prevBilled)}.`
         );
         return;
       }
@@ -646,11 +645,11 @@ const RAFinalBill = () => {
   });
 
   // Live Calculations for Create Form Summary Panel
-  const createFormWOValue = formSummaryData.work_order_value || 0;
+  const createFormBillingCap = formSummaryData.billing_cap || 0;
   const createFormPrevBilled = formSummaryData.previous_bill_amount || 0;
   const createFormCurrentBilled = Number(formState.gross_bill) || 0;
   const createFormTotalBilled = createFormPrevBilled + createFormCurrentBilled;
-  const createFormBalanceRemaining = createFormWOValue - createFormTotalBilled;
+  const createFormBalanceRemaining = computeBillingRemaining(createFormBillingCap, createFormTotalBilled);
 
   // Live Validation: Gross Bill = sum of all deduction/payment fields
   const grossBillBreakdownSum =
@@ -667,9 +666,9 @@ const RAFinalBill = () => {
   const hasBreakdownData = grossBillEntered > 0 || grossBillBreakdownSum > 0;
 
   // Live Calculations for Active WO Bill Sheet Summary Panel
-  const projectWOValue = projectSummaryData.work_order_value || 0;
+  const projectBillingCap = projectSummaryData.billing_cap || 0;
   const projectTotalBilled = projectBills.reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
-  const projectBalanceRemaining = projectWOValue - projectTotalBilled;
+  const projectBalanceRemaining = computeBillingRemaining(projectBillingCap, projectTotalBilled);
 
   // Formatting date for right footer
   const currentSystemDateTime = formatDateTime(new Date());
@@ -849,8 +848,8 @@ const RAFinalBill = () => {
                 <span className="text-[9px] uppercase font-black tracking-widest text-emerald-400 font-mono">Ledger Aggregated Summary Metrics</span>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                   <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
-                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Work Order Value</p>
-                    <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(projectWOValue)}</p>
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Approved Estimate Cap</p>
+                    <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(projectBillingCap)}</p>
                   </div>
                   <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
                     <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Cumulative Billed Amount</p>
@@ -1608,8 +1607,8 @@ const RAFinalBill = () => {
 
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-center">
                 <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
-                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Work Order Value</p>
-                  <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(createFormWOValue)}</p>
+                  <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Approved Estimate Cap</p>
+                  <p className="text-sm font-mono font-extrabold text-slate-100 mt-2">{formatCurrency(createFormBillingCap)}</p>
                 </div>
                 <div className="p-3 bg-black/40 border border-white/5 rounded-2xl">
                   <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Previous Bill Amount</p>

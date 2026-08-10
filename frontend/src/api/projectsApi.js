@@ -27,3 +27,11 @@ export const updateProject = (workOrderNo, data) =>
  */
 export const updateProjectStatus = (workOrderNo, status) =>
   authApi.patch(`/projects/${encodeURIComponent(workOrderNo)}/status`, { status });
+
+/** Fetch unified funding/billing capacity for a work order */
+export const getProjectCapacity = (workOrderNo) =>
+  authApi.get(`/projects/${encodeURIComponent(workOrderNo)}/capacity`);
+
+/** Bulk capacity snapshots for accessible work orders */
+export const getProjectsCapacity = (params) =>
+  authApi.get('/projects/capacity', { params });

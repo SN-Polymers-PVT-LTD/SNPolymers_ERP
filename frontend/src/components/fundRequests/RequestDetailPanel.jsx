@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import TimelineProgress from './TimelineProgress';
-import { getProjects } from '../../api/projectsApi';
+import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
-import { getFundRequests } from '../../api/fundRequests';
 import { FormattedCurrencyInput } from '../ui';
 
 const formatCurrency = (val) =>
@@ -99,95 +98,54 @@ const RequestDetailPanel = ({
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {
     if (isCreate && selectedWorkOrder) {
-      // Find selected project value
-      const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
-      const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
-      
-      Promise.resolve().then(() => {
-        setSelectedProjectValue(woVal);
-      });
-
-      // Fetch all fund requests for this work order to find cumulative approved amount
-      getFundRequests()
+      getProjectCapacity(selectedWorkOrder)
         .then((res) => {
-          const list = res.data?.fundRequests || [];
-          const approved = list.filter(
-            (r) =>
-              r.work_order_no === selectedWorkOrder &&
-              r.request_status === 'Approved'
+          const capacity = res.data?.capacity;
+          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
+          setSelectedProjectValue(Number(estimateVal || 0));
+          setRemainingCapacity(
+            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
           );
-          const cumulative = approved.reduce(
-            (sum, r) => sum + Number(r.approve_ho_amount || 0),
-            0
-          );
-          Promise.resolve().then(() => {
-            setRemainingCapacity(woVal - cumulative);
-          });
         })
         .catch((err) => {
-          console.error('Failed to fetch fund requests for capacity check', err);
-          Promise.resolve().then(() => {
-            setRemainingCapacity(woVal); // Fallback to estimate value on error
-          });
+          console.error('Failed to fetch work order capacity', err);
+          const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
+          const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
+          setSelectedProjectValue(woVal);
+          setRemainingCapacity(woVal > 0 ? woVal : null);
         });
     } else {
-      Promise.resolve().then(() => {
-        setSelectedProjectValue(0);
-        setRemainingCapacity(null);
-      });
+      setSelectedProjectValue(0);
+      setRemainingCapacity(null);
     }
   }, [isCreate, selectedWorkOrder, projects]);
 
-  // Load context details (WO value, cumulative approved, remaining capacity, ZO balance) in viewing mode
+  // Load context details (estimate, remaining capacity, ZO balance) in viewing mode
   useEffect(() => {
-    if (!isCreate && request) {
-      Promise.resolve().then(() => {
-        setLoadingContext(true);
-      });
+    if (!isCreate && request?.work_order_no) {
+      setLoadingContext(true);
       Promise.all([
-        getProjects(),
-        getZonalBalances(),
-        getFundRequests()
-      ]).then(([projectsRes, balancesRes, requestsRes]) => {
-        // 1. Zonal balance
-        const balances = balancesRes.data?.balances || [];
-        const matchedBalance = balances.find((b) => b.zo_user_id === request.zo_user_id);
-        
-        Promise.resolve().then(() => {
+        getProjectCapacity(request.work_order_no),
+        getZonalBalances()
+      ])
+        .then(([capacityRes, balancesRes]) => {
+          const capacity = capacityRes.data?.capacity;
+          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
+          setDetailProjectValue(Number(estimateVal || 0));
+          setDetailRemainingCapacity(
+            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
+          );
+
+          const balances = balancesRes.data?.balances || [];
+          const matchedBalance = balances.find((b) => b.zo_user_id === request.zo_user_id);
           setDetailZoBalance(matchedBalance ? matchedBalance.available_balance : 0);
-        });
-
-        // 2. Project value
-        const projectsList = projectsRes.data?.projects || [];
-        const matchedProject = projectsList.find((p) => p.work_order_no === request.work_order_no);
-        const woVal = matchedProject ? Number(matchedProject.approved_estimate_amount || 0) : 0;
-        
-        Promise.resolve().then(() => {
-          setDetailProjectValue(woVal);
-        });
-
-        // 3. Cumulative approved and remaining capacity
-        const allRequests = requestsRes.data?.fundRequests || [];
-        const approved = allRequests.filter(
-          (r) =>
-            r.work_order_no === request.work_order_no &&
-            r.request_status === 'Approved'
-        );
-        const cumulative = approved.reduce(
-          (sum, r) => sum + Number(r.approve_ho_amount || 0),
-          0
-        );
-        
-        Promise.resolve().then(() => {
-          setDetailRemainingCapacity(woVal - cumulative);
-        });
-      }).catch((err) => {
-        console.error('Failed to load request context details', err);
-      }).finally(() => {
-        Promise.resolve().then(() => {
+        })
+        .catch((err) => {
+          console.error('Failed to load request context details', err);
+        })
+        .finally(() => {
           setLoadingContext(false);
         });
-      });
     }
   }, [isCreate, request]);
 

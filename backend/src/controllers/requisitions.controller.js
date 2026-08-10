@@ -1,6 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
+const { computeMainHeadCapacity } = require('../services/mainHeadCapacity.service');
 const validate = require('../validation/validate');
 const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema } = require('../validation/requisition.schema');
 
@@ -185,42 +186,11 @@ async function createRequisition(req, res) {
         });
       }
       if (rpcError.code === 'BUD01' || rpcError.message?.includes('Main Head capacity') || rpcError.message?.includes('exceeds the remaining estimate balance')) {
-        const { data: estimateData } = await supabase
-          .from('project_cost_estimates')
-          .select('estimate_id')
-          .eq('work_order_no', work_order_no.trim())
-          .eq('estimate_status', 'Final Approved')
-          .order('estimate_revision', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        let mainHeadEstimate = 0;
-        let cumulativeApproved = 0;
-
-        if (estimateData) {
-          const { data: itemData } = await supabase
-            .from('project_cost_estimate_items')
-            .select('amount')
-            .eq('estimate_id', estimateData.estimate_id)
-            .eq('material_main_head', material_main_head.trim());
-
-          mainHeadEstimate = (itemData || []).reduce((sum, item) => sum + Number(item.amount), 0);
-
-          const { data: approvedReqs } = await supabase
-            .from('requisitions')
-            .select('approved_amount')
-            .eq('work_order_no', work_order_no.trim())
-            .eq('material_main_head', material_main_head.trim())
-            .eq('requisition_status', 'Approved');
-
-          cumulativeApproved = (approvedReqs || []).reduce((sum, r) => sum + Number(r.approved_amount), 0);
-        }
-
-        const remainingCapacity = mainHeadEstimate - cumulativeApproved;
+        const capacity = await computeMainHeadCapacity(work_order_no.trim(), material_main_head.trim());
 
         return res.status(422).json({
           success: false,
-          message: `Requisition amount exceeds the remaining Main Head capacity for '${material_main_head.trim()}'. Main Head Estimate: ₹${mainHeadEstimate.toLocaleString('en-IN')}. Cumulative ZO-Approved: ₹${cumulativeApproved.toLocaleString('en-IN')}. Remaining Capacity: ₹${remainingCapacity.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
+          message: `Requisition amount exceeds the remaining Main Head capacity for '${material_main_head.trim()}'. Main Head Estimate: ₹${capacity.mainHeadEstimate.toLocaleString('en-IN')}. Cumulative ZO-Approved: ₹${capacity.cumulativeApproved.toLocaleString('en-IN')}. Remaining Capacity: ₹${capacity.remainingCapacity.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
         });
       }
       if (rpcError.code === 'PR001' || rpcError.message?.includes('Closed')) {
@@ -256,37 +226,11 @@ async function createRequisition(req, res) {
     const resRemaining = estimateAmount !== null ? estimateAmount - committedAmt : null;
 
     // Resolve Main Head capacity metrics
-    const { data: estimateData } = await supabase
-      .from('project_cost_estimates')
-      .select('estimate_id')
-      .eq('work_order_no', work_order_no.trim())
-      .eq('estimate_status', 'Final Approved')
-      .order('estimate_revision', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    let mainHeadEstimate = 0;
-    let cumulativeApproved = 0;
-
-    if (estimateData) {
-      const { data: itemData } = await supabase
-        .from('project_cost_estimate_items')
-        .select('amount')
-        .eq('estimate_id', estimateData.estimate_id)
-        .eq('material_main_head', material_main_head.trim());
-
-      mainHeadEstimate = (itemData || []).reduce((sum, item) => sum + Number(item.amount), 0);
-
-      const { data: approvedReqs } = await supabase
-        .from('requisitions')
-        .select('approved_amount')
-        .eq('work_order_no', work_order_no.trim())
-        .eq('material_main_head', material_main_head.trim())
-        .eq('requisition_status', 'Approved');
-
-      cumulativeApproved = (approvedReqs || []).reduce((sum, r) => sum + Number(r.approved_amount), 0);
-    }
-    const remainingCapacity = mainHeadEstimate - cumulativeApproved;
+    const {
+      mainHeadEstimate,
+      cumulativeApproved,
+      remainingCapacity
+    } = await computeMainHeadCapacity(work_order_no.trim(), material_main_head.trim());
 
     const { notifyZoRequisitionSubmitted, notifyHoRequisitionSubmitted } = require('../services/telegram.service');
     notifyZoRequisitionSubmitted(newReq).catch(err => {
@@ -731,53 +675,13 @@ async function getMainHeadCapacity(req, res) {
   }
 
   try {
-    // 1. Fetch estimate ID of the latest Final Approved cost estimate
-    const { data: estimateData, error: estError } = await supabase
-      .from('project_cost_estimates')
-      .select('estimate_id')
-      .eq('work_order_no', work_order_no.trim())
-      .eq('estimate_status', 'Final Approved')
-      .order('estimate_revision', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (estError) throw estError;
-
-    let mainHeadEstimate = 0;
-    let cumulativeApproved = 0;
-
-    if (estimateData) {
-      // 2. Sum amounts of items under selected main head
-      const { data: itemData, error: itemError } = await supabase
-        .from('project_cost_estimate_items')
-        .select('amount')
-        .eq('estimate_id', estimateData.estimate_id)
-        .eq('material_main_head', material_main_head.trim());
-
-      if (itemError) throw itemError;
-
-      mainHeadEstimate = (itemData || []).reduce((sum, item) => sum + Number(item.amount), 0);
-
-      // 3. Sum approved amounts of all approved requisitions for this WO + main head
-      const { data: approvedReqs, error: approvedError } = await supabase
-        .from('requisitions')
-        .select('approved_amount')
-        .eq('work_order_no', work_order_no.trim())
-        .eq('material_main_head', material_main_head.trim())
-        .eq('requisition_status', 'Approved');
-
-      if (approvedError) throw approvedError;
-
-      cumulativeApproved = (approvedReqs || []).reduce((sum, r) => sum + Number(r.approved_amount), 0);
-    }
-
-    const remainingCapacity = mainHeadEstimate - cumulativeApproved;
+    const capacity = await computeMainHeadCapacity(work_order_no, material_main_head);
 
     return res.status(200).json({
       success: true,
-      mainHeadEstimate,
-      cumulativeApproved,
-      remainingCapacity
+      mainHeadEstimate: capacity.mainHeadEstimate,
+      cumulativeApproved: capacity.cumulativeApproved,
+      remainingCapacity: capacity.remainingCapacity
     });
   } catch (error) {
     console.error(`getMainHeadCapacity failed: ${error.message}`);

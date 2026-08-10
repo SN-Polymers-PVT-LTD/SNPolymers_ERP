@@ -18,18 +18,13 @@ import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest
 import { getProjects } from '../api/projectsApi';
 import { getEstimateSummary } from '../api/estimatesApi';
 import { exportFundRequestsToExcel } from '../utils/exportHelpers';
+import {
+  buildSubmittedFrSumByWo,
+  computeFundRequestRemaining,
+  filterApprovedThisMonth
+} from '../utils/businessRules/fundRequests';
 
-const SUBMITTED_FR_STATUSES = new Set(['Pending', 'Hold', 'Approved']);
 const ELIGIBLE_WO_STATUSES = new Set(['Running', 'Complete Under Maintenance']);
-
-const buildSubmittedFrSumByWo = (requests) => {
-  const frSumByWo = {};
-  requests.forEach((r) => {
-    if (!r.work_order_no || !SUBMITTED_FR_STATUSES.has(r.request_status)) return;
-    frSumByWo[r.work_order_no] = (frSumByWo[r.work_order_no] || 0) + Number(r.zo_fr_amount || 0);
-  });
-  return frSumByWo;
-};
 
 const FundRequests = () => {
   const { user } = useAuth();
@@ -77,7 +72,7 @@ const FundRequests = () => {
     staleTime: 30 * 1000
   });
 
-  const requests = requestsData || [];
+  const requests = useMemo(() => requestsData ?? [], [requestsData]);
   const displayError = error || queryError?.response?.data?.message || queryError?.message;
 
   const isWoLevelView = filters.notSentToHo || filters.remainingFundRequest;
@@ -193,7 +188,7 @@ const FundRequests = () => {
       list = list.filter(r => Number(r.zo_fr_amount) > 500000);
     }
     if (filters.approvedThisMonth) {
-      list = list.filter(r => r.request_status === 'Approved');
+      list = filterApprovedThisMonth(list);
     }
 
     const q = search.toLowerCase();
@@ -224,8 +219,7 @@ const FundRequests = () => {
     let rows = projectsList
       .filter((p) => ELIGIBLE_WO_STATUSES.has(p.status))
       .map((p) => {
-        const estimatedValue = estimatedValueByWo[p.work_order_no]
-          ?? (p.work_order_value != null ? Number(p.work_order_value) : null);
+        const estimatedValue = estimatedValueByWo[p.work_order_no] ?? null;
         const totalFrAmount = frSumByWo[p.work_order_no] || 0;
         return {
           work_order_no: p.work_order_no,
@@ -234,7 +228,7 @@ const FundRequests = () => {
           work_order_value: p.work_order_value != null ? Number(p.work_order_value) : null,
           estimated_value: estimatedValue,
           total_fr_amount: totalFrAmount,
-          remaining_amount: estimatedValue != null ? estimatedValue - totalFrAmount : null
+          remaining_amount: computeFundRequestRemaining(estimatedValue, totalFrAmount)
         };
       });
 

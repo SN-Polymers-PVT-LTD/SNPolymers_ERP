@@ -77,7 +77,16 @@ function resolveKpis(data, pList = []) {
   const fallbackRef = pList.reduce((a, p) => a + Number(p.excess_refunded_amount || 0), 0);
   const fallbackGB = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
   const fallbackAP = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
-  const fallbackDue = Math.max(0, fallbackWOVal - fallbackGB);
+  const fallbackDue = pList.reduce((sum, p) => {
+    const cap = Number(
+      p.approved_estimate_amount
+      ?? p.estimate_amount
+      ?? p.work_order_value
+      ?? 0
+    );
+    const billed = Number(p.gross_billed || 0);
+    return sum + Math.max(0, cap - billed);
+  }, 0);
 
   return {
     woTotal: data?.totalWorkOrders?.total ?? fallbackTotalWO,
@@ -109,7 +118,7 @@ assert.strictEqual(res.balVal, 3000000); // 6. ZO Balance = 0.3 Cr
 assert.strictEqual(res.refVal, 1100000); // 7. Total Refund = 0.11 Cr
 assert.strictEqual(res.gbVal, 37000000); // 8. Gross Bill = 3.7 Cr
 assert.strictEqual(res.apVal, 31500000); // 9. Agency Payment = 3.15 Cr
-assert.strictEqual(res.dueVal, 21000000); // 10. Remaining Bill Exposure = 2.1 Cr
+assert.strictEqual(res.dueVal, 16000000); // 10. Remaining Bill Exposure = 1.6 Cr (estimate cap based)
 
 console.log('✓ 1. Work Order Count = 5 (3 Running, 2 Completed)');
 console.log('✓ 2. Total WO Value = 5.8 Cr');
@@ -120,7 +129,7 @@ console.log('✓ 6. ZO Available Balance = 0.3 Cr');
 console.log('✓ 7. Total Refund Amount = 0.11 Cr');
 console.log('✓ 8. Gross Bill Amount = 3.7 Cr');
 console.log('✓ 9. Agency Payment = 3.15 Cr');
-console.log('✓ 10. Remaining Bill Exposure = 2.1 Cr');
+console.log('✓ 10. Remaining Bill Exposure = 1.6 Cr');
 
 console.log('--- Running Backend vs Client Fallback Equivalence Test ---');
 const backendEquivalentData = {
@@ -133,7 +142,7 @@ const backendEquivalentData = {
   totalRefundAmount: 1100000,
   grossBillAmount: { amount: 37000000 },
   agencyPayment: { amount: 31500000 },
-  dueBill: { amount: 21000000 },
+  dueBill: { amount: 16000000 },
 };
 
 const backendRes = resolveKpis(backendEquivalentData, goldenProjects);

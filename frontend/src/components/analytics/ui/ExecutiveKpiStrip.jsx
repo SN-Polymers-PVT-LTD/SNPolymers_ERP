@@ -21,7 +21,17 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
     const fallbackRef = pList.reduce((a, p) => a + Number(p.excess_refunded_amount || p.total_refunded || p.refund_amount || 0), 0);
     const fallbackGB = pList.reduce((a, p) => a + Number(p.gross_billed || 0), 0);
     const fallbackAP = pList.reduce((a, p) => a + Number(p.agency_payment ?? p.agency_paid ?? 0), 0);
-    const fallbackDue = Math.max(0, fallbackWOVal - fallbackGB);
+    const fallbackDue = pList.reduce((sum, p) => {
+      const cap = Number(
+        p.approved_estimate_amount
+        ?? (p.estimate_status === 'Final Approved' ? p.estimate_amount : 0)
+        ?? p.estimate_amount
+        ?? p.work_order_value
+        ?? 0
+      );
+      const billed = Number(p.gross_billed || 0);
+      return sum + Math.max(0, cap - billed);
+    }, 0);
 
     // Property-level resilient values
     const woVal = data?.totalWOValue ?? fallbackWOVal;
@@ -127,7 +137,7 @@ export const ExecutiveKpiStrip = ({ data = null, projects = [] }) => {
         id: 'due_bill',
         title: 'REMAINING BILL AMOUNT',
         description: 'Pending unbilled work order value exposure remaining in portfolio.',
-        formula: 'Total WO Value - Gross Bill Amount',
+        formula: 'Sum(max(0, estimate_cap - gross_billed)) per WO',
         titleColor: '#ec4899',
         topGlow: 'linear-gradient(90deg, #db2777 0%, rgba(219,39,119,0) 80%)',
         value: fmtCr(dueVal),

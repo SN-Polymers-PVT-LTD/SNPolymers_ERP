@@ -1261,7 +1261,11 @@ async function getHoChartData(req, res) {
       totalQwpVal = totalEstAmt * (avgProgressVal / 100);
     }
 
-    const totalDueBillAmt = totalWOValueAmt - totalGrossBillAmt;
+    const totalDueBillAmt = projectsList.reduce((sum, p) => {
+      const cap = approvedEstimateByWO[p.work_order_no] ?? Number(p.work_order_value || 0);
+      const billed = billsByWo[p.work_order_no]?.gross_bill || 0;
+      return sum + Math.max(0, cap - billed);
+    }, 0);
 
     const executiveSummaryKpis = {
       totalWorkOrders: {
@@ -1301,7 +1305,8 @@ async function getHoChartData(req, res) {
         amount: Math.round(totalDueBillAmt),
         woValue: totalWOValueAmt,
         grossBillAmount: totalGrossBillAmt,
-        pctOfWOValue: totalWOValueAmt > 0 ? parseFloat(((totalDueBillAmt / totalWOValueAmt) * 100).toFixed(1)) : 0
+        pctOfWOValue: totalWOValueAmt > 0 ? parseFloat(((totalDueBillAmt / totalWOValueAmt) * 100).toFixed(1)) : 0,
+        pctOfEstimate: totalEstAmt > 0 ? parseFloat(((totalDueBillAmt / totalEstAmt) * 100).toFixed(1)) : 0
       }
     };
 

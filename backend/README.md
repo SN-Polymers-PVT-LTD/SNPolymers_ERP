@@ -82,6 +82,69 @@ npm start
 
 ---
 
+## Database migrations (Supabase)
+
+SQL migrations live in [`src/db/migrations/`](src/db/migrations/). The runner [`scripts/apply-migrations.js`](scripts/apply-migrations.js) applies pending `.sql` files in numeric order and records them in `public._migration_log`, so it is safe to run repeatedly.
+
+### Connection env files (gitignored)
+
+Create these in `/backend` (never commit them):
+
+**`.env.dev-db`** — shared dev/staging Supabase project:
+```ini
+SUPABASE_TEST_DB_URI=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+```
+
+**`.env.prod-db`** — production Supabase project:
+```ini
+SUPABASE_TEST_DB_URI=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
+```
+
+Get the URI from **Supabase Dashboard → Project Settings → Database → Connection string → URI**. Prefer the **Session pooler** URL (IPv4-friendly); the direct `db.*.supabase.co` host is IPv6-only on the free tier and often fails from local networks.
+
+### Apply migrations
+
+```bash
+cd backend
+
+# Dev / staging Supabase (loads .env.dev-db)
+npm run migrate:dev
+
+# Production Supabase (loads .env.prod-db) — run only after reviewing SQL
+npm run migrate:prod
+```
+
+Equivalent manual form:
+```bash
+SUPABASE_TEST_DB_URI='postgresql://...' npm run migrate
+```
+
+### Local Supabase (tests)
+
+`npm run test:local` starts local Supabase (if needed), runs `apply-migrations.js` against `postgresql://postgres:postgres@127.0.0.1:54322/postgres`, then runs integration tests. No `.env.dev-db` file is required for that path.
+
+Prerequisites: [Supabase CLI](https://supabase.com/docs/guides/cli/local-development) installed.
+
+### Baseline an existing database
+
+If a Supabase project already has the schema (e.g. created via dashboard or an older deploy) but no `_migration_log` rows, mark files as applied **without** executing SQL:
+
+```bash
+npm run migrate:baseline:dev    # or migrate:baseline:prod
+```
+
+Use `--exclude <filename.sql>` when a specific migration should still run. See [`scripts/baseline-migrations.js`](scripts/baseline-migrations.js).
+
+### Adding a new migration
+
+1. Add `NNN_short_description.sql` under `src/db/migrations/` (leading number sets order).
+2. Test locally: `npm run test:local` or `npm run migrate:dev` against dev.
+3. Deploy backend, then run `npm run migrate:prod` before or immediately after production deploy.
+
+Release checklist and backup notes: [`docs/deployment_operations.md`](../docs/deployment_operations.md).
+
+---
+
 ## 🛡️ Core API Endpoints
 
 ### Public Authentication API (`/api/v1/auth`)
