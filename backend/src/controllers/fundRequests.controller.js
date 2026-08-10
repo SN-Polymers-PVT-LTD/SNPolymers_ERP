@@ -1,6 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
+const { getFinalApprovedEstimateMap } = require('../services/workOrderCapacity.service');
 const crypto = require('crypto');
 const validate = require('../validation/validate');
 const { createFundRequestSchema, actOnFundRequestSchema, cancelFundRequestSchema } = require('../validation/fundRequest.schema');
@@ -226,8 +227,8 @@ async function getFundRequests(req, res) {
     // Batch-fetch Work Order Value + Estimated Value for items 4(a), 4(b), 4(c)
     const uniqueWOs = [...new Set((fundRequests || []).map(fr => fr.work_order_no).filter(Boolean))];
 
-    let woValueMap = {}; // work_order_no → work_order_value
-    let estimatedValueMap = {}; // work_order_no → Final Approved estimate_amount
+    let woValueMap = {};
+    let estimatedValueMap = {};
 
     if (uniqueWOs.length > 0) {
       // Fetch work_order_value from projects_master
@@ -242,27 +243,18 @@ async function getFundRequests(req, res) {
         });
       }
 
-      // Fetch Final Approved cost estimate amount per WO
-      const { data: approvedEstimates, error: estErr } = await supabase
-        .from('project_cost_estimates')
-        .select('work_order_no, estimate_amount')
-        .in('work_order_no', uniqueWOs)
-        .eq('estimate_status', 'Final Approved');
-
-      if (!estErr && approvedEstimates) {
-        approvedEstimates.forEach((e) => {
-          estimatedValueMap[e.work_order_no] = Number(e.estimate_amount || 0);
-        });
-      }
+      // Fetch Final Approved cost estimate amount per WO (latest revision)
+      estimatedValueMap = await getFinalApprovedEstimateMap(uniqueWOs);
     }
 
     // Merge WO Value + Estimated Value into each row
     const enriched = baseEnriched.map(fr => ({
       ...fr,
       work_order_value: woValueMap[fr.work_order_no] ?? null,
-      estimated_value: fr.work_order_no && estimatedValueMap[fr.work_order_no] != null
-        ? estimatedValueMap[fr.work_order_no]
-        : null
+      estimated_value:
+        fr.work_order_no && estimatedValueMap[fr.work_order_no] != null
+          ? estimatedValueMap[fr.work_order_no]
+          : null
     }));
 
     return res.status(200).json({
