@@ -460,7 +460,7 @@ const DailyProgress = () => {
       lastLogged,
       activeSitesCount,
       activeSitesList,
-      inactivityAlerts,
+      inactivityWarnings: inactivityAlerts,
       recentLogs: allReports.slice(0, 5)
     };
   };
