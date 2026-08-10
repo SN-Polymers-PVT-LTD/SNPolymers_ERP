@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import TimelineProgress from './TimelineProgress';
-import { getProjects } from '../../api/projectsApi';
+import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getFundRequests } from '../../api/fundRequests';
 import { FormattedCurrencyInput } from '../ui';
@@ -99,42 +99,25 @@ const RequestDetailPanel = ({
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {
     if (isCreate && selectedWorkOrder) {
-      // Find selected project value
-      const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
-      const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
-      
-      Promise.resolve().then(() => {
-        setSelectedProjectValue(woVal);
-      });
-
-      // Fetch all fund requests for this work order to find cumulative approved amount
-      getFundRequests()
+      getProjectCapacity(selectedWorkOrder)
         .then((res) => {
-          const list = res.data?.fundRequests || [];
-          const approved = list.filter(
-            (r) =>
-              r.work_order_no === selectedWorkOrder &&
-              r.request_status === 'Approved'
+          const capacity = res.data?.capacity;
+          const estimateVal = capacity?.estimate_amount ?? capacity?.funding_cap ?? 0;
+          setSelectedProjectValue(Number(estimateVal || 0));
+          setRemainingCapacity(
+            capacity?.fr_remaining != null ? Number(capacity.fr_remaining) : null
           );
-          const cumulative = approved.reduce(
-            (sum, r) => sum + Number(r.approve_ho_amount || 0),
-            0
-          );
-          Promise.resolve().then(() => {
-            setRemainingCapacity(woVal - cumulative);
-          });
         })
         .catch((err) => {
-          console.error('Failed to fetch fund requests for capacity check', err);
-          Promise.resolve().then(() => {
-            setRemainingCapacity(woVal); // Fallback to estimate value on error
-          });
+          console.error('Failed to fetch work order capacity', err);
+          const proj = projects.find((p) => p.work_order_no === selectedWorkOrder);
+          const woVal = proj ? Number(proj.approved_estimate_amount || 0) : 0;
+          setSelectedProjectValue(woVal);
+          setRemainingCapacity(woVal > 0 ? woVal : null);
         });
     } else {
-      Promise.resolve().then(() => {
-        setSelectedProjectValue(0);
-        setRemainingCapacity(null);
-      });
+      setSelectedProjectValue(0);
+      setRemainingCapacity(null);
     }
   }, [isCreate, selectedWorkOrder, projects]);
 

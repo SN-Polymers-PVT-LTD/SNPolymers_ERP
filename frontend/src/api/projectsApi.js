@@ -25,5 +25,6 @@ export const updateProject = (workOrderNo, data) =>
  *  @param {string} workOrderNo
  *  @param {'Running'|'Closed'|'Complete Under Maintenance'} status
  */
-export const updateProjectStatus = (workOrderNo, status) =>
-  authApi.patch(`/projects/${encodeURIComponent(workOrderNo)}/status`, { status });
+/** Fetch unified funding/billing capacity for a work order */
+export const getProjectCapacity = (workOrderNo) =>
+  authApi.get(`/projects/${encodeURIComponent(workOrderNo)}/capacity`);

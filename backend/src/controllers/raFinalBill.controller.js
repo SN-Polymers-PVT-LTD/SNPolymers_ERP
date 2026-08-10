@@ -1,6 +1,10 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
+const {
+  getApprovedEstimateAmount,
+  resolveBillingCap
+} = require('../services/workOrderCapacity.service');
 
 // Batch display name resolver — single query for all mobile numbers
 async function resolveDisplayNames(mobiles) {
@@ -424,6 +428,12 @@ async function getBillSummaryByWorkOrder(req, res) {
     const previousBillAmount = bills.reduce((sum, b) => sum + Number(b.gross_bill || 0), 0);
     const finalBillExists = existingPaymentTypes.includes('Final Bill');
 
+    const estimateAmount = await getApprovedEstimateAmount(work_order_no);
+    const billingCap = resolveBillingCap(estimateAmount);
+    const billingRemaining = billingCap != null
+      ? Math.max(0, billingCap - previousBillAmount)
+      : null;
+
     // Determine the highest RA bill number entered
     const raBillNumbers = existingPaymentTypes
       .filter(t => t.startsWith('RA Bill '))
@@ -465,6 +475,9 @@ async function getBillSummaryByWorkOrder(req, res) {
     return res.status(200).json({
       success: true,
       work_order_value: project.work_order_value || 0,
+      estimate_amount: estimateAmount,
+      billing_cap: billingCap,
+      billing_remaining: billingRemaining,
       work_order_status: project.status,
       earnest_money_deposit: project.earnest_money_deposit || 0,
       previous_bill_amount: previousBillAmount,

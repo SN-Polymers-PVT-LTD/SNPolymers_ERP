@@ -1,6 +1,7 @@
 const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } = require('../validation/project.schema');
+const { getWorkOrderCapacity } = require('../services/workOrderCapacity.service');
 
 /**
  * GET /api/v1/auth/projects
@@ -596,9 +597,51 @@ async function getDashboardOverview(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/projects/:work_order_no/capacity
+ * Returns unified funding and billing capacity for a work order.
+ */
+async function getProjectCapacity(req, res) {
+  try {
+    const { work_order_no } = req.params;
+    if (!work_order_no) {
+      return res.status(400).json({ success: false, message: 'work_order_no is required.' });
+    }
+
+    const capacity = await getWorkOrderCapacity(work_order_no);
+    if (!capacity) {
+      return res.status(404).json({ success: false, message: 'Work order not found.' });
+    }
+
+    if (req.user.role === 'zo' && capacity.zo_user_id !== req.user.mobile_number) {
+      return res.status(404).json({ success: false, message: 'Work order not found.' });
+    }
+
+    if (req.user.role === 'je') {
+      const { data: mapping, error: mapErr } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('work_order_no', work_order_no)
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (mapErr) throw mapErr;
+      if (!mapping) {
+        return res.status(404).json({ success: false, message: 'Work order not found.' });
+      }
+    }
+
+    return res.status(200).json({ success: true, capacity });
+  } catch (error) {
+    console.error(`getProjectCapacity failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve work order capacity.' });
+  }
+}
+
 module.exports = {
   getProjects,
   getProjectByWorkOrder,
+  getProjectCapacity,
   createProject,
   updateProject,
   updateProjectStatus,
