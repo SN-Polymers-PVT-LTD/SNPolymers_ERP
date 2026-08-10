@@ -280,13 +280,21 @@ async function getEstimateSummary(req, res) {
     }
 
     const { data: estimates, error } = await dbQuery
+      .order('estimate_revision', { ascending: false })
       .order('updated_at', { ascending: false });
 
     if (error) throw error;
 
+    const latestByWo = {};
+    (estimates || []).forEach((est) => {
+      if (!latestByWo[est.work_order_no]) {
+        latestByWo[est.work_order_no] = est;
+      }
+    });
+
     return res.status(200).json({
       success: true,
-      estimates: (estimates || []).map(({ work_order_no, estimate_amount }) => ({
+      estimates: Object.values(latestByWo).map(({ work_order_no, estimate_amount }) => ({
         work_order_no,
         estimate_amount
       }))

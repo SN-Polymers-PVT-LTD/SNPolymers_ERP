@@ -16,7 +16,33 @@ async function getApprovedEstimateAmount(workOrderNo) {
     .maybeSingle();
 
   if (error) throw error;
-  return data ? Number(data.estimate_amount || 0) : null;
+  if (!data || data.estimate_amount == null) return null;
+  return Number(data.estimate_amount);
+}
+
+/**
+ * Map work_order_no → Final Approved estimate_amount (latest revision per WO).
+ */
+async function getFinalApprovedEstimateMap(workOrderNos = []) {
+  const unique = [...new Set((workOrderNos || []).filter(Boolean))];
+  if (unique.length === 0) return {};
+
+  const { data, error } = await supabase
+    .from('project_cost_estimates')
+    .select('work_order_no, estimate_amount, estimate_revision')
+    .in('work_order_no', unique)
+    .eq('estimate_status', 'Final Approved')
+    .order('estimate_revision', { ascending: false });
+
+  if (error) throw error;
+
+  const map = {};
+  (data || []).forEach((row) => {
+    if (map[row.work_order_no] == null) {
+      map[row.work_order_no] = Number(row.estimate_amount || 0);
+    }
+  });
+  return map;
 }
 
 const FR_COMMITTED_STATUSES = ['Pending', 'Hold', 'Approved'];
@@ -154,6 +180,7 @@ async function getBulkWorkOrderCapacity(workOrderNos = []) {
 
 module.exports = {
   getApprovedEstimateAmount,
+  getFinalApprovedEstimateMap,
   getFundRequestCommittedAmount,
   getFundRequestApprovedTotal,
   getFundRequestSubmittedTotal,
