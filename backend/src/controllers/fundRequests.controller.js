@@ -1,7 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
-const { getFinalApprovedEstimateMap } = require('../services/workOrderCapacity.service');
+const { getFinalApprovedEstimateMap, getFundRequestSubmittedTotal, getApprovedEstimateAmount } = require('../services/workOrderCapacity.service');
 const crypto = require('crypto');
 const validate = require('../validation/validate');
 const { createFundRequestSchema, actOnFundRequestSchema, cancelFundRequestSchema } = require('../validation/fundRequest.schema');
@@ -78,31 +78,17 @@ async function createFundRequest(req, res) {
     }
 
     // Verify that the Work Order has a Final Approved cost estimate
-    const { data: approvedEstimate, error: estErr } = await supabase
-      .from('project_cost_estimates')
-      .select('estimate_id, estimate_amount')
-      .eq('work_order_no', work_order_no.trim())
-      .eq('estimate_status', 'Final Approved')
-      .maybeSingle();
+    const estimateAmount = await getApprovedEstimateAmount(work_order_no.trim());
+    if (estimateAmount == null) {
+      return res.status(400).json({
+        success: false,
+        message: 'No Final Approved cost estimate found for this Work Order.'
+      });
+    }
 
-    if (estErr) throw estErr;
-
-    // Fetch approved fund requests for this work order to calculate remaining capacity
-    const { data: approvedReqs, error: approvedErr } = await supabase
-      .from('fund_requests')
-      .select('approve_ho_amount')
-      .eq('work_order_no', work_order_no.trim())
-      .eq('request_status', 'Approved');
-
-    if (approvedErr) throw approvedErr;
-
-    const cumulativeApproved = (approvedReqs || []).reduce(
-      (sum, r) => sum + Number(r.approve_ho_amount || 0),
-      0
-    );
-
-    const fundingCap = approvedEstimate ? Number(approvedEstimate.estimate_amount || 0) : Number(project.work_order_value || 0);
-    const remainingCapacity = fundingCap - cumulativeApproved;
+    const submittedTotal = await getFundRequestSubmittedTotal(work_order_no.trim());
+    const fundingCap = estimateAmount;
+    const remainingCapacity = fundingCap - submittedTotal;
 
     if (amount > remainingCapacity) {
       return res.status(400).json({

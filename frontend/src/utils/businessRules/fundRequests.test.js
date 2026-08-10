@@ -5,6 +5,8 @@ import {
   buildSubmittedFrSumByWo,
   computeFundRequestRemaining,
   computeFrRemainingForWo,
+  computeHoApproveRemaining,
+  computePipelineRemainingAfterApprove,
   filterApprovedThisMonth
 } from './fundRequests';
 
@@ -65,6 +67,23 @@ describe('fundRequests business rules', () => {
       }
     ];
     expect(computeFrRemainingForWo(1000, pur05Requests, 'PUR05')).toBe(-24000);
+  });
+
+  it('computePipelineRemainingAfterApprove previews WO headroom after typed HO amount', () => {
+    expect(computePipelineRemainingAfterApprove(28035, 12000)).toBe(16035);
+    expect(computePipelineRemainingAfterApprove(28035, 8000)).toBe(20035);
+    expect(computePipelineRemainingAfterApprove(28035, 0)).toBeNull();
+    expect(computePipelineRemainingAfterApprove(null, 12000)).toBeNull();
+  });
+
+  it('computeHoApproveRemaining excludes the request being approved from pipeline total', () => {
+    const pendingRequest = {
+      work_order_no: 'SK_GAN_201',
+      request_status: 'Pending',
+      zo_fr_amount: 100000
+    };
+    // 15k approved + 100k this pending = 115k submitted; HO headroom = 120k - 15k = 105k
+    expect(computeHoApproveRemaining(120000, 115000, pendingRequest)).toBe(105000);
   });
 
   it('filterApprovedThisMonth filters by approve_ho_date', () => {

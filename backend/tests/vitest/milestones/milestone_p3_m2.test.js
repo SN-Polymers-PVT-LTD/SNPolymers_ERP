@@ -41,10 +41,24 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       edited_by: zoUser.mobile_number
     });
     if (projErr) throw new Error(`P3-M2 project insert failed: ${projErr.message}`);
+
+    const { error: estErr } = await supabase.from('project_cost_estimates').insert({
+      estimate_id: crypto.randomUUID(),
+      work_order_no: testWorkOrder,
+      estimate_no: `EST_P3M2_${suffix}`,
+      area_code: 'Kolkata Zone',
+      zonal_office_no: 'ZO-1',
+      estimate_amount: 500000.00,
+      estimate_status: 'Final Approved',
+      created_by: zoUser.mobile_number,
+      last_modified_by: zoUser.mobile_number
+    });
+    if (estErr) throw new Error(`P3-M2 cost estimate insert failed: ${estErr.message}`);
   });
 
   afterAll(async () => {
     await supabase.from('fund_requests').delete().eq('work_order_no', testWorkOrder);
+    await supabase.from('project_cost_estimates').delete().eq('work_order_no', testWorkOrder);
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
   });
 

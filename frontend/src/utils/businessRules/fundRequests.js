@@ -58,6 +58,28 @@ export function computeFrRemainingForWo(estimateAmount, requests, workOrderNo) {
 }
 
 /**
+ * HO approve headroom for one request: estimate minus all other committed FRs.
+ * The request being approved is excluded — pending is not treated as already approved.
+ */
+export function computeHoApproveRemaining(estimateAmount, submittedTotal, currentRequest) {
+  if (estimateAmount == null) return null;
+  const selfCommitted = getFundRequestCommittedAmount(currentRequest);
+  const othersCommitted = Number(submittedTotal || 0) - selfCommitted;
+  return Number(estimateAmount) - othersCommitted;
+}
+
+/**
+ * Preview WO pipeline remaining if HO approves approveAmount on the current FR.
+ * Uses HO headroom (excl. this pending request) minus the typed approval amount.
+ */
+export function computePipelineRemainingAfterApprove(hoHeadroomExclSelf, approveAmount) {
+  if (hoHeadroomExclSelf == null) return null;
+  const amt = Number(approveAmount);
+  if (!Number.isFinite(amt) || amt <= 0) return null;
+  return Number(hoHeadroomExclSelf) - amt;
+}
+
+/**
  * Filter fund requests approved in the current calendar month.
  */
 export function filterApprovedThisMonth(requests, now = new Date()) {

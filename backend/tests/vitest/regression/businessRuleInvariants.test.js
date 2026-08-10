@@ -143,6 +143,68 @@ describe('businessRuleInvariants — estimate ≠ WO value matrix', () => {
     }
   });
 
+  test('create fund request rejects when pending FRs consume submitted pipeline (spec 4c)', async () => {
+    const suffix = crypto.randomUUID().substring(0, 8);
+    const localCtx = await seedCapDivergenceScenario({
+      suffix: `br_create_${suffix}`,
+      workOrderValue: 500000,
+      estimateAmount: 300000,
+      cementHeadAmount: 300000,
+      sandHeadAmount: 0
+    });
+
+    try {
+      const { data: pendingFr, error: pendingErr } = await supabase
+        .from('fund_requests')
+        .insert({
+          zo_user_id: localCtx.zoMobile,
+          work_order_no: localCtx.workOrder,
+          zo_fr_no: `FR_PIPE_${suffix}`,
+          zo_fr_amount: 290000,
+          request_status: 'Pending',
+          created_by: localCtx.zoMobile
+        })
+        .select()
+        .single();
+      if (pendingErr) throw pendingErr;
+      localCtx.fundRequestIds.push(pendingFr.fund_request_id);
+
+      const overRes = mockRes();
+      await createFundRequest(
+        {
+          user: { role: 'zo', mobile_number: localCtx.zoMobile },
+          body: {
+            zo_fr_no: `FR_OVER_${suffix}`,
+            work_order_no: localCtx.workOrder,
+            zo_fr_amount: 20000,
+            zo_remarks: 'Should fail — only 10k pipeline left'
+          }
+        },
+        overRes
+      );
+      expect(overRes.statusCode).toBe(400);
+      expect(overRes.jsonData.message).toMatch(/cannot exceed the remaining/i);
+
+      const okRes = mockRes();
+      await createFundRequest(
+        {
+          user: { role: 'zo', mobile_number: localCtx.zoMobile },
+          body: {
+            zo_fr_no: `FR_OK_${suffix}`,
+            work_order_no: localCtx.workOrder,
+            zo_fr_amount: 10000,
+            zo_remarks: 'Should pass — exactly 10k pipeline left'
+          }
+        },
+        okRes
+      );
+      expect(okRes.statusCode).toBe(201);
+      localCtx.fundRequestIds.push(okRes.jsonData.fundRequest.fund_request_id);
+    } finally {
+      await cleanupFinancialScenario(localCtx);
+    }
+  });
+
   test('RA bill summary exposes estimate-based billing cap', async () => {
     const res = mockRes();
     await getBillSummaryByWorkOrder(
