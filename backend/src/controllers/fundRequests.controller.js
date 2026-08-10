@@ -227,7 +227,7 @@ async function getFundRequests(req, res) {
     const uniqueWOs = [...new Set((fundRequests || []).map(fr => fr.work_order_no).filter(Boolean))];
 
     let woValueMap = {}; // work_order_no → work_order_value
-    let estimatedValueMap = {}; // work_order_no → total estimated_bill_amount
+    let estimatedValueMap = {}; // work_order_no → Final Approved estimate_amount
 
     if (uniqueWOs.length > 0) {
       // Fetch work_order_value from projects_master
@@ -242,16 +242,16 @@ async function getFundRequests(req, res) {
         });
       }
 
-      // Fetch SUM(estimated_bill_amount) per WO from estimated_bills
-      const { data: estBills, error: estErr } = await supabase
-        .from('estimated_bills')
-        .select('work_order_no, estimated_bill_amount')
-        .in('work_order_no', uniqueWOs);
+      // Fetch Final Approved cost estimate amount per WO
+      const { data: approvedEstimates, error: estErr } = await supabase
+        .from('project_cost_estimates')
+        .select('work_order_no, estimate_amount')
+        .in('work_order_no', uniqueWOs)
+        .eq('estimate_status', 'Final Approved');
 
-      if (!estErr && estBills) {
-        estBills.forEach(e => {
-          const wo = e.work_order_no;
-          estimatedValueMap[wo] = (estimatedValueMap[wo] || 0) + Number(e.estimated_bill_amount || 0);
+      if (!estErr && approvedEstimates) {
+        approvedEstimates.forEach((e) => {
+          estimatedValueMap[e.work_order_no] = Number(e.estimate_amount || 0);
         });
       }
     }
