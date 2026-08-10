@@ -89,7 +89,7 @@ describe('businessRuleInvariants — estimate ≠ WO value matrix', () => {
     expect(row.work_order_value).toBe(500000);
   });
 
-  test('fund request remaining capacity uses approved HO amounts only', async () => {
+  test('fund request remaining capacity uses submitted+approved totals (spec 4c)', async () => {
     const suffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedCapDivergenceScenario({
       suffix: `br_fr_${suffix}`,
@@ -119,9 +119,25 @@ describe('businessRuleInvariants — estimate ≠ WO value matrix', () => {
       if (frErr) throw frErr;
       localCtx.fundRequestIds.push(partialFr.fund_request_id);
 
+      const { data: pendingFr, error: pendingErr } = await supabase
+        .from('fund_requests')
+        .insert({
+          zo_user_id: localCtx.zoMobile,
+          work_order_no: localCtx.workOrder,
+          zo_fr_no: `FR_PEND_${suffix}`,
+          zo_fr_amount: 15000,
+          request_status: 'Pending',
+          created_by: localCtx.zoMobile
+        })
+        .select()
+        .single();
+      if (pendingErr) throw pendingErr;
+      localCtx.fundRequestIds.push(pendingFr.fund_request_id);
+
       const capacity = await getWorkOrderCapacity(localCtx.workOrder);
       expect(capacity.fr_approved_total).toBe(10000);
-      expect(capacity.fr_remaining).toBe(290000);
+      expect(capacity.fr_submitted_total).toBe(25000);
+      expect(capacity.fr_remaining).toBe(275000);
     } finally {
       await cleanupFinancialScenario(localCtx);
     }

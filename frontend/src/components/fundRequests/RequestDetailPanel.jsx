@@ -4,6 +4,7 @@ import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
 import { getFundRequests } from '../../api/fundRequests';
 import { FormattedCurrencyInput } from '../ui';
+import { computeFrRemainingForWo } from '../../utils/businessRules/fundRequests';
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
@@ -149,20 +150,13 @@ const RequestDetailPanel = ({
           setDetailProjectValue(woVal);
         });
 
-        // 3. Cumulative approved and remaining capacity
+        // 3. Remaining capacity (client spec 4c: submitted + approved)
         const allRequests = requestsRes.data?.fundRequests || [];
-        const approved = allRequests.filter(
-          (r) =>
-            r.work_order_no === request.work_order_no &&
-            r.request_status === 'Approved'
-        );
-        const cumulative = approved.reduce(
-          (sum, r) => sum + Number(r.approve_ho_amount || 0),
-          0
-        );
-        
+
         Promise.resolve().then(() => {
-          setDetailRemainingCapacity(woVal - cumulative);
+          setDetailRemainingCapacity(
+            computeFrRemainingForWo(woVal, allRequests, request.work_order_no)
+          );
         });
       }).catch((err) => {
         console.error('Failed to load request context details', err);

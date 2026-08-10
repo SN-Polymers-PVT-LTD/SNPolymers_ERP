@@ -36,10 +36,10 @@ describe('hoDashboard utils', () => {
     expect(flow.movedTotal).toBe(100000);
   });
 
-  it('computeBillExposure uses healthMap total_billed_amount', () => {
+  it('computeBillExposure uses estimate cap per WO when lower than WO value', () => {
     const projects = [
-      { work_order_no: 'WO1', work_order_value: 1000000 },
-      { work_order_no: 'WO2', work_order_value: 500000 }
+      { work_order_no: 'WO1', work_order_value: 1000000, approved_estimate_amount: 600000 },
+      { work_order_no: 'WO2', work_order_value: 500000, approved_estimate_amount: 400000 }
     ];
     const healthMap = {
       WO1: { total_billed_amount: 400000 },
@@ -48,7 +48,7 @@ describe('hoDashboard utils', () => {
     const exp = computeBillExposure(projects, healthMap);
     expect(exp.totalWoValue).toBe(1500000);
     expect(exp.totalGrossBilled).toBe(500000);
-    expect(exp.remainingBillAmount).toBe(1000000);
+    expect(exp.remainingBillAmount).toBe(500000);
   });
 
   it('mergeProjectsWithHealth prefers health MV physical_progress', () => {

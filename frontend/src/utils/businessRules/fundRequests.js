@@ -41,11 +41,20 @@ export function buildSubmittedFrSumByWo(requests) {
 }
 
 /**
- * Remaining fund request capacity = estimate − Σ(approved approve_ho_amount).
+ * Client spec 4(c): Remaining FR = Estimated Value − Total FR Submitted/Approved.
+ * @param committedTotal from buildSubmittedFrSumByWo[wo] or sum of getFundRequestCommittedAmount
  */
-export function computeFundRequestRemaining(estimateAmount, approvedCommittedTotal) {
+export function computeFundRequestRemaining(estimateAmount, committedTotal) {
   if (estimateAmount == null) return null;
-  return Number(estimateAmount) - Number(approvedCommittedTotal || 0);
+  return Number(estimateAmount) - Number(committedTotal || 0);
+}
+
+/**
+ * Remaining FR capacity for one work order from a fund request list.
+ */
+export function computeFrRemainingForWo(estimateAmount, requests, workOrderNo) {
+  const committedTotal = buildSubmittedFrSumByWo(requests)[workOrderNo] || 0;
+  return computeFundRequestRemaining(estimateAmount, committedTotal);
 }
 
 /**

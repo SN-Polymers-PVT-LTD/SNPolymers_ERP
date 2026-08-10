@@ -15,11 +15,10 @@ import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModa
 
 // API Clients
 import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest } from '../api/fundRequests';
-import { getProjects, getProjectCapacity } from '../api/projectsApi';
+import { getProjects } from '../api/projectsApi';
 import { getEstimateSummary } from '../api/estimatesApi';
 import { exportFundRequestsToExcel } from '../utils/exportHelpers';
 import {
-  buildApprovedFundRequestSumByWo,
   buildSubmittedFrSumByWo,
   computeFundRequestRemaining,
   filterApprovedThisMonth
@@ -73,7 +72,7 @@ const FundRequests = () => {
     staleTime: 30 * 1000
   });
 
-  const requests = requestsData || [];
+  const requests = useMemo(() => requestsData ?? [], [requestsData]);
   const displayError = error || queryError?.response?.data?.message || queryError?.message;
 
   const isWoLevelView = filters.notSentToHo || filters.remainingFundRequest;
@@ -210,7 +209,6 @@ const FundRequests = () => {
     if (!isWoLevelView || projectsList.length === 0) return [];
 
     const frSumByWo = buildSubmittedFrSumByWo(requests);
-    const approvedFrSumByWo = buildApprovedFundRequestSumByWo(requests);
     const wosWithAnyFr = new Set(requests.map((r) => r.work_order_no).filter(Boolean));
 
     const estimatedValueByWo = {};
@@ -224,7 +222,6 @@ const FundRequests = () => {
         const estimatedValue = estimatedValueByWo[p.work_order_no]
           ?? (p.work_order_value != null ? Number(p.work_order_value) : null);
         const totalFrAmount = frSumByWo[p.work_order_no] || 0;
-        const approvedFrAmount = approvedFrSumByWo[p.work_order_no] || 0;
         return {
           work_order_no: p.work_order_no,
           zo_name: p.zo_user?.display_name || null,
@@ -232,7 +229,7 @@ const FundRequests = () => {
           work_order_value: p.work_order_value != null ? Number(p.work_order_value) : null,
           estimated_value: estimatedValue,
           total_fr_amount: totalFrAmount,
-          remaining_amount: computeFundRequestRemaining(estimatedValue, approvedFrAmount)
+          remaining_amount: computeFundRequestRemaining(estimatedValue, totalFrAmount)
         };
       });
 

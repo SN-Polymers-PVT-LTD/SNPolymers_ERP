@@ -4,6 +4,7 @@ import {
   buildApprovedFundRequestSumByWo,
   buildSubmittedFrSumByWo,
   computeFundRequestRemaining,
+  computeFrRemainingForWo,
   filterApprovedThisMonth
 } from './fundRequests';
 
@@ -44,9 +45,26 @@ describe('fundRequests business rules', () => {
     });
   });
 
-  it('computeFundRequestRemaining matches backend funding cap math', () => {
-    const approvedTotal = buildApprovedFundRequestSumByWo(requests).PUR02;
-    expect(computeFundRequestRemaining(300000, approvedTotal)).toBe(290000);
+  it('computeFundRequestRemaining uses submitted+approved totals (spec 4c)', () => {
+    const committedTotal = buildSubmittedFrSumByWo(requests).PUR02;
+    expect(computeFundRequestRemaining(300000, committedTotal)).toBe(275000);
+  });
+
+  it('computeFrRemainingForWo matches PUR05-style over-capacity case', () => {
+    const pur05Requests = [
+      {
+        work_order_no: 'PUR05',
+        request_status: 'Approved',
+        zo_fr_amount: 22000,
+        approve_ho_amount: 10000
+      },
+      {
+        work_order_no: 'PUR05',
+        request_status: 'Pending',
+        zo_fr_amount: 15000
+      }
+    ];
+    expect(computeFrRemainingForWo(1000, pur05Requests, 'PUR05')).toBe(-24000);
   });
 
   it('filterApprovedThisMonth filters by approve_ho_date', () => {

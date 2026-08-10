@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getProjects,
   getProjectByWorkOrder,
+  getProjectsCapacity,
   getProjectCapacity,
   createProject,
   updateProject,
@@ -24,6 +25,7 @@ router.use(verifyJwt);
 
 // General staff and admin read-only access (for list select & auto-fill)
 router.get('/dashboard/overview', getDashboardOverview);
+router.get('/capacity', getProjectsCapacity);
 router.get('/', getProjects);
 router.get('/:work_order_no/capacity', getProjectCapacity);
 router.get('/:work_order_no', getProjectByWorkOrder);

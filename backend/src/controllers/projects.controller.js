@@ -1,7 +1,7 @@
 const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const { createProjectSchema, updateProjectSchema, updateProjectStatusSchema } = require('../validation/project.schema');
-const { getWorkOrderCapacity } = require('../services/workOrderCapacity.service');
+const { getWorkOrderCapacity, getBulkWorkOrderCapacity } = require('../services/workOrderCapacity.service');
 
 /**
  * GET /api/v1/auth/projects
@@ -598,6 +598,49 @@ async function getDashboardOverview(req, res) {
 }
 
 /**
+ * GET /api/v1/auth/projects/capacity
+ * Bulk capacity snapshots for accessible work orders.
+ */
+async function getProjectsCapacity(req, res) {
+  try {
+    let dbQuery = supabase.from('projects_master').select('work_order_no, zo_user_id');
+
+    if (req.user.role === 'zo') {
+      dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
+    } else if (req.user.role === 'je') {
+      const { data: mappings, error: mapErr } = await supabase
+        .from('work_order_mappings')
+        .select('work_order_no')
+        .eq('je_user_id', req.user.mobile_number)
+        .eq('is_active', true);
+      if (mapErr) throw mapErr;
+      const mappedWOs = (mappings || []).map((m) => m.work_order_no);
+      dbQuery = dbQuery.in('work_order_no', mappedWOs.length > 0 ? mappedWOs : ['dummy_work_order_no']);
+    }
+
+    const requested = (req.query.work_order_nos || '')
+      .split(',')
+      .map((wo) => wo.trim())
+      .filter(Boolean);
+
+    if (requested.length > 0) {
+      dbQuery = dbQuery.in('work_order_no', requested);
+    }
+
+    const { data: projects, error } = await dbQuery;
+    if (error) throw error;
+
+    const workOrderNos = (projects || []).map((p) => p.work_order_no);
+    const capacities = await getBulkWorkOrderCapacity(workOrderNos);
+
+    return res.status(200).json({ success: true, capacities });
+  } catch (error) {
+    console.error(`getProjectsCapacity failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve project capacities.' });
+  }
+}
+
+/**
  * GET /api/v1/auth/projects/:work_order_no/capacity
  * Returns unified funding and billing capacity for a work order.
  */
@@ -641,6 +684,7 @@ async function getProjectCapacity(req, res) {
 module.exports = {
   getProjects,
   getProjectByWorkOrder,
+  getProjectsCapacity,
   getProjectCapacity,
   createProject,
   updateProject,

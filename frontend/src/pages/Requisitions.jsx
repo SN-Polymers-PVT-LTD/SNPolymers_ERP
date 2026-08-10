@@ -15,6 +15,7 @@ import {
   deleteGstBillPdf,
   getMainHeadCapacity
 } from '../api/requisitionsApi';
+import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -678,21 +679,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     };
   })();
 
-  // Compute Advisory Remaining Balance
-  const getAdvisoryBalance = () => {
-    if (!projectMetadata || projectMetadata.estimateAmount === null) return null;
-    const committed = requisitions
-      .filter(r => r.work_order_no === selectedWO && r.requisition_status !== 'Cancelled')
-      .reduce((sum, r) => {
-        if (r.requisition_status === 'Approved') {
-          return sum + Number(r.approved_amount !== null && r.approved_amount !== undefined ? r.approved_amount : r.requisition_amount);
-        }
-        return sum + Number(r.requisition_amount);
-      }, 0);
-    return projectMetadata.estimateAmount - committed;
-  };
-
-  const advisoryRemaining = getAdvisoryBalance();
+  const advisoryRemaining = selectedWO && projectMetadata?.estimateAmount != null
+    ? computeRequisitionAdvisoryRemaining(projectMetadata.estimateAmount, requisitions, selectedWO)
+    : null;
 
   // Reset GST Upload state if toggled to No
   const handleGstToggle = (val) => {

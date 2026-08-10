@@ -76,7 +76,16 @@ export const computeBillExposure = (projects = [], healthMap = {}) => {
     const billed = healthMap[p.work_order_no]?.total_billed_amount;
     return sum + Number(billed ?? 0);
   }, 0);
-  const remainingBillAmount = Math.max(0, totalWoValue - totalGrossBilled);
+  const remainingBillAmount = projects.reduce((sum, p) => {
+    const cap = Number(
+      p.approved_estimate_amount
+      ?? p.estimate_amount
+      ?? p.work_order_value
+      ?? 0
+    );
+    const billed = Number(healthMap[p.work_order_no]?.total_billed_amount ?? 0);
+    return sum + Math.max(0, cap - billed);
+  }, 0);
   return { totalWoValue, totalGrossBilled, remainingBillAmount };
 };
 
