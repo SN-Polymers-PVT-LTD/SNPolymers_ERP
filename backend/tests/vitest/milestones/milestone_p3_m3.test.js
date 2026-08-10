@@ -246,7 +246,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
   });
 
   describe('Fund Request Constraints (Final Approved Cost Estimate)', () => {
-    test('Test 9: Blocks creating fund request exceeding WO funding capacity when no estimate exists', async () => {
+    test('Test 9: Blocks creating fund request when no Final Approved cost estimate exists', async () => {
       const suffix = crypto.randomUUID().substring(0, 8);
       const tempWO = `TEST_WO_P3M3_NOEST_${suffix}`;
 
@@ -281,7 +281,7 @@ describe('Milestone P3-M3 — Fund Requests Workflow Integration', () => {
 
       expect(res.statusCode).toBe(400);
       expect(res.jsonData.success).toBe(false);
-      expect(res.jsonData.message).toContain('exceed');
+      expect(res.jsonData.message).toMatch(/No Final Approved cost estimate/i);
 
       // Cleanup
       await supabase.from('projects_master').delete().eq('work_order_no', tempWO);
