@@ -333,6 +333,24 @@ async function submitReview(req, res) {
       });
     }
 
+    // Verify there are no active quotations flagged for replacement
+    const { data: flaggedQuotations, error: quotError } = await supabase
+      .from('estimate_quotations')
+      .select('quotation_id')
+      .eq('estimate_id', id)
+      .eq('flagged_for_replacement', true)
+      .eq('is_deleted', false)
+      .limit(1);
+
+    if (quotError) throw quotError;
+
+    if (flaggedQuotations && flaggedQuotations.length > 0) {
+      return res.status(422).json({
+        success: false,
+        message: 'Final review cannot be submitted while one or more quotations are flagged for replacement. Use Request Revision or replace the affected quotations.'
+      });
+    }
+
     // Stage Guard
     const effectiveRole = getEffectiveRole(req.user.role);
     if (effectiveRole === 'zo') {
@@ -540,7 +558,7 @@ async function requestRevision(req, res) {
       });
     }
 
-    // Require at least one row to be 'Not Approve' (NULL/Approve do not qualify)
+    // Check if there is at least one item marked 'Not Approve'
     const approveField = stage === 'ZO' ? 'zo_office_approve' : 'ho_office_approve';
     const { data: disapprovedItems, error: itemsError } = await supabase
       .from('project_cost_estimate_items')
@@ -550,10 +568,25 @@ async function requestRevision(req, res) {
       .limit(1);
 
     if (itemsError) throw itemsError;
-    if (!disapprovedItems || disapprovedItems.length === 0) {
+
+    // Check if there is at least one active quotation flagged for replacement
+    const { data: flaggedQuotations, error: quotError } = await supabase
+      .from('estimate_quotations')
+      .select('quotation_id')
+      .eq('estimate_id', id)
+      .eq('flagged_for_replacement', true)
+      .eq('is_deleted', false)
+      .limit(1);
+
+    if (quotError) throw quotError;
+
+    const hasRejectedItems = disapprovedItems && disapprovedItems.length > 0;
+    const hasFlaggedQuotations = flaggedQuotations && flaggedQuotations.length > 0;
+
+    if (!hasRejectedItems && !hasFlaggedQuotations) {
       return res.status(422).json({
         success: false,
-        message: `At least one row must be marked ${APPROVAL_STATUS.REJECTED} before requesting a revision. NULL (unreviewed) rows do not qualify.`
+        message: 'At least one item must be marked Not Approve OR at least one quotation must be flagged for replacement before requesting a revision.'
       });
     }
 

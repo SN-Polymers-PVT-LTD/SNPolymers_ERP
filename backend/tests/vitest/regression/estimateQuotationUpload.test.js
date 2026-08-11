@@ -173,7 +173,7 @@ describe('Milestone 2 — Estimate Quotation Upload Backend Integration', () => 
     await deleteQuotation(reqDel, resDel);
     expect(resDel.statusCode).toBe(200);
 
-    // List as ZO (should return 2 rows: active + soft-deleted)
+    // List as ZO (soft-deleted must be excluded entirely now)
     const reqZo = {
       params: { id: ctx.estimateId },
       user: { role: 'zo', mobile_number: ctx.zoMobile }
@@ -181,14 +181,17 @@ describe('Milestone 2 — Estimate Quotation Upload Backend Integration', () => 
     const resZo = mockRes();
     await listQuotations(reqZo, resZo);
     expect(resZo.statusCode).toBe(200);
-    expect(resZo.jsonData.quotations).toHaveLength(2);
+    expect(resZo.jsonData.quotations).toHaveLength(1); // Deleted is hidden
     
-    // Soft deleted row must have signed_url = null
-    const zoDeletedRow = resZo.jsonData.quotations.find(q => q.quotation_id === toDeleteId);
-    expect(zoDeletedRow.is_deleted).toBe(true);
-    expect(zoDeletedRow.quotation_signed_url).toBeNull();
+    // Verify soft deleted row still has its storage_path preserved in the PostgreSQL table for traceability
+    const { data: dbRow } = await supabase
+      .from('estimate_quotations')
+      .select('storage_path')
+      .eq('quotation_id', toDeleteId)
+      .single();
+    expect(dbRow.storage_path).not.toBeNull();
 
-    // List as HO (should return 1 row: active only)
+    // List as HO (should also return 1 row: active only)
     const reqHo = {
       params: { id: ctx.estimateId },
       user: { role: 'ho', mobile_number: ctx.hoMobile }
@@ -226,11 +229,44 @@ describe('Milestone 2 — Estimate Quotation Upload Backend Integration', () => 
       .eq('quotation_id', activeQuotationId);
   });
 
-  test('Test 7: ZO/HO can toggle flag, even on locked quotations', async () => {
-    // Lock it
+  test('Test 7: ZO/HO can toggle flag only during review stage and only on unlocked quotations', async () => {
+    // 1. Try to flag when status is Draft -> should fail with 403
+    const reqDraftFlag = {
+      params: { id: ctx.estimateId, quotationId: activeQuotationId },
+      user: { role: 'ho', mobile_number: ctx.hoMobile },
+      body: { flagged: true }
+    };
+    const resDraftFlag = mockRes();
+    await toggleQuotationFlag(reqDraftFlag, resDraftFlag);
+    expect(resDraftFlag.statusCode).toBe(403);
+    expect(resDraftFlag.jsonData.message).toContain('only be toggled when the estimate is under review');
+
+    // 2. Transition estimate status to 'Under HO Review'
+    await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'Under HO Review' })
+      .eq('estimate_id', ctx.estimateId);
+
+    // Lock the quotation row to assert flag rejection
     await supabase
       .from('estimate_quotations')
       .update({ is_locked: true, locked_at: new Date().toISOString() })
+      .eq('quotation_id', activeQuotationId);
+
+    const reqFlagLocked = {
+      params: { id: ctx.estimateId, quotationId: activeQuotationId },
+      user: { role: 'ho', mobile_number: ctx.hoMobile },
+      body: { flagged: true }
+    };
+    const resFlagLocked = mockRes();
+    await toggleQuotationFlag(reqFlagLocked, resFlagLocked);
+    expect(resFlagLocked.statusCode).toBe(403);
+    expect(resFlagLocked.jsonData.message).toContain('Locked quotations cannot be flagged');
+
+    // Unlock the quotation to allow successful flagging
+    await supabase
+      .from('estimate_quotations')
+      .update({ is_locked: false, locked_at: null })
       .eq('quotation_id', activeQuotationId);
 
     const reqFlag = {
@@ -245,7 +281,7 @@ describe('Milestone 2 — Estimate Quotation Upload Backend Integration', () => 
     expect(resFlag.statusCode).toBe(200);
     expect(resFlag.jsonData.quotation.flagged_for_replacement).toBe(true);
 
-    // JE role check (should receive 403)
+    // JE role check (should receive 403 on role block, even if status is correct)
     const reqJeFlag = {
       params: { id: ctx.estimateId, quotationId: activeQuotationId },
       user: { role: 'je', mobile_number: ctx.jeMobile },
@@ -255,6 +291,17 @@ describe('Milestone 2 — Estimate Quotation Upload Backend Integration', () => 
 
     await toggleQuotationFlag(reqJeFlag, resJeFlag);
     expect(resJeFlag.statusCode).toBe(403);
+
+    // 3. Reset estimate status back to 'Draft' and unlock quotation
+    await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'Draft' })
+      .eq('estimate_id', ctx.estimateId);
+
+    await supabase
+      .from('estimate_quotations')
+      .update({ is_locked: false, locked_at: null })
+      .eq('quotation_id', activeQuotationId);
   });
 
   test('Test 8: Database insertion failure cleans up storage orphan', async () => {

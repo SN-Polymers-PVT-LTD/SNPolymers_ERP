@@ -4,7 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Modal, TextArea } from '../components/ui';
 import { SkeletonPage } from '../components/ui/Skeleton';
 import authApi from '../api/authApi';
-import { exportToExcel } from '../utils/exportHelpers';
+import { exportToExcel, exportArchiveToZip } from '../utils/exportHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import QuotationList from '../components/estimates/QuotationList';
 
@@ -73,10 +73,11 @@ const EstimateView = () => {
   const { data: estimateData, isLoading: loading } = useQuery({
     queryKey: ['estimate', id],
     queryFn: async () => {
-      const [detailRes, revisionRes, purchaseRes] = await Promise.all([
+      const [detailRes, revisionRes, purchaseRes, quotationRes] = await Promise.all([
         authApi.get(`/estimates/${id}`),
         authApi.get(`/estimates/${id}/revisions`),
-        authApi.get('/purchase-data').catch(() => ({ data: { options: [] } }))
+        authApi.get('/purchase-data').catch(() => ({ data: { options: [] } })),
+        authApi.get(`/estimates/${id}/quotations`).catch(() => ({ data: { quotations: [] } }))
       ]);
 
       return {
@@ -84,7 +85,8 @@ const EstimateView = () => {
         items: detailRes.data?.items || [],
         summary: detailRes.data?.summary,
         revisions: revisionRes.data?.revisions || [],
-        purchaseOptions: purchaseRes.data?.options || []
+        purchaseOptions: purchaseRes.data?.options || [],
+        quotations: quotationRes.data?.quotations || []
       };
     }
   });
@@ -145,8 +147,9 @@ const EstimateView = () => {
     const allDecided = items.every(item => Boolean(rowDecisions[item.item_id]?.approve_status));
     if (!allDecided) return false;
     const hasRejections = items.some(item => rowDecisions[item.item_id]?.approve_status === 'Not Approve');
-    return !hasRejections;
-  }, [items, rowDecisions]);
+    const hasFlaggedQuotations = (estimateData?.quotations || []).some(q => q.flagged_for_replacement && !q.is_deleted);
+    return !hasRejections && !hasFlaggedQuotations;
+  }, [items, rowDecisions, estimateData?.quotations]);
 
   const handleDecisionChange = (itemId, field, value) => {
     const updated = {
@@ -329,10 +332,11 @@ const EstimateView = () => {
     setError('');
     setSuccess('');
     
-    // Validation: Ensure there is at least one Not Approve row
+    // Validation: Ensure there is at least one Not Approve row or flagged quotation
     const hasRejections = Object.values(rowDecisions).some(dec => dec.approve_status === 'Not Approve');
-    if (!hasRejections) {
-      setError('At least one row must be marked "Not Approve" before requesting a revision.');
+    const hasFlaggedQuotations = (estimateData?.quotations || []).some(q => q.flagged_for_replacement && !q.is_deleted);
+    if (!hasRejections && !hasFlaggedQuotations) {
+      setError('At least one row must be marked "Not Approve" OR at least one quotation must be flagged for replacement before requesting a revision.');
       setShowRevisionModal(false);
       return;
     }
@@ -481,6 +485,13 @@ const EstimateView = () => {
               variant="success"
             >
               Excel
+            </Button>
+
+            <Button
+              onClick={() => exportArchiveToZip(estimate, items, estimateData?.quotations || [])}
+              variant="secondary"
+            >
+              Download ZIP
             </Button>
 
             {canReopen && (
@@ -833,7 +844,12 @@ const EstimateView = () => {
             </div>
 
             {/* Dealer Quotations List Widget (ZO/HO/Admin View) */}
-            <QuotationList estimateId={id} estimate={estimate} />
+            <QuotationList 
+              estimateId={id} 
+              estimate={estimate} 
+              quotations={estimateData?.quotations || []}
+              onUpdate={() => queryClient.invalidateQueries({ queryKey: ['estimate', id] })}
+            />
 
             {/* Bottom Grid for Summary and Approval Logs */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 items-start">

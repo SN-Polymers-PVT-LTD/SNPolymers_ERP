@@ -114,25 +114,20 @@ async function listQuotations(req, res) {
       return res.status(403).json({ success: false, message: 'Access denied. You cannot view this estimate.' });
     }
 
-    const effectiveRole = getEffectiveRole(req.user.role);
-    const isAdmin = effectiveRole === 'admin';
-    const isZO = effectiveRole === 'zo';
-
-    let query = supabase.from('estimate_quotations').select('*').eq('estimate_id', id);
-
-    // Only ZO and Admin can see soft-deleted rows
-    if (!isZO && !isAdmin) {
-      query = query.eq('is_deleted', false);
-    }
-
-    const { data: rows, error: fetchError } = await query.order('uploaded_at', { ascending: true });
+    // Always exclude soft-deleted rows for all roles
+    const { data: rows, error: fetchError } = await supabase
+      .from('estimate_quotations')
+      .select('*')
+      .eq('estimate_id', id)
+      .eq('is_deleted', false)
+      .order('uploaded_at', { ascending: true });
     if (fetchError) throw fetchError;
 
     // Dynamically generate signed URLs for active rows
     const enrichedRows = [];
     for (const row of rows || []) {
       let quotation_signed_url = null;
-      if (!row.is_deleted && row.storage_path) {
+      if (row.storage_path) {
         const { data: signData, error: signError } = await supabase.storage
           .from('estimate-quotations')
           .createSignedUrl(row.storage_path, 3600);
@@ -201,7 +196,7 @@ async function deleteQuotation(req, res) {
       return res.status(403).json({ success: false, message: 'Estimate cannot be modified in its current status.' });
     }
 
-    // Perform Soft Delete
+    // Perform Soft Delete (preserve storage_path for traceability)
     const { error: updateError } = await supabase
       .from('estimate_quotations')
       .update({
@@ -213,6 +208,16 @@ async function deleteQuotation(req, res) {
       .eq('quotation_id', quotationId);
 
     if (updateError) throw updateError;
+
+    // Remove file from Supabase Storage (best-effort)
+    if (row.storage_path) {
+      const { error: storageDeleteError } = await supabase.storage
+        .from('estimate-quotations')
+        .remove([row.storage_path]);
+      if (storageDeleteError) {
+        console.error(`Failed to delete storage file ${row.storage_path}: ${storageDeleteError.message}`);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -249,6 +254,15 @@ async function toggleQuotationFlag(req, res) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 
+    // Quotation replacement flags can only be toggled when the estimate is under review
+    const REVIEW_STATUSES = ['Under ZO Review', 'Under HO Review'];
+    if (!REVIEW_STATUSES.includes(estimate.estimate_status)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Quotation replacement flags can only be toggled when the estimate is under review.'
+      });
+    }
+
     if (!(await canViewEstimate(estimate, req.user))) {
       return res.status(403).json({ success: false, message: 'Access denied. You cannot review this estimate.' });
     }
@@ -267,6 +281,10 @@ async function toggleQuotationFlag(req, res) {
     // Enforce ownership correlation check
     if (row.estimate_id !== id) {
       return res.status(404).json({ success: false, message: 'Quotation not found.' });
+    }
+
+    if (row.is_locked) {
+      return res.status(403).json({ success: false, message: 'Locked quotations cannot be flagged for replacement.' });
     }
 
     // Perform flag update

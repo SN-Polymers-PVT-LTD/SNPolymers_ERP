@@ -68,14 +68,23 @@ describe('estimateQuotationPermissions helper tests', () => {
   });
 
   describe('canFlagQuotation', () => {
-    it('returns true for zo, ho, and admin', () => {
-      expect(canFlagQuotation(estimateDraft, userZO)).toBe(true);
-      expect(canFlagQuotation(estimateDraft, userHO)).toBe(true);
-      expect(canFlagQuotation(estimateDraft, userAdmin)).toBe(true);
+    it('returns true for zo, ho, and admin when estimate is under review and quotation is unlocked', () => {
+      expect(canFlagQuotation(quotationUnlocked, estimateUnderReview, userZO)).toBe(true);
+      expect(canFlagQuotation(quotationUnlocked, { estimate_status: 'Under HO Review' }, userHO)).toBe(true);
+      expect(canFlagQuotation(quotationUnlocked, estimateUnderReview, userAdmin)).toBe(true);
+    });
+
+    it('returns false when estimate is not under review (e.g. Draft, Final Approved)', () => {
+      expect(canFlagQuotation(quotationUnlocked, estimateDraft, userZO)).toBe(false);
+      expect(canFlagQuotation(quotationUnlocked, { estimate_status: 'Final Approved' }, userZO)).toBe(false);
+    });
+
+    it('returns false for locked quotations even if estimate is under review', () => {
+      expect(canFlagQuotation(quotationLocked, estimateUnderReview, userZO)).toBe(false);
     });
 
     it('returns false for JEs', () => {
-      expect(canFlagQuotation(estimateDraft, userJE)).toBe(false);
+      expect(canFlagQuotation(quotationUnlocked, estimateUnderReview, userJE)).toBe(false);
     });
   });
 });

@@ -26,7 +26,9 @@ export const canDeleteQuotation = (quotation, estimate, user) => {
 };
 
 /** Check if user can flag a quotation */
-export const canFlagQuotation = (estimate, user) => {
-  if (!estimate || !user) return false;
-  return ['zo', 'ho', 'admin'].includes(user.role);
+export const canFlagQuotation = (quotation, estimate, user) => {
+  if (!quotation || !estimate || !user) return false;
+  if (quotation.is_locked) return false;
+  const isReviewStatus = ['Under ZO Review', 'Under HO Review'].includes(estimate.estimate_status);
+  return isReviewStatus && ['zo', 'ho', 'admin'].includes(user.role);
 };
