@@ -6,6 +6,7 @@ import { SkeletonPage } from '../components/ui/Skeleton';
 import authApi from '../api/authApi';
 import { exportToExcel } from '../utils/exportHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import QuotationList from '../components/estimates/QuotationList';
 
 const ESTIMATE_STATUS = {
   DRAFT: 'Draft',
@@ -830,6 +831,9 @@ const EstimateView = () => {
                 <span>Grand Total Cost: <strong className="text-amber-500 font-bold">{formatINR(summary?.gross_total)}</strong></span>
               </div>
             </div>
+
+            {/* Dealer Quotations List Widget (ZO/HO/Admin View) */}
+            <QuotationList estimateId={id} estimate={estimate} />
 
             {/* Bottom Grid for Summary and Approval Logs */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 items-start">

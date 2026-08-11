@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Modal } from '../components/ui';
 import authApi from '../api/authApi';
 import { useQueryClient } from '@tanstack/react-query';
+import QuotationUpload from '../components/estimates/QuotationUpload';
 
 const ESTIMATE_STATUS = {
   DRAFT: 'Draft',
@@ -815,6 +816,15 @@ const EstimateForm = () => {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Dealer Quotations Upload Widget (JE Only) */}
+        {isEditMode && (
+          <QuotationUpload 
+            estimateId={id} 
+            estimate={{ created_by: estimateData?.estimate?.created_by || estimateData?.created_by, estimate_status: estimateStatus }}
+            isFormLocked={isFormLockedByExpiry || submitting}
+          />
         )}
 
         {/* Submit Actions */}
