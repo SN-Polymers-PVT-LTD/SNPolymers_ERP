@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Modal } from '../components/ui';
 import authApi from '../api/authApi';
 import { useQueryClient } from '@tanstack/react-query';
+import QuotationUpload from '../components/estimates/QuotationUpload';
 
 const ESTIMATE_STATUS = {
   DRAFT: 'Draft',
@@ -34,6 +35,7 @@ const EstimateForm = () => {
   const [estimateNo, setEstimateNo] = useState('');
   const [zonalOfficeNo, setZonalOfficeNo] = useState('N/A');
   const [jeRemarks, setJeRemarks] = useState('');
+  const [estimateCreator, setEstimateCreator] = useState('');
   
   // Project Info Metadata
   const [projectMeta, setProjectMeta] = useState({
@@ -166,6 +168,7 @@ const EstimateForm = () => {
           setEstimateNo(estimate.estimate_no);
           setZonalOfficeNo(estimate.zonal_office_no || '');
           setJeRemarks(estimate.je_remarks || '');
+          setEstimateCreator(estimate.created_by || '');
           
           if (estimate.projects_master) {
             setProjectMeta({
@@ -672,111 +675,125 @@ const EstimateForm = () => {
                   );
 
                   return (
-                    <tr key={globalIdx} className={`hover:bg-white/[0.01] transition-colors duration-200 ${
-                      isRejected ? 'border-l-4 border-l-amber-500 bg-amber-500/[0.01]' : ''
-                    } ${isLocked ? 'opacity-60 bg-white/[0.01] pointer-events-none' : ''}`}>
-                      <td className="py-3 px-4">
-                        <select
-                           value={item.material_main_head}
-                           onChange={(e) => handleItemChange(idx, 'material_main_head', e.target.value)}
-                           className="w-full glass-input p-2 rounded-lg text-xs"
-                           disabled={isFormLockedByExpiry || submitting || isLocked}
-                        >
-                          <option value="">Select Main Head</option>
-                          {mainHeads.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                           value={item.material_sub_head}
-                           onChange={(e) => handleItemChange(idx, 'material_sub_head', e.target.value)}
-                           className="w-full glass-input p-2 rounded-lg text-xs"
-                           disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_main_head}
-                        >
-                          <option value="">Select Sub Head</option>
-                          {item.subHeadsList?.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4 min-w-[210px]">
-                        <select
-                           value={item.material_details}
-                           onChange={(e) => handleItemChange(idx, 'material_details', e.target.value)}
-                           className="w-full glass-input p-2 rounded-lg text-xs"
-                           disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_sub_head}
-                        >
-                          <option value="">Select Details</option>
-                          {item.matsList?.map((m, mIdx) => (
-                            <option key={`${m.id || m.name}-${mIdx}`} value={m.name}>
-                              {m.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          value={item.unit}
-                          readOnly
-                          className="w-full glass-input p-2 rounded-lg text-xs text-center font-bold text-slate-400 cursor-not-allowed"
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="any"
-                          value={item.qty || ''}
-                          onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs font-semibold text-center"
-                          disabled={isFormLockedByExpiry || submitting || isLocked}
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <FormattedCurrencyInput
-                          value={item.rate || ''}
-                          onValueChange={(val) => handleItemChange(idx, 'rate', val)}
-                          className="w-full p-2 rounded-lg text-xs font-semibold text-center"
-                          disabled={isFormLockedByExpiry || submitting || isLocked}
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          placeholder="e.g. CSR 2026"
-                          value={item.rate_reference || ''}
-                          onChange={(e) => handleItemChange(idx, 'rate_reference', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isFormLockedByExpiry || submitting || isLocked}
-                        />
-                      </td>
-                      <td className="py-3 px-4">
-                        <select
-                          value={item.source_of_purchase || ''}
-                          onChange={(e) => handleItemChange(idx, 'source_of_purchase', e.target.value)}
-                          className="w-full glass-input p-2 rounded-lg text-xs"
-                          disabled={isFormLockedByExpiry || submitting || isLocked || user?.role === 'je' || user?.role === 'staff'}
-                        >
-                          <option value="">Select Source</option>
-                          {purchaseOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                        </select>
-                      </td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-200">
-                        {formatINR(item.amount)}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItem(idx)}
-                          className="text-red-400 hover:text-red-300 p-1.5 hover:bg-white/5 rounded-lg transition"
-                          disabled={isFormLockedByExpiry || submitting || isLocked}
-                          title="Remove item"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={globalIdx}>
+                      <tr className={`hover:bg-white/[0.01] transition-colors duration-200 ${
+                        isRejected ? 'border-l-4 border-l-amber-500 bg-amber-500/[0.01]' : ''
+                      } ${isLocked ? 'opacity-60 bg-white/[0.01] pointer-events-none' : ''}`}>
+                        <td className="py-3 px-4">
+                          <select
+                             value={item.material_main_head}
+                             onChange={(e) => handleItemChange(idx, 'material_main_head', e.target.value)}
+                             className="w-full glass-input p-2 rounded-lg text-xs"
+                             disabled={isFormLockedByExpiry || submitting || isLocked}
+                          >
+                            <option value="">Select Main Head</option>
+                            {mainHeads.map(h => <option key={h} value={h}>{h}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-3 px-4">
+                          <select
+                             value={item.material_sub_head}
+                             onChange={(e) => handleItemChange(idx, 'material_sub_head', e.target.value)}
+                             className="w-full glass-input p-2 rounded-lg text-xs"
+                             disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_main_head}
+                          >
+                            <option value="">Select Sub Head</option>
+                            {item.subHeadsList?.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-3 px-4 min-w-[210px]">
+                          <select
+                             value={item.material_details}
+                             onChange={(e) => handleItemChange(idx, 'material_details', e.target.value)}
+                             className="w-full glass-input p-2 rounded-lg text-xs"
+                             disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_sub_head}
+                          >
+                            <option value="">Select Details</option>
+                            {item.matsList?.map((m, mIdx) => (
+                              <option key={`${m.id || m.name}-${mIdx}`} value={m.name}>
+                                {m.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            value={item.unit}
+                            readOnly
+                            className="w-full glass-input p-2 rounded-lg text-xs text-center font-bold text-slate-400 cursor-not-allowed"
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            value={item.qty || ''}
+                            onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
+                            className="w-full glass-input p-2 rounded-lg text-xs font-semibold text-center"
+                            disabled={isFormLockedByExpiry || submitting || isLocked}
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <FormattedCurrencyInput
+                            value={item.rate || ''}
+                            onValueChange={(val) => handleItemChange(idx, 'rate', val)}
+                            className="w-full p-2 rounded-lg text-xs font-semibold text-center"
+                            disabled={isFormLockedByExpiry || submitting || isLocked}
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            placeholder="e.g. CSR 2026"
+                            value={item.rate_reference || ''}
+                            onChange={(e) => handleItemChange(idx, 'rate_reference', e.target.value)}
+                            className="w-full glass-input p-2 rounded-lg text-xs"
+                            disabled={isFormLockedByExpiry || submitting || isLocked}
+                          />
+                        </td>
+                        <td className="py-3 px-4">
+                          <select
+                            value={item.source_of_purchase || ''}
+                            onChange={(e) => handleItemChange(idx, 'source_of_purchase', e.target.value)}
+                            className="w-full glass-input p-2 rounded-lg text-xs"
+                            disabled={isFormLockedByExpiry || submitting || isLocked || user?.role === 'je' || user?.role === 'staff'}
+                          >
+                            <option value="">Select Source</option>
+                            {purchaseOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-200">
+                          {formatINR(item.amount)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItem(idx)}
+                            className="text-red-400 hover:text-red-300 p-1.5 hover:bg-white/5 rounded-lg transition"
+                            disabled={isFormLockedByExpiry || submitting || isLocked}
+                            title="Remove item"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                      {isRejected && (
+                        <tr key={`remarks-${globalIdx}`} className="bg-amber-500/[0.02]">
+                          <td colSpan={11} className="py-2 px-6 border-l-4 border-l-amber-500 text-amber-400 font-medium text-[11px] leading-relaxed">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold uppercase tracking-wider text-[9px] bg-amber-500/20 px-1.5 py-0.5 rounded">
+                                Rejection Remark ({estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED ? 'ZO' : 'HO'})
+                              </span>
+                              <span>{estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED ? item.zo_remarks : item.ho_remarks}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -815,6 +832,15 @@ const EstimateForm = () => {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Dealer Quotations Upload Widget (JE Only) */}
+        {isEditMode && (
+          <QuotationUpload 
+            estimateId={id} 
+            estimate={{ created_by: estimateCreator, estimate_status: estimateStatus }}
+            isFormLocked={isFormLockedByExpiry || submitting}
+          />
         )}
 
         {/* Submit Actions */}

@@ -9,6 +9,7 @@
     "project_cost_estimates",
     "zo_balances",
     "zo_fund_ledger",
-    "estimated_bills"
+    "estimated_bills",
+    "estimate_quotations"
   ]
 }

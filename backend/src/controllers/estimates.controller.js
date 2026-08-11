@@ -1,6 +1,7 @@
 const { createEstimate, getEstimates, getEstimateSummary, getEstimateById, getEstimateInitData } = require('./estimates.core.controller');
 const { saveDraftItems, submitRowApprovals } = require('./estimates.items.controller');
 const { submitEstimate, reviewEstimate, submitReview, requestRevision, getRevisionLog, reopenEstimate } = require('./estimates.workflow.controller');
+const { uploadQuotation, listQuotations, deleteQuotation, toggleQuotationFlag } = require('./estimates.quotations.controller');
 const { _recalculateEstimateAmount } = require('../services/estimate.service');
 
 module.exports = {
@@ -17,5 +18,9 @@ module.exports = {
   submitReview,
   requestRevision,
   getRevisionLog,
-  reopenEstimate
+  reopenEstimate,
+  uploadQuotation,
+  listQuotations,
+  deleteQuotation,
+  toggleQuotationFlag
 };

@@ -293,6 +293,47 @@ const RBAC_MATRIX = [
       user: userForRole(ctx, 'je'),
       body: {}
     })
+  },
+  // --- Estimate Quotations (estimates.routes.js) ---
+  {
+    id: 'estimates.quotations_upload.zo_denied',
+    module: 'estimates',
+    endpoint: 'POST /:id/quotations',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['je', 'admin'],
+    role: 'zo',
+    expectAllowed: false
+  },
+  {
+    id: 'estimates.quotations_upload.ho_denied',
+    module: 'estimates',
+    endpoint: 'POST /:id/quotations',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['je', 'admin'],
+    role: 'ho',
+    expectAllowed: false
+  },
+  {
+    id: 'estimates.quotations_delete.zo_denied',
+    module: 'estimates',
+    endpoint: 'DELETE /:id/quotations/:quotationId',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['je', 'admin'],
+    role: 'zo',
+    expectAllowed: false
+  },
+  {
+    id: 'estimates.quotations_flag.je_denied',
+    module: 'estimates',
+    endpoint: 'PATCH /:id/quotations/:quotationId/flag',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['zo', 'ho', 'admin'],
+    role: 'je',
+    expectAllowed: false
   }
 ];
 

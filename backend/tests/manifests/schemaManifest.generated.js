@@ -892,6 +892,106 @@ module.exports = {
           "default": "now()"
         }
       }
+    },
+    "estimate_quotations": {
+      "columns": {
+        "quotation_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "storage_path": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "original_filename": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "vendor_label": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "flagged_for_replacement": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "file_size": {
+          "type": "bigint",
+          "udtName": "int8",
+          "nullable": false,
+          "default": null
+        },
+        "uploaded_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "uploaded_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "is_locked": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "locked_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "is_deleted": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "deleted_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "deleted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
     }
   }
 };

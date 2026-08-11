@@ -171,6 +171,15 @@ module.exports = {
       ],
       "returns": "integer"
     },
+    "lock_estimate_quotations": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "void"
+    },
     "refresh_analytics_views": {
       "args": [],
       "returns": "void"

@@ -12,7 +12,11 @@ const {
   submitReview,
   requestRevision,
   getRevisionLog,
-  reopenEstimate
+  reopenEstimate,
+  uploadQuotation,
+  listQuotations,
+  deleteQuotation,
+  toggleQuotationFlag
 } = require('../controllers/estimates.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -48,6 +52,19 @@ router.post('/:id/row-approvals', requireRole(reviewRoles), validateRequest(subm
 router.post('/:id/submit-review', requireRole(reviewRoles), submitReview);
 router.post('/:id/request-revision', requireRole(reviewRoles), requestRevision);
 router.post('/:id/reopen', requireRole(['ho', 'admin']), reopenEstimate);
+
+// Multer in-memory storage config (15MB cap)
+const multer = require('multer');
+const quotationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 }
+});
+
+// Quotation routes
+router.post('/:id/quotations', requireRole(jeRoles), quotationUpload.single('file'), uploadQuotation);
+router.get('/:id/quotations', requireRole(['je', 'zo', 'ho', 'admin']), listQuotations);
+router.delete('/:id/quotations/:quotationId', requireRole(jeRoles), deleteQuotation);
+router.patch('/:id/quotations/:quotationId/flag', requireRole(reviewRoles), toggleQuotationFlag);
 
 module.exports = router;
 

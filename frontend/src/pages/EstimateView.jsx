@@ -4,8 +4,9 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Modal, TextArea } from '../components/ui';
 import { SkeletonPage } from '../components/ui/Skeleton';
 import authApi from '../api/authApi';
-import { exportToExcel } from '../utils/exportHelpers';
+import { exportToExcel, exportArchiveToZip } from '../utils/exportHelpers';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import QuotationList from '../components/estimates/QuotationList';
 
 const ESTIMATE_STATUS = {
   DRAFT: 'Draft',
@@ -72,10 +73,11 @@ const EstimateView = () => {
   const { data: estimateData, isLoading: loading } = useQuery({
     queryKey: ['estimate', id],
     queryFn: async () => {
-      const [detailRes, revisionRes, purchaseRes] = await Promise.all([
+      const [detailRes, revisionRes, purchaseRes, quotationRes] = await Promise.all([
         authApi.get(`/estimates/${id}`),
         authApi.get(`/estimates/${id}/revisions`),
-        authApi.get('/purchase-data').catch(() => ({ data: { options: [] } }))
+        authApi.get('/purchase-data').catch(() => ({ data: { options: [] } })),
+        authApi.get(`/estimates/${id}/quotations`).catch(() => ({ data: { quotations: [] } }))
       ]);
 
       return {
@@ -83,7 +85,8 @@ const EstimateView = () => {
         items: detailRes.data?.items || [],
         summary: detailRes.data?.summary,
         revisions: revisionRes.data?.revisions || [],
-        purchaseOptions: purchaseRes.data?.options || []
+        purchaseOptions: purchaseRes.data?.options || [],
+        quotations: quotationRes.data?.quotations || []
       };
     }
   });
@@ -109,9 +112,9 @@ const EstimateView = () => {
         defaultApprove = item.zo_office_approve || '';
         defaultRemarks = item.zo_remarks || '';
       } else if (isHoStage) {
-        // For HO review, fall back to ZO's decisions/remarks if HO hasn't made a decision yet
-        defaultApprove = item.ho_office_approve || item.zo_office_approve || '';
-        defaultRemarks = item.ho_remarks || item.zo_remarks || '';
+        // HO starts fresh (independent check), displaying only HO's saved decisions/remarks
+        defaultApprove = item.ho_office_approve || '';
+        defaultRemarks = item.ho_remarks || '';
       }
 
       initialDecisions[item.item_id] = {
@@ -144,8 +147,9 @@ const EstimateView = () => {
     const allDecided = items.every(item => Boolean(rowDecisions[item.item_id]?.approve_status));
     if (!allDecided) return false;
     const hasRejections = items.some(item => rowDecisions[item.item_id]?.approve_status === 'Not Approve');
-    return !hasRejections;
-  }, [items, rowDecisions]);
+    const hasFlaggedQuotations = (estimateData?.quotations || []).some(q => q.flagged_for_replacement && !q.is_deleted);
+    return !hasRejections && !hasFlaggedQuotations;
+  }, [items, rowDecisions, estimateData?.quotations]);
 
   const handleDecisionChange = (itemId, field, value) => {
     const updated = {
@@ -328,10 +332,11 @@ const EstimateView = () => {
     setError('');
     setSuccess('');
     
-    // Validation: Ensure there is at least one Not Approve row
+    // Validation: Ensure there is at least one Not Approve row or flagged quotation
     const hasRejections = Object.values(rowDecisions).some(dec => dec.approve_status === 'Not Approve');
-    if (!hasRejections) {
-      setError('At least one row must be marked "Not Approve" before requesting a revision.');
+    const hasFlaggedQuotations = (estimateData?.quotations || []).some(q => q.flagged_for_replacement && !q.is_deleted);
+    if (!hasRejections && !hasFlaggedQuotations) {
+      setError('At least one row must be marked "Not Approve" OR at least one quotation must be flagged for replacement before requesting a revision.');
       setShowRevisionModal(false);
       return;
     }
@@ -480,6 +485,13 @@ const EstimateView = () => {
               variant="success"
             >
               Excel
+            </Button>
+
+            <Button
+              onClick={() => exportArchiveToZip(estimate, items, estimateData?.quotations || [])}
+              variant="secondary"
+            >
+              Download ZIP
             </Button>
 
             {canReopen && (
@@ -678,8 +690,18 @@ const EstimateView = () => {
                       <th className="py-4 px-5 w-32 text-right">Amount</th>
                       {showReviewPanel ? (
                         <>
-                          <th className="py-4 px-5 w-44">Review Decision</th>
-                          <th className="py-4 px-5">Remarks</th>
+                          {isCurrentlyInHOReview && (
+                            <>
+                              <th className="py-4 px-2 w-20 text-center bg-white/[0.01] border-l border-white/5">ZO</th>
+                              <th className="py-4 px-2 w-24 bg-white/[0.01]">ZO Remarks</th>
+                            </>
+                          )}
+                          <th className="py-4 px-5 w-36 border-l border-white/5 font-bold text-amber-500 text-center">
+                            {isCurrentlyInHOReview ? 'HO Decision' : 'ZO Decision'}
+                          </th>
+                          <th className="py-4 px-5 w-40">
+                            {isCurrentlyInHOReview ? 'HO Remarks' : 'ZO Remarks'}
+                          </th>
                         </>
                       ) : (
                         <>
@@ -722,11 +744,26 @@ const EstimateView = () => {
                           </td>
                           {showReviewPanel ? (
                             <>
-                              <td className="py-3 px-4">
+                              {isCurrentlyInHOReview && (
+                                <>
+                                  <td className="py-4 px-2 text-center bg-white/[0.01] border-l border-white/5">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
+                                      item.zo_office_approve === 'Approve' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30' :
+                                      item.zo_office_approve === 'Not Approve' ? 'bg-red-950/40 text-red-400 border border-red-900/30' : 'text-slate-500 bg-white/5 border border-transparent'
+                                    }`}>
+                                      {item.zo_office_approve || 'Pending'}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-2 text-slate-400 italic max-w-[96px] truncate bg-white/[0.01]" title={item.zo_remarks || ''}>
+                                    {item.zo_remarks || '-'}
+                                  </td>
+                                </>
+                              )}
+                              <td className="py-4 px-5 border-l border-white/5">
                                 <select
                                   value={dec?.approve_status || ''}
                                   onChange={(e) => handleDecisionChange(item.item_id, 'approve_status', e.target.value)}
-                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs ${
+                                  className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] ${
                                     (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
                                       ? 'opacity-60 cursor-not-allowed'
                                       : ''
@@ -742,7 +779,7 @@ const EstimateView = () => {
                                   <option value="Not Approve">Not Approve</option>
                                 </select>
                               </td>
-                              <td className="py-3 px-4">
+                              <td className="py-4 px-5">
                                 <input
                                   type="text"
                                   placeholder={isRejected ? 'Remarks mandatory' : 'Optional comments'}
@@ -754,7 +791,7 @@ const EstimateView = () => {
                                     }
                                   }}
                                   readOnly
-                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs transition-colors ${
+                                  className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] transition-colors truncate ${
                                     (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
                                       ? 'opacity-60 cursor-not-allowed'
                                       : 'cursor-pointer hover:bg-white/10'
@@ -800,7 +837,7 @@ const EstimateView = () => {
                               <select
                                 value={dec?.source_of_purchase || ''}
                                 onChange={(e) => handleDecisionChange(item.item_id, 'source_of_purchase', e.target.value)}
-                                className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-slate-300 ${
+                                className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] text-slate-300 ${
                                   item.ho_office_approve ? 'opacity-60 cursor-not-allowed' : ''
                                 }`}
                                 disabled={submitting || !!item.ho_office_approve}
@@ -830,6 +867,14 @@ const EstimateView = () => {
                 <span>Grand Total Cost: <strong className="text-amber-500 font-bold">{formatINR(summary?.gross_total)}</strong></span>
               </div>
             </div>
+
+            {/* Dealer Quotations List Widget (ZO/HO/Admin View) */}
+            <QuotationList 
+              estimateId={id} 
+              estimate={estimate} 
+              quotations={estimateData?.quotations || []}
+              onUpdate={() => queryClient.invalidateQueries({ queryKey: ['estimate', id] })}
+            />
 
             {/* Bottom Grid for Summary and Approval Logs */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8 items-start">

@@ -1,0 +1,38 @@
+/** Editable estimate statuses where quotation CRUD is permitted for creators */
+const EDITABLE_STATUSES = ['Draft', 'ZO Revision Requested', 'HO Revision Requested', 'Estimate Reopened'];
+
+/**
+ * Check if user can upload a quotation.
+ * Note: true ownership (active work-order-mapping) is only known to the
+ * backend (see isOwnerOrAdmin in estimates.helpers.js) — this only gates
+ * on role + status to match the line-item edit form's behavior, and the
+ * backend enforces the actual 403 if the JE isn't currently mapped.
+ */
+export const canUploadQuotation = (estimate, user) => {
+  if (!estimate || !user) return false;
+  if (user.role === 'admin') return true;
+
+  const isJE = user.role === 'je';
+  const isEditable = EDITABLE_STATUSES.includes(estimate.estimate_status);
+
+  return isJE && isEditable;
+};
+
+/** Check if user can delete a quotation */
+export const canDeleteQuotation = (quotation, estimate, user) => {
+  if (!quotation || !estimate || !user || quotation.is_locked) return false;
+  if (user.role === 'admin') return true;
+
+  const isJE = user.role === 'je';
+  const isEditable = EDITABLE_STATUSES.includes(estimate.estimate_status);
+
+  return isJE && isEditable;
+};
+
+/** Check if user can flag a quotation */
+export const canFlagQuotation = (quotation, estimate, user) => {
+  if (!quotation || !estimate || !user) return false;
+  if (quotation.is_locked) return false;
+  const isReviewStatus = ['Under ZO Review', 'Under HO Review'].includes(estimate.estimate_status);
+  return isReviewStatus && ['zo', 'ho', 'admin'].includes(user.role);
+};

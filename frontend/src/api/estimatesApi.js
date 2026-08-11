@@ -55,3 +55,23 @@ export const updatePurchaseOption = (id, data) => authApi.put(`/purchase-data/${
 
 /** Toggle purchase option is_active status (admin only) */
 export const togglePurchaseOptionStatus = (id, is_active) => authApi.patch(`/purchase-data/${id}/status`, { is_active });
+
+/** Upload a quotation file (Multipart form upload) */
+export const uploadQuotation = (id, file, vendorLabel) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (vendorLabel) formData.append('vendor_label', vendorLabel);
+  return authApi.post(`/estimates/${id}/quotations`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+/** Fetch quotation list for an estimate */
+export const getQuotations = (id) => authApi.get(`/estimates/${id}/quotations`);
+
+/** Soft delete a quotation */
+export const deleteQuotation = (id, quotationId) => authApi.delete(`/estimates/${id}/quotations/${quotationId}`);
+
+/** Toggle quotation replacement flag */
+export const toggleQuotationFlag = (id, quotationId, flagged) =>
+  authApi.patch(`/estimates/${id}/quotations/${quotationId}/flag`, { flagged });

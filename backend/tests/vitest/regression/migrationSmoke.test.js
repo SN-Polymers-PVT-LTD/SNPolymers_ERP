@@ -13,7 +13,8 @@ const EXPECTED_BUCKETS = [
   'ra-bill-copies',
   'daily-progress-photos',
   'gst-bills',
-  'requisition-pdfs'
+  'requisition-pdfs',
+  'estimate-quotations'
 ];
 
 describe('migrationSmoke — database objects after migrate', () => {

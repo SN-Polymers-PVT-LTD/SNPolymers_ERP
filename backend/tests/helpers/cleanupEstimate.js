@@ -2,6 +2,7 @@ const { supabase } = require('../../src/db/supabase');
 
 async function cleanupEstimate(id, wo) {
   if (id) {
+    await supabase.from('estimate_quotations').delete().eq('estimate_id', id);
     await supabase.from('estimate_revision_log').delete().eq('estimate_id', id);
     await supabase.from('project_cost_estimate_items').delete().eq('estimate_id', id);
     // Dissociate estimate from test project and test users to allow deleting them

@@ -192,4 +192,69 @@ export async function exportAuditLogToExcel(logs) {
   XLSX.writeFile(workbook, `Audit_Logs_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export async function exportArchiveToZip(estimate, items, quotations) {
+  if (!estimate || !items || items.length === 0) {
+    alert('No items to export.');
+    return;
+  }
+
+  const JSZip = (await import('jszip')).default;
+  const XLSX = await import('xlsx');
+  const zip = new JSZip();
+
+  // Format line items
+  const formattedRows = items.map((item, index) => ({
+    "Sl. No.": index + 1,
+    "Work Order No.": estimate.work_order_no || '',
+    "Estimate No.": estimate.estimate_no || '',
+    "Area Code": estimate.area_code || '',
+    "Estimate Status": estimate.estimate_status || '',
+    "Main Head": item.material_main_head || '',
+    "Sub Head": item.material_sub_head || '',
+    "Material Details": item.material_details || '',
+    "Unit": item.unit || '',
+    "Quantity": item.qty || 0,
+    "Rate (INR)": item.rate || 0,
+    "Amount (INR)": item.amount || 0,
+    "ZO Approve Status": item.zo_office_approve || 'Pending',
+    "ZO Remarks": item.zo_remarks || '',
+    "HO Approve Status": item.ho_office_approve || 'Pending',
+    "HO Remarks": item.ho_remarks || '',
+    "Source of Purchase": item.purchase_data?.name || item.source_of_purchase || 'N/A'
+  }));
+
+  // Create worksheet and workbook
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Line Items");
+
+  // Write workbook to buffer
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const baseFilename = `Estimate_${estimate.estimate_no || 'Draft'}_Rev_${estimate.estimate_revision || 0}`;
+  
+  // Add Excel to ZIP
+  zip.file(`${baseFilename}.xlsx`, excelBuffer);
+
+  // Fetch and Add active PDF Quotations
+  for (const q of quotations) {
+    if (!q.is_deleted && q.quotation_signed_url) {
+      try {
+        const response = await fetch(q.quotation_signed_url);
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+        const pdfBlob = await response.blob();
+        zip.file(q.original_filename, pdfBlob);
+      } catch (err) {
+        console.error(`Failed to fetch quotation PDF: ${q.original_filename}`, err);
+      }
+    }
+  }
+
+  // Generate ZIP and download
+  const content = await zip.generateAsync({ type: 'blob' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(content);
+  link.download = `${baseFilename}_Archive.zip`;
+  link.click();
+}
+
 
