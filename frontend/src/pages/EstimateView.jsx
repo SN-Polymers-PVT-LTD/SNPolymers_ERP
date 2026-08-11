@@ -112,9 +112,9 @@ const EstimateView = () => {
         defaultApprove = item.zo_office_approve || '';
         defaultRemarks = item.zo_remarks || '';
       } else if (isHoStage) {
-        // For HO review, fall back to ZO's decisions/remarks if HO hasn't made a decision yet
-        defaultApprove = item.ho_office_approve || item.zo_office_approve || '';
-        defaultRemarks = item.ho_remarks || item.zo_remarks || '';
+        // HO starts fresh (independent check), displaying only HO's saved decisions/remarks
+        defaultApprove = item.ho_office_approve || '';
+        defaultRemarks = item.ho_remarks || '';
       }
 
       initialDecisions[item.item_id] = {
@@ -690,8 +690,18 @@ const EstimateView = () => {
                       <th className="py-4 px-5 w-32 text-right">Amount</th>
                       {showReviewPanel ? (
                         <>
-                          <th className="py-4 px-5 w-44">Review Decision</th>
-                          <th className="py-4 px-5">Remarks</th>
+                          {isCurrentlyInHOReview && (
+                            <>
+                              <th className="py-4 px-2 w-20 text-center bg-white/[0.01] border-l border-white/5">ZO</th>
+                              <th className="py-4 px-2 w-24 bg-white/[0.01]">ZO Remarks</th>
+                            </>
+                          )}
+                          <th className="py-4 px-5 w-36 border-l border-white/5 font-bold text-amber-500 text-center">
+                            {isCurrentlyInHOReview ? 'HO Decision' : 'ZO Decision'}
+                          </th>
+                          <th className="py-4 px-5 w-40">
+                            {isCurrentlyInHOReview ? 'HO Remarks' : 'ZO Remarks'}
+                          </th>
                         </>
                       ) : (
                         <>
@@ -734,11 +744,26 @@ const EstimateView = () => {
                           </td>
                           {showReviewPanel ? (
                             <>
-                              <td className="py-3 px-4">
+                              {isCurrentlyInHOReview && (
+                                <>
+                                  <td className="py-4 px-2 text-center bg-white/[0.01] border-l border-white/5">
+                                    <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
+                                      item.zo_office_approve === 'Approve' ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-900/30' :
+                                      item.zo_office_approve === 'Not Approve' ? 'bg-red-950/40 text-red-400 border border-red-900/30' : 'text-slate-500 bg-white/5 border border-transparent'
+                                    }`}>
+                                      {item.zo_office_approve || 'Pending'}
+                                    </span>
+                                  </td>
+                                  <td className="py-4 px-2 text-slate-400 italic max-w-[96px] truncate bg-white/[0.01]" title={item.zo_remarks || ''}>
+                                    {item.zo_remarks || '-'}
+                                  </td>
+                                </>
+                              )}
+                              <td className="py-4 px-5 border-l border-white/5">
                                 <select
                                   value={dec?.approve_status || ''}
                                   onChange={(e) => handleDecisionChange(item.item_id, 'approve_status', e.target.value)}
-                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs ${
+                                  className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] ${
                                     (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
                                       ? 'opacity-60 cursor-not-allowed'
                                       : ''
@@ -754,7 +779,7 @@ const EstimateView = () => {
                                   <option value="Not Approve">Not Approve</option>
                                 </select>
                               </td>
-                              <td className="py-3 px-4">
+                              <td className="py-4 px-5">
                                 <input
                                   type="text"
                                   placeholder={isRejected ? 'Remarks mandatory' : 'Optional comments'}
@@ -766,7 +791,7 @@ const EstimateView = () => {
                                     }
                                   }}
                                   readOnly
-                                  className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs transition-colors ${
+                                  className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] transition-colors truncate ${
                                     (isCurrentlyInZOReview && item.zo_office_approve) || (isCurrentlyInHOReview && item.ho_office_approve)
                                       ? 'opacity-60 cursor-not-allowed'
                                       : 'cursor-pointer hover:bg-white/10'
@@ -812,7 +837,7 @@ const EstimateView = () => {
                               <select
                                 value={dec?.source_of_purchase || ''}
                                 onChange={(e) => handleDecisionChange(item.item_id, 'source_of_purchase', e.target.value)}
-                                className={`w-full bg-white/5 border border-white/10 p-2 rounded-lg text-xs text-slate-300 ${
+                                className={`w-full bg-white/5 border border-white/10 px-2 py-1.5 rounded-lg text-[11px] text-slate-300 ${
                                   item.ho_office_approve ? 'opacity-60 cursor-not-allowed' : ''
                                 }`}
                                 disabled={submitting || !!item.ho_office_approve}
