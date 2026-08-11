@@ -27,8 +27,8 @@ describe('estimateQuotationPermissions helper tests', () => {
       expect(canUploadQuotation(estimateReopened, userJE)).toBe(true);
     });
 
-    it('returns false for JE who is not the creator', () => {
-      expect(canUploadQuotation(estimateDraft, { ...userJE, mobile_number: '+911234567890' })).toBe(false);
+    it('returns true for a JE who is not the original creator (true ownership is a backend-only work-order-mapping check)', () => {
+      expect(canUploadQuotation(estimateDraft, { ...userJE, mobile_number: '+911234567890' })).toBe(true);
     });
 
     it('returns false for JE when estimate is under review', () => {
@@ -62,8 +62,8 @@ describe('estimateQuotationPermissions helper tests', () => {
       expect(canDeleteQuotation(quotationUnlocked, estimateUnderReview, userAdmin)).toBe(true);
     });
 
-    it('returns false for non-owner JEs', () => {
-      expect(canDeleteQuotation(quotationUnlocked, estimateDraft, { ...userJE, mobile_number: '+911234567890' })).toBe(false);
+    it('returns true for a JE who is not the original creator (true ownership is a backend-only work-order-mapping check)', () => {
+      expect(canDeleteQuotation(quotationUnlocked, estimateDraft, { ...userJE, mobile_number: '+911234567890' })).toBe(true);
     });
   });
 
