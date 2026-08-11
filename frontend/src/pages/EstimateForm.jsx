@@ -35,6 +35,7 @@ const EstimateForm = () => {
   const [estimateNo, setEstimateNo] = useState('');
   const [zonalOfficeNo, setZonalOfficeNo] = useState('N/A');
   const [jeRemarks, setJeRemarks] = useState('');
+  const [estimateCreator, setEstimateCreator] = useState('');
   
   // Project Info Metadata
   const [projectMeta, setProjectMeta] = useState({
@@ -167,6 +168,7 @@ const EstimateForm = () => {
           setEstimateNo(estimate.estimate_no);
           setZonalOfficeNo(estimate.zonal_office_no || '');
           setJeRemarks(estimate.je_remarks || '');
+          setEstimateCreator(estimate.created_by || '');
           
           if (estimate.projects_master) {
             setProjectMeta({
@@ -822,7 +824,7 @@ const EstimateForm = () => {
         {isEditMode && (
           <QuotationUpload 
             estimateId={id} 
-            estimate={{ created_by: estimateData?.estimate?.created_by || estimateData?.created_by, estimate_status: estimateStatus }}
+            estimate={{ created_by: estimateCreator, estimate_status: estimateStatus }}
             isFormLocked={isFormLockedByExpiry || submitting}
           />
         )}

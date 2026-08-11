@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getQuotations, uploadQuotation, deleteQuotation } from '../../api/estimatesApi';
 import { canUploadQuotation, canDeleteQuotation } from '../../utils/estimateQuotationPermissions';
 import { useAuth } from '../AuthContext';
@@ -10,7 +10,7 @@ export default function QuotationUpload({ estimateId, estimate, isFormLocked }) 
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
-  const loadQuotations = async () => {
+  const loadQuotations = useCallback(async () => {
     setError('');
     try {
       const res = await getQuotations(estimateId);
@@ -21,11 +21,11 @@ export default function QuotationUpload({ estimateId, estimate, isFormLocked }) 
       console.error('Failed to load quotations', err);
       setError('Failed to load quotations from server.');
     }
-  };
+  }, [estimateId]);
 
   useEffect(() => {
     if (estimateId) loadQuotations();
-  }, [estimateId]);
+  }, [estimateId, loadQuotations]);
 
   const handleFileChange = async (e) => {
     const files = Array.from(e.target.files || []);

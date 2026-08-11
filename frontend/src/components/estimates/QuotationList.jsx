@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getQuotations, toggleQuotationFlag } from '../../api/estimatesApi';
 import { canFlagQuotation } from '../../utils/estimateQuotationPermissions';
 import { useAuth } from '../AuthContext';
@@ -9,7 +9,7 @@ export default function QuotationList({ estimateId, estimate }) {
   const [updatingId, setUpdatingId] = useState(null);
   const [error, setError] = useState('');
 
-  const loadQuotations = async () => {
+  const loadQuotations = useCallback(async () => {
     setError('');
     try {
       const res = await getQuotations(estimateId);
@@ -20,11 +20,11 @@ export default function QuotationList({ estimateId, estimate }) {
       console.error('Failed to load quotations', err);
       setError('Failed to load quotations from server.');
     }
-  };
+  }, [estimateId]);
 
   useEffect(() => {
     if (estimateId) loadQuotations();
-  }, [estimateId]);
+  }, [estimateId, loadQuotations]);
 
   const handleFlagToggle = async (quotationId, currentFlag) => {
     setUpdatingId(quotationId);
