@@ -283,6 +283,42 @@ describe('Milestone 3 — End-to-End Workflow & Lock Integration', () => {
     expect(insErr2).toBeNull();
     expect(q2.is_locked).toBe(false);
 
+    // 8. Fast-forward to Under HO Review again and re-approve to Final Approved
+    await supabase
+      .from('project_cost_estimates')
+      .update({ estimate_status: 'Under HO Review' })
+      .eq('estimate_id', ctx.estimateId);
+
+    await supabase
+      .from('project_cost_estimate_items')
+      .update({ zo_office_approve: 'Approve', ho_office_approve: 'Approve' })
+      .eq('estimate_id', ctx.estimateId);
+
+    const approveReq2 = {
+      params: { id: ctx.estimateId },
+      user: { role: 'ho', mobile_number: ctx.hoMobile },
+      body: { remarks: 'HO Re-Approved' }
+    };
+    const approveRes2 = mockRes();
+    await submitReviewWorkflow(approveReq2, approveRes2);
+    expect(approveRes2.statusCode).toBe(200);
+
+    // 9. First quotation stays locked; second quotation is now locked
+    const { data: q1AfterReApprove } = await supabase
+      .from('estimate_quotations')
+      .select('is_locked')
+      .eq('quotation_id', q1.quotation_id)
+      .single();
+    expect(q1AfterReApprove.is_locked).toBe(true);
+
+    const { data: q2Locked } = await supabase
+      .from('estimate_quotations')
+      .select('is_locked, locked_at')
+      .eq('quotation_id', q2.quotation_id)
+      .single();
+    expect(q2Locked.is_locked).toBe(true);
+    expect(q2Locked.locked_at).not.toBeNull();
+
     // Clean up created rows in test
     await supabase.from('estimate_quotations').delete().eq('estimate_id', ctx.estimateId);
   });

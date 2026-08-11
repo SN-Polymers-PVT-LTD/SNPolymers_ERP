@@ -34,24 +34,42 @@ export default function QuotationUpload({ estimateId, estimate, isFormLocked }) 
     setError('');
     setUploading(true);
 
+    const failures = [];
+    let successCount = 0;
+
     try {
       for (const file of files) {
         if (file.type !== 'application/pdf') {
-          setError(`File "${file.name}" rejected: Only PDF files are accepted.`);
+          failures.push(`File "${file.name}" rejected: Only PDF files are accepted.`);
           continue;
         }
         if (file.size > 15 * 1024 * 1024) {
-          setError(`File "${file.name}" rejected: Exceeds 15MB size limit.`);
+          failures.push(`File "${file.name}" rejected: Exceeds 15MB size limit.`);
           continue;
         }
 
         // Upload sequentially
-        await uploadQuotation(estimateId, file, vendorLabel);
+        try {
+          await uploadQuotation(estimateId, file, vendorLabel);
+          successCount += 1;
+        } catch (err) {
+          failures.push(
+            `File "${file.name}": ${err.response?.data?.message || 'Failed to upload.'}`
+          );
+        }
       }
       setVendorLabel('');
       await loadQuotations();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to upload files.');
+
+      if (failures.length > 0) {
+        if (successCount === 0) {
+          setError(failures.join(' '));
+        } else {
+          setError(
+            `Uploaded ${successCount} of ${files.length} files. ${failures.join(' ')}`
+          );
+        }
+      }
     } finally {
       setUploading(false);
       e.target.value = ''; // Reset input slot
@@ -142,6 +160,9 @@ export default function QuotationUpload({ estimateId, estimate, isFormLocked }) 
                     >
                       {q.original_filename}
                     </a>
+                    <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-amber-500/20 text-amber-400">
+                      Uploaded
+                    </span>
                     {q.is_locked && (
                       <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase bg-slate-500/20 text-slate-400">
                         Locked

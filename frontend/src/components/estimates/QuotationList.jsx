@@ -28,11 +28,13 @@ export default function QuotationList({ estimateId, estimate }) {
 
   const handleFlagToggle = async (quotationId, currentFlag) => {
     setUpdatingId(quotationId);
+    setError('');
     try {
       await toggleQuotationFlag(estimateId, quotationId, !currentFlag);
       await loadQuotations();
     } catch (err) {
       console.error('Failed to toggle flag', err);
+      setError(err.response?.data?.message || 'Failed to update quotation flag.');
     } finally {
       setUpdatingId(null);
     }

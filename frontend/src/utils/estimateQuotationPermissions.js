@@ -6,7 +6,7 @@ export const canUploadQuotation = (estimate, user) => {
   if (!estimate || !user) return false;
   if (user.role === 'admin') return true;
   
-  const isJE = user.role === 'je' || user.role === 'staff';
+  const isJE = user.role === 'je';
   const isOwner = estimate.created_by === user.mobile_number;
   const isEditable = EDITABLE_STATUSES.includes(estimate.estimate_status);
 
@@ -18,7 +18,7 @@ export const canDeleteQuotation = (quotation, estimate, user) => {
   if (!quotation || !estimate || !user || quotation.is_locked) return false;
   if (user.role === 'admin') return true;
 
-  const isJE = user.role === 'je' || user.role === 'staff';
+  const isJE = user.role === 'je';
   const isOwner = estimate.created_by === user.mobile_number;
   const isEditable = EDITABLE_STATUSES.includes(estimate.estimate_status);
 
