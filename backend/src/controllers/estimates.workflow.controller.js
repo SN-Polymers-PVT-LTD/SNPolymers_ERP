@@ -416,6 +416,12 @@ async function submitReview(req, res) {
         .update({ last_approved_amount: updatedEstimate.estimate_amount })
         .eq('estimate_id', id);
 
+      // Freeze any currently-active quotation rows for this estimate
+      const { error: lockError } = await supabase.rpc('lock_estimate_quotations', { p_estimate_id: id });
+      if (lockError) {
+        console.error(`lock_estimate_quotations failed for estimate ${id}: ${lockError.message}`);
+      }
+
       const { notifyAllEstimateFinalApproved } = require('../services/telegram.service');
       notifyAllEstimateFinalApproved(updatedEstimate).catch(err => {
         console.error(`Telegram notification failed: ${err.message}`);
