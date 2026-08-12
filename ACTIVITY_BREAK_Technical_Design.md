@@ -1,6 +1,6 @@
 # Work Order Activity Break — Technical Design Document
 
-> **Status:** Pre-implementation draft — open questions resolved 2026-08-13.  
+> **Status:** Senior engineering review complete — approved with changes 2026-08-13.  
 > **Follows:** `ACTIVITY_BREAK_Product_Description.md`  
 > **Codebase branch:** `daily-progress-activity-break`
 
@@ -14,16 +14,19 @@ This document translates the product requirements into a precise, file-by-file t
 
 ## 2. State Machine (Canonical Status Values)
 
-The `work_order_activity_breaks` table will use a `VARCHAR` status column constrained by a `CHECK` to the following six terminal and non-terminal states:
+The `work_order_activity_breaks` table will use a `VARCHAR` status column constrained by a `CHECK` to the following **seven** terminal and non-terminal states:
 
-| Status string | Terminal? |
-|---|---|
-| `Pending ZO Review` | No |
-| `Pending HO Review` | No |
-| `Active` | No |
-| `Reopen Requested` | No |
-| `Rejected by ZO` | Yes |
-| `Ended` | Yes |
+| Status string | Terminal? | Set by |
+|---|---|---|
+| `Pending ZO Review` | No | JE (on create) |
+| `Pending HO Review` | No | ZO Accept |
+| `Active` | No | HO Approve |
+| `Reopen Requested` | No | ZO RequestReopen |
+| `Rejected by ZO` | Yes | ZO Reject |
+| `Cancelled by JE` | Yes | JE Cancel |
+| `Ended` | Yes | HO ApproveReopen |
+
+`Cancelled by JE` is a dedicated terminal state (**review resolution §3.1**) — not an alias of `Rejected by ZO`. This avoids a false ZO attribution in the audit log and removes the actor-inference logic from the frontend.
 
 This follows the existing pattern of `VARCHAR` + `CHECK` constraint used on `excess_fund_returns.status` (see [`00_full_schema_dump.sql` L153](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/00_full_schema_dump.sql)), rather than creating a new Postgres ENUM. Reason: ENUM additions require a separate `ALTER TYPE` DDL that can't be done inside a transaction, making the migration harder to roll back.
 
@@ -35,36 +38,36 @@ This follows the existing pattern of `VARCHAR` + `CHECK` constraint used on `exc
 
 ```sql
 CREATE TABLE IF NOT EXISTS "public"."work_order_activity_breaks" (
-    "id"                UUID          DEFAULT gen_random_uuid() NOT NULL,
-    "work_order_no"     VARCHAR       NOT NULL,
-    "status"            VARCHAR       NOT NULL,
+    "id"                    UUID          DEFAULT gen_random_uuid() NOT NULL,
+    "work_order_no"         VARCHAR       NOT NULL,
+    "status"                VARCHAR       NOT NULL,
 
-    -- Break period
-    "start_date"        DATE          NOT NULL,
-    "end_date"          DATE          NOT NULL,
+    -- Break period (expected_end_date is the JE's estimate — review §2)
+    "start_date"            DATE          NOT NULL,
+    "expected_end_date"     DATE          NOT NULL,
 
     -- JE submission
-    "je_user_id"        VARCHAR       NOT NULL,
-    "je_remarks"        TEXT          NOT NULL,   -- required by product spec §7
+    "je_user_id"            VARCHAR       NOT NULL,
+    "je_remarks"            TEXT          NOT NULL,   -- required by product spec §7
 
     -- ZO action
-    "zo_user_id"        VARCHAR,                  -- populated on ZO action
-    "zo_remarks"        TEXT,                     -- required only on ZO Reject
-    "zo_actioned_at"    TIMESTAMPTZ,
+    "zo_user_id"            VARCHAR,                  -- populated on ZO action
+    "zo_remarks"            TEXT,                     -- required only on ZO Reject
+    "zo_actioned_at"        TIMESTAMPTZ,
 
     -- HO action (approve-only, no rejection)
-    "ho_user_id"        VARCHAR,
-    "ho_actioned_at"    TIMESTAMPTZ,
+    "ho_user_id"            VARCHAR,
+    "ho_actioned_at"        TIMESTAMPTZ,
 
     -- Reopen
     "reopen_requested_by"   VARCHAR,              -- ZO who requested reopen
-    "reopen_remarks"        TEXT,
+    "reopen_remarks"        TEXT,                 -- optional (review §9 decision 1)
     "reopen_requested_at"   TIMESTAMPTZ,
     "reopen_ho_user_id"     VARCHAR,
     "reopen_ho_actioned_at" TIMESTAMPTZ,
 
-    "created_at"        TIMESTAMPTZ   DEFAULT now() NOT NULL,
-    "updated_at"        TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    "created_at"            TIMESTAMPTZ   DEFAULT now() NOT NULL,
+    "updated_at"            TIMESTAMPTZ   DEFAULT now() NOT NULL,
 
     CONSTRAINT "work_order_activity_breaks_pkey"
         PRIMARY KEY ("id"),
@@ -81,10 +84,11 @@ CREATE TABLE IF NOT EXISTS "public"."work_order_activity_breaks" (
             'Active',
             'Reopen Requested',
             'Rejected by ZO',
+            'Cancelled by JE',
             'Ended'
         )),
     CONSTRAINT "work_order_activity_breaks_date_order_check"
-        CHECK (end_date >= start_date)
+        CHECK (expected_end_date >= start_date)  -- input sanity only; never used for enforcement
 );
 ```
 
@@ -108,7 +112,7 @@ Enforced via a **unique partial index** — the most idiomatic Postgres approach
 ```sql
 CREATE UNIQUE INDEX IF NOT EXISTS "idx_activity_breaks_one_active_per_wo"
     ON "public"."work_order_activity_breaks" ("work_order_no")
-    WHERE status NOT IN ('Rejected by ZO', 'Ended');
+    WHERE status NOT IN ('Rejected by ZO', 'Cancelled by JE', 'Ended');
 ```
 
 This index makes it impossible to INSERT a second row for the same `work_order_no` unless all existing rows are in a terminal state.
@@ -153,14 +157,16 @@ FOR EACH ROW EXECUTE FUNCTION "public"."audit_activity_break_status_change"();
 , "active_breaks" AS (
     SELECT
         b.work_order_no,
-        b.start_date   AS break_start,
-        b.end_date     AS break_end,
-        TRUE           AS is_on_break
+        b.start_date            AS break_start,
+        b.expected_end_date     AS break_expected_end,
+        TRUE                    AS is_on_break
     FROM "public"."work_order_activity_breaks" b
-    WHERE b.status = 'Active'
-      AND CURRENT_DATE BETWEEN b.start_date AND b.end_date
+    WHERE b.status = 'Active'   -- status-only gate; NO date predicate (review §1.1 / §2)
 )
 ```
+
+> [!IMPORTANT]
+> **The `CURRENT_DATE BETWEEN start_date AND expected_end_date` predicate that appeared in the original draft has been removed.** This was the blocking bug identified in the senior engineering review: gating the freeze on the date window meant the freeze would silently lift once `expected_end_date` passed, while the break was still `Active` — reintroducing exactly the false positives this feature exists to eliminate. The status column is the single source of truth for all enforcement.
 
 #### Modified `scores_calculated` CTE — key changes
 
@@ -228,10 +234,14 @@ END AS reporting_score,
 **New columns exposed in final SELECT:**
 
 ```sql
-COALESCE(ab.is_on_break, FALSE)  AS is_on_break,
+COALESCE(ab.is_on_break, FALSE)      AS is_on_break,
 ab.break_start,
-ab.break_end
+ab.break_expected_end,
+-- Derived: TRUE when break is Active but expected_end_date has already passed
+(ab.is_on_break IS TRUE AND CURRENT_DATE > ab.break_expected_end)  AS break_overrun
 ```
+
+`break_overrun` feeds the "running long" visual badge on HO/ZO dashboards (§5.7).
 
 The LEFT JOIN to add to the existing chain in `scores_calculated`:
 
@@ -268,10 +278,11 @@ Follows the naming convention enforced by [`apply-migrations.js`](file:///home/z
 4. `CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_breaks_one_active_per_wo`
 5. Audit trigger function (`CREATE OR REPLACE FUNCTION`) + trigger (`CREATE OR REPLACE TRIGGER`).
 6. `GRANT ALL ON TABLE public.work_order_activity_breaks TO anon, authenticated, service_role`.
-7. Full `DROP MATERIALIZED VIEW project_health_mv CASCADE` + `CREATE MATERIALIZED VIEW project_health_mv` rewrite.
-8. Re-create all CASCADE'd dependent views: `budget_leakage_mv`, `executive_kpi_mv`, `zone_performance_mv` — exact definitions preserved from the current schema, because CASCADE drops them.
-9. Re-apply their grants.
-10. `SELECT public.refresh_analytics_views();` at the end to populate views immediately.
+7. **`ALTER TABLE "public"."work_order_activity_breaks" ENABLE ROW LEVEL SECURITY;`** ← **review blocker §1.2 — matches every other business table in the schema.**
+8. Full `DROP MATERIALIZED VIEW project_health_mv CASCADE` + `CREATE MATERIALIZED VIEW project_health_mv` rewrite.
+9. Re-create all CASCADE'd dependent views: `budget_leakage_mv`, `executive_kpi_mv`, `zone_performance_mv` — sourced via `pg_dump` from Supabase (not hand-transcribed) to eliminate drift risk.
+10. Re-apply their grants.
+11. `SELECT public.refresh_analytics_views();` at the end to populate views immediately.
 
 > [!WARNING]
 > `DROP MATERIALIZED VIEW project_health_mv CASCADE` will cascade-drop `budget_leakage_mv`, `executive_kpi_mv`, and `zone_performance_mv`. All three must be explicitly re-defined in the same migration file, in dependency order, **after** `project_health_mv` is re-created. Steps 8–9 handle this.
@@ -299,25 +310,29 @@ Pattern follows [`dailyProgress.controller.js`](file:///home/zenoguy/Desktop/pro
 
 1. Verify `work_order_no` exists and has `status = 'Running'` in `projects_master`.
 2. Verify the JE has an active `work_order_mappings` row for that WO (`je_user_id = req.user.mobile_number`, `is_active = true`).
-3. Verify no non-terminal break exists for this WO — the unique partial index will reject the INSERT at DB level too, but we give a clear 409 before the insert attempt.
-4. Validate `end_date >= start_date` (also enforced by DB CHECK).
+3. Verify no non-terminal break exists for this WO — app-level 409 first, then the unique partial index is the guaranteed backstop.
+4. Validate `expected_end_date >= start_date` (handled by Zod `.refine()` at validation layer; DB `CHECK` constraint acts as backstop).
 5. Validate `je_remarks` is non-empty.
 6. Insert with `status = 'Pending ZO Review'`.
-7. Fire background `refresh_analytics_views()` (consistent with [`dailyProgress.controller.js` L208–215](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/dailyProgress.controller.js)).
+7. On Postgres `23505` unique-violation error → return explicit `409` with the same message as step 3 (**review §3.2** — race-condition guard).
+8. Fire background `refresh_analytics_views()` (consistent with [`dailyProgress.controller.js` L208–215](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/dailyProgress.controller.js)).
 
 #### `actOnBreakRequest` logic — all transitions via one endpoint
 
-| Actor | Current status required | `action` param | New status |
-|---|---|---|---|
-| ZO | `Pending ZO Review` | `Accept` | `Pending HO Review` |
-| ZO | `Pending ZO Review` | `Reject` | `Rejected by ZO` |
-| HO | `Pending HO Review` | `Approve` | `Active` |
-| ZO | `Active` | `RequestReopen` | `Reopen Requested` |
-| HO | `Reopen Requested` | `ApproveReopen` | `Ended` |
+| Actor | Current status required | `action` param | New status | Notes |
+|---|---|---|---|---|
+| JE | `Pending ZO Review` | `Cancel` | `Cancelled by JE` | JE cancels own request (**review §3.1**) |
+| ZO | `Pending ZO Review` | `Accept` | `Pending HO Review` | |
+| ZO | `Pending ZO Review` | `Reject` | `Rejected by ZO` | `remarks` required |
+| HO | `Pending HO Review` | `Approve` | `Active` | |
+| ZO | `Active` | `RequestReopen` | `Reopen Requested` | |
+| HO | `Reopen Requested` | `ApproveReopen` | `Ended` | |
 
-Authorization gates follow the existing pattern in [`dailyProgress.controller.js` L443–448](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/dailyProgress.controller.js):
-- ZO can only act on breaks for WOs where `projects_master.zo_user_id = req.user.mobile_number`.
-- Admin bypasses all gating.
+Authorization gates:
+- **Action-to-Role Mapping**: Since `PATCH /:id/action` is exposed to `['je','zo','ho','admin']` at the route layer (to allow JE cancellation), the controller must explicitly check the requested `action` against an allowed roles map (e.g. `Cancel` is `je`; `Accept`/`Reject`/`RequestReopen` is `zo`; `Approve`/`ApproveReopen` is `ho`/`admin`). This prevents role-bypass attempts, rather than relying on status constraints.
+- **JE** can only `Cancel` breaks they themselves created (`je_user_id = req.user.mobile_number`).
+- **ZO** can only `Accept`/`Reject`/`RequestReopen` breaks for WOs where `projects_master.zo_user_id = req.user.mobile_number`.
+- **Admin** bypasses all gating.
 - ZO `Reject` action requires non-empty `remarks`.
 
 After every state change: fire `refresh_analytics_views()` in background.
@@ -331,19 +346,22 @@ After every state change: fire `refresh_analytics_views()` in background.
 Pattern follows [`fundRequest.schema.js`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/validation/fundRequest.schema.js) — Zod schemas exported as named constants.
 
 ```js
-// createBreakRequestSchema
-{
-  work_order_no: z.string().trim().min(1),
-  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  je_remarks: z.string().trim().min(1, 'Reason is required')
-}
+// createBreakRequestSchema — with .refine() for cross-field date validation (review §3.3)
+z.object({
+  work_order_no:     z.string().trim().min(1),
+  start_date:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  expected_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  je_remarks:        z.string().trim().min(1, 'Reason is required')
+}).refine(
+  (d) => d.expected_end_date >= d.start_date,
+  { message: 'Expected end date must be on or after start date.', path: ['expected_end_date'] }
+);
 
-// actOnBreakRequestSchema
-{
-  action: z.enum(['Accept', 'Reject', 'Approve', 'RequestReopen', 'ApproveReopen']),
+// actOnBreakRequestSchema — Cancel added (review §3.1)
+z.object({
+  action:  z.enum(['Cancel', 'Accept', 'Reject', 'Approve', 'RequestReopen', 'ApproveReopen']),
   remarks: z.string().trim().optional()
-}
+});
 ```
 
 ---
@@ -356,10 +374,11 @@ Pattern follows [`dailyProgress.routes.js`](file:///home/zenoguy/Desktop/project
 
 ```js
 router.use(verifyJwt);
-router.post('/',            requireRole(['je']),                    validateRequest(createBreakRequestSchema), createBreakRequest);
-router.get('/',             requireRole(['je','zo','ho','admin']),  getBreakRequests);
-router.get('/:id',          requireRole(['je','zo','ho','admin']),  getBreakRequestById);
-router.patch('/:id/action', requireRole(['zo','ho','admin']),       validateRequest(actOnBreakRequestSchema), actOnBreakRequest);
+router.post('/',            requireRole(['je']),                         validateRequest(createBreakRequestSchema), createBreakRequest);
+router.get('/',             requireRole(['je','zo','ho','admin']),        getBreakRequests);
+router.get('/:id',          requireRole(['je','zo','ho','admin']),        getBreakRequestById);
+// Cancel is a JE action — route is open to all roles; controller enforces actor match
+router.patch('/:id/action', requireRole(['je','zo','ho','admin']),        validateRequest(actOnBreakRequestSchema), actOnBreakRequest);
 ```
 
 ---
@@ -387,10 +406,10 @@ app.use('/api/v1/auth/activity-breaks', activityBreaksRoutes);
 Inside `createProgressReport`, after the existing `ALLOWED_PROJECT_STATUSES` check (line 89), insert:
 
 ```js
-// Block submissions during an active break
+// Block submissions during an active break — status-only, no date-window (review §1.1 / §2)
 const { data: activeBreak, error: breakErr } = await supabase
   .from('work_order_activity_breaks')
-  .select('id, start_date, end_date')
+  .select('id, start_date, expected_end_date')
   .eq('work_order_no', work_order_no.trim())
   .eq('status', 'Active')
   .maybeSingle();
@@ -399,7 +418,7 @@ if (breakErr) throw breakErr;
 if (activeBreak) {
   return res.status(409).json({
     success: false,
-    message: `Daily progress submissions are blocked. This work order is on an approved activity break from ${activeBreak.start_date} to ${activeBreak.end_date}.`
+    message: `Daily progress submissions are blocked. This work order is on an approved activity break (started ${activeBreak.start_date}, expected end ${activeBreak.expected_end_date}). Submissions resume once the break is formally reopened.`
   });
 }
 ```
@@ -415,12 +434,12 @@ This is a point lookup that uses the `idx_activity_breaks_active` partial index 
 Inside `checkSiteVisitInactivity()`, after the `workOrderNos` set is built (line 137), fetch on-break WOs and exclude them from the check:
 
 ```js
+// status = 'Active' is the only predicate — NO date window (review §1.1 / §2)
+// A break that has overrun its expected_end_date but is still Active continues to suppress alerts.
 const { data: onBreakWOs } = await supabase
   .from('work_order_activity_breaks')
   .select('work_order_no')
-  .eq('status', 'Active')
-  .lte('start_date', todayISTStr)
-  .gte('end_date', todayISTStr);
+  .eq('status', 'Active');
 
 const onBreakSet = new Set((onBreakWOs || []).map(b => b.work_order_no));
 
@@ -456,7 +475,7 @@ The stalled-projects query in `getHoActionableInsights` (line 635) already reads
 
 Because the MV rewrite freezes `days_since_last_progress_report` to `0` for on-break WOs, they will automatically pass through this filter without flagging. **No code change required.**
 
-The `getProjectsHealth` endpoint already does `select('*')` from `project_health_mv`, so the new `is_on_break`, `break_start`, `break_end` columns are included automatically.
+The `getProjectsHealth` endpoint already does `select('*')` from `project_health_mv`, so the new `is_on_break`, `break_start`, `break_expected_end`, and `break_overrun` columns are included automatically.
 
 ---
 
@@ -477,11 +496,9 @@ export const actOnActivityBreak   = (id, data) => api.patch(`/activity-breaks/${
 
 ---
 
-### 5.2 New Page — `ActivityBreaks.jsx`
+### 5.2 Page Layout — Ledger Integration
 
-**Location:** `frontend/src/pages/ActivityBreaks.jsx`
-
-Top-level page structured the same as [`FundRequests.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/FundRequests.jsx) — dashboard metrics tiles at top, list view with a quick-filters sidebar, and a slide-in detail/action panel for the selected request. React Query (`useQuery`, `useQueryClient`) for data fetching and cache invalidation.
+No standalone page is created. All activity break interactions (listing, requesting, cancelling, and reviewing) are integrated directly into the existing `DailyProgress.jsx` page drill-down layout (under the selected project's daily ledger spreadsheet view) as described in §10.
 
 ---
 
@@ -489,12 +506,10 @@ Top-level page structured the same as [`FundRequests.jsx`](file:///home/zenoguy/
 
 | File | Pattern reference | Purpose |
 |---|---|---|
-| `ActivityBreakStatusBadge.jsx` | `FundRequestStatusBadge.jsx` | Pill badge for 6 status values |
-| `NewBreakRequestModal.jsx` | `NewFundRequestModal.jsx` | JE form: WO selector (Running + mapped), date pickers, remarks |
-| `BreakRequestTable.jsx` | `FundRequestTable.jsx` | Role-filtered list table |
+| `ActivityBreakStatusBadge.jsx` | `FundRequestStatusBadge.jsx` | Pill badge for 7 status values |
+| `NewBreakRequestModal.jsx` | `NewFundRequestModal.jsx` | JE form: date pickers (start_date, expected_end_date), remarks |
 | `BreakActionModal.jsx` | [`HOActionModal.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/components/fundRequests/HOActionModal.jsx) | ZO Accept/Reject and HO Approve modal |
 | `ReopenActionModal.jsx` | `HOActionModal.jsx` | ZO reopen request + HO reopen approval |
-| `BreakRequestDetailPanel.jsx` | `RequestDetailPanel.jsx` | Full status timeline of a break request |
 
 ---
 
@@ -502,19 +517,13 @@ Top-level page structured the same as [`FundRequests.jsx`](file:///home/zenoguy/
 
 **File:** [`frontend/src/components/Sidebar.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/components/Sidebar.jsx)
 
-Add "Activity Breaks" nav entry (calendar-pause icon) visible to all authenticated roles, linking to `/activity-breaks`.
+Add "Activity Breaks" nav entry (calendar-pause icon) visible to all authenticated roles, linking to `/daily-progress` (directing users to the main daily tracking console where they can open individual projects' ledger).
 
 ---
 
-### 5.5 Modify `App.jsx` — Route
+### 5.5 Modify App Routes
 
-**File:** [`frontend/src/App.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/App.jsx)
-
-```jsx
-import ActivityBreaks from './pages/ActivityBreaks';
-// ...
-<Route path="/activity-breaks" element={<ProtectedRoute><ActivityBreaks /></ProtectedRoute>} />
-```
+No new routes are added to `App.jsx` since the feature is integrated into the existing `/daily-progress` layout.
 
 ---
 
@@ -524,7 +533,7 @@ import ActivityBreaks from './pages/ActivityBreaks';
 
 When the JE selects a work order, check if an active break exists (via the API or React Query cache). If yes, render a non-dismissable banner before the submission form:
 
-> ⚠️ **This work order is on an approved Activity Break (YYYY-MM-DD → YYYY-MM-DD). Submissions are blocked until the break is closed by the Zonal Officer.**
+> ⚠️ **This work order is on an approved Activity Break (YYYY-MM-DD → YYYY-MM-DD). Submissions are blocked until the break is formally reopened.**
 
 ---
 
@@ -534,10 +543,16 @@ When the JE selects a work order, check if an active break exists (via the API o
 - [`frontend/src/pages/HoDashboard.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/HoDashboard.jsx)
 - [`frontend/src/pages/ZoDashboard.jsx`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/ZoDashboard.jsx)
 
-Wherever `health_status` or a stalled/critical badge is rendered, add a branch for `is_on_break === true`:
+Wherever `health_status` or a stalled/critical badge is rendered, add two branches for `is_on_break === true` (**review §2 — overrun signal addition**):
 
-- Render an **"On Break"** badge (amber/muted palette) instead of `Critical` or `Warning`.
-- The stalled-projects list from `getHoActionableInsights` will already be empty for on-break WOs (MV handles it), so no additional JS filtering is needed.
+| Condition | Badge | Palette |
+|---|---|---|
+| `is_on_break && !break_overrun` | **"On Break"** | Amber/muted |
+| `is_on_break && break_overrun` | **"Break Overdue — Reopen Pending"** | Orange/warning |
+| `!is_on_break` | Existing `health_status` badge unchanged | — |
+
+- The `break_overrun` column (computed in the MV as `is_on_break AND CURRENT_DATE > break_expected_end`) is available in every `project_health_mv` row automatically — no extra API call needed.
+- The overrun badge prompts ZOs to initiate the reopen flow. The stalled-projects list from `getHoActionableInsights` will already be empty for on-break WOs (MV handles it), so no additional JS filtering is needed.
 
 ---
 
@@ -545,56 +560,58 @@ Wherever `health_status` or a stalled/critical badge is rendered, add a branch f
 
 | Method | Path | Auth | Body / Params | Response |
 |---|---|---|---|---|
-| `POST` | `/api/v1/auth/activity-breaks` | JE | `{ work_order_no, start_date, end_date, je_remarks }` | `201 { success, break }` |
+| `POST` | `/api/v1/auth/activity-breaks` | JE | `{ work_order_no, start_date, expected_end_date, je_remarks }` | `201 { success, break }` |
 | `GET` | `/api/v1/auth/activity-breaks` | all | `?work_order_no=&status=&page=&limit=` | `200 { success, breaks, pagination }` |
 | `GET` | `/api/v1/auth/activity-breaks/:id` | all | — | `200 { success, break }` |
-| `PATCH` | `/api/v1/auth/activity-breaks/:id/action` | ZO/HO/Admin | `{ action, remarks? }` | `200 { success, break }` |
+| `PATCH` | `/api/v1/auth/activity-breaks/:id/action` | JE/ZO/HO/Admin | `{ action, remarks? }` | `200 { success, break }` |
 
 ### Error contract
 
 | HTTP | Condition |
 |---|---|
 | `404` | Break not found, or not visible to caller's role |
-| `403` | ZO acting on a WO not in their zone |
-| `409` | Duplicate non-terminal break for same WO |
+| `403` | ZO acting on a WO not in their zone; JE cancelling another JE's break |
+| `409` | Duplicate non-terminal break for same WO (app-level or Postgres `23505` — both return same message) |
 | `409` | Invalid state transition for current status |
 | `409` | Progress submission blocked by active break |
-| `400` | `end_date < start_date`, `je_remarks` empty, or ZO reject without `remarks` |
+| `400` | `expected_end_date < start_date` (Zod `.refine()`), `je_remarks` empty, or ZO reject without `remarks` |
 
 ---
 
 ## 7. Files Changed — Complete List
 
+> [!NOTE]
+> §10.10 (ledger integration decision) removed `ActivityBreaks.jsx` and `BreakRequestTable.jsx` from scope. The route change to `['je','zo','ho','admin']` on the PATCH endpoint (**review §3.1**) is reflected in the routes file below.
+
 ### New files
 
 | File | Purpose |
 |---|---|
-| `backend/src/db/migrations/021_work_order_activity_breaks.sql` | DB migration |
-| `backend/src/controllers/activityBreaks.controller.js` | Business logic |
-| `backend/src/routes/activityBreaks.routes.js` | Express router |
-| `backend/src/validation/activityBreaks.schema.js` | Zod schemas |
+| `backend/src/db/migrations/021_work_order_activity_breaks.sql` | DB migration (includes RLS, `Cancelled by JE`, status-only CTE, `expected_end_date`) |
+| `backend/src/controllers/activityBreaks.controller.js` | Business logic (Cancel→`Cancelled by JE`, 23505 handler) |
+| `backend/src/routes/activityBreaks.routes.js` | Express router (PATCH open to `je` for Cancel) |
+| `backend/src/validation/activityBreaks.schema.js` | Zod schemas (`.refine()`, `expected_end_date`, `Cancel` in enum) |
 | `frontend/src/api/activityBreaksApi.js` | API client |
-| `frontend/src/pages/ActivityBreaks.jsx` | Page |
-| `frontend/src/components/activityBreaks/ActivityBreakStatusBadge.jsx` | Status badge |
-| `frontend/src/components/activityBreaks/NewBreakRequestModal.jsx` | JE creation form |
-| `frontend/src/components/activityBreaks/BreakRequestTable.jsx` | List table |
-| `frontend/src/components/activityBreaks/BreakActionModal.jsx` | ZO/HO action modal |
+| `frontend/src/components/activityBreaks/ActivityBreakStatusBadge.jsx` | Status badge (7 states) |
+| `frontend/src/components/activityBreaks/NewBreakRequestModal.jsx` | JE creation form (date `min`/`max` binding) |
+| `frontend/src/components/activityBreaks/BreakActionModal.jsx` | ZO Accept/Reject, HO Approve modal |
 | `frontend/src/components/activityBreaks/ReopenActionModal.jsx` | Reopen modal |
-| `frontend/src/components/activityBreaks/BreakRequestDetailPanel.jsx` | Detail view |
+| `backend/tests/vitest/regression/activityBreakMvFreeze.test.js` | Behavioral regression test (§11) |
 
 ### Modified files
 
 | File | Change summary |
 |---|---|
 | `backend/src/app.js` | Import + mount `activityBreaksRoutes` |
-| `backend/src/controllers/dailyProgress.controller.js` | Add active-break guard in `createProgressReport` (after line 95) |
-| `backend/src/services/siteVisitInactivity.service.js` | Filter on-break WOs before inactivity group-build (after line 137) |
+| `backend/src/controllers/dailyProgress.controller.js` | Active-break guard: status-only, `expected_end_date` in error message |
+| `backend/src/services/siteVisitInactivity.service.js` | On-break filter: status-only, no date predicate |
 | `backend/src/services/telegram.service.js` | Add `notifyBreakStatusChanged` helper |
-| `frontend/src/App.jsx` | Add route `/activity-breaks` |
-| `frontend/src/components/Sidebar.jsx` | Add nav entry |
-| `frontend/src/pages/DailyProgress.jsx` | Add on-break warning banner |
-| `frontend/src/pages/HoDashboard.jsx` | Render "On Break" badge for `is_on_break` rows |
-| `frontend/src/pages/ZoDashboard.jsx` | Render "On Break" badge for `is_on_break` rows |
+| `frontend/src/components/Sidebar.jsx` | Add nav entry linking to `/daily-progress` |
+| `frontend/src/pages/DailyProgress.jsx` | Second query, merged ledger (with tiebreaker), break rows, break request button, action modals, pagination, summary metrics |
+| `frontend/src/pages/HoDashboard.jsx` | On-Break badge + Overdue badge (`break_overrun`) |
+| `frontend/src/pages/ZoDashboard.jsx` | On-Break badge + Overdue badge (`break_overrun`) |
+| `backend/tests/manifests/manifestScope.json` | Add `work_order_activity_breaks` to tables list |
+| `backend/tests/manifests/indexAllowlist.json` | Add 3 new index names |
 
 ---
 
@@ -613,14 +630,28 @@ The existing [`apply-migrations.js`](file:///home/zenoguy/Desktop/projects/SNPol
 SUPABASE_TEST_DB_URI=<prod-uri> node backend/scripts/apply-migrations.js
 
 # 2. Deploy new backend (controller, route, daily-progress guard, inactivity filter)
-# 3. Deploy new frontend (page, sidebar, warning banner, On Break badge)
-# 4. Smoke-test: create a break request → approve through ZO → approve through HO
-| 1 | `reopen_remarks` required? | **Optional** — `TEXT NULL` in schema, no backend enforcement |
-| 2 | JE can cancel `Pending ZO Review`? | **Yes** — follows the `CancelFundRequestModal` pattern |
-| 3 | JE sees full ZO/HO action timestamps? | **No** — JE sees current status + break dates only; no actor detail needed |
-| 4 | New break allowed after `Ended`? | **Yes** — unique partial index excludes terminal states, sequential breaks are permitted |
+# 3. Deploy new frontend (ledger integration, sidebar entry, On Break / Overdue badges)
+# 4. Run behavioral regression tests
+#    SUPABASE_TEST_DB_URI=<prod-uri> npx vitest run tests/vitest/regression/activityBreakMvFreeze.test.js
+# 5. Smoke-test: create a break request → approve ZO → approve HO
+#    Verify: progress submission blocked, inactivity alert suppressed, MV shows is_on_break=true
+#    Set expected_end_date to yesterday → confirm break_overrun=true + Overdue badge appears
+# 6. Rollback plan: revert deployment; run manual DROP TABLE + DROP INDEX if needed
+```
 
-These decisions are already reflected in the schema and controller design above.
+> [!CAUTION]
+> The `DROP MATERIALIZED VIEW … CASCADE` in the migration briefly takes down the analytics views while they are being re-created. This is the primary reason for the maintenance window. The views are repopulated by `refresh_analytics_views()` at the end of the migration, typically completing in seconds on the current dataset.
+
+---
+
+## 9. Resolved Design Decisions
+
+| # | Question | Decision |
+|---|---|---|
+| 1 | `reopen_remarks` required? | **Optional** — `TEXT NULL`, no backend enforcement |
+| 2 | JE can cancel `Pending ZO Review`? | **Yes** — `Cancel` action → `Cancelled by JE` (**not** reused `Rejected by ZO`) |
+| 3 | JE sees full ZO/HO action timestamps? | **No** — status + dates only |
+| 4 | New break allowed after `Ended`? | **Yes** — unique partial index excludes all three terminal states |
 
 ---
 
@@ -651,22 +682,28 @@ Before rendering the table, both datasets are merged into a single chronological
 
 ```js
 const mergedLedger = useMemo(() => {
-  // Progress report rows — use site_visit_date as sort key
   const progressRows = (reports || []).map(r => ({
     ...r,
     _rowType: 'progress',
     _sortDate: r.site_visit_date
   }));
 
-  // Break rows — use start_date as sort key; show regardless of status
   const breakRows = (breakRecords || []).map(b => ({
     ...b,
     _rowType: 'break',
     _sortDate: b.start_date
   }));
 
-  return [...progressRows, ...breakRows]
-    .sort((a, b) => a._sortDate.localeCompare(b._sortDate));
+  return [...progressRows, ...breakRows].sort((a, b) => {
+    // Primary: chronological by date string (ISO format — localeCompare is safe)
+    const dateDiff = a._sortDate.localeCompare(b._sortDate);
+    if (dateDiff !== 0) return dateDiff;
+    // Tiebreaker (review §3.4): on same day, break rows sort before progress rows
+    // A break starting that day logically explains why no progress row follows
+    if (a._rowType === 'break' && b._rowType === 'progress') return -1;
+    if (a._rowType === 'progress' && b._rowType === 'break') return 1;
+    return 0;
+  });
 }, [reports, breakRecords]);
 ```
 
@@ -684,10 +721,13 @@ Inside the `mergedLedger.map(...)` loop, a conditional renders either a normal p
       {idx + 1}
     </TableCell>
     <TableCell className="border-r border-white/5" size="sm">
-      {/* Date range instead of single date */}
+      {/* Date range: start → expected_end_date */}
       <span className="font-semibold text-amber-300">
-        {item.start_date} → {item.end_date}
+        {item.start_date} → {item.expected_end_date}
       </span>
+      {item.break_overrun && (
+        <span className="block text-[8px] font-bold text-orange-400 uppercase mt-0.5">Overdue</span>
+      )}
     </TableCell>
     <TableCell className="border-r border-white/5" size="sm" colSpan={2}>
       {/* Reason / remarks in place of work details */}
@@ -800,10 +840,9 @@ This requires a **`Cancel` action** added to both the Zod schema (`actOnBreakReq
 
 | Actor | Current status | `action` param | New status |
 |---|---|---|---|
-| JE | `Pending ZO Review` | `Cancel` | `Rejected by ZO` |
+| JE | `Pending ZO Review` | `Cancel` | `Cancelled by JE` |
 
-> [!NOTE]
-> We re-use the `Rejected by ZO` terminal state for JE cancellation rather than adding a new `Cancelled` state. The distinction is tracked by checking who performed the action: if `je_user_id === actioned_by`, it was a cancellation. The frontend can render this as "Cancelled" while the DB stores it as `Rejected by ZO`. Alternatively, a dedicated `Cancelled by JE` status string can be added to the CHECK constraint — **decision deferred to implementation, but the schema CHECK allows adding it without a migration risk**.
+`Cancelled by JE` is a first-class status value in the CHECK constraint (**review §3.1** — not deferred, not inferred). The audit log records the JE's `mobile_number` as `user_id` directly, with no attribution ambiguity.
 
 ### 10.8 Ledger Pagination
 
@@ -827,13 +866,66 @@ const totalBreakDays = breakRecords
   .filter(b => ['Active', 'Ended'].includes(b.status))
   .reduce((sum, b) => {
     const start = new Date(b.start_date);
-    const end = new Date(b.end_date);
+    const end = new Date(b.expected_end_date);  // display-only estimate
     return sum + Math.round((end - start) / (1000*60*60*24)) + 1;
   }, 0);
-const activeBreakStatus = breakRecords.find(b => b.status === 'Active') || null;
+const activeBreak = breakRecords.find(b => b.status === 'Active') || null;
 ```
 
-These feed two new summary metric tiles: **"Break Days (Approved)"** and **"Break Status"** (active/none).
+These feed two new summary metric tiles: **"Break Days (Planned)"** and **"Break Status"** (Active / Overdue / none).
+
+---
+
+## 11. Test Plan
+
+### 11.1 Manifest additions (shape coverage)
+
+After the migration is applied locally, add to manifests and regenerate:
+
+**`backend/tests/manifests/manifestScope.json`** — add to `tables`:
+```json
+"work_order_activity_breaks"
+```
+
+**`backend/tests/manifests/indexAllowlist.json`** — add:
+```json
+"idx_activity_breaks_wo_status",
+"idx_activity_breaks_active",
+"idx_activity_breaks_one_active_per_wo"
+```
+
+Run `backend/scripts/generate-manifests-local.sh` to regenerate `schemaManifest.generated.js` and `indexManifest.generated.js`, then commit the diffs alongside the migration. No RPC allowlist change needed — `refresh_analytics_views` is already covered by `migrationSmoke.test.js`.
+
+### 11.2 Behavioral regression test — `activityBreakMvFreeze.test.js`
+
+**File:** `backend/tests/vitest/regression/activityBreakMvFreeze.test.js`
+
+This is the test that directly guards against re-introduction of the §1.1 blocker. Seed/cleanup helpers follow the pattern in `tests/helpers/seedDashboardProject.js` and `tests/helpers/financialFixture.js`.
+
+```js
+describe('activityBreakMvFreeze — project_health_mv freeze behavior', () => {
+  // Test 1: days_since_last_report is NOT frozen with no active break
+  //   → expect days_since_last_report > 7 for a seeded stale project
+
+  // Test 2: freezes to 0 once status = 'Active', even when expected_end_date is in the past
+  //   → seed break with expected_end_date = daysAgo(2), status = 'Active'
+  //   → refresh MV
+  //   → expect is_on_break = true, days_since_last_report = 0
+  //   THIS IS THE REGRESSION CASE: date-window predicate would fail this test
+
+  // Test 3: unfreezes once status = 'Ended'
+  //   → UPDATE status → 'Ended', refresh MV
+  //   → expect is_on_break = false, days_since_last_report > 7
+
+  // Test 4: cascaded views remain queryable
+  //   → SELECT count(*) FROM budget_leakage_mv, executive_kpi_mv, zone_performance_mv
+  //   → all resolve without error
+});
+```
+
+### 11.3 Migration tracking coverage (already handled)
+
+`migrationSmoke.test.js`'s first test (`all SQL migration files are recorded in _migration_log`) is filesystem-driven and will automatically cover `021_work_order_activity_breaks.sql` once it lands — no change needed.
 
 ### 10.10 Updated File Change List for Ledger Integration
 
