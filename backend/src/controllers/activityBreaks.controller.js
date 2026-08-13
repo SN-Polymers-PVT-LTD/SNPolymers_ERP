@@ -178,6 +178,11 @@ async function createBreakRequest(req, res) {
 
     refreshAnalyticsInBackground();
 
+    const { notifyBreakRequestSubmitted } = require('../services/telegram.service');
+    notifyBreakRequestSubmitted(created).catch((err) => {
+      console.error(`[ACTIVITY BREAK] Telegram notification failed: ${err.message}`);
+    });
+
     return res.status(201).json({ success: true, break: sanitizeBreakForRole(created, req.user.role) });
   } catch (error) {
     if (process.env.NODE_ENV !== 'production') {
@@ -391,9 +396,27 @@ async function actOnBreakRequest(req, res) {
 
     refreshAnalyticsInBackground();
 
-    if (transition.to === 'Active' || transition.to === 'Ended') {
-      const { notifyBreakStatusChanged } = require('../services/telegram.service');
-      notifyBreakStatusChanged(updated, transition.to).catch((err) => {
+    const {
+      notifyBreakZoActed,
+      notifyBreakHoApproved,
+      notifyBreakReopenRequested,
+      notifyBreakStatusChanged
+    } = require('../services/telegram.service');
+
+    if (action === 'Accept' || action === 'Reject') {
+      notifyBreakZoActed(updated).catch((err) => {
+        console.error(`[ACTIVITY BREAK] Telegram notification failed: ${err.message}`);
+      });
+    } else if (action === 'Approve') {
+      notifyBreakHoApproved(updated).catch((err) => {
+        console.error(`[ACTIVITY BREAK] Telegram notification failed: ${err.message}`);
+      });
+    } else if (action === 'RequestReopen') {
+      notifyBreakReopenRequested(updated).catch((err) => {
+        console.error(`[ACTIVITY BREAK] Telegram notification failed: ${err.message}`);
+      });
+    } else if (action === 'ApproveReopen') {
+      notifyBreakStatusChanged(updated, 'Ended').catch((err) => {
         console.error(`[ACTIVITY BREAK] Telegram notification failed: ${err.message}`);
       });
     }

@@ -239,7 +239,7 @@ const DailyProgress = () => {
   const reports = projectReportsData || STABLE_EMPTY_ARRAY;
   const loading = loadingAllReports || (activeWO ? loadingProjectReports : false);
 
-  // §10.1 — Break records query, scoped to selected work order
+  // §10.1 - Break records query, scoped to selected work order
   const { data: breakRecordsData } = useQuery({
     queryKey: ['activityBreaks', 'project', activeWO?.work_order_no],
     queryFn: async () => {
@@ -251,7 +251,7 @@ const DailyProgress = () => {
   });
   const breakRecords = breakRecordsData || STABLE_EMPTY_ARRAY;
 
-  // §10.2 — Merged & sorted timeline with explicit tiebreaker
+  // §10.2 - Merged & sorted timeline with explicit tiebreaker
   // Same-day: break rows sort BEFORE progress rows (break explains the gap)
   const mergedLedger = useMemo(() => {
     const progressRows = reports.map(r => ({
@@ -274,7 +274,7 @@ const DailyProgress = () => {
     });
   }, [reports, breakRecords]);
 
-  // §10.8 — Pagination applied to mergedLedger, not reports alone
+  // §10.8 - Pagination applied to mergedLedger, not reports alone
   const paginatedLedger = useMemo(() => {
     const start = (pageFeed - 1) * feedPageSize;
     return mergedLedger.slice(start, start + feedPageSize);
@@ -285,7 +285,7 @@ const DailyProgress = () => {
   // Computed: is there a non-terminal break for this WO right now?
   const TERMINAL_STATUSES = ['Rejected by ZO', 'Cancelled by JE', 'Ended'];
   const activeBreakForThisWO = breakRecords.find(b => !TERMINAL_STATUSES.includes(b.status)) || null;
-  // Submissions are blocked for Active AND Reopen Requested — resumption only
+  // Submissions are blocked for Active AND Reopen Requested - resumption only
   // happens once HO formally approves the reopen (status -> Ended), matching
   // the backend guard in dailyProgress.controller.js.
   const activeApprovedBreak  = breakRecords.find(b => ['Active', 'Reopen Requested'].includes(b.status)) || null;
@@ -391,7 +391,7 @@ const DailyProgress = () => {
     handleRemovePhoto();
   };
 
-  // §10.7 — JE Cancel break flow
+  // §10.7 - JE Cancel break flow
   const handleCancelBreak = async (breakId) => {
     if (!window.confirm('Cancel this activity break request?')) return;
     try {
@@ -706,7 +706,7 @@ const DailyProgress = () => {
                 </div>
               </div>
 
-              {/* §5.6 — On-Break Warning Banner */}
+              {/* §5.6 - On-Break Warning Banner */}
               {activeApprovedBreak && (() => {
                 const canUserReopen = (
                   (user?.role === 'zo' && activeApprovedBreak.status === 'Active') ||
@@ -721,7 +721,7 @@ const DailyProgress = () => {
                       </svg>
                       <div>
                         <p className="font-black text-amber-900 dark:text-amber-300 uppercase tracking-widest text-[10px]">
-                          {activeApprovedBreak.status === 'Reopen Requested' ? 'Activity Break — Reopen Requested' : 'Activity Break Active'}
+                          {activeApprovedBreak.status === 'Reopen Requested' ? 'Activity Break - Reopen Requested' : 'Activity Break Active'}
                         </p>
                         <p className="text-amber-800 dark:text-amber-200 mt-0.5 font-medium leading-relaxed">
                           {activeApprovedBreak.status === 'Reopen Requested'
@@ -752,7 +752,7 @@ const DailyProgress = () => {
                 <div className="p-4 border-b border-white/5 flex flex-wrap justify-between items-center gap-3 bg-white/[0.01]">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Daily Log History Ledger</span>
                   <div className="flex items-center gap-2">
-                    {/* §10.4 — Request Activity Break button */}
+                    {/* §10.4 - Request Activity Break button */}
                     {isJE && activeWO.status === 'Running' && !activeBreakForThisWO && !showCreateFlow && (
                       <button
                         onClick={() => setShowBreakRequestFlow(true)}
@@ -791,7 +791,7 @@ const DailyProgress = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {/* §10.3 — Render paginatedLedger rows (merged progress + break rows) */}
+                    {/* §10.3 - Render paginatedLedger rows (merged progress + break rows) */}
                     {paginatedLedger.map((item, idx) =>
                       item._rowType === 'break' ? (
                         /* ── Activity Break Row ── */
@@ -816,7 +816,7 @@ const DailyProgress = () => {
                             <span className="text-slate-900 dark:text-slate-400 font-bold text-xs sm:text-sm italic">N/A</span>
                           </TableCell>
                           <TableCell className="border-r border-white/5" size="sm">
-                            <span className="text-slate-900 dark:text-slate-300 font-medium text-xs sm:text-sm">{item.zo_remarks || '—'}</span>
+                            <span className="text-slate-900 dark:text-slate-300 font-medium text-xs sm:text-sm">{item.zo_remarks || '-'}</span>
                           </TableCell>
                           <TableCell size="sm">
                             <div className="flex items-center justify-between gap-2">
@@ -1039,7 +1039,7 @@ const DailyProgress = () => {
                   </TableBody>
                 </Table>
 
-                {/* §10.8 — Ledger Pagination (mergedLedger, not reports) */}
+                {/* §10.8 - Ledger Pagination (mergedLedger, not reports) */}
                 {totalLedgerPages > 1 && (
                   <div className="flex justify-between items-center bg-white/[0.01] border-t border-white/5 px-4 py-3 text-[10px] select-none">
                     <span className="text-slate-500 font-bold uppercase tracking-wider">
@@ -1086,12 +1086,12 @@ const DailyProgress = () => {
                       <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-400">Current Cumulative Progress</p>
                       <p className="text-lg font-black text-emerald-400 mt-1">{metrics.overallProgress}%</p>
                     </div>
-                    {/* §10.9 — Break Days (Planned) */}
+                    {/* §10.9 - Break Days (Planned) */}
                     <div className="p-3 rounded-2xl bg-amber-950/10 border border-amber-900/20 text-center">
                       <p className="text-[8px] font-bold uppercase tracking-widest text-amber-400">Break Days (Planned)</p>
                       <p className="text-lg font-black text-amber-300 mt-1">{metrics.totalBreakDays}</p>
                     </div>
-                    {/* §10.9 — Break Status */}
+                    {/* §10.9 - Break Status */}
                     <div className={`p-3 rounded-2xl text-center ${
                       metrics.breakStatus === 'Active'
                         ? 'bg-amber-950/20 border border-amber-900/30'
