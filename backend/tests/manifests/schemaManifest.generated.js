@@ -992,6 +992,124 @@ module.exports = {
           "default": "now()"
         }
       }
+    },
+    "work_order_activity_breaks": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "start_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "expected_end_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "je_user_id": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "je_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "zo_user_id": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "zo_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "zo_actioned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "ho_user_id": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "ho_actioned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "reopen_requested_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "reopen_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "reopen_requested_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "reopen_ho_user_id": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "reopen_ho_actioned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
     }
   }
 };

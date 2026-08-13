@@ -7,5 +7,8 @@
   "idx_requisitions_status",
   "idx_pce_work_order",
   "idx_projects_zo_user",
-  "idx_project_health_mv_wo"
+  "idx_project_health_mv_wo",
+  "idx_activity_breaks_wo_status",
+  "idx_activity_breaks_active",
+  "idx_activity_breaks_one_active_per_wo"
 ]
