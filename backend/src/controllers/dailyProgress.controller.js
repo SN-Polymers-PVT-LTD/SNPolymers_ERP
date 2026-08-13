@@ -94,12 +94,14 @@ async function createProgressReport(req, res) {
       });
     }
 
-    // Block submissions during an active break — status-only, no date-window
+    // Block submissions during an active break — status-only, no date-window.
+    // Reopen Requested still blocks: resumption only happens once HO formally
+    // approves the reopen (status -> Ended), not when the ZO merely requests it.
     const { data: activeBreak, error: breakErr } = await supabase
       .from('work_order_activity_breaks')
       .select('id, start_date, expected_end_date')
       .eq('work_order_no', work_order_no.trim())
-      .eq('status', 'Active')
+      .in('status', ['Active', 'Reopen Requested'])
       .maybeSingle();
 
     if (breakErr) throw breakErr;

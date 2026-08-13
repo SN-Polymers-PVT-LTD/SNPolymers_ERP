@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import authApi from '../api/authApi';
@@ -14,6 +14,15 @@ import {
   addAuthorityRemarks,
   uploadSitePhoto
 } from '../api/dailyProgressApi';
+import {
+  getActivityBreaks,
+  createActivityBreak,
+  actOnActivityBreak
+} from '../api/activityBreaksApi';
+import ActivityBreakStatusBadge from '../components/activityBreaks/ActivityBreakStatusBadge';
+import NewBreakRequestModal from '../components/activityBreaks/NewBreakRequestModal';
+import BreakActionModal from '../components/activityBreaks/BreakActionModal';
+import ReopenActionModal from '../components/activityBreaks/ReopenActionModal';
 
 const DailyProgress = () => {
   const { user } = useAuth();
@@ -31,6 +40,11 @@ const DailyProgress = () => {
   const [activeReport, setActiveReport] = useState(null); // Detail modal target
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
+
+  // Activity Break flow state
+  const [showBreakRequestFlow, setShowBreakRequestFlow] = useState(false);
+  const [breakActionTarget, setBreakActionTarget] = useState(null); // break record for ZO/HO action modal
+  const [reopenTarget, setReopenTarget] = useState(null);           // break record for reopen modal
 
   // Form states for appending a new log entry
   const [siteVisitDate, setSiteVisitDate] = useState('');
@@ -203,6 +217,54 @@ const DailyProgress = () => {
   const reports = projectReportsData || [];
   const loading = loadingAllReports || (activeWO ? loadingProjectReports : false);
 
+  // §10.1 — Break records query, scoped to selected work order
+  const { data: breakRecordsData } = useQuery({
+    queryKey: ['activityBreaks', 'project', activeWO?.work_order_no],
+    queryFn: async () => {
+      const res = await getActivityBreaks({ work_order_no: activeWO.work_order_no });
+      return res.data?.breaks ?? [];
+    },
+    enabled: !!activeWO,
+    staleTime: 30 * 1000
+  });
+  const breakRecords = breakRecordsData || [];
+
+  // §10.2 — Merged & sorted timeline with explicit tiebreaker
+  // Same-day: break rows sort BEFORE progress rows (break explains the gap)
+  const mergedLedger = useMemo(() => {
+    const progressRows = reports.map(r => ({
+      ...r,
+      _rowType: 'progress',
+      _sortDate: r.site_visit_date
+    }));
+    const breakRows = breakRecords.map(b => ({
+      ...b,
+      _rowType: 'break',
+      _sortDate: b.start_date
+    }));
+    return [...progressRows, ...breakRows].sort((a, b) => {
+      const dateDiff = (a._sortDate || '').localeCompare(b._sortDate || '');
+      if (dateDiff !== 0) return dateDiff;
+      // Tiebreaker: break rows before progress rows on same day
+      if (a._rowType === 'break' && b._rowType === 'progress') return -1;
+      if (a._rowType === 'progress' && b._rowType === 'break') return 1;
+      return 0;
+    });
+  }, [reports, breakRecords]);
+
+  // §10.8 — Pagination applied to mergedLedger, not reports alone
+  const paginatedLedger = useMemo(() => {
+    const start = (pageFeed - 1) * feedPageSize;
+    return mergedLedger.slice(start, start + feedPageSize);
+  }, [mergedLedger, pageFeed, feedPageSize]);
+
+  const totalLedgerPages = Math.max(1, Math.ceil(mergedLedger.length / feedPageSize));
+
+  // Computed: is there a non-terminal break for this WO right now?
+  const TERMINAL_STATUSES = ['Rejected by ZO', 'Cancelled by JE', 'Ended'];
+  const activeBreakForThisWO = breakRecords.find(b => !TERMINAL_STATUSES.includes(b.status)) || null;
+  const activeApprovedBreak  = breakRecords.find(b => b.status === 'Active') || null;
+
   const displayError = error || allReportsError?.response?.data?.message || allReportsError?.message || projectReportsError?.response?.data?.message || projectReportsError?.message || '';
 
   // Auto-dismiss alerts
@@ -302,6 +364,18 @@ const DailyProgress = () => {
     setPhysicalWorkProgress('');
     setRemarksAfterSiteVisit('');
     handleRemovePhoto();
+  };
+
+  // §10.7 — JE Cancel break flow
+  const handleCancelBreak = async (breakId) => {
+    if (!window.confirm('Cancel this activity break request?')) return;
+    try {
+      await actOnActivityBreak(breakId, { action: 'Cancel' });
+      setSuccess('Break request cancelled.');
+      queryClient.invalidateQueries({ queryKey: ['activityBreaks', 'project', activeWO.work_order_no] });
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to cancel break request.');
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -407,10 +481,23 @@ const DailyProgress = () => {
   const totalDirPages = Math.max(1, Math.ceil(totalDirProjects / dirPageSize));
   const paginatedProjects = filteredProjects.slice((dirPage - 1) * dirPageSize, dirPage * dirPageSize);
 
-  // Calculate summary metrics for active project spreadsheet
+  // Calculate summary metrics for active project spreadsheet (§10.9 additions)
   const getSummaryMetrics = () => {
+    // Break-related metrics
+    const totalBreakDays = breakRecords
+      .filter(b => ['Active', 'Ended'].includes(b.status))
+      .reduce((sum, b) => {
+        const start = new Date(b.start_date);
+        const end = new Date(b.expected_end_date);
+        return sum + Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      }, 0);
+    const currentActiveBreak = breakRecords.find(b => b.status === 'Active') || null;
+    const breakStatus = currentActiveBreak
+      ? (currentActiveBreak.break_overrun ? 'Overdue' : 'Active')
+      : 'None';
+
     if (reports.length === 0) {
-      return { totalDays: 0, firstDate: 'N/A', lastDate: 'N/A', overallProgress: 0 };
+      return { totalDays: 0, firstDate: 'N/A', lastDate: 'N/A', overallProgress: 0, totalBreakDays, breakStatus };
     }
     const totalDays = reports.length;
     const datesSorted = reports
@@ -424,7 +511,7 @@ const DailyProgress = () => {
     const chronologicallySorted = [...reports].sort((a, b) => new Date(a.site_visit_date) - new Date(b.site_visit_date));
     const overallProgress = chronologicallySorted[chronologicallySorted.length - 1]?.physical_work_progress || 0;
 
-    return { totalDays, firstDate, lastDate, overallProgress };
+    return { totalDays, firstDate, lastDate, overallProgress, totalBreakDays, breakStatus };
   };
 
   const metrics = getSummaryMetrics();
@@ -582,21 +669,54 @@ const DailyProgress = () => {
                 </div>
               </div>
 
+              {/* §5.6 — On-Break Warning Banner */}
+              {activeApprovedBreak && (
+                <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs">
+                  <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className="font-extrabold text-amber-300 uppercase tracking-wider text-[10px]">Activity Break Active</p>
+                    <p className="text-amber-200/80 mt-0.5">
+                      Submissions are blocked until the break is formally reopened.
+                    </p>
+                    <p className="text-amber-400/60 text-[10px] mt-1 font-mono">
+                      {activeApprovedBreak.start_date} → {activeApprovedBreak.expected_end_date}
+                      {activeApprovedBreak.break_overrun && <span className="ml-2 text-orange-400 font-bold">[OVERDUE]</span>}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Ledger Spreadsheet list */}
               <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden shadow-2xl bg-gradient-to-br from-white/[0.01] to-transparent">
-                <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+                <div className="p-4 border-b border-white/5 flex flex-wrap justify-between items-center gap-3 bg-white/[0.01]">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Daily Log History Ledger</span>
-                  {isJE && activeWO.status === 'Running' && !showCreateFlow && (
-                    <button
-                      onClick={() => setShowCreateFlow(true)}
-                      className="bg-white hover:bg-slate-100 text-slate-950 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition shadow flex items-center gap-1.5"
-                    >
-                      <svg className="w-3.5 h-3.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Append Daily Entry Row
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {/* §10.4 — Request Activity Break button */}
+                    {isJE && activeWO.status === 'Running' && !activeBreakForThisWO && !showCreateFlow && (
+                      <button
+                        onClick={() => setShowBreakRequestFlow(true)}
+                        className="bg-amber-500/10 border border-amber-500/30 hover:border-amber-500/50 text-amber-400 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        🔶 Request Activity Break
+                      </button>
+                    )}
+                    {isJE && activeWO.status === 'Running' && !showCreateFlow && !activeApprovedBreak && (
+                      <button
+                        onClick={() => setShowCreateFlow(true)}
+                        className="bg-white hover:bg-slate-100 text-slate-950 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition shadow flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Append Daily Entry Row
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <Table className="text-xs">
@@ -612,21 +732,95 @@ const DailyProgress = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {reports.map((report, idx) => (
+                    {/* §10.3 — Render paginatedLedger rows (merged progress + break rows) */}
+                    {paginatedLedger.map((item, idx) =>
+                      item._rowType === 'break' ? (
+                        /* ── Activity Break Row ── */
+                        <TableRow key={item.id} hover={false} className="bg-amber-500/[0.04] border-l-2 border-amber-500/40">
+                          <TableCell align="center" className="font-mono font-semibold border-r border-white/5 text-slate-500" size="sm">
+                            {(pageFeed - 1) * feedPageSize + idx + 1}
+                          </TableCell>
+                          <TableCell className="border-r border-white/5" size="sm">
+                            <span className="font-semibold text-amber-300">
+                              {item.start_date} → {item.expected_end_date}
+                            </span>
+                            {item.break_overrun && (
+                              <span className="block text-[8px] font-bold text-orange-400 uppercase mt-0.5">Overdue</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="border-r border-white/5" size="sm" colSpan={2}>
+                            <span className="text-amber-200/80 italic text-[10px]">
+                              🔶 Activity Break — {item.je_remarks}
+                            </span>
+                          </TableCell>
+                          <TableCell align="center" className="border-r border-white/5" size="sm">
+                            <span className="text-slate-600 text-[9px] italic">N/A</span>
+                          </TableCell>
+                          <TableCell className="border-r border-white/5" size="sm">
+                            <span className="text-slate-500 text-[9px]">{item.zo_remarks || '—'}</span>
+                          </TableCell>
+                          <TableCell size="sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <ActivityBreakStatusBadge status={item.status} />
+                              {isJE && item.status === 'Pending ZO Review' && (
+                                <button
+                                  onClick={() => handleCancelBreak(item.id)}
+                                  className="text-[8px] text-red-400 hover:text-red-300 font-bold uppercase tracking-wider transition"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              {(user?.role === 'zo' || user?.role === 'admin') && item.status === 'Pending ZO Review' && (
+                                <button
+                                  onClick={() => setBreakActionTarget(item)}
+                                  className="text-[8px] text-emerald-400 hover:text-emerald-300 font-bold uppercase transition"
+                                >
+                                  Review
+                                </button>
+                              )}
+                              {(user?.role === 'ho' || user?.role === 'admin') && item.status === 'Pending HO Review' && (
+                                <button
+                                  onClick={() => setBreakActionTarget(item)}
+                                  className="text-[8px] text-emerald-400 hover:text-emerald-300 font-bold uppercase transition"
+                                >
+                                  Approve
+                                </button>
+                              )}
+                              {(user?.role === 'zo' || user?.role === 'admin') && item.status === 'Active' && (
+                                <button
+                                  onClick={() => setReopenTarget(item)}
+                                  className="text-[8px] text-amber-400 hover:text-amber-300 font-bold uppercase transition"
+                                >
+                                  Reopen
+                                </button>
+                              )}
+                              {(user?.role === 'ho' || user?.role === 'admin') && item.status === 'Reopen Requested' && (
+                                <button
+                                  onClick={() => setReopenTarget(item)}
+                                  className="text-[8px] text-emerald-400 hover:text-emerald-300 font-bold uppercase transition"
+                                >
+                                  Approve Reopen
+                                </button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        /* ── Normal Progress Row (unchanged logic) ── */
                       <TableRow
-                        key={report.report_id}
-                        onClick={() => handleViewDetails(report)}
+                        key={item.report_id}
+                        onClick={() => handleViewDetails(item)}
                         interactive={true}
                         className="text-slate-300 text-left"
                       >
                         <TableCell align="center" className="font-mono font-semibold border-r border-white/5 text-slate-500" size="sm">
-                          {idx + 1}
+                          {(pageFeed - 1) * feedPageSize + idx + 1}
                         </TableCell>
                         <TableCell className="font-semibold border-r border-white/5 text-slate-200" size="sm">
-                          {report.site_visit_date ? new Date(report.site_visit_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : 'N/A'}
+                          {item.site_visit_date ? new Date(item.site_visit_date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : 'N/A'}
                         </TableCell>
-                        <TableCell className="border-r border-white/5 truncate max-w-[200px]" title={report.work_progress_details} size="sm">
-                          {report.work_progress_details}
+                        <TableCell className="border-r border-white/5 truncate max-w-[200px]" title={item.work_progress_details} size="sm">
+                          {item.work_progress_details}
                         </TableCell>
                         <TableCell align="center" className="font-mono font-bold text-emerald-400 border-r border-white/5" size="sm">
                           {report.physical_work_progress}%
@@ -666,13 +860,14 @@ const DailyProgress = () => {
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      ) /* end progress row */
+                    )}
 
                     {/* Inline input form row for JE */}
                     {showCreateFlow && (
                       <TableRow hover={false} className="bg-emerald-500/[0.02] border-t border-b border-emerald-500/20 text-left">
                         <TableCell align="center" className="font-mono font-bold border-r border-emerald-500/20 text-emerald-400" size="sm">
-                          {reports.length + 1}
+                          {mergedLedger.length + 1}
                         </TableCell>
                         <TableCell className="border-r border-emerald-500/20" size="sm">
                           <Input
@@ -785,10 +980,37 @@ const DailyProgress = () => {
                   </TableBody>
                 </Table>
 
+                {/* §10.8 — Ledger Pagination (mergedLedger, not reports) */}
+                {totalLedgerPages > 1 && (
+                  <div className="flex justify-between items-center bg-white/[0.01] border-t border-white/5 px-4 py-3 text-[10px] select-none">
+                    <span className="text-slate-500 font-bold uppercase tracking-wider">
+                      Page {pageFeed} of {totalLedgerPages} ({mergedLedger.length} entries)
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        disabled={pageFeed === 1}
+                        onClick={() => setPageFeed(prev => Math.max(1, prev - 1))}
+                        size="xs"
+                        variant="secondary"
+                      >
+                        Prev
+                      </Button>
+                      <Button
+                        disabled={pageFeed === totalLedgerPages}
+                        onClick={() => setPageFeed(prev => Math.min(totalLedgerPages, prev + 1))}
+                        size="xs"
+                        variant="secondary"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {/* Aggregated spreadsheet summary metrics */}
                 <div className="p-4 border-t border-white/5 bg-emerald-950/5 border-l border-r border-b rounded-b-3xl">
                   <span className="text-[9px] uppercase font-black tracking-widest text-emerald-400 font-sans">Ledger Aggregated Summary Metrics</span>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                  <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mt-2">
                     <div className="p-3 rounded-2xl bg-black/40 border border-white/5 text-center">
                       <p className="text-[8px] font-bold uppercase tracking-widest text-slate-500">Total Days Logged</p>
                       <p className="text-lg font-black text-slate-100 mt-1">{metrics.totalDays}</p>
@@ -804,6 +1026,28 @@ const DailyProgress = () => {
                     <div className="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-900/30 text-center">
                       <p className="text-[8px] font-bold uppercase tracking-widest text-emerald-400">Current Cumulative Progress</p>
                       <p className="text-lg font-black text-emerald-400 mt-1">{metrics.overallProgress}%</p>
+                    </div>
+                    {/* §10.9 — Break Days (Planned) */}
+                    <div className="p-3 rounded-2xl bg-amber-950/10 border border-amber-900/20 text-center">
+                      <p className="text-[8px] font-bold uppercase tracking-widest text-amber-400">Break Days (Planned)</p>
+                      <p className="text-lg font-black text-amber-300 mt-1">{metrics.totalBreakDays}</p>
+                    </div>
+                    {/* §10.9 — Break Status */}
+                    <div className={`p-3 rounded-2xl text-center ${
+                      metrics.breakStatus === 'Active'
+                        ? 'bg-amber-950/20 border border-amber-900/30'
+                        : metrics.breakStatus === 'Overdue'
+                        ? 'bg-orange-950/20 border border-orange-900/30'
+                        : 'bg-black/40 border border-white/5'
+                    }`}>
+                      <p className={`text-[8px] font-bold uppercase tracking-widest ${
+                        metrics.breakStatus === 'None' ? 'text-slate-500' : 'text-amber-400'
+                      }`}>Break Status</p>
+                      <p className={`text-sm font-black mt-1 ${
+                        metrics.breakStatus === 'Active' ? 'text-amber-300'
+                        : metrics.breakStatus === 'Overdue' ? 'text-orange-400'
+                        : 'text-slate-500'
+                      }`}>{metrics.breakStatus}</p>
                     </div>
                   </div>
                 </div>
@@ -1545,6 +1789,46 @@ const DailyProgress = () => {
                 />
               </div>
             </Modal>
+          )}
+
+          {/* Activity Break Modals */}
+          {showBreakRequestFlow && (
+            <NewBreakRequestModal
+              user={user}
+              workOrderNo={activeWO?.work_order_no}
+              onClose={() => setShowBreakRequestFlow(false)}
+              onSave={async (payload) => {
+                await createActivityBreak(payload);
+                queryClient.invalidateQueries({ queryKey: ['activityBreaks', 'project', activeWO?.work_order_no] });
+                setSuccess('Activity break request submitted.');
+              }}
+            />
+          )}
+
+          {breakActionTarget && (
+            <BreakActionModal
+              user={user}
+              breakRecord={breakActionTarget}
+              onClose={() => setBreakActionTarget(null)}
+              onSave={async (payload) => {
+                await actOnActivityBreak(breakActionTarget.id, payload);
+                queryClient.invalidateQueries({ queryKey: ['activityBreaks', 'project', activeWO?.work_order_no] });
+                setSuccess(`Break ${payload.action.toLowerCase()}d successfully.`);
+              }}
+            />
+          )}
+
+          {reopenTarget && (
+            <ReopenActionModal
+              user={user}
+              breakRecord={reopenTarget}
+              onClose={() => setReopenTarget(null)}
+              onSave={async (payload) => {
+                await actOnActivityBreak(reopenTarget.id, payload);
+                queryClient.invalidateQueries({ queryKey: ['activityBreaks', 'project', activeWO?.work_order_no] });
+                setSuccess('Reopen action submitted successfully.');
+              }}
+            />
           )}
     </>
   );

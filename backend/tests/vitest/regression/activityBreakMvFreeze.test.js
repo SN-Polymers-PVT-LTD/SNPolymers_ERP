@@ -139,6 +139,23 @@ describe('activityBreakMvFreeze — project_health_mv freeze behavior', () => {
     expect(row.reporting_health_score).toBe(100);
   });
 
+  test('stays frozen through Reopen Requested — resumption waits for HO ApproveReopen, not ZO RequestReopen', async () => {
+    const { error: updErr } = await supabase
+      .from('work_order_activity_breaks')
+      .update({ status: 'Reopen Requested' })
+      .eq('work_order_no', workOrder);
+    if (updErr) throw updErr;
+
+    await refreshAnalyticsViews();
+    const row = await fetchHealthRow();
+
+    expect(row.is_on_break).toBe(true);
+    expect(row.break_overrun).toBe(true);
+    expect(row.days_since_last_report).toBe(0);
+    expect(row.reporting_score).toBe(15);
+    expect(row.reporting_health_score).toBe(100);
+  });
+
   test('unfreezes once status = Ended', async () => {
     const { error: updErr } = await supabase
       .from('work_order_activity_breaks')

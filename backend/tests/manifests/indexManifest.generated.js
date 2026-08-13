@@ -11,7 +11,7 @@ module.exports = {
     },
     "idx_activity_breaks_active": {
       "table": "work_order_activity_breaks",
-      "definition": "CREATE INDEX idx_activity_breaks_active ON public.work_order_activity_breaks USING btree (work_order_no) WHERE ((status)::text = 'Active'::text)"
+      "definition": "CREATE INDEX idx_activity_breaks_active ON public.work_order_activity_breaks USING btree (work_order_no) WHERE ((status)::text = ANY ((ARRAY['Active'::character varying, 'Reopen Requested'::character varying])::text[]))"
     },
     "idx_activity_breaks_one_active_per_wo": {
       "table": "work_order_activity_breaks",

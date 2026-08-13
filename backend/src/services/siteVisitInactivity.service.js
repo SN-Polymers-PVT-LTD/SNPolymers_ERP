@@ -136,11 +136,12 @@ async function checkSiteVisitInactivity() {
 
     const workOrderNos = [...new Set(mappings.map((m) => m.work_order_no))];
 
-    // status = 'Active' is the only predicate — NO date window
+    // status is the only predicate — NO date window. Reopen Requested still
+    // suppresses alerts: resumption only happens once HO approves the reopen.
     const { data: onBreakWOs, error: breakErr } = await supabase
       .from('work_order_activity_breaks')
       .select('work_order_no')
-      .eq('status', 'Active');
+      .in('status', ['Active', 'Reopen Requested']);
 
     if (breakErr) throw breakErr;
 

@@ -4,12 +4,15 @@
 --
 -- 1. New table work_order_activity_breaks (7-state status, expected_end_date)
 -- 2. Rewrite project_health_mv to freeze schedule/reporting penalties for
---    work orders on an Active break. The freeze gate is status = 'Active'
---    ONLY -- there is deliberately no date-window predicate anywhere in this
---    migration. Gating on expected_end_date would let the freeze silently
---    lift while a break is still Active but has run past its planned date,
+--    work orders on an Active or Reopen Requested break. The freeze gate is
+--    status IN ('Active', 'Reopen Requested') ONLY -- there is deliberately
+--    no date-window predicate anywhere in this migration. Gating on
+--    expected_end_date would let the freeze silently lift while a break is
+--    still in one of those statuses but has run past its planned date,
 --    reintroducing the false "stalled/behind schedule" penalty this feature
---    exists to eliminate.
+--    exists to eliminate. Reopen Requested is included because resumption
+--    only happens once HO formally approves the reopen (status -> Ended),
+--    not when the ZO merely requests it.
 -- 3. Re-create the three views CASCADE-dropped by the project_health_mv
 --    rewrite (budget_leakage_mv, executive_kpi_mv, zone_performance_mv),
 --    sourced via pg_dump against a live local Supabase instance so their
@@ -82,10 +85,12 @@ ALTER TABLE public.work_order_activity_breaks OWNER TO postgres;
 CREATE INDEX IF NOT EXISTS idx_activity_breaks_wo_status
     ON public.work_order_activity_breaks (work_order_no, status);
 
--- Fast lookup used in the daily-progress submission guard and inactivity service
+-- Fast lookup used in the daily-progress submission guard and inactivity service.
+-- Covers Reopen Requested too -- those gates still block/suppress until HO's
+-- ApproveReopen (status -> Ended), not merely the ZO's reopen request.
 CREATE INDEX IF NOT EXISTS idx_activity_breaks_active
     ON public.work_order_activity_breaks (work_order_no)
-    WHERE status = 'Active';
+    WHERE status IN ('Active', 'Reopen Requested');
 
 -- One non-terminal break per work order (business rule) via unique partial index
 CREATE UNIQUE INDEX IF NOT EXISTS idx_activity_breaks_one_active_per_wo
@@ -194,10 +199,11 @@ CREATE MATERIALIZED VIEW public.project_health_mv AS
             b.expected_end_date AS break_expected_end,
             TRUE AS is_on_break
            FROM public.work_order_activity_breaks b
-          WHERE b.status = 'Active'
+          WHERE b.status IN ('Active', 'Reopen Requested')
           -- status-only gate; NO date predicate. A break that has run past
-          -- expected_end_date but is still Active must keep freezing the
-          -- score -- that was the bug this rewrite exists to fix.
+          -- expected_end_date but is still Active (or Reopen Requested, not
+          -- yet HO-approved) must keep freezing the score -- that was the
+          -- bug this rewrite exists to fix.
         ), scores_calculated AS (
          SELECT pm.work_order_no,
             pm.site_details,
