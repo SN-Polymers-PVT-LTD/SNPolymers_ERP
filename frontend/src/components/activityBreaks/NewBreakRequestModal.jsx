@@ -116,13 +116,17 @@ const NewBreakRequestModal = ({ user, workOrderNo, onClose, onSave }) => {
               type="date"
               name="start_date"
               value={form.start_date}
-              max={form.expected_end_date || undefined}
               onChange={(e) => {
-                handleChange(e);
-                // Keep expected_end_date >= start_date at the UX level
-                if (form.expected_end_date < e.target.value) {
-                  setForm(prev => ({ ...prev, start_date: e.target.value, expected_end_date: e.target.value }));
-                }
+                const value = e.target.value;
+                // Keep expected_end_date >= start_date at the UX level.
+                // No max here — a start_date in the future (requesting a
+                // break in advance) is a normal, expected use case, not a
+                // bound to guard against.
+                setForm(prev => ({
+                  ...prev,
+                  start_date: value,
+                  expected_end_date: prev.expected_end_date < value ? value : prev.expected_end_date
+                }));
               }}
               required
               disabled={submitting}
