@@ -1851,6 +1851,64 @@ async function notifyHoExcessReturnModified(returnRequest) {
   }
 }
 
+async function notifyBreakStatusChanged(breakRecord, newStatus) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  if (newStatus !== 'Active' && newStatus !== 'Ended') {
+    return;
+  }
+  try {
+    const { data: jeUser, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', breakRecord.je_user_id)
+      .maybeSingle();
+
+    if (error || !jeUser) {
+      console.warn('[ACTIVITY BREAK] Failed to retrieve JE details for break notification:', error);
+      return;
+    }
+
+    if (!jeUser.telegram_chat_id || jeUser.telegram_chat_id.trim() === '') {
+      console.warn(`[ACTIVITY BREAK] JE user ${breakRecord.je_user_id} has no Telegram chat ID configured.`);
+      return;
+    }
+
+    if (!TELEGRAM_BOT_TOKEN) {
+      console.warn('[ACTIVITY BREAK] TELEGRAM_BOT_TOKEN is not set.');
+      return;
+    }
+
+    const workOrder = escapeHtml(breakRecord.work_order_no || 'N/A');
+    const startDate = escapeHtml(breakRecord.start_date || 'N/A');
+    const endDate = escapeHtml(breakRecord.expected_end_date || 'N/A');
+    const isActive = newStatus === 'Active';
+    const headline = isActive
+      ? '⏸️ <b>Activity Break Approved</b>'
+      : '▶️ <b>Activity Break Ended</b>';
+    const body = isActive
+      ? 'Your activity break request has been approved. Daily progress submissions are paused until the break is formally reopened.'
+      : 'Your activity break has ended. Daily progress submissions and inactivity monitoring have resumed.';
+
+    const messageText =
+      `${headline}\n\n` +
+      `${body}\n\n` +
+      `<b>Work Order:</b> ${workOrder}\n` +
+      `<b>Break Period:</b> ${startDate} → ${endDate}\n\n` +
+      `Please check the details on your IDBP dashboard.`;
+
+    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (!data.ok) {
+      console.warn(`[ACTIVITY BREAK] Failed to send break status notification to JE: ${data.description}`);
+    }
+  } catch (error) {
+    console.error(`[ACTIVITY BREAK] notifyBreakStatusChanged failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   escapeHtml,
   sendOtp,
@@ -1876,5 +1934,6 @@ module.exports = {
   notifyZoExcessReturnRequested,
   notifyHoExcessReturnAccepted,
   notifyHoExcessReturnRejected,
-  notifyHoExcessReturnModified
+  notifyHoExcessReturnModified,
+  notifyBreakStatusChanged
 };

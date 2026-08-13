@@ -10,6 +10,7 @@
     "zo_balances",
     "zo_fund_ledger",
     "estimated_bills",
-    "estimate_quotations"
+    "estimate_quotations",
+    "work_order_activity_breaks"
   ]
 }

@@ -35,6 +35,7 @@ const excessFundReturnsRoutes = require('./routes/fundReturns.routes');
 const zoBalancesRoutes = require('./routes/zoBalances.routes');
 const analyticsRoutes = require('./routes/analytics.routes');
 const estimatedBillsRoutes = require('./routes/estimatedBills.routes');
+const activityBreaksRoutes = require('./routes/activityBreaks.routes');
 
 
 const { startPolling, registerWebhook } = require('./services/telegram.service');
@@ -97,6 +98,7 @@ app.use('/api/v1/auth/excess-fund-returns', excessFundReturnsRoutes);
 app.use('/api/v1/auth/zo-balances', zoBalancesRoutes);
 app.use('/api/v1/auth/analytics', analyticsRoutes);
 app.use('/api/v1/auth/estimated-bills', estimatedBillsRoutes);
+app.use('/api/v1/auth/activity-breaks', activityBreaksRoutes);
 
 
 // Health check route with database connectivity ping

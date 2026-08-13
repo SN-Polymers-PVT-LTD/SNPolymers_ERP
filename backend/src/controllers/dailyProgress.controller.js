@@ -94,6 +94,24 @@ async function createProgressReport(req, res) {
       });
     }
 
+    // Block submissions during an active break — status-only, no date-window.
+    // Reopen Requested still blocks: resumption only happens once HO formally
+    // approves the reopen (status -> Ended), not when the ZO merely requests it.
+    const { data: activeBreak, error: breakErr } = await supabase
+      .from('work_order_activity_breaks')
+      .select('id, start_date, expected_end_date')
+      .eq('work_order_no', work_order_no.trim())
+      .in('status', ['Active', 'Reopen Requested'])
+      .maybeSingle();
+
+    if (breakErr) throw breakErr;
+    if (activeBreak) {
+      return res.status(409).json({
+        success: false,
+        message: `Daily progress submissions are blocked. This work order is on an approved activity break (started ${activeBreak.start_date}, expected end ${activeBreak.expected_end_date}). Submissions resume once the break is formally reopened.`
+      });
+    }
+
     // Fetch JE's active Zonal Office mapping
     const { data: jeMapping, error: jeMapErr } = await supabase
       .from('je_zo_mappings')

@@ -465,17 +465,30 @@ export const WorkOrderTelemetryTable = ({
                     <span className="font-extrabold text-slate-200">{row.physical_progress}%</span>
                   </td>
                   <td className="py-3.5 text-right">
-                    <span
-                      className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
-                        row.health_status === 'Critical'
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          : row.health_status === 'Warning'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                      }`}
-                    >
-                      {row.health_status || 'Healthy'}
-                    </span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span
+                        className={`px-2.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                          row.health_status === 'Critical'
+                            ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                            : row.health_status === 'Warning'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        }`}
+                      >
+                        {row.health_status || 'Healthy'}
+                      </span>
+                      {/* Activity Break badge — break_overrun from project_health_mv */}
+                      {row.break_overrun && (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                          Break Overdue
+                        </span>
+                      )}
+                      {!row.break_overrun && row.is_on_break && (
+                        <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                          On Break
+                        </span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
