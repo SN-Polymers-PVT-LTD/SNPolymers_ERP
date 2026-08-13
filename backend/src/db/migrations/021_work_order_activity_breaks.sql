@@ -256,7 +256,8 @@ CREATE MATERIALIZED VIEW public.project_health_mv AS
                     ELSE 0
                 END AS reporting_score,
                 CASE
-                    WHEN (lp.login_date IS NULL) THEN 0
+                    WHEN ab.is_on_break IS TRUE THEN 100
+                    WHEN lp.login_date IS NULL THEN 0
                     WHEN (((now())::date - (lp.login_date)::date) <= 1) THEN 100
                     WHEN (((now())::date - (lp.login_date)::date) <= 3) THEN 66
                     WHEN (((now())::date - (lp.login_date)::date) <= 7) THEN 33
