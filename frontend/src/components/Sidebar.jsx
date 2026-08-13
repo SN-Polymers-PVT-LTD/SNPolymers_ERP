@@ -44,16 +44,6 @@ export const MobileHeader = () => {
           </svg>
         )
       });
-      projItems.push({
-        to: '/daily-progress',
-        label: 'Activity Breaks',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11v4M10 13h4" />
-          </svg>
-        )
-      });
     }
     menuGroups.push({ title: 'Project Control', items: projItems });
 
@@ -473,16 +463,6 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/daily-progress',
-        label: 'Activity Breaks',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11v4M10 13h4" />
           </svg>
         )
       });

@@ -483,7 +483,7 @@ export const WorkOrderTelemetryTable = ({
                           Break Overdue
                         </span>
                       )}
-                      {!row.break_overrun && row.has_active_break && (
+                      {!row.break_overrun && row.is_on_break && (
                         <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
                           On Break
                         </span>

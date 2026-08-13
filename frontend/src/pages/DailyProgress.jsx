@@ -24,6 +24,8 @@ import NewBreakRequestModal from '../components/activityBreaks/NewBreakRequestMo
 import BreakActionModal from '../components/activityBreaks/BreakActionModal';
 import ReopenActionModal from '../components/activityBreaks/ReopenActionModal';
 
+const STABLE_EMPTY_ARRAY = [];
+
 const DailyProgress = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -214,7 +216,7 @@ const DailyProgress = () => {
 
   const projects = projectsData || [];
   const allReports = allReportsData || [];
-  const reports = projectReportsData || [];
+  const reports = projectReportsData || STABLE_EMPTY_ARRAY;
   const loading = loadingAllReports || (activeWO ? loadingProjectReports : false);
 
   // §10.1 — Break records query, scoped to selected work order
@@ -227,7 +229,7 @@ const DailyProgress = () => {
     enabled: !!activeWO,
     staleTime: 30 * 1000
   });
-  const breakRecords = breakRecordsData || [];
+  const breakRecords = breakRecordsData || STABLE_EMPTY_ARRAY;
 
   // §10.2 — Merged & sorted timeline with explicit tiebreaker
   // Same-day: break rows sort BEFORE progress rows (break explains the gap)
@@ -263,7 +265,10 @@ const DailyProgress = () => {
   // Computed: is there a non-terminal break for this WO right now?
   const TERMINAL_STATUSES = ['Rejected by ZO', 'Cancelled by JE', 'Ended'];
   const activeBreakForThisWO = breakRecords.find(b => !TERMINAL_STATUSES.includes(b.status)) || null;
-  const activeApprovedBreak  = breakRecords.find(b => b.status === 'Active') || null;
+  // Submissions are blocked for Active AND Reopen Requested — resumption only
+  // happens once HO formally approves the reopen (status -> Ended), matching
+  // the backend guard in dailyProgress.controller.js.
+  const activeApprovedBreak  = breakRecords.find(b => ['Active', 'Reopen Requested'].includes(b.status)) || null;
 
   const displayError = error || allReportsError?.response?.data?.message || allReportsError?.message || projectReportsError?.response?.data?.message || projectReportsError?.message || '';
 
@@ -491,7 +496,7 @@ const DailyProgress = () => {
         const end = new Date(b.expected_end_date);
         return sum + Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1;
       }, 0);
-    const currentActiveBreak = breakRecords.find(b => b.status === 'Active') || null;
+    const currentActiveBreak = breakRecords.find(b => ['Active', 'Reopen Requested'].includes(b.status)) || null;
     const breakStatus = currentActiveBreak
       ? (currentActiveBreak.break_overrun ? 'Overdue' : 'Active')
       : 'None';
@@ -676,9 +681,13 @@ const DailyProgress = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                   <div>
-                    <p className="font-extrabold text-amber-300 uppercase tracking-wider text-[10px]">Activity Break Active</p>
+                    <p className="font-extrabold text-amber-300 uppercase tracking-wider text-[10px]">
+                      {activeApprovedBreak.status === 'Reopen Requested' ? 'Activity Break — Reopen Requested' : 'Activity Break Active'}
+                    </p>
                     <p className="text-amber-200/80 mt-0.5">
-                      Submissions are blocked until the break is formally reopened.
+                      {activeApprovedBreak.status === 'Reopen Requested'
+                        ? 'Submissions remain blocked until HO formally approves the reopen.'
+                        : 'Submissions are blocked until the break is formally reopened.'}
                     </p>
                     <p className="text-amber-400/60 text-[10px] mt-1 font-mono">
                       {activeApprovedBreak.start_date} → {activeApprovedBreak.expected_end_date}
@@ -823,7 +832,7 @@ const DailyProgress = () => {
                           {item.work_progress_details}
                         </TableCell>
                         <TableCell align="center" className="font-mono font-bold text-emerald-400 border-r border-white/5" size="sm">
-                          {report.physical_work_progress}%
+                          {item.physical_work_progress}%
                         </TableCell>
                         <TableCell align="center" className="border-r border-white/5" size="sm">
                           <div className="flex justify-center items-center gap-1 text-[10px] text-emerald-400 font-bold font-mono">
@@ -833,27 +842,27 @@ const DailyProgress = () => {
                             <span>View</span>
                           </div>
                         </TableCell>
-                        <TableCell className="border-r border-white/5 truncate max-w-[150px]" title={report.remarks_after_site_visit || ''} size="sm">
-                          {report.remarks_after_site_visit || <span className="text-slate-600 italic">None</span>}
+                        <TableCell className="border-r border-white/5 truncate max-w-[150px]" title={item.remarks_after_site_visit || ''} size="sm">
+                          {item.remarks_after_site_visit || <span className="text-slate-600 italic">None</span>}
                         </TableCell>
-                        <TableCell className="pr-4 truncate max-w-[180px]" title={report.remarks_approved_authority || ''} size="sm">
-                          {report.remarks_approved_authority ? (
+                        <TableCell className="pr-4 truncate max-w-[180px]" title={item.remarks_approved_authority || ''} size="sm">
+                          {item.remarks_approved_authority ? (
                             <div className="flex flex-col gap-0.5">
-                              <span className="text-slate-300">{report.remarks_approved_authority}</span>
-                              <span className={`text-[8px] font-bold uppercase ${report.approval_status === 'Approved' ? 'text-emerald-400' :
-                                report.approval_status === 'Rejected' ? 'text-red-400' : 'text-amber-500'
+                              <span className="text-slate-300">{item.remarks_approved_authority}</span>
+                              <span className={`text-[8px] font-bold uppercase ${item.approval_status === 'Approved' ? 'text-emerald-400' :
+                                item.approval_status === 'Rejected' ? 'text-red-400' : 'text-amber-500'
                                 }`}>
-                                [{report.approval_status === 'Rejected' ? 'REJECTED DUE TO BACKDATE' : (report.approval_status || 'Approved')}]
+                                [{item.approval_status === 'Rejected' ? 'REJECTED DUE TO BACKDATE' : (item.approval_status || 'Approved')}]
                               </span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5">
-                              <span className={`text-[8px] font-bold uppercase ${report.approval_status === 'Approved' ? 'text-emerald-400' :
-                                report.approval_status === 'Rejected' ? 'text-red-400' : 'text-amber-500'
+                              <span className={`text-[8px] font-bold uppercase ${item.approval_status === 'Approved' ? 'text-emerald-400' :
+                                item.approval_status === 'Rejected' ? 'text-red-400' : 'text-amber-500'
                                 }`}>
-                                [{report.approval_status === 'Rejected' ? 'REJECTED DUE TO BACKDATE' : (report.approval_status || 'Approved')}]
+                                [{item.approval_status === 'Rejected' ? 'REJECTED DUE TO BACKDATE' : (item.approval_status || 'Approved')}]
                               </span>
-                              {report.approval_status === 'Pending' && (
+                              {item.approval_status === 'Pending' && (
                                 <span className="text-slate-600 italic">Pending review</span>
                               )}
                             </div>
