@@ -1851,59 +1851,267 @@ async function notifyHoExcessReturnModified(returnRequest) {
   }
 }
 
+async function getActiveHoTelegramRecipients() {
+  const { data: hoUsers, error } = await supabase
+    .from('authorised_users')
+    .select('display_name, telegram_chat_id')
+    .eq('role', 'ho')
+    .eq('is_active', true)
+    .not('telegram_chat_id', 'is', null);
+
+  if (error) {
+    console.warn(`[ACTIVITY BREAK] Failed to retrieve active HO users: ${error.message}`);
+    return [];
+  }
+
+  return (hoUsers || []).filter((u) => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+}
+
+async function getZoTelegramUserForWorkOrder(workOrderNo) {
+  const { data: project, error: projErr } = await supabase
+    .from('projects_master')
+    .select('zo_user_id')
+    .eq('work_order_no', workOrderNo)
+    .maybeSingle();
+
+  if (projErr) {
+    console.warn(`[ACTIVITY BREAK] Failed to fetch project for WO ${workOrderNo}: ${projErr.message}`);
+    return null;
+  }
+  if (!project?.zo_user_id) {
+    return null;
+  }
+
+  const { data: zoUser, error: zoErr } = await supabase
+    .from('authorised_users')
+    .select('display_name, telegram_chat_id')
+    .eq('mobile_number', project.zo_user_id)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (zoErr) {
+    console.warn(`[ACTIVITY BREAK] Failed to fetch ZO user ${project.zo_user_id}: ${zoErr.message}`);
+    return null;
+  }
+
+  if (!zoUser?.telegram_chat_id || zoUser.telegram_chat_id.trim() === '') {
+    console.warn(`[ACTIVITY BREAK] ZO user ${project.zo_user_id} has no Telegram chat ID configured.`);
+    return null;
+  }
+
+  return zoUser;
+}
+
+async function getJeTelegramUser(jeUserId) {
+  const { data: jeUser, error } = await supabase
+    .from('authorised_users')
+    .select('display_name, telegram_chat_id')
+    .eq('mobile_number', jeUserId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn(`[ACTIVITY BREAK] Failed to retrieve JE ${jeUserId}: ${error.message}`);
+    return null;
+  }
+  if (!jeUser?.telegram_chat_id || jeUser.telegram_chat_id.trim() === '') {
+    console.warn(`[ACTIVITY BREAK] JE user ${jeUserId} has no Telegram chat ID configured.`);
+    return null;
+  }
+
+  return jeUser;
+}
+
+function formatBreakPeriodLine(breakRecord) {
+  const workOrder = escapeHtml(breakRecord.work_order_no || 'N/A');
+  const startDate = escapeHtml(breakRecord.start_date || 'N/A');
+  const endDate = escapeHtml(breakRecord.expected_end_date || 'N/A');
+  return {
+    workOrder,
+    startDate,
+    endDate,
+    periodLine: `<b>Work Order:</b> ${workOrder}\n<b>Break Period:</b> ${startDate} → ${endDate}`
+  };
+}
+
+async function sendBreakTelegramMessages(recipients, messageText) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn('[ACTIVITY BREAK] TELEGRAM_BOT_TOKEN is not set.');
+    return;
+  }
+
+  for (const recipient of recipients) {
+    try {
+      const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!data.ok) {
+        console.warn(
+          `[ACTIVITY BREAK] Failed to send notification to ${recipient.display_name || 'recipient'}: ${data.description}`
+        );
+      }
+    } catch (err) {
+      console.warn(
+        `[ACTIVITY BREAK] Failed to send notification to ${recipient.display_name || 'recipient'}: ${err.message}`
+      );
+    }
+  }
+}
+
+async function notifyBreakRequestSubmitted(breakRecord) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const { data: jeUserMeta } = await supabase
+      .from('authorised_users')
+      .select('display_name')
+      .eq('mobile_number', breakRecord.je_user_id)
+      .maybeSingle();
+    const jeName = escapeHtml(jeUserMeta?.display_name || breakRecord.je_user_id || 'N/A');
+    const remarks = escapeHtml(breakRecord.je_remarks || 'None');
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
+
+    const messageText =
+      `📥 <b>New Activity Break Request</b>\n\n` +
+      `${periodLine}\n` +
+      `<b>Submitted By:</b> ${jeName}\n` +
+      `<b>Reason:</b> ${remarks}\n\n` +
+      `Please review this activity break request on the IDBP dashboard.`;
+
+    const zoUser = await getZoTelegramUserForWorkOrder(breakRecord.work_order_no);
+    const hoUsers = await getActiveHoTelegramRecipients();
+    const recipients = [...(zoUser ? [zoUser] : []), ...hoUsers];
+
+    if (recipients.length === 0) {
+      console.warn('[ACTIVITY BREAK] No ZO/HO Telegram recipients for new break request.');
+      return;
+    }
+
+    await sendBreakTelegramMessages(recipients, messageText);
+  } catch (error) {
+    console.error(`[ACTIVITY BREAK] notifyBreakRequestSubmitted failed: ${error.message}`);
+  }
+}
+
+async function notifyBreakZoActed(breakRecord) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const accepted = breakRecord.status === 'Pending HO Review';
+    const zoRemarks = escapeHtml(breakRecord.zo_remarks || 'None');
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
+
+    const jeUser = await getJeTelegramUser(breakRecord.je_user_id);
+    if (jeUser) {
+      const jeMessage = accepted
+        ? `✅ <b>Activity Break Accepted by ZO</b>\n\n` +
+          `Your activity break request was accepted by the Zonal Office and is now pending HO approval.\n\n` +
+          `${periodLine}\n` +
+          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+          `You will be notified once HO takes final action.`
+        : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
+          `Your activity break request was rejected by the Zonal Office.\n\n` +
+          `${periodLine}\n` +
+          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+          `You may submit a new request if needed.`;
+      await sendBreakTelegramMessages([jeUser], jeMessage);
+    }
+
+    const hoUsers = await getActiveHoTelegramRecipients();
+    if (hoUsers.length > 0) {
+      const hoMessage = accepted
+        ? `📋 <b>Activity Break Pending HO Approval</b>\n\n` +
+          `The Zonal Office accepted an activity break request. HO approval is required.\n\n` +
+          `${periodLine}\n` +
+          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+          `Please review on the IDBP dashboard.`
+        : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
+          `The Zonal Office rejected an activity break request.\n\n` +
+          `${periodLine}\n` +
+          `<b>ZO Remarks:</b> ${zoRemarks}`;
+      await sendBreakTelegramMessages(hoUsers, hoMessage);
+    }
+  } catch (error) {
+    console.error(`[ACTIVITY BREAK] notifyBreakZoActed failed: ${error.message}`);
+  }
+}
+
+async function notifyBreakHoApproved(breakRecord) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
+
+    const jeUser = await getJeTelegramUser(breakRecord.je_user_id);
+    if (jeUser) {
+      const jeMessage =
+        `⏸️ <b>Activity Break Approved</b>\n\n` +
+        `Your activity break request has been approved by HO. Daily progress submissions are paused until the break is formally reopened.\n\n` +
+        `${periodLine}\n\n` +
+        `Please check the details on your IDBP dashboard.`;
+      await sendBreakTelegramMessages([jeUser], jeMessage);
+    }
+
+    const zoUser = await getZoTelegramUserForWorkOrder(breakRecord.work_order_no);
+    if (zoUser) {
+      const zoMessage =
+        `⏸️ <b>Activity Break Now Active</b>\n\n` +
+        `HO has approved the activity break for this work order. The site is now on break.\n\n` +
+        `${periodLine}\n\n` +
+        `Daily progress submissions are blocked until you request and HO approves reopen.`;
+      await sendBreakTelegramMessages([zoUser], zoMessage);
+    }
+  } catch (error) {
+    console.error(`[ACTIVITY BREAK] notifyBreakHoApproved failed: ${error.message}`);
+  }
+}
+
+async function notifyBreakReopenRequested(breakRecord) {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+  try {
+    const reopenRemarks = escapeHtml(breakRecord.reopen_remarks || 'None');
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
+
+    const hoUsers = await getActiveHoTelegramRecipients();
+    if (hoUsers.length > 0) {
+      const hoMessage =
+        `🔄 <b>Activity Break Reopen Requested</b>\n\n` +
+        `The Zonal Office requested to reopen this activity break. HO approval is required.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${reopenRemarks}\n\n` +
+        `Please review on the IDBP dashboard.`;
+      await sendBreakTelegramMessages(hoUsers, hoMessage);
+    }
+  } catch (error) {
+    console.error(`[ACTIVITY BREAK] notifyBreakReopenRequested failed: ${error.message}`);
+  }
+}
+
 async function notifyBreakStatusChanged(breakRecord, newStatus) {
   if (process.env.NODE_ENV === 'test') {
     return;
   }
-  if (newStatus !== 'Active' && newStatus !== 'Ended') {
+  if (newStatus !== 'Ended') {
     return;
   }
   try {
-    const { data: jeUser, error } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('mobile_number', breakRecord.je_user_id)
-      .maybeSingle();
-
-    if (error || !jeUser) {
-      console.warn('[ACTIVITY BREAK] Failed to retrieve JE details for break notification:', error);
+    const jeUser = await getJeTelegramUser(breakRecord.je_user_id);
+    if (!jeUser) {
       return;
     }
 
-    if (!jeUser.telegram_chat_id || jeUser.telegram_chat_id.trim() === '') {
-      console.warn(`[ACTIVITY BREAK] JE user ${breakRecord.je_user_id} has no Telegram chat ID configured.`);
-      return;
-    }
-
-    if (!TELEGRAM_BOT_TOKEN) {
-      console.warn('[ACTIVITY BREAK] TELEGRAM_BOT_TOKEN is not set.');
-      return;
-    }
-
-    const workOrder = escapeHtml(breakRecord.work_order_no || 'N/A');
-    const startDate = escapeHtml(breakRecord.start_date || 'N/A');
-    const endDate = escapeHtml(breakRecord.expected_end_date || 'N/A');
-    const isActive = newStatus === 'Active';
-    const headline = isActive
-      ? '⏸️ <b>Activity Break Approved</b>'
-      : '▶️ <b>Activity Break Ended</b>';
-    const body = isActive
-      ? 'Your activity break request has been approved. Daily progress submissions are paused until the break is formally reopened.'
-      : 'Your activity break has ended. Daily progress submissions and inactivity monitoring have resumed.';
-
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
     const messageText =
-      `${headline}\n\n` +
-      `${body}\n\n` +
-      `<b>Work Order:</b> ${workOrder}\n` +
-      `<b>Break Period:</b> ${startDate} → ${endDate}\n\n` +
+      `▶️ <b>Activity Break Ended</b>\n\n` +
+      `Your activity break has ended. Daily progress submissions and inactivity monitoring have resumed.\n\n` +
+      `${periodLine}\n\n` +
       `Please check the details on your IDBP dashboard.`;
 
-    const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (!data.ok) {
-      console.warn(`[ACTIVITY BREAK] Failed to send break status notification to JE: ${data.description}`);
-    }
+    await sendBreakTelegramMessages([jeUser], messageText);
   } catch (error) {
     console.error(`[ACTIVITY BREAK] notifyBreakStatusChanged failed: ${error.message}`);
   }
@@ -1935,5 +2143,9 @@ module.exports = {
   notifyHoExcessReturnAccepted,
   notifyHoExcessReturnRejected,
   notifyHoExcessReturnModified,
+  notifyBreakRequestSubmitted,
+  notifyBreakZoActed,
+  notifyBreakHoApproved,
+  notifyBreakReopenRequested,
   notifyBreakStatusChanged
 };
