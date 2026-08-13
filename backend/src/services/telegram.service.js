@@ -2099,19 +2099,27 @@ async function notifyBreakStatusChanged(breakRecord, newStatus) {
     return;
   }
   try {
+    const { periodLine } = formatBreakPeriodLine(breakRecord);
+
     const jeUser = await getJeTelegramUser(breakRecord.je_user_id);
-    if (!jeUser) {
-      return;
+    if (jeUser) {
+      const jeMessage =
+        `▶️ <b>Activity Break Ended</b>\n\n` +
+        `Your activity break has ended. Daily progress submissions and inactivity monitoring have resumed.\n\n` +
+        `${periodLine}\n\n` +
+        `Please check the details on your IDBP dashboard.`;
+      await sendBreakTelegramMessages([jeUser], jeMessage);
     }
 
-    const { periodLine } = formatBreakPeriodLine(breakRecord);
-    const messageText =
-      `▶️ <b>Activity Break Ended</b>\n\n` +
-      `Your activity break has ended. Daily progress submissions and inactivity monitoring have resumed.\n\n` +
-      `${periodLine}\n\n` +
-      `Please check the details on your IDBP dashboard.`;
-
-    await sendBreakTelegramMessages([jeUser], messageText);
+    const zoUser = await getZoTelegramUserForWorkOrder(breakRecord.work_order_no);
+    if (zoUser) {
+      const zoMessage =
+        `▶️ <b>Activity Break Reopen Approved</b>\n\n` +
+        `HO approved the reopen request for this work order. The break has ended and daily progress submissions have resumed.\n\n` +
+        `${periodLine}\n\n` +
+        `Please check the details on the IDBP dashboard.`;
+      await sendBreakTelegramMessages([zoUser], zoMessage);
+    }
   } catch (error) {
     console.error(`[ACTIVITY BREAK] notifyBreakStatusChanged failed: ${error.message}`);
   }
