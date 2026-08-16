@@ -657,17 +657,14 @@ const ExcessFundReturns = () => {
                         <div className="font-mono font-bold text-slate-200">{woBal.work_order_no}</div>
                         <div className="text-[10px] text-slate-500">Avail. Balance: ₹{Number(woBal.available_balance).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
                       </div>
-                      <div className="relative max-w-xs w-full sm:w-48">
-                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-[10px]">₹</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max={woBal.available_balance}
+                      <div className="max-w-xs w-full sm:w-48">
+                        <FormattedCurrencyInput
                           placeholder="0.00"
                           value={breakdownAllocations[woBal.work_order_no] || ''}
-                          onChange={(e) => handleAllocationChange(woBal.work_order_no, e.target.value, woBal.available_balance)}
-                          className="w-full bg-white/5 border border-white/10 rounded-xl pl-8 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                          onValueChange={(val) => handleAllocationChange(woBal.work_order_no, val, woBal.available_balance)}
+                          iconLeft={<span className="text-[10px] text-slate-500 font-bold">₹</span>}
+                          className="w-full bg-white/5 border border-white/10 rounded-xl pr-4 py-2 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                          size="sm"
                         />
                       </div>
                     </div>

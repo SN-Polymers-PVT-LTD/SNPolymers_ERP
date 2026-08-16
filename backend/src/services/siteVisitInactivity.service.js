@@ -136,6 +136,18 @@ async function checkSiteVisitInactivity() {
 
     const workOrderNos = [...new Set(mappings.map((m) => m.work_order_no))];
 
+    // status is the only predicate — NO date window. Reopen Requested still
+    // suppresses alerts: resumption only happens once HO approves the reopen.
+    const { data: onBreakWOs, error: breakErr } = await supabase
+      .from('work_order_activity_breaks')
+      .select('work_order_no')
+      .in('status', ['Active', 'Reopen Requested']);
+
+    if (breakErr) throw breakErr;
+
+    const onBreakSet = new Set((onBreakWOs || []).map((b) => b.work_order_no));
+    const activeMappings = (mappings || []).filter((m) => !onBreakSet.has(m.work_order_no));
+
     const { data: reports, error: reportErr } = await supabase
       .from('daily_progress_reports')
       .select('work_order_no, site_visit_date, daily_site_photo_url')
@@ -145,7 +157,7 @@ async function checkSiteVisitInactivity() {
     if (reportErr) throw reportErr;
 
     const lastVisitMap = buildLastPhotoVisitMap(reports);
-    const flaggedGroups = groupInactiveWorkOrders(mappings, lastVisitMap, todayISTStr);
+    const flaggedGroups = groupInactiveWorkOrders(activeMappings, lastVisitMap, todayISTStr);
 
     if (flaggedGroups.length === 0) {
       console.log('[SITE VISIT INACTIVITY] No inactivity cases found today.');
@@ -154,7 +166,7 @@ async function checkSiteVisitInactivity() {
 
     console.log(`[SITE VISIT INACTIVITY] Found ${flaggedGroups.length} flagged work order(s).`);
 
-    const jeIds = [...new Set(mappings.map((m) => m.je_user_id))];
+    const jeIds = [...new Set(activeMappings.map((m) => m.je_user_id))];
 
     const { data: jeUsers, error: jeErr } = await supabase
       .from('authorised_users')

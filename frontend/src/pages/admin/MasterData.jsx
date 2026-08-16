@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, SuccessPopup, ErrorPopup } from '../../components/ui';
+import { Modal, SuccessPopup, ErrorPopup, FormattedCurrencyInput } from '../../components/ui';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import Pagination from '../../components/ui/Pagination';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
@@ -157,6 +157,19 @@ const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
                     </option>
                   ))}
                 </select>
+              ) : (name === 'work_order_value' || name === 'earnest_money_deposit') ? (
+                <FormattedCurrencyInput
+                  name={name}
+                  value={form[name]}
+                  onValueChange={(val) => setForm((prev) => ({ ...prev, [name]: val }))}
+                  placeholder={placeholder}
+                  disabled={disabled || submitting}
+                  required={name === 'work_order_no' || name === 'work_order_value'}
+                  className={`w-full glass-input focus:ring-0 outline-none rounded-xl px-4 py-3 text-sm font-semibold transition ${
+                    disabled ? 'opacity-50 cursor-not-allowed text-slate-500' : 'text-slate-100'
+                  }`}
+                  {...rest}
+                />
               ) : (
                 <input
                   type={type || 'text'}

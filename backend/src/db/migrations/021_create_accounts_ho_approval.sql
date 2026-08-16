@@ -1,6 +1,6 @@
 -- Migration: 021_create_accounts_ho_approval.sql
--- Description: Accounts Department HO Approval Requisition Sheet — tables, indexes, RLS,
--- RPCs, and triggers. See docs/accounts_ho_approval_technical_design_v5.md §3 for full design
+-- Description: Accounts Department HO Approval Requisition Sheet - tables, indexes, RLS,
+-- RPCs, and triggers. See docs/accounts_ho_approval_technical_design_v5.md Section 3 for full design
 -- rationale (NB1/NB2/NB3/S1-S6/B1-B4/H1-H3 fixes referenced in comments below).
 
 -- ============================================================================
@@ -80,13 +80,13 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_sheets" (
 );
 
 -- ============================================================================
--- 5. acct_requisition_line_items — NB1 + NB2 fix
+-- 5. acct_requisition_line_items - NB1 + NB2 fix
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
     "id"              uuid          DEFAULT gen_random_uuid() NOT NULL,
     "sheet_id"        uuid          NOT NULL,
 
-    -- ── Accounts-side fields (product doc §6) ──────────────────────────────────
+    -- -- Accounts-side fields (product doc Section 6) ----------------------------------
     "account_sub_title_id"   uuid,
     "account_sub_title_text" varchar,
     "particulars"       text,
@@ -101,9 +101,9 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
     "cheque_no"         varchar,
     "cheque_date"       varchar,
 
-    -- ── Workflow status ────────────────────────────────────────────────────────
+    -- -- Workflow status --------------------------------------------------------
     -- NB2 FIX: NULL while sheet is Open (no DEFAULT). First value 'Pending HO Review'
-    -- is set by submit_acct_sheet_transact, making the submit a genuine NULL→value transition
+    -- is set by submit_acct_sheet_transact, making the submit a genuine NULL->value transition
     -- that the audit trigger can detect with IS DISTINCT FROM. The CHECK allows NULL.
     "requisition_status" varchar,
     "revision_number"   integer     NOT NULL DEFAULT 0,
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
     "reopened_at"       timestamptz,
     "reopen_remark"     text,
 
-    -- ── Live HO decision (current cycle only) ─────────────────────────────────
+    -- -- Live HO decision (current cycle only) ---------------------------------
     -- NB1 FIX: these three columns are always cleared together on resubmit/reopen.
     -- The CHECK constraint governs these; because ho_process is also cleared on resubmit,
     -- the constraint can never be violated by the resubmit path.
@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
     "ho_pass_amount"    numeric(18,2),
     "ho_remarks"        text,
 
-    -- ── Last-cycle HO decision (for UI display across resubmit/reopen cycles) ─
+    -- -- Last-cycle HO decision (for UI display across resubmit/reopen cycles) -
     -- NB1 FIX: resubmit/reopen populate these from the live columns before clearing them.
     -- LastHoActionTag and ReopenedBadge read from here, not from the live columns.
     "last_ho_process"       varchar,
@@ -130,15 +130,15 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
     "last_ho_actioned_by"   varchar,
     "last_ho_actioned_at"   timestamptz,
 
-    -- Set on Approved/Partially Approved — which bank balance row was debited
+    -- Set on Approved/Partially Approved - which bank balance row was debited
     "bank_balance_master_id" uuid,
 
-    -- ── Bulk NEFT export flag (product doc §10) ─────────────────────────────
+    -- -- Bulk NEFT export flag (product doc Section 10) -----------------------------
     "neft_exported"     boolean     NOT NULL DEFAULT false,
     "neft_exported_at"  timestamptz,
     "neft_exported_by"  varchar,
 
-    -- ── Audit fields ──────────────────────────────────────────────────────────
+    -- -- Audit fields ----------------------------------------------------------
     "created_by"    varchar     NOT NULL,
     "created_at"    timestamptz DEFAULT now() NOT NULL,
     "updated_at"    timestamptz DEFAULT now() NOT NULL,
@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS "public"."acct_requisition_line_items" (
 );
 
 -- ============================================================================
--- 6. Indexes (7 total — idx_bm_acno_ifsc intentionally omitted, see note)
+-- 6. Indexes (7 total - idx_bm_acno_ifsc intentionally omitted, see note)
 -- ============================================================================
 
 -- Sheet status filter (HO sees only Submitted sheets)
@@ -211,11 +211,11 @@ CREATE INDEX "idx_arli_debit_bank_approved"
     ON acct_requisition_line_items (debit_bank_ac_type, requisition_status)
     WHERE requisition_status IN ('Approved', 'Partially Approved');
 
--- NOTE: idx_bm_acno_ifsc is intentionally NOT created — uq_beneficiary_acno_ifsc
+-- NOTE: idx_bm_acno_ifsc is intentionally NOT created - uq_beneficiary_acno_ifsc
 -- UNIQUE(account_number, ifsc) on beneficiary_master already creates a backing index.
 
 -- ============================================================================
--- 7. Row Level Security — S1: house pattern is ENABLE RLS with no CREATE POLICY
+-- 7. Row Level Security - S1: house pattern is ENABLE RLS with no CREATE POLICY
 -- ============================================================================
 ALTER TABLE "public"."bank_balance_master"          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."account_sub_title_master"     ENABLE ROW LEVEL SECURITY;
@@ -224,7 +224,7 @@ ALTER TABLE "public"."acct_requisition_sheets"      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."acct_requisition_line_items"  ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================
--- 8. RPC: create_acct_sheet_transact — B4 fix (sheet number generation is atomic with INSERT)
+-- 8. RPC: create_acct_sheet_transact - B4 fix (sheet number generation is atomic with INSERT)
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."create_acct_sheet_transact"(
     p_created_by varchar,
@@ -243,7 +243,7 @@ BEGIN
     -- UNIQUE(sheet_number) is the DB backstop.
     PERFORM pg_advisory_xact_lock(hashtext('acct_sheet_' || v_date_str));
 
-    -- Safe inside the advisory lock — no concurrent session can enter this block for the same date.
+    -- Safe inside the advisory lock - no concurrent session can enter this block for the same date.
     SELECT COUNT(*) + 1 INTO v_seq
     FROM acct_requisition_sheets
     WHERE sheet_number LIKE v_date_str || '-%';
@@ -293,7 +293,7 @@ BEGIN
     WHERE id = p_sheet_id RETURNING * INTO v_sheet;
 
     -- NB2 fix: requisition_status is NULL at this point (no DEFAULT on the column).
-    -- This UPDATE is a genuine NULL → 'Pending HO Review' transition the audit trigger detects.
+    -- This UPDATE is a genuine NULL -> 'Pending HO Review' transition the audit trigger detects.
     UPDATE acct_requisition_line_items
     SET requisition_status = 'Pending HO Review', updated_at = now()
     WHERE sheet_id = p_sheet_id;
@@ -344,7 +344,7 @@ BEGIN
         RAISE EXCEPTION 'Bank Balance Master entry not found: %', v_item.debit_bank_ac_type USING ERRCODE = 'BNK01';
     END IF;
 
-    -- STATUS-FLAG gated, NOT date-window gated. See design doc §9 for rationale.
+    -- STATUS-FLAG gated, NOT date-window gated. See design doc Section 9 for rationale.
     SELECT COALESCE(SUM(ho_pass_amount), 0) INTO v_total_approved
     FROM acct_requisition_line_items
     WHERE debit_bank_ac_type = v_item.debit_bank_ac_type
@@ -376,7 +376,7 @@ BEGIN
 END; $$;
 
 -- ============================================================================
--- 11. RPC: act_acct_line_item_non_approve_transact (Hold / Return / Reject) — H2 fix
+-- 11. RPC: act_acct_line_item_non_approve_transact (Hold / Return / Reject) - H2 fix
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."act_acct_line_item_non_approve_transact"(
     p_line_item_id uuid,
@@ -427,7 +427,7 @@ BEGIN
 END; $$;
 
 -- ============================================================================
--- 12. RPC: resubmit_acct_line_item_transact (Accounts resubmit after Return) — NB1 fix
+-- 12. RPC: resubmit_acct_line_item_transact (Accounts resubmit after Return) - NB1 fix
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."resubmit_acct_line_item_transact"(
     p_line_item_id uuid,
@@ -467,10 +467,10 @@ BEGIN
         requisition_status   = 'Pending HO Review',
         revision_number      = v_item.revision_number + 1,
 
-        -- NB1 FIX: copy live HO fields → last_ho_* before clearing the live set.
+        -- NB1 FIX: copy live HO fields -> last_ho_* before clearing the live set.
         -- The audit trigger sees OLD.ho_process (still set) before this UPDATE commits,
         -- so the audit event captures the prior decision. last_ho_* columns let the UI
-        -- display "Last HO action: Returned for Correction — [remarks]" after resubmit.
+        -- display "Last HO action: Returned for Correction - [remarks]" after resubmit.
         last_ho_process      = v_item.ho_process,
         last_ho_remarks      = v_item.ho_remarks,
         last_ho_actioned_by  = v_item.ho_actioned_by,
@@ -478,7 +478,7 @@ BEGIN
 
         -- Clear live HO fields: HO hasn't acted on this revision yet.
         -- With ho_process also cleared, the CHECK constraint (ho_process IS NULL) = (ho_actioned_by IS NULL)
-        -- evaluates (TRUE) = (TRUE) = TRUE — no violation.
+        -- evaluates (TRUE) = (TRUE) = TRUE - no violation.
         ho_process           = NULL,
         ho_actioned_by       = NULL,
         ho_actioned_at       = NULL,
@@ -511,7 +511,7 @@ BEGIN
 END; $$;
 
 -- ============================================================================
--- 13. RPC: reopen_acct_line_item_transact (authorized HO reopen from Rejected) — NB1 fix
+-- 13. RPC: reopen_acct_line_item_transact (authorized HO reopen from Rejected) - NB1 fix
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."reopen_acct_line_item_transact"(
     p_line_item_id  uuid,
@@ -541,7 +541,7 @@ BEGIN
         reopened_at           = now(),
         reopen_remark         = p_reopen_remark,
 
-        -- NB1 FIX: copy live HO fields → last_ho_* before clearing.
+        -- NB1 FIX: copy live HO fields -> last_ho_* before clearing.
         last_ho_process      = v_item.ho_process,
         last_ho_remarks      = v_item.ho_remarks,
         last_ho_actioned_by  = v_item.ho_actioned_by,
@@ -570,7 +570,7 @@ CREATE OR REPLACE FUNCTION "public"."set_acct_sub_title_updated_at"()     RETURN
 CREATE OR REPLACE FUNCTION "public"."set_beneficiary_master_updated_at"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN NEW.updated_at := now(); RETURN NEW; END; $$;
 
 -- ============================================================================
--- 15. Audit trigger functions — NB2 fix: relies on NULL→value transition
+-- 15. Audit trigger functions - NB2 fix: relies on NULL->value transition
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."audit_acct_sheet_events"() RETURNS trigger
     LANGUAGE plpgsql AS $$
@@ -621,11 +621,11 @@ BEGIN
         -- so the flag-based check only fires on the first reopen. reopened_at is stamped on
         -- every reopen call, so the timestamp discriminator correctly fires on every cycle.
         IF OLD.requisition_status IS NULL THEN
-          -- First submission: all items transition NULL → 'Pending HO Review'
+          -- First submission: all items transition NULL -> 'Pending HO Review'
           v_action := 'PENDING_HO_REVIEW_FIRST_SUBMIT';
           v_user   := NEW.created_by;
         ELSIF NEW.reopened_at IS DISTINCT FROM OLD.reopened_at THEN
-          -- Reopen from Rejected (any cycle — fires correctly on 2nd, 3rd, ... reopen too)
+          -- Reopen from Rejected (any cycle - fires correctly on 2nd, 3rd, ... reopen too)
           v_action := 'REOPEN';
           v_user   := NEW.reopened_by;
         ELSIF NEW.revision_number > OLD.revision_number THEN
@@ -656,7 +656,7 @@ BEGIN
         v_user   := COALESCE(NEW.ho_actioned_by, NEW.created_by);
     END CASE;
 
-    -- Also log "Leaving Hold" when Hold → anything else
+    -- Also log "Leaving Hold" when Hold -> anything else
     IF OLD.requisition_status = 'On Hold' AND NEW.requisition_status <> 'On Hold' THEN
       INSERT INTO audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
       VALUES (NEW.ho_actioned_by, 'HO_HOLD_RELEASED', 'Acct Requisition Line Item', NEW.id::VARCHAR,
@@ -682,18 +682,18 @@ BEGIN
 END; $$;
 
 -- ============================================================================
--- 16. Hard-delete prevention trigger functions — S2/NB3 fix
+-- 16. Hard-delete prevention trigger functions - S2/NB3 fix
 -- ============================================================================
 CREATE OR REPLACE FUNCTION "public"."prevent_acct_sheet_hard_delete"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   RAISE EXCEPTION 'Hard deletion of acct_requisition_sheets records is permanently prohibited.';
 END; $$;
 
--- NB3 FIX: conditional guard — allows DELETE only while the item is pre-submission (NULL status).
+-- NB3 FIX: conditional guard - allows DELETE only while the item is pre-submission (NULL status).
 CREATE OR REPLACE FUNCTION "public"."prevent_acct_line_item_hard_delete"() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  -- OLD.requisition_status IS NULL ↔ the row has never been submitted (Open-phase item).
-  -- This is the only lifecycle window where real deletion is permitted (product doc §2, "add/remove rows freely").
+  -- OLD.requisition_status IS NULL <-> the row has never been submitted (Open-phase item).
+  -- This is the only lifecycle window where real deletion is permitted (product doc Section 2, "add/remove rows freely").
   IF OLD.requisition_status IS NOT NULL THEN
     RAISE EXCEPTION
       'Hard deletion of submitted acct_requisition_line_items is permanently prohibited. Current status: %.',
@@ -708,7 +708,7 @@ BEGIN
 END; $$;
 
 -- ============================================================================
--- 17. Trigger bindings — 12 total (2 audit + 5 updated_at + 5 hard-delete)
+-- 17. Trigger bindings - 12 total (2 audit + 5 updated_at + 5 hard-delete)
 -- ============================================================================
 CREATE OR REPLACE TRIGGER "trg_audit_acct_sheets"
     AFTER INSERT OR UPDATE ON acct_requisition_sheets
@@ -731,7 +731,7 @@ CREATE OR REPLACE TRIGGER "trg_prevent_sub_title_hard_delete"       BEFORE DELET
 CREATE OR REPLACE TRIGGER "trg_prevent_beneficiary_hard_delete"     BEFORE DELETE ON beneficiary_master          FOR EACH ROW EXECUTE FUNCTION prevent_acct_master_hard_delete();
 
 -- ============================================================================
--- 18-19. Grants — house pattern (see plan note: deviates from design doc's
+-- 18-19. Grants - house pattern (see plan note: deviates from design doc's
 -- invented GRANT SELECT/INSERT/UPDATE + REVOKE ALL FROM anon syntax, which has
 -- no precedent in this schema; access control is via the Express service-role
 -- layer bypassing RLS, matching every other table in this repo).
