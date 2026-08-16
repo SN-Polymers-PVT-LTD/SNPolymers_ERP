@@ -110,6 +110,28 @@ export const MobileHeader = () => {
         )
       });
     }
+    if (['accounts', 'admin'].includes(user?.role)) {
+      finItems.push({
+        to: '/acct-requisitions',
+        label: 'Acct Requisitions',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+    }
+    if (['ho', 'admin'].includes(user?.role)) {
+      finItems.push({
+        to: '/acct-requisitions/ho-queue',
+        label: 'HO Acct Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
+    }
     if (finItems.length > 0) {
       menuGroups.push({ title: 'Financial Twin', items: finItems });
     }
@@ -426,7 +448,7 @@ const Sidebar = () => {
 
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns', '/acct-requisitions'].some(p => currentPath.startsWith(p));
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
   const isAnalyticsModule = currentPath.startsWith('/analytics') || currentPath.includes('/digital-twin');
@@ -532,6 +554,29 @@ const Sidebar = () => {
           )
         }
       );
+    }
+
+    if (['accounts', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/acct-requisitions',
+        label: 'Acct Requisitions',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+    }
+    if (['ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/acct-requisitions/ho-queue',
+        label: 'HO Acct Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
     }
   } else if (isMappingModule) {
     if (['zo', 'ho', 'admin'].includes(user?.role)) {

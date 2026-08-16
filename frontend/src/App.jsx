@@ -45,6 +45,9 @@ const ProjectDigitalTwin = React.lazy(() => import('./pages/ProjectDigitalTwin')
 const DigitalTwinHub = React.lazy(() => import('./pages/DigitalTwinHub'));
 const JeLeaderboard = React.lazy(() => import('./pages/JeLeaderboard'));
 
+const AcctRequisitions = React.lazy(() => import('./pages/AcctRequisitions'));
+const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
+
 
 
 import { SkeletonPage } from './components/ui';
@@ -97,7 +100,7 @@ function App() {
             <Route path="/docs/:pageId" element={<Docs />} />
 
             {/* Protected Routes utilizing Persistent AppLayout */}
-            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
               <Route element={
                 <AppLayout />
               }>
@@ -119,6 +122,16 @@ function App() {
                 {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
                   <Route path="/fund-requests" element={<React.Suspense fallback={<AppChunkLoader />}><FundRequests /></React.Suspense>} />
+                </Route>
+
+                {/* Accounts HO Approval Protected Routes (Accounts, Admin) */}
+                <Route element={<ProtectedRoute allowedRoles={['accounts', 'admin']} />}>
+                  <Route path="/acct-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitions /></React.Suspense>} />
+                </Route>
+
+                {/* Accounts HO Approval Protected Routes (HO, Admin) */}
+                <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
+                  <Route path="/acct-requisitions/ho-queue" element={<React.Suspense fallback={<AppChunkLoader />}><AcctHoQueue /></React.Suspense>} />
                 </Route>
 
                 {/* RA/Final Bills & User/Work Order Mappings Protected Routes (ZO, HO, Admin) */}
