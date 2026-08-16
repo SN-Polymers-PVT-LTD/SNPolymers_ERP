@@ -10,7 +10,7 @@ const formatCurrency = (val) =>
  * endpoint for this — computed from data already fetched for the page.
  */
 const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
-  const { approvedDeducted, openSheetRunningTotal, projected } = useMemo(() => {
+  const { approvedDeducted, projected } = useMemo(() => {
     if (!bankBalance) return { approvedDeducted: 0, openSheetRunningTotal: 0, projected: null };
 
     const bankName = bankBalance.bank_name;
