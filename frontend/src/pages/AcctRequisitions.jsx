@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Modal, SkeletonPage } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -11,11 +12,12 @@ import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportBu
 import {
   getSheets, getSheetById, createSheet, submitSheet,
   addLineItem, updateLineItem, deleteLineItem, resubmitLineItem,
-  getBankBalances
+  getBankBalances, getAccountSubTitles, upsertAccountSubTitle
 } from '../api/acctRequisitionsApi';
 
 const AcctRequisitions = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedSheetId, setSelectedSheetId] = useState(null);
   const [error, setError] = useState('');
@@ -41,6 +43,18 @@ const AcctRequisitions = () => {
     queryFn: async () => (await getBankBalances()).data?.bankBalances ?? [],
     staleTime: 60 * 1000
   });
+
+  const { data: accountSubTitles = [] } = useQuery({
+    queryKey: ['acctAccountSubTitles'],
+    queryFn: async () => (await getAccountSubTitles()).data?.accountSubTitles ?? [],
+    staleTime: 60 * 1000
+  });
+
+  const handleCreateAccountSubTitle = async (title) => {
+    const res = await upsertAccountSubTitle({ title });
+    queryClient.invalidateQueries({ queryKey: ['acctAccountSubTitles'] });
+    return res.data.accountSubTitle;
+  };
 
   const invalidateSheet = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
@@ -124,7 +138,12 @@ const AcctRequisitions = () => {
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Requisition Sheets</h1>
         </div>
-        <Button onClick={handleCreateSheet}>New Sheet</Button>
+        <div className="flex items-center gap-3">
+          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
+            Manage Bank Balances
+          </Button>
+          <Button onClick={handleCreateSheet}>New Sheet</Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -167,6 +186,8 @@ const AcctRequisitions = () => {
                     item={item}
                     sheetStatus={sheetDetail.sheet_status}
                     bankBalances={bankBalances}
+                    accountSubTitles={accountSubTitles}
+                    onCreateAccountSubTitle={handleCreateAccountSubTitle}
                     onSave={handleSaveItem}
                     onResubmit={handleResubmitItem}
                     onDelete={handleDeleteItem}

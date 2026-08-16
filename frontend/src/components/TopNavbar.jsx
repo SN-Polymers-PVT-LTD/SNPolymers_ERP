@@ -15,6 +15,7 @@ const TopNavbar = () => {
   const isAdmin = role === 'admin';
   const isAuthorizedZOOrHOOrAdmin = ['zo', 'ho', 'admin'].includes(role);
   const isAuthorizedFinance = ['je', 'zo', 'ho', 'admin', 'staff'].includes(role);
+  const isAuthorizedAccounts = ['accounts', 'ho', 'admin'].includes(role);
 
   // Helper to resolve the first route the user has access to for each module
   const getFinanceRoute = () => {
@@ -36,6 +37,12 @@ const TopNavbar = () => {
 
   const getAdminRoute = () => {
     if (isAdmin) return '/admin';
+    return null;
+  };
+
+  const getAccountsRoute = () => {
+    if (['accounts', 'admin'].includes(role)) return '/acct-requisitions';
+    if (role === 'ho') return '/acct-requisitions/ho-queue';
     return null;
   };
 
@@ -75,6 +82,21 @@ const TopNavbar = () => {
             ),
             to: getFinanceRoute(),
             isActive: ['/requisitions', '/fund-requests', '/ra-final-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p))
+          }
+        ]
+      : []),
+    // 3b. Accounts Department
+    ...(isAuthorizedAccounts && getAccountsRoute()
+      ? [
+          {
+            label: 'Accounts',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+              </svg>
+            ),
+            to: getAccountsRoute(),
+            isActive: currentPath.startsWith('/acct-requisitions')
           }
         ]
       : []),

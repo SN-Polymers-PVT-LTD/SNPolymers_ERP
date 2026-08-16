@@ -36,6 +36,7 @@ const AdminPanel = () => {
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('je');
   const [editActive, setEditActive] = useState(true);
+  const [editPermissions, setEditPermissions] = useState({});
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [clearingTelegram, setClearingTelegram] = useState(false);
 
@@ -103,6 +104,7 @@ const AdminPanel = () => {
     setEditName(user.display_name || '');
     setEditRole(user.role || 'je');
     setEditActive(user.is_active);
+    setEditPermissions(user.permissions || {});
     setError('');
     setSuccess('');
     setShowEditModal(true);
@@ -119,6 +121,7 @@ const AdminPanel = () => {
         displayName: editName,
         role: editRole,
         isActive: editActive,
+        permissions: editPermissions,
       });
 
       if (response.data?.success) {
@@ -416,6 +419,7 @@ const AdminPanel = () => {
                 <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                 <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                 <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
                 <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
               </select>
             </div>
@@ -506,9 +510,30 @@ const AdminPanel = () => {
                   <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                   <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                   <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                  <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
                   <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
                 </select>
               </div>
+
+              {editRole === 'ho' && (
+                <div>
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!editPermissions['ho.requisition.reopen']}
+                      onChange={(e) => setEditPermissions(prev => ({ ...prev, 'ho.requisition.reopen': e.target.checked }))}
+                      disabled={editSubmitting}
+                      className="w-4 h-4 rounded accent-amber-500"
+                    />
+                    <span className="text-xs font-semibold text-slate-300">
+                      Can reopen rejected Accounts requisitions
+                    </span>
+                  </label>
+                  <p className="mt-1.5 ml-7 text-[10px] text-slate-500">
+                    Lets this HO user reopen a Rejected line item in the Accounts HO Approval queue.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">

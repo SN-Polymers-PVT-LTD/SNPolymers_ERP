@@ -120,6 +120,15 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/acct-requisitions/bank-balances',
+        label: 'Bank Balances',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
     }
     if (['ho', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -448,7 +457,8 @@ const Sidebar = () => {
 
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns', '/acct-requisitions'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
   const isAnalyticsModule = currentPath.startsWith('/analytics') || currentPath.includes('/digital-twin');
@@ -556,6 +566,7 @@ const Sidebar = () => {
       );
     }
 
+  } else if (isAccountsModule) {
     if (['accounts', 'admin'].includes(user?.role)) {
       navItems.push({
         to: '/acct-requisitions',
@@ -563,6 +574,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/bank-balances',
+        label: 'Bank Balances',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
           </svg>
         )
       });

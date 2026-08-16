@@ -55,7 +55,7 @@ async function addUser(req, res) {
     return res.status(409).json({ success: false, message: 'This mobile number is already whitelisted.' });
   }
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -101,7 +101,7 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
