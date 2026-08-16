@@ -657,14 +657,21 @@ BEGIN
     END CASE;
 
     -- Also log "Leaving Hold" when Hold -> anything else
+    -- NB: this and the INSERT below can both fire within the same UPDATE's trigger
+    -- invocation. now() (= transaction_timestamp()) is frozen for the whole transaction,
+    -- so two audit_log rows written here would get an IDENTICAL timestamp with no
+    -- tiebreaker (id is a random uuid, not sequential) — readers sorting by
+    -- `timestamp ASC` would then see these two rows in an undefined relative order.
+    -- clock_timestamp() gives each INSERT its own real wall-clock value instead.
     IF OLD.requisition_status = 'On Hold' AND NEW.requisition_status <> 'On Hold' THEN
-      INSERT INTO audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
+      INSERT INTO audit_log (user_id, action, module_name, record_identifier, old_value, new_value, "timestamp")
       VALUES (NEW.ho_actioned_by, 'HO_HOLD_RELEASED', 'Acct Requisition Line Item', NEW.id::VARCHAR,
               jsonb_build_object('requisition_status', OLD.requisition_status, 'ho_remarks', OLD.ho_remarks),
-              jsonb_build_object('requisition_status', NEW.requisition_status));
+              jsonb_build_object('requisition_status', NEW.requisition_status),
+              clock_timestamp());
     END IF;
 
-    INSERT INTO audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
+    INSERT INTO audit_log (user_id, action, module_name, record_identifier, old_value, new_value, "timestamp")
     VALUES (v_user, v_action, 'Acct Requisition Line Item', NEW.id::VARCHAR,
             jsonb_build_object('requisition_status', OLD.requisition_status,
                                'ho_process', OLD.ho_process,
@@ -676,7 +683,8 @@ BEGIN
                                'ho_actioned_by', NEW.ho_actioned_by,
                                'bank_balance_master_id', NEW.bank_balance_master_id,
                                'revision_number', NEW.revision_number,
-                               'is_reopened', NEW.is_reopened));
+                               'is_reopened', NEW.is_reopened),
+            clock_timestamp());
   END IF;
   RETURN NEW;
 END; $$;
