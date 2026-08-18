@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Button, Input, Select, SearchableSelect, Badge } from '../ui';
+import React, { useState, useRef, useEffect } from 'react';
+import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge } from '../ui';
 import BeneficiaryAutofill from './BeneficiaryAutofill';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
@@ -71,7 +71,8 @@ const LineItemRow = ({
   onCreateAccountSubTitle,
   selectable,
   selected,
-  onToggleSelect
+  onToggleSelect,
+  registerSave
 }) => {
   const openPath = sheetStatus === 'Open';
   const returnedPath = item.requisition_status === 'Returned for Correction';
@@ -82,6 +83,11 @@ const LineItemRow = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [confirmedBeneficiaryKey, setConfirmedBeneficiaryKey] = useState(null);
+  const draftRef = useRef(draft);
+  const confirmedBeneficiaryKeyRef = useRef(confirmedBeneficiaryKey);
+
+  useEffect(() => { draftRef.current = draft; }, [draft]);
+  useEffect(() => { confirmedBeneficiaryKeyRef.current = confirmedBeneficiaryKey; }, [confirmedBeneficiaryKey]);
 
   const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
@@ -98,21 +104,27 @@ const LineItemRow = ({
     return { value: created.id, label: created.title };
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // Reads from the refs (not the `draft`/`confirmedBeneficiaryKey` state
+  // closures) so this same function works both as the row's own form submit
+  // handler and as an externally-triggered save (AcctRequisitions.jsx's
+  // "Save Draft" batches this across every openPath row via `registerSave`,
+  // calling it outside of any render this component controls).
+  const performSave = async () => {
+    const currentDraft = draftRef.current;
     setError('');
-    if (draft.payment_mode === 'Cheque' && (!draft.cheque_no || !draft.cheque_date)) {
-      setError('cheque_no and cheque_date are required when payment_mode is Cheque.');
-      return;
+    if (currentDraft.payment_mode === 'Cheque' && (!currentDraft.cheque_no || !currentDraft.cheque_date)) {
+      const msg = 'cheque_no and cheque_date are required when payment_mode is Cheque.';
+      setError(msg);
+      throw new Error(msg);
     }
     setSaving(true);
     try {
       const payload = {
-        ...draft,
-        req_amount: draft.req_amount === '' ? null : Number(draft.req_amount),
-        payment_mode: draft.payment_mode || null,
-        cheque_no: draft.payment_mode === 'Cheque' ? draft.cheque_no : null,
-        cheque_date: draft.payment_mode === 'Cheque' ? draft.cheque_date : null
+        ...currentDraft,
+        req_amount: currentDraft.req_amount === '' ? null : Number(currentDraft.req_amount),
+        payment_mode: currentDraft.payment_mode || null,
+        cheque_no: currentDraft.payment_mode === 'Cheque' ? currentDraft.cheque_no : null,
+        cheque_date: currentDraft.payment_mode === 'Cheque' ? currentDraft.cheque_date : null
       };
       if (openPath) {
         await onSave(item.id, payload);
@@ -124,30 +136,54 @@ const LineItemRow = ({
       // gets upserted into beneficiary_master on save. Best-effort — the line
       // item is already saved, so a beneficiary_master rejection (e.g.
       // unrecognized bank name) must never look like the save itself failed.
-      const currentKey = beneficiaryKey(draft.beneficiary_ac_no, draft.beneficiary_ifsc);
+      const currentKey = beneficiaryKey(currentDraft.beneficiary_ac_no, currentDraft.beneficiary_ifsc);
       if (
-        draft.beneficiary_ac_no?.trim() &&
-        draft.beneficiary_ifsc?.trim() &&
-        draft.beneficiary_name?.trim() &&
-        draft.beneficiary_bank_name?.trim() &&
-        confirmedBeneficiaryKey !== currentKey
+        currentDraft.beneficiary_ac_no?.trim() &&
+        currentDraft.beneficiary_ifsc?.trim() &&
+        currentDraft.beneficiary_name?.trim() &&
+        currentDraft.beneficiary_bank_name?.trim() &&
+        confirmedBeneficiaryKeyRef.current !== currentKey
       ) {
         setConfirmedBeneficiaryKey(currentKey);
         upsertBeneficiary({
-          account_number: draft.beneficiary_ac_no.trim(),
-          ifsc: draft.beneficiary_ifsc.trim(),
-          beneficiary_name: draft.beneficiary_name.trim(),
-          beneficiary_bank_name: draft.beneficiary_bank_name.trim()
+          account_number: currentDraft.beneficiary_ac_no.trim(),
+          ifsc: currentDraft.beneficiary_ifsc.trim(),
+          beneficiary_name: currentDraft.beneficiary_name.trim(),
+          beneficiary_bank_name: currentDraft.beneficiary_bank_name.trim()
         }).catch((err) => {
           console.warn('Beneficiary master upsert skipped:', err.response?.data?.message || err.message);
         });
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save line item.');
+      throw err;
     } finally {
       setSaving(false);
     }
   };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await performSave();
+    } catch {
+      // performSave already set the row's own error state; nothing further
+      // to do here — this handler exists only to prevent the native form
+      // submit's page navigation and to swallow the re-thrown error so it
+      // doesn't surface as an unhandled rejection.
+    }
+  };
+
+  // Only openPath rows are batchable — Returned-for-Correction rows use the
+  // resubmit endpoint, a state transition rather than a draft save, so they
+  // stay opt-in via their own "Resubmit" button and are never silently
+  // included in a bulk "Save Draft" click.
+  useEffect(() => {
+    if (!openPath || !registerSave) return undefined;
+    registerSave(item.id, performSave);
+    return () => registerSave(item.id, null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPath, item.id, registerSave]);
 
   if (!editable && !viewOnlyFull) {
     return (
@@ -253,12 +289,11 @@ const LineItemRow = ({
           onChange={(e) => setField('debit_bank_ac_type', e.target.value)}
           options={[{ value: '', label: 'Select...' }, ...bankOptions]}
         />
-        <Input
+        <FormattedCurrencyInput
           label="Requested Amount"
-          type="number"
           disabled={readOnly}
           value={draft.req_amount}
-          onChange={(e) => setField('req_amount', e.target.value)}
+          onValueChange={(val) => setField('req_amount', val)}
         />
         <Select
           label="Payment Mode"

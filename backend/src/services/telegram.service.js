@@ -251,7 +251,7 @@ async function processWebhookUpdate(update) {
       console.log(`[BOT] Database update result:`, updateData);
 
       const successMsg = `✅ *Account Linked Successfully!*\n\nHello *${user.display_name || firstName}*,\n\nYour Telegram account is now securely linked to the Integrated Digital Business Platform.\n\nYou can close Telegram and return to your web browser to continue logging in.`;
-      
+
       const replyMarkup = { remove_keyboard: true };
       const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(successMsg)}&parse_mode=Markdown&reply_markup=${encodeURIComponent(JSON.stringify(replyMarkup))}`;
       await fetch(url);
@@ -506,7 +506,7 @@ async function notifyZoEstimateSubmitted(estimate) {
     const jeName = await getDisplayName(estimate.je_user_id);
     const jeUserId = escapeHtml(jeName);
 
-    const messageText = 
+    const messageText =
       `📝 <b>New Estimate Submitted</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -578,7 +578,7 @@ async function notifyHoEstimateApproved(estimate) {
     const zoName = await getDisplayName(estimate.zo_approved_by);
     const zoApprovedBy = escapeHtml(zoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by ZO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1529,7 +1529,7 @@ async function notifyAllEstimateFinalApproved(estimate) {
     const hoName = await getDisplayName(estimate.ho_approved_by);
     const hoApprovedBy = escapeHtml(hoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by HO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1589,7 +1589,7 @@ async function notifyJeEstimateZoApproved(estimate) {
     const zoName = await getDisplayName(estimate.zo_approved_by);
     const zoApprovedBy = escapeHtml(zoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by ZO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1638,7 +1638,7 @@ async function notifyJeEstimateRejected(estimate) {
     const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
     const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
-    
+
     let rejectedByRole = 'Zonal Office';
     let remarks = estimate.zo_remarks || 'No remarks provided.';
     let actorMobile = estimate.zo_approved_by;
@@ -1652,7 +1652,7 @@ async function notifyJeEstimateRejected(estimate) {
     }
     const actorName = await getDisplayName(actorMobile);
 
-    const messageText = 
+    const messageText =
       `❌ <b>Cost Estimate Rejected</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1761,7 +1761,7 @@ async function notifyHoExcessReturnAccepted(returnRequest) {
     if (!TELEGRAM_BOT_TOKEN) return;
 
     const amount = Number(returnRequest.requested_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
+
     let breakdownText = '';
     if (returnRequest.breakdown && Array.isArray(returnRequest.breakdown)) {
       breakdownText = `\n<b>Breakdown Allocation:</b>\n` + returnRequest.breakdown.map(item => {
@@ -2058,15 +2058,15 @@ async function notifyBreakZoActed(breakRecord) {
     if (jeUser) {
       const jeMessage = accepted
         ? `✅ <b>Activity Break Accepted by ZO</b>\n\n` +
-          `Your activity break request was accepted by the Zonal Office and is now pending HO approval.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `You will be notified once HO takes final action.`
+        `Your activity break request was accepted by the Zonal Office and is now pending HO approval.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `You will be notified once HO takes final action.`
         : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
-          `Your activity break request was rejected by the Zonal Office.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `You may submit a new request if needed.`;
+        `Your activity break request was rejected by the Zonal Office.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `You may submit a new request if needed.`;
       await sendBreakTelegramMessages([jeUser], jeMessage);
     }
 
@@ -2074,14 +2074,14 @@ async function notifyBreakZoActed(breakRecord) {
     if (hoUsers.length > 0) {
       const hoMessage = accepted
         ? `📋 <b>Activity Break Pending HO Approval</b>\n\n` +
-          `The Zonal Office accepted an activity break request. HO approval is required.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `Please review on the IDBP dashboard.`
+        `The Zonal Office accepted an activity break request. HO approval is required.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `Please review on the IDBP dashboard.`
         : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
-          `The Zonal Office rejected an activity break request.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}`;
+        `The Zonal Office rejected an activity break request.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}`;
       await sendBreakTelegramMessages(hoUsers, hoMessage);
     }
   } catch (error) {
@@ -2422,7 +2422,7 @@ module.exports = {
   notifyHoEstimateApproved,
   notifyJeEstimateZoApproved,
   notifyJeEstimateRejected,
-  zo_balances_reconcile: () => {}, // placeholder if needed
+  zo_balances_reconcile: () => { }, // placeholder if needed
   notifyZoFundRequestApproved,
   notifyJeRevisionRequested,
   notifyHoFundRequestSubmitted,

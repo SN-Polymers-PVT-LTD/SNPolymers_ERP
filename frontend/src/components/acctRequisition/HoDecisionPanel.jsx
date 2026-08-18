@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Select, Input, TextArea } from '../ui';
+import { Button, Select, FormattedCurrencyInput, TextArea } from '../ui';
 
 const ACTION_OPTIONS = [
   { value: 'Approve', label: 'Approve' },
@@ -91,12 +91,11 @@ const HoDecisionPanel = ({ item, onAct, onReopen, canReopen, submitting }) => {
       />
 
       {needsPassAmount && (
-        <Input
+        <FormattedCurrencyInput
           label="Pass Amount"
-          type="number"
           required
           value={hoPassAmount}
-          onChange={(e) => setHoPassAmount(e.target.value)}
+          onValueChange={setHoPassAmount}
         />
       )}
 

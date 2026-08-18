@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input } from '../ui';
+import { Button, Input, FormattedCurrencyInput } from '../ui';
 import { upsertBankBalance } from '../../api/acctRequisitionsApi';
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -21,7 +21,7 @@ const emptyForm = () => ({
  * Select, to avoid gating account creation while still steering reconciliation
  * of an existing account away from a typo'd duplicate row.
  */
-const BankBalanceEditor = ({ bankBalances = [] }) => {
+const BankBalanceEditor = ({ bankBalances = [], onSaved }) => {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -63,6 +63,8 @@ const BankBalanceEditor = ({ bankBalances = [] }) => {
       setForm(emptyForm());
       setSuccess(`Balance saved for ${bankName}.`);
       queryClient.invalidateQueries({ queryKey: ['acctBankBalances'] });
+      queryClient.invalidateQueries({ queryKey: ['acctBankLedger'] });
+      if (onSaved) onSaved();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to save bank balance.');
     } finally {
@@ -99,14 +101,11 @@ const BankBalanceEditor = ({ bankBalances = [] }) => {
         onChange={(e) => setField('balance_date', e.target.value)}
       />
 
-      <Input
+      <FormattedCurrencyInput
         label="Available Balance"
-        type="number"
-        min="0"
-        step="0.01"
         required
         value={form.available_balance}
-        onChange={(e) => setField('available_balance', e.target.value)}
+        onValueChange={(val) => setField('available_balance', val)}
       />
 
       <Input

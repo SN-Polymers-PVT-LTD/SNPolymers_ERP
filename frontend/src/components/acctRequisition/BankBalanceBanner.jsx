@@ -4,26 +4,23 @@ const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
 
 /**
- * Purely client-side projection (design doc §5b): master balance minus
- * already-approved deductions minus the running total of the current Open
- * sheet's not-yet-submitted rows for the same bank. No dedicated backend
- * endpoint for this — computed from data already fetched for the page.
+ * bankBalance.available_balance is now a live running total — HO approval/
+ * partial-approval decrements it directly (migration 025), so it already
+ * reflects every approved payout across every sheet for this bank, not just
+ * the current one. Only the not-yet-submitted rows on the currently-open
+ * sheet remain a genuine client-side projection, since those haven't reached
+ * HO yet and so can't be reflected in the stored balance.
  */
 const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
-  const { approvedDeducted, projected } = useMemo(() => {
-    if (!bankBalance) return { approvedDeducted: 0, openSheetRunningTotal: 0, projected: null };
+  const projected = useMemo(() => {
+    if (!bankBalance) return null;
 
     const bankName = bankBalance.bank_name;
-    const approved = lineItems
-      .filter(i => i.debit_bank_ac_type === bankName && ['Approved', 'Partially Approved'].includes(i.requisition_status))
-      .reduce((sum, i) => sum + Number(i.ho_pass_amount || 0), 0);
-
     const openRunning = lineItems
       .filter(i => i.debit_bank_ac_type === bankName && i.requisition_status == null)
       .reduce((sum, i) => sum + Number(i.req_amount || 0), 0);
 
-    const remaining = Number(bankBalance.available_balance) - approved;
-    return { approvedDeducted: approved, openSheetRunningTotal: openRunning, projected: remaining - openRunning };
+    return Number(bankBalance.available_balance) - openRunning;
   }, [bankBalance, lineItems]);
 
   if (!bankBalance) return null;
@@ -33,10 +30,6 @@ const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
       <div>
         <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">{bankBalance.bank_name}</span>
         <p className="text-lg font-extrabold text-slate-100">{formatCurrency(bankBalance.available_balance)}</p>
-      </div>
-      <div>
-        <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">After Approved Deductions</span>
-        <p className="text-sm font-bold text-emerald-400">{formatCurrency(bankBalance.available_balance - approvedDeducted)}</p>
       </div>
       <div>
         <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Projected After Open Sheet</span>

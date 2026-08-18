@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Modal, SkeletonPage } from '../components/ui';
@@ -23,6 +23,16 @@ const AcctRequisitions = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [selectedItemIds, setSelectedItemIds] = useState([]);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const saveFnsRef = useRef({});
+
+  const registerSave = useCallback((itemId, fn) => {
+    if (fn) {
+      saveFnsRef.current[itemId] = fn;
+    } else {
+      delete saveFnsRef.current[itemId];
+    }
+  }, []);
 
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
@@ -92,6 +102,32 @@ const AcctRequisitions = () => {
     await resubmitLineItem(itemId, payload);
     invalidateSheet();
     setSuccess('Line item resubmitted for HO review.');
+  };
+
+  // Batch-saves every currently-editable (openPath) row in one click — each
+  // row registered its own save function via `registerSave` while mounted.
+  // Row-level errors already surface inline (LineItemRow sets its own error
+  // state); this only summarizes how many rows failed so the user knows to
+  // scroll and check, without duplicating per-row error text here.
+  const handleSaveDraft = async () => {
+    setError('');
+    setSuccess('');
+    const saveFns = Object.values(saveFnsRef.current);
+    if (saveFns.length === 0) return;
+
+    setSavingDraft(true);
+    try {
+      const results = await Promise.allSettled(saveFns.map((fn) => fn()));
+      const failureCount = results.filter((r) => r.status === 'rejected').length;
+      invalidateSheet();
+      if (failureCount > 0) {
+        setError(`${failureCount} of ${saveFns.length} line item(s) failed to save. Check the errors below.`);
+      } else {
+        setSuccess('Draft saved.');
+      }
+    } finally {
+      setSavingDraft(false);
+    }
   };
 
   const handleDeleteItem = async (itemId) => {
@@ -174,9 +210,16 @@ const AcctRequisitions = () => {
               {primaryBank && <BankBalanceBanner bankBalance={primaryBank} lineItems={items} />}
 
               {sheetDetail.sheet_status === 'Open' && (
-                <Button variant="glass" size="sm" onClick={handleAddItem} className="self-start">
-                  + Add Line Item
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="glass" size="sm" onClick={handleAddItem}>
+                    + Add Line Item
+                  </Button>
+                  {items.length > 0 && (
+                    <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
+                      Save Draft
+                    </Button>
+                  )}
+                </div>
               )}
 
               <div className="flex flex-col gap-3">
@@ -194,6 +237,7 @@ const AcctRequisitions = () => {
                     selectable={sheetDetail.sheet_status === 'Submitted' && item.payment_mode === 'Bulk NEFT'}
                     selected={selectedItemIds.includes(item.id)}
                     onToggleSelect={toggleSelectItem}
+                    registerSave={registerSave}
                   />
                 ))}
               </div>

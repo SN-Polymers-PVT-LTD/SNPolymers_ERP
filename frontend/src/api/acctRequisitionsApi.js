@@ -5,6 +5,7 @@ const BASE = '/acct-requisitions';
 // ── Bank balances ────────────────────────────────────────────────────────
 export const getBankBalances = () => authApi.get(`${BASE}/bank-balances`);
 export const upsertBankBalance = (data) => authApi.put(`${BASE}/bank-balances`, data);
+export const getBankLedger = (params) => authApi.get(`${BASE}/bank-ledger`, { params });
 
 // ── Account sub-titles ───────────────────────────────────────────────────
 export const getAccountSubTitles = () => authApi.get(`${BASE}/account-sub-titles`);
