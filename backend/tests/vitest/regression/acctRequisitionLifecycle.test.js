@@ -71,6 +71,24 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     expect(approveARes.statusCode).toBe(200);
     expect(approveARes.jsonData.item.ho_actioned_by).toBe(ctx.ho1Mobile);
 
+    // Migration 025: approval now actually debits bank_balance_master (was
+    // previously untouched — a guardrail-only sum over line-item history).
+    const { data: bankAfterA } = await supabase
+      .from('bank_balance_master')
+      .select('available_balance')
+      .eq('bank_name', ctx.bankName)
+      .single();
+    expect(Number(bankAfterA.available_balance)).toBe(30000);
+
+    const { data: payoutAuditRows } = await supabase
+      .from('audit_log')
+      .select('*')
+      .eq('module_name', 'Bank Balance Master')
+      .eq('record_identifier', ctx.bankName)
+      .eq('action', 'BANK_DEBITED_PAYOUT');
+    expect(payoutAuditRows.length).toBe(1);
+    expect(Number(payoutAuditRows[0].new_value.delta)).toBe(-70000);
+
     const sheetBRes = await callCreateSheet(ctx.accountsMobile);
     const sheetB = sheetBRes.jsonData.sheet;
     const itemBRes = await callAddLineItem(sheetB.id, ctx.accountsMobile, {

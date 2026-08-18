@@ -358,6 +358,58 @@ async function getDisplayName(mobileNumber) {
 }
 
 /**
+ * Retrieves all active users of a given role with a configured Telegram chat ID.
+ * Shared by the Accounts HO-approval notifiers (§ below), which need "all HO" /
+ * "all Accounts" broadcast recipients in several places.
+ * @param {string} role
+ * @returns {Promise<Array<{display_name: string, telegram_chat_id: string}>>}
+ */
+async function getRoleRecipients(role) {
+  const { data, error } = await supabase
+    .from('authorised_users')
+    .select('display_name, telegram_chat_id')
+    .eq('role', role)
+    .eq('is_active', true)
+    .not('telegram_chat_id', 'is', null);
+
+  if (error) {
+    console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ${role} users: ${error.message}`);
+    return [];
+  }
+  return (data || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+}
+
+/**
+ * Sends the same HTML message to a list of recipients, logging per-recipient
+ * failures without letting one bad chat ID abort the rest.
+ * @param {Array<{display_name: string, telegram_chat_id: string}>} recipients
+ * @param {string} messageText
+ * @param {string} logLabel - prefix used in warn/error logs (e.g. '[ACCT LEDGER]')
+ */
+async function broadcastTelegram(recipients, messageText, logLabel) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn(`${logLabel} TELEGRAM_BOT_TOKEN is not set.`);
+    return;
+  }
+  if (!recipients || recipients.length === 0) {
+    console.warn(`${logLabel} No recipients with a configured Telegram chat ID.`);
+    return;
+  }
+  for (const recipient of recipients) {
+    try {
+      const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!data.ok) {
+        console.warn(`${logLabel} Failed to send to ${recipient.display_name}: ${data.description}`);
+      }
+    } catch (err) {
+      console.warn(`${logLabel} Failed to send to ${recipient.display_name}: ${err.message}`);
+    }
+  }
+}
+
+/**
  * Retrieves the active mapped ZO user details (display_name, telegram_chat_id) for a given JE user ID.
  * @param {string} jeUserId - The JE's mobile number
  * @returns {Promise<object|null>}
@@ -2125,6 +2177,241 @@ async function notifyBreakStatusChanged(breakRecord, newStatus) {
   }
 }
 
+// ============================================================================
+// Accounts HO-Approval module notifications
+// ============================================================================
+
+const fmtInr = (val) => Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Event 1 — Sheet submitted for HO review. To: all HO.
+ */
+async function notifyHoAcctSheetSubmitted(sheet) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('ho');
+    const submitterName = await getDisplayName(sheet.submitted_by || sheet.created_by);
+
+    const messageText =
+      `📥 <b>New Requisition Sheet Submitted</b>\n\n` +
+      `<b>Sheet No:</b> ${escapeHtml(sheet.sheet_number)}\n` +
+      `<b>Line Items:</b> ${sheet.row_count_at_submission ?? 'N/A'}\n` +
+      `<b>Submitted By:</b> ${escapeHtml(submitterName)}\n\n` +
+      `Please review this sheet on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT SHEET]');
+  } catch (error) {
+    console.error(`[ACCT SHEET] notifyHoAcctSheetSubmitted failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 2 — HO has cleared every Pending HO Review / On Hold item on this sheet
+ * (a "review session" boundary, not a terminal sheet state — items can cycle
+ * back in via Return->Resubmit or Reject->Reopen and trigger this again later).
+ * Called by the controller right after any actOnLineItem success, once it has
+ * confirmed no items on the sheet remain in those two statuses.
+ * To: the accounts user who created the sheet.
+ */
+async function notifyAcctSheetReviewComplete(sheetId) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const { data: sheet, error: sheetErr } = await supabase
+      .from('acct_requisition_sheets')
+      .select('sheet_number, created_by')
+      .eq('id', sheetId)
+      .maybeSingle();
+    if (sheetErr || !sheet) {
+      console.warn(`[ACCT SHEET] Failed to fetch sheet ${sheetId} for review-complete notification: ${sheetErr?.message}`);
+      return;
+    }
+
+    const { data: items, error: itemsErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('requisition_status, req_amount, ho_pass_amount')
+      .eq('sheet_id', sheetId);
+    if (itemsErr) {
+      console.warn(`[ACCT SHEET] Failed to fetch line items for sheet ${sheetId}: ${itemsErr.message}`);
+      return;
+    }
+
+    const counts = {};
+    let approvedAmount = 0;
+    for (const item of items || []) {
+      const status = item.requisition_status || 'Unknown';
+      counts[status] = (counts[status] || 0) + 1;
+      if (status === 'Approved' || status === 'Partially Approved') {
+        approvedAmount += Number(item.ho_pass_amount || 0);
+      }
+    }
+
+    const { data: acctUser, error: userErr } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', sheet.created_by)
+      .maybeSingle();
+    if (userErr || !acctUser || !acctUser.telegram_chat_id || acctUser.telegram_chat_id.trim() === '') {
+      console.warn(`[ACCT SHEET] Accounts user ${sheet.created_by} has no Telegram chat ID configured for review-complete notification.`);
+      return;
+    }
+
+    const lines = [
+      `<b>Approved:</b> ${counts['Approved'] || 0}`,
+      `<b>Partially Approved:</b> ${counts['Partially Approved'] || 0}`,
+      `<b>On Hold:</b> ${counts['On Hold'] || 0}`,
+      `<b>Returned for Correction:</b> ${counts['Returned for Correction'] || 0}`,
+      `<b>Rejected:</b> ${counts['Rejected'] || 0}`
+    ];
+
+    const messageText =
+      `<b>Sheet ${escapeHtml(sheet.sheet_number)} — HO Review Complete</b>\n\n` +
+      lines.join('\n') + '\n' +
+      `<b>Total Approved Amount:</b> ₹${fmtInr(approvedAmount)}\n\n` +
+      `Please review the outcomes on the IDBP dashboard.`;
+
+    await broadcastTelegram([acctUser], messageText, '[ACCT SHEET]');
+  } catch (error) {
+    console.error(`[ACCT SHEET] notifyAcctSheetReviewComplete failed: ${error.message}`);
+  }
+}
+
+/**
+ * Events 3/4 — a single line item was Returned for Correction or Rejected.
+ * To: the accounts user who created the item.
+ */
+async function notifyAcctLineItemActed(item, action) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const { data: acctUser, error } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', item.created_by)
+      .maybeSingle();
+    if (error || !acctUser || !acctUser.telegram_chat_id || acctUser.telegram_chat_id.trim() === '') {
+      console.warn(`[ACCT ITEM] Accounts user ${item.created_by} has no Telegram chat ID configured.`);
+      return;
+    }
+
+    const title = action === 'Rejected' ? 'Line Item Rejected' : 'Line Item Returned for Correction';
+    const messageText =
+      `<b>${title}</b>\n\n` +
+      `<b>Particulars:</b> ${escapeHtml(item.particulars || 'N/A')}\n` +
+      `<b>Amount:</b> ₹${fmtInr(item.req_amount)}\n` +
+      `<b>Remarks:</b> ${escapeHtml(item.ho_remarks || 'None')}`;
+
+    await broadcastTelegram([acctUser], messageText, '[ACCT ITEM]');
+  } catch (error) {
+    console.error(`[ACCT ITEM] notifyAcctLineItemActed failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 5 — a returned item was resubmitted. To: the HO who returned it
+ * (last_ho_actioned_by), falling back to all HO if that's unavailable.
+ */
+async function notifyHoAcctItemResubmitted(item) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    let recipients = [];
+    if (item.last_ho_actioned_by) {
+      const { data: hoUser } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('mobile_number', item.last_ho_actioned_by)
+        .maybeSingle();
+      if (hoUser && hoUser.telegram_chat_id && hoUser.telegram_chat_id.trim() !== '') {
+        recipients = [hoUser];
+      }
+    }
+    if (recipients.length === 0) {
+      recipients = await getRoleRecipients('ho');
+    }
+
+    const resubmitterName = await getDisplayName(item.created_by);
+    const messageText =
+      `<b>Line Item Resubmitted</b>\n\n` +
+      `<b>Particulars:</b> ${escapeHtml(item.particulars || 'N/A')}\n` +
+      `<b>Amount:</b> ₹${fmtInr(item.req_amount)}\n` +
+      `<b>Resubmitted By:</b> ${escapeHtml(resubmitterName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT ITEM]');
+  } catch (error) {
+    console.error(`[ACCT ITEM] notifyHoAcctItemResubmitted failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 6 — HO tried to approve/partial-approve but the bank balance guardrail
+ * (BAL01) blocked it. To: all Accounts.
+ */
+async function notifyAcctBankBalanceInsufficient(bankName, remaining, requested) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('accounts');
+    const messageText =
+      `⚠️ <b>Approval Blocked — Insufficient Balance</b>\n\n` +
+      `<b>Bank:</b> ${escapeHtml(bankName)}\n` +
+      `<b>Remaining:</b> ₹${fmtInr(remaining)}\n` +
+      `<b>Requested:</b> ₹${fmtInr(requested)}\n\n` +
+      `This bank needs reconciliation before HO can approve further items against it.`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT BANK]');
+  } catch (error) {
+    console.error(`[ACCT BANK] notifyAcctBankBalanceInsufficient failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 7 — a Bulk NEFT export file was generated. To: all Accounts.
+ */
+async function notifyAcctBulkNeftExported(sheetId, itemCount, totalAmount, exportedByMobile) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const { data: sheet } = await supabase
+      .from('acct_requisition_sheets')
+      .select('sheet_number')
+      .eq('id', sheetId)
+      .maybeSingle();
+
+    const recipients = await getRoleRecipients('accounts');
+    const exporterName = await getDisplayName(exportedByMobile);
+
+    const messageText =
+      `<b>Bulk NEFT Export Generated</b>\n\n` +
+      `<b>Sheet No:</b> ${escapeHtml(sheet?.sheet_number || sheetId)}\n` +
+      `<b>Items:</b> ${itemCount}\n` +
+      `<b>Total:</b> ₹${fmtInr(totalAmount)}\n` +
+      `<b>Exported By:</b> ${escapeHtml(exporterName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT NEFT]');
+  } catch (error) {
+    console.error(`[ACCT NEFT] notifyAcctBulkNeftExported failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 8 — a bank balance was manually credited/debited/reconciled (not a
+ * brand-new bank being added). To: all Accounts.
+ */
+async function notifyAcctBankBalanceAdjusted(bankName, direction, delta, newBalance, actorMobile) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('accounts');
+    const actorName = await getDisplayName(actorMobile);
+
+    const messageText =
+      `<b>Bank Balance Adjusted</b>\n\n` +
+      `<b>Bank:</b> ${escapeHtml(bankName)}\n` +
+      `<b>${escapeHtml(direction)}:</b> ₹${fmtInr(Math.abs(delta))}\n` +
+      `<b>New Balance:</b> ₹${fmtInr(newBalance)}\n` +
+      `<b>By:</b> ${escapeHtml(actorName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT BANK]');
+  } catch (error) {
+    console.error(`[ACCT BANK] notifyAcctBankBalanceAdjusted failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   escapeHtml,
   sendOtp,
@@ -2155,5 +2442,12 @@ module.exports = {
   notifyBreakZoActed,
   notifyBreakHoApproved,
   notifyBreakReopenRequested,
-  notifyBreakStatusChanged
+  notifyBreakStatusChanged,
+  notifyHoAcctSheetSubmitted,
+  notifyAcctSheetReviewComplete,
+  notifyAcctLineItemActed,
+  notifyHoAcctItemResubmitted,
+  notifyAcctBankBalanceInsufficient,
+  notifyAcctBulkNeftExported,
+  notifyAcctBankBalanceAdjusted
 };

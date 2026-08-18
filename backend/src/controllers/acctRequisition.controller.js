@@ -284,6 +284,11 @@ async function submitSheet(req, res) {
       throw rpcErr;
     }
 
+    const { notifyHoAcctSheetSubmitted } = require('../services/telegram.service');
+    notifyHoAcctSheetSubmitted(data).catch(err => {
+      console.error(`[ACCT SHEET] Telegram notification failed: ${err.message}`);
+    });
+
     return res.status(200).json({ success: true, sheet: data, message: 'Requisition sheet submitted.' });
   } catch (error) {
     console.error(`submitSheet failed: ${error.message}`);
@@ -307,7 +312,7 @@ async function actOnLineItem(req, res) {
   try {
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, requisition_status')
+      .select('id, requisition_status, debit_bank_ac_type, req_amount')
       .eq('id', itemId)
       .maybeSingle();
 
@@ -343,8 +348,50 @@ async function actOnLineItem(req, res) {
 
     if (rpcErr) {
       const mapped = mapAcctRpcError(rpcErr);
-      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      if (mapped) {
+        if (rpcErr.code === 'BAL01') {
+          const { data: bbm } = await supabase
+            .from('bank_balance_master')
+            .select('available_balance')
+            .eq('bank_name', item.debit_bank_ac_type)
+            .maybeSingle();
+          const { notifyAcctBankBalanceInsufficient } = require('../services/telegram.service');
+          notifyAcctBankBalanceInsufficient(
+            item.debit_bank_ac_type,
+            bbm?.available_balance ?? 0,
+            ho_pass_amount ?? item.req_amount
+          ).catch(err => {
+            console.error(`[ACCT BANK] Telegram notification failed: ${err.message}`);
+          });
+        }
+        return res.status(mapped.status).json({ success: false, message: mapped.message });
+      }
       throw rpcErr;
+    }
+
+    const {
+      notifyAcctLineItemActed,
+      notifyAcctSheetReviewComplete
+    } = require('../services/telegram.service');
+
+    if (data.requisition_status === 'Returned for Correction' || data.requisition_status === 'Rejected') {
+      notifyAcctLineItemActed(data, data.requisition_status).catch(err => {
+        console.error(`[ACCT ITEM] Telegram notification failed: ${err.message}`);
+      });
+    }
+
+    // Event 2 — fires once HO has no more Pending HO Review / On Hold items
+    // left on this sheet; a "review session" boundary, not a terminal state.
+    const { count: pendingCount, error: pendingErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('sheet_id', data.sheet_id)
+      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+
+    if (!pendingErr && pendingCount === 0) {
+      notifyAcctSheetReviewComplete(data.sheet_id).catch(err => {
+        console.error(`[ACCT SHEET] Telegram notification failed: ${err.message}`);
+      });
     }
 
     return res.status(200).json({ success: true, item: data, message: `Line item action '${action}' applied.` });
@@ -385,6 +432,11 @@ async function resubmitLineItem(req, res) {
       if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
       throw rpcErr;
     }
+
+    const { notifyHoAcctItemResubmitted } = require('../services/telegram.service');
+    notifyHoAcctItemResubmitted(data).catch(err => {
+      console.error(`[ACCT ITEM] Telegram notification failed: ${err.message}`);
+    });
 
     return res.status(200).json({ success: true, item: data, message: 'Line item resubmitted.' });
   } catch (error) {
@@ -458,6 +510,15 @@ async function upsertBankBalance(req, res) {
   const { bank_name, balance_date, available_balance, account_number } = req.body;
 
   try {
+    // Read the pre-upsert balance so the audit_log entry below can record a real
+    // delta (credit/debit) rather than just the new absolute figure — this table
+    // has no dedicated ledger, so audit_log is the only place that history lives.
+    const { data: before } = await supabase
+      .from('bank_balance_master')
+      .select('available_balance')
+      .eq('bank_name', bank_name)
+      .maybeSingle();
+
     const payload = {
       bank_name,
       balance_date,
@@ -477,10 +538,89 @@ async function upsertBankBalance(req, res) {
 
     if (error) throw error;
 
+    const oldBalance = Number(before?.available_balance ?? 0);
+    const newBalance = Number(available_balance);
+    const delta = newBalance - oldBalance;
+
+    await supabase.from('audit_log').insert({
+      user_id: req.user.mobile_number,
+      action: !before ? 'BANK_ADDED' : delta > 0 ? 'BANK_CREDITED' : delta < 0 ? 'BANK_DEBITED' : 'BANK_RECONCILED',
+      module_name: 'Bank Balance Master',
+      record_identifier: bank_name,
+      old_value: before ? { available_balance: oldBalance } : null,
+      new_value: { available_balance: newBalance, delta, account_number: data.account_number }
+    });
+
+    // Event 8 — only for adjustments to an existing bank, not for a brand-new
+    // bank being added (that's just setup, not a debit/credit worth alerting on).
+    if (before && delta !== 0) {
+      const { notifyAcctBankBalanceAdjusted } = require('../services/telegram.service');
+      notifyAcctBankBalanceAdjusted(
+        bank_name,
+        delta > 0 ? 'Credited' : 'Debited',
+        delta,
+        newBalance,
+        req.user.mobile_number
+      ).catch(err => {
+        console.error(`[ACCT BANK] Telegram notification failed: ${err.message}`);
+      });
+    }
+
     return res.status(200).json({ success: true, bankBalance: data, message: 'Bank balance saved.' });
   } catch (error) {
     console.error(`upsertBankBalance failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save bank balance.' });
+  }
+}
+
+/**
+ * GET /acct-requisitions/bank-ledger
+ * Paginated ledger of bank_balance_master reconciliation events, sourced from
+ * audit_log (no dedicated ledger table exists). Optional ?bank_name= filter.
+ */
+async function getBankBalanceLedger(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '10', 10)));
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('audit_log')
+      .select('*', { count: 'exact' })
+      .eq('module_name', 'Bank Balance Master');
+
+    if (req.query.bank_name) {
+      query = query.eq('record_identifier', req.query.bank_name);
+    }
+
+    const { data, error, count } = await query
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const userIds = [...new Set((data || []).map(log => log.user_id).filter(Boolean))];
+    let userMap = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', userIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    const entries = (data || []).map(log => ({ ...log, user_name: userMap[log.user_id] || log.user_id || 'System' }));
+
+    return res.status(200).json({
+      success: true,
+      entries,
+      totalCount: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    });
+  } catch (error) {
+    console.error(`getBankBalanceLedger failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve bank balance ledger.' });
   }
 }
 
@@ -694,6 +834,12 @@ async function exportBulkNeft(req, res) {
 
     if (updateErr) throw updateErr;
 
+    const { notifyAcctBulkNeftExported } = require('../services/telegram.service');
+    const totalAmount = items.reduce((sum, i) => sum + Number(i.ho_pass_amount || 0), 0);
+    notifyAcctBulkNeftExported(sheetId, items.length, totalAmount, req.user.mobile_number).catch(err => {
+      console.error(`[ACCT NEFT] Telegram notification failed: ${err.message}`);
+    });
+
     const buffer = await workbook.xlsx.writeBuffer();
     const filename = `Bulk_NEFT_${sheetId}_${Date.now()}.xlsx`;
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -709,7 +855,7 @@ module.exports = {
   createSheet, getSheets, getSheetById,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, resubmitLineItem, reopenLineItem,
-  getBankBalances, upsertBankBalance,
+  getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, upsertBeneficiary,
   getAccountSubTitles, upsertAccountSubTitle,
   exportBulkNeft

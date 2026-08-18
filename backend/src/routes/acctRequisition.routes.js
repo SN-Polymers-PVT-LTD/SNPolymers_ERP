@@ -2,7 +2,7 @@ const express = require('express');
 const {
   createSheet, getSheets, getSheetById, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, resubmitLineItem, reopenLineItem,
-  getBankBalances, upsertBankBalance, lookupBeneficiary, upsertBeneficiary,
+  getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
   getAccountSubTitles, upsertAccountSubTitle, exportBulkNeft
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
@@ -23,6 +23,7 @@ const hoRoles = ['ho', 'admin'];
 const readerRoles = ['accounts', 'ho', 'admin'];
 
 router.get('/bank-balances', requireRole(readerRoles), getBankBalances);
+router.get('/bank-ledger', requireRole(readerRoles), getBankBalanceLedger);
 router.put('/bank-balances', requireRole(accountsRoles), validateRequest(upsertBankBalanceSchema), upsertBankBalance);
 router.get('/account-sub-titles', requireRole(readerRoles), getAccountSubTitles);
 router.put('/account-sub-titles', requireRole(accountsRoles), validateRequest(upsertAccountSubTitleSchema), upsertAccountSubTitle);
