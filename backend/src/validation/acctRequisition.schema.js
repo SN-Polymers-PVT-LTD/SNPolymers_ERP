@@ -70,7 +70,11 @@ const upsertBankBalanceSchema = {
   body: z.object({
     bank_name:         z.string().trim().min(1, 'bank_name is required.'),
     balance_date:      z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD required'),
-    available_balance: z.coerce.number().nonnegative()
+    available_balance: z.coerce.number().nonnegative(),
+    // Optional/nullable: predates this column (024_add_bank_account_number.sql), and
+    // Bulk NEFT export enforces its own presence at export time rather than here, so
+    // existing upsert calls that don't send it yet keep working.
+    account_number:    z.string().trim().min(1).optional().nullable()
   })
 };
 

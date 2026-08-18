@@ -20,10 +20,13 @@ export const getSheetById = (id) => authApi.get(`${BASE}/sheets/${id}`);
 export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 export const submitSheet = (id) => authApi.post(`${BASE}/sheets/${id}/submit`);
 
-// exportBulkNeft: the backend currently returns a JSON placeholder
-// (`{ success, exportedItemIds, message }`), not a binary file — no
-// responseType: 'blob' here. See design-doc deviation note (Session 3 plan).
-export const exportBulkNeft = (sheetId, data) => authApi.post(`${BASE}/sheets/${sheetId}/export-neft`, data);
+// exportBulkNeft: returns the real 'Bulk Sheet 1'-format .xlsx as bytes, not
+// JSON — responseType: 'blob' is required so axios doesn't try to JSON-parse
+// the binary body. A non-2xx response still arrives as a Blob under this
+// setting (axios applies responseType to error bodies too); callers must
+// read it via Blob.text() + JSON.parse to get at { message }, not
+// err.response?.data?.message directly.
+export const exportBulkNeft = (sheetId, data) => authApi.post(`${BASE}/sheets/${sheetId}/export-neft`, data, { responseType: 'blob' });
 
 // ── Line items ───────────────────────────────────────────────────────────
 export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${sheetId}/items`, data);

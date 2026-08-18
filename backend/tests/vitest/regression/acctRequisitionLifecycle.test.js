@@ -297,7 +297,15 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
 
     const validRes = await callExport(sheet.id, [approvedNeftItem.id]);
     expect(validRes.statusCode).toBe(200);
-    expect(validRes.jsonData.exportedItemIds).toContain(approvedNeftItem.id);
+    // Success now streams the real .xlsx (bulkNeftExport.service.js), not a JSON
+    // { exportedItemIds } body — assert the binary contract and that the
+    // neft_exported flag update (unchanged logic) actually landed instead.
+    expect(validRes.headers['Content-Type']).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect(Buffer.isBuffer(validRes.body)).toBe(true);
+    expect(validRes.body.length).toBeGreaterThan(0);
+
+    const exportedItem = await getItem(approvedNeftItem.id);
+    expect(exportedItem.neft_exported).toBe(true);
   });
 
   // ── Test 7 — deleteLineItem trigger gate (NB3 regression) ──

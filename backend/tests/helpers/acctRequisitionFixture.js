@@ -37,6 +37,9 @@ async function seedAcctRequisitionScenario({ suffix: suffixInput, bankBalance = 
         bank_name: bankName,
         balance_date: new Date().toISOString().substring(0, 10),
         available_balance: bankBalance,
+        // Required by exportBulkNeft's file-generation step (024_add_bank_account_number.sql) —
+        // any test that exports Bulk NEFT needs this present on the seeded bank.
+        account_number: `TESTACC${id}`,
         created_by: accountsMobile,
         updated_by: accountsMobile
       },

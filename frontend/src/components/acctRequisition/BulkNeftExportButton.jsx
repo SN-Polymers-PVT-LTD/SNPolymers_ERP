@@ -2,12 +2,22 @@ import React, { useState } from 'react';
 import { Button } from '../ui';
 import { exportBulkNeft } from '../../api/acctRequisitionsApi';
 
-/**
- * The backend endpoint currently returns a JSON placeholder (marks items
- * neft_exported, no binary file yet — see acctRequisition.controller.js).
- * This button surfaces that honestly instead of pretending a file download
- * happened.
- */
+// exportBulkNeft (responseType: 'blob') puts a JSON error body's bytes on
+// err.response.data as a Blob, not a parsed object — this reads it back the
+// same way BulkNeftExportButton's old JSON-response error handling did.
+const extractErrorMessage = async (err) => {
+  const data = err.response?.data;
+  if (data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text());
+      return parsed.message;
+    } catch {
+      return null;
+    }
+  }
+  return err.response?.data?.message || null;
+};
+
 const BulkNeftExportButton = ({ sheetId, selectedItemIds, onExported }) => {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
@@ -23,12 +33,18 @@ const BulkNeftExportButton = ({ sheetId, selectedItemIds, onExported }) => {
     setMessage('');
     try {
       const res = await exportBulkNeft(sheetId, { item_ids: selectedItemIds });
+
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = `Bulk_NEFT_${sheetId}.xlsx`;
+      link.click();
+
       setIsError(false);
-      setMessage(res.data?.message || 'Export validated.');
-      onExported?.(res.data?.exportedItemIds || []);
+      setMessage(`Exported ${selectedItemIds.length} item(s).`);
+      onExported?.(selectedItemIds);
     } catch (err) {
       setIsError(true);
-      setMessage(err.response?.data?.message || 'Failed to export Bulk NEFT.');
+      setMessage((await extractErrorMessage(err)) || 'Failed to export Bulk NEFT.');
     } finally {
       setSubmitting(false);
     }

@@ -8,7 +8,8 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const emptyForm = () => ({
   bank_name: '',
   balance_date: todayISO(),
-  available_balance: ''
+  available_balance: '',
+  account_number: ''
 });
 
 /**
@@ -53,7 +54,11 @@ const BankBalanceEditor = ({ bankBalances = [] }) => {
       await upsertBankBalance({
         bank_name: bankName,
         balance_date: form.balance_date,
-        available_balance: Number(form.available_balance)
+        available_balance: Number(form.available_balance),
+        // Omit entirely when left blank so a quick balance reconciliation never wipes
+        // an account_number already set for this bank (backend keeps it untouched
+        // when the key is absent from the payload).
+        ...(form.account_number.trim() ? { account_number: form.account_number.trim() } : {})
       });
       setForm(emptyForm());
       setSuccess(`Balance saved for ${bankName}.`);
@@ -102,6 +107,14 @@ const BankBalanceEditor = ({ bankBalances = [] }) => {
         required
         value={form.available_balance}
         onChange={(e) => setField('available_balance', e.target.value)}
+      />
+
+      <Input
+        label="Account Number"
+        placeholder="e.g. 5006201000154"
+        value={form.account_number}
+        onChange={(e) => setField('account_number', e.target.value)}
+        helperText="Only needs setting once per bank — printed on Bulk NEFT export letters. Leave blank to keep the value already on file."
       />
 
       {error && <p className="text-[10px] font-semibold text-red-400">{error}</p>}

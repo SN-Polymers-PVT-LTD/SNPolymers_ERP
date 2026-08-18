@@ -8,6 +8,7 @@ const {
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   exportNeftSchema
 } = require('../validation/acctRequisition.schema');
+const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -454,21 +455,23 @@ async function getBankBalances(req, res) {
  */
 async function upsertBankBalance(req, res) {
   if (!validate(req, res, upsertBankBalanceSchema)) return;
-  const { bank_name, balance_date, available_balance } = req.body;
+  const { bank_name, balance_date, available_balance, account_number } = req.body;
 
   try {
+    const payload = {
+      bank_name,
+      balance_date,
+      available_balance,
+      created_by: req.user.mobile_number,
+      updated_by: req.user.mobile_number
+    };
+    // Omit entirely (rather than send null) when not provided, so an upsert that only
+    // means to update available_balance doesn't clobber an already-set account_number.
+    if (account_number !== undefined) payload.account_number = account_number;
+
     const { data, error } = await supabase
       .from('bank_balance_master')
-      .upsert(
-        {
-          bank_name,
-          balance_date,
-          available_balance,
-          created_by: req.user.mobile_number,
-          updated_by: req.user.mobile_number
-        },
-        { onConflict: 'bank_name' }
-      )
+      .upsert(payload, { onConflict: 'bank_name' })
       .select()
       .single();
 
@@ -606,11 +609,15 @@ async function upsertAccountSubTitle(req, res) {
 
 /**
  * POST /acct-requisitions/sheets/:sheetId/export-neft
- * §4c: 3 explicit validations before file generation.
- * NOTE: real bank-format .xlsx generation is out of scope for this session
- * (no xlsx-writing library installed; accounts/BULK NEFT.xlsx format-matching
- * deferred to a follow-up session). On success this marks neft_exported and
- * returns a placeholder JSON payload instead of a binary file.
+ * §4c: 3 explicit validations before file generation (unchanged from the
+ * prior session — do not modify; covered by Test 6 in
+ * acctRequisitionLifecycle.test.js). Beyond those three, two more checks are
+ * specific to *file generation* and were added this session: all selected
+ * items must share one debit account (the letter states a single account in
+ * prose — "our XXX A/c" — so a mixed-account batch can't be represented
+ * faithfully), and that account must have account_number on file.
+ * On success this streams the real 'Bulk Sheet 1'-format .xlsx
+ * (bulkNeftExport.service.js) and marks neft_exported exactly as before.
  */
 async function exportBulkNeft(req, res) {
   if (!validate(req, res, exportNeftSchema)) return;
@@ -620,7 +627,7 @@ async function exportBulkNeft(req, res) {
   try {
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, payment_mode, requisition_status')
+      .select('id, sheet_id, payment_mode, requisition_status, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, ho_pass_amount, debit_bank_ac_type')
       .in('id', item_ids);
 
     if (itemsErr) throw itemsErr;
@@ -644,23 +651,54 @@ async function exportBulkNeft(req, res) {
       return res.status(400).json({ success: false, message: 'All items must be Approved or Partially Approved.' });
     }
 
-    const { data: updated, error: updateErr } = await supabase
+    const debitAccounts = new Set(items.map(i => i.debit_bank_ac_type));
+    if (debitAccounts.size !== 1) {
+      return res.status(400).json({ success: false, message: 'All selected items must debit the same bank account to generate a single Bulk NEFT letter.' });
+    }
+    const debitBankAcType = items[0].debit_bank_ac_type;
+
+    const { data: bankBalance, error: bbErr } = await supabase
+      .from('bank_balance_master')
+      .select('account_number')
+      .eq('bank_name', debitBankAcType)
+      .maybeSingle();
+
+    if (bbErr) throw bbErr;
+    if (!bankBalance?.account_number) {
+      return res.status(422).json({
+        success: false,
+        message: `No account number on file for ${debitBankAcType}. Set it via Bank Balance Master before exporting.`
+      });
+    }
+
+    const workbook = buildBulkNeftWorkbook({
+      items: items.map(i => ({
+        beneficiary_name: i.beneficiary_name,
+        beneficiary_ac_no: i.beneficiary_ac_no,
+        beneficiary_bank_name: i.beneficiary_bank_name,
+        beneficiary_ifsc: i.beneficiary_ifsc,
+        amount: i.ho_pass_amount
+      })),
+      debitBankAcType,
+      debitAccountNumber: bankBalance.account_number
+    });
+
+    const { error: updateErr } = await supabase
       .from('acct_requisition_line_items')
       .update({
         neft_exported: true,
         neft_exported_at: new Date().toISOString(),
         neft_exported_by: req.user.mobile_number
       })
-      .in('id', item_ids)
-      .select('id');
+      .in('id', item_ids);
 
     if (updateErr) throw updateErr;
 
-    return res.status(200).json({
-      success: true,
-      exportedItemIds: (updated || []).map(i => i.id),
-      message: 'Bulk NEFT export validated and marked exported. File generation not yet implemented.'
-    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const filename = `Bulk_NEFT_${sheetId}_${Date.now()}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.end(Buffer.from(buffer));
   } catch (error) {
     console.error(`exportBulkNeft failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to export Bulk NEFT.' });

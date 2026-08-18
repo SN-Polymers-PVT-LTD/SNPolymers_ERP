@@ -51,6 +51,7 @@ const AcctBankBalances = () => {
                 <thead>
                   <tr className="border-b border-white/5 text-[9px] uppercase font-bold tracking-widest text-slate-400 bg-white/[0.02]">
                     <th className="px-6 py-4">Bank</th>
+                    <th className="px-6 py-4">Account Number</th>
                     <th className="px-6 py-4">Available Balance</th>
                     <th className="px-6 py-4">Date of Balance</th>
                     <th className="px-6 py-4">Last Updated</th>
@@ -60,6 +61,9 @@ const AcctBankBalances = () => {
                   {bankBalances.map((b) => (
                     <tr key={b.bank_name} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-6 py-4 text-slate-100 font-bold">{b.bank_name}</td>
+                      <td className="px-6 py-4 font-mono text-slate-300">
+                        {b.account_number || <span className="text-red-400/80 font-sans italic">Not set — required for export</span>}
+                      </td>
                       <td className="px-6 py-4 text-amber-500 font-extrabold font-mono">{formatCurrency(b.available_balance)}</td>
                       <td className="px-6 py-4 text-slate-400 font-mono">{b.balance_date}</td>
                       <td className="px-6 py-4 text-[10px] text-slate-500 font-normal">
