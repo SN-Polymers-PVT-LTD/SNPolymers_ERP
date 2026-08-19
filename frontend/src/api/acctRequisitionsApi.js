@@ -14,6 +14,11 @@ export const upsertAccountSubTitle = (data) => authApi.put(`${BASE}/account-sub-
 // ── Beneficiary ──────────────────────────────────────────────────────────
 export const lookupBeneficiary = (params) => authApi.get(`${BASE}/beneficiary`, { params });
 export const upsertBeneficiary = (data) => authApi.put(`${BASE}/beneficiary`, data);
+export const getBeneficiaries = (params) => authApi.get(`${BASE}/beneficiary-master`, { params });
+
+// ── Indian banks ─────────────────────────────────────────────────────────
+export const getIndianBanks = () => authApi.get(`${BASE}/indian-banks`);
+export const upsertIndianBank = (data) => authApi.put(`${BASE}/indian-banks`, data);
 
 // ── Sheets ───────────────────────────────────────────────────────────────
 export const getSheets = (params) => authApi.get(`${BASE}/sheets`, { params });

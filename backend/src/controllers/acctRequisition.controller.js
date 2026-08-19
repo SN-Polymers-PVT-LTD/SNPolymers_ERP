@@ -6,7 +6,9 @@ const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
-  exportNeftSchema
+  upsertIndianBankSchema,
+  exportNeftSchema,
+  refreshIndianBanksCache
 } = require('../validation/acctRequisition.schema');
 const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
 
@@ -687,6 +689,50 @@ async function getBankBalanceLedger(req, res) {
 // ============================================================================
 
 /**
+ * GET /acct-requisitions/beneficiary-master
+ * Paginated/searchable list, distinct from lookupBeneficiary's single
+ * (account_number, ifsc) lookup below — this backs the Beneficiary Master
+ * management page rather than the line-item form's autofill.
+ */
+async function getBeneficiaries(req, res) {
+  try {
+    const query = req.query || {};
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase.from('beneficiary_master').select('*', { count: 'exact' });
+
+    if (query.search) {
+      const term = query.search.replace(/[%,]/g, '');
+      dbQuery = dbQuery.or(`account_number.ilike.%${term}%,beneficiary_name.ilike.%${term}%`);
+    }
+
+    const { data: beneficiaries, count, error } = await dbQuery
+      .order('beneficiary_name', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      beneficiaries: beneficiaries || [],
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
+  } catch (error) {
+    console.error(`getBeneficiaries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve beneficiaries.' });
+  }
+}
+
+/**
  * GET /acct-requisitions/beneficiary?account_number=...&ifsc=...
  */
 async function lookupBeneficiary(req, res) {
@@ -755,10 +801,12 @@ async function upsertBeneficiary(req, res) {
  */
 async function getAccountSubTitles(req, res) {
   try {
+    // Returns both active and inactive rows — the line-item dropdown
+    // (LineItemRow.jsx) filters to active ones client-side where needed;
+    // the sub-titles master page needs to see/reactivate inactive rows too.
     const { data, error } = await supabase
       .from('account_sub_title_master')
       .select('*')
-      .eq('is_active', true)
       .order('title', { ascending: true });
 
     if (error) throw error;
@@ -798,6 +846,68 @@ async function upsertAccountSubTitle(req, res) {
   } catch (error) {
     console.error(`upsertAccountSubTitle failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save account sub-title.' });
+  }
+}
+
+// ============================================================================
+// Master data — Indian banks
+// ============================================================================
+
+/**
+ * GET /acct-requisitions/indian-banks
+ */
+async function getIndianBanks(req, res) {
+  try {
+    const { data, error } = await supabase
+      .from('indian_bank_master')
+      .select('*')
+      .order('bank_name', { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, indianBanks: data || [] });
+  } catch (error) {
+    console.error(`getIndianBanks failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Indian banks.' });
+  }
+}
+
+/**
+ * PUT /acct-requisitions/indian-banks
+ * Updates the DB row, then patches the in-memory INDIAN_BANKS_SET used by
+ * beneficiary_bank_name's Zod validation (acctRequisition.schema.js) so a
+ * newly-added/renamed bank is immediately usable without a server restart.
+ */
+async function upsertIndianBank(req, res) {
+  if (!validate(req, res, upsertIndianBankSchema)) return;
+  const { bank_name, is_active } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('indian_bank_master')
+      .upsert(
+        {
+          bank_name,
+          is_active: is_active !== undefined ? is_active : true,
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'bank_name' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Full requery rather than a single add — table is tiny (~30-100 rows,
+    // an admin-only write path) and this also correctly drops a bank from
+    // validation the moment it's deactivated, which an add-only patch can't.
+    await refreshIndianBanksCache();
+
+    return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
+  } catch (error) {
+    console.error(`upsertIndianBank failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save Indian bank.' });
   }
 }
 
@@ -914,7 +1024,8 @@ module.exports = {
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
-  lookupBeneficiary, upsertBeneficiary,
+  lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,
+  getIndianBanks, upsertIndianBank,
   exportBulkNeft
 };

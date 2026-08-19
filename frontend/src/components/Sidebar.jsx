@@ -129,6 +129,24 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/acct-requisitions/sub-titles',
+        label: 'Sub-titles',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+        )
+      });
+      finItems.push({
+        to: '/acct-requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+          </svg>
+        )
+      });
     }
     if (['ho', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -583,6 +601,24 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/sub-titles',
+        label: 'Sub-titles',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
           </svg>
         )
       });

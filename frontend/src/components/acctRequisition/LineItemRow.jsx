@@ -3,7 +3,6 @@ import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge,
 import BeneficiaryAutofill from './BeneficiaryAutofill';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
-import INDIAN_BANKS from '../../constants/indianBanks';
 import { upsertBeneficiary } from '../../api/acctRequisitionsApi';
 
 const formatCurrency = (val) =>
@@ -19,7 +18,6 @@ const STATUS_VARIANTS = {
 };
 
 const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT'].map(v => ({ value: v, label: v }));
-const BANK_OPTIONS = INDIAN_BANKS.map(b => ({ value: b, label: b }));
 
 // Backend sets ho_actioned_at (not the generic updated_at) at the moment a row
 // transitions into Hold (act_acct_line_item_non_approve_transact) — the precise
@@ -70,6 +68,7 @@ const LineItemRow = ({
   sheetStatus,
   bankBalances = [],
   accountSubTitles = [],
+  indianBanks = [],
   onSave,
   onResubmit,
   onDelete,
@@ -96,6 +95,7 @@ const LineItemRow = ({
 
   const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
+  const indianBankOptions = indianBanks.map(b => ({ value: b, label: b }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
@@ -268,7 +268,7 @@ const LineItemRow = ({
             disabled={readOnly}
             value={draft.beneficiary_bank_name}
             onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
-            options={[{ value: '', label: 'Select bank...' }, ...BANK_OPTIONS]}
+            options={[{ value: '', label: 'Select bank...' }, ...indianBankOptions]}
           />
           {editable && (
             <BeneficiaryAutofill

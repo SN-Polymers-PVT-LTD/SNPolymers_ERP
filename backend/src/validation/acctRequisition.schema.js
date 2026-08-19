@@ -1,7 +1,38 @@
 const { z } = require('zod');
-// S6 FIX: App-layer reference list of Indian bank names sourced from List_of_Indian_Banks_Master_Unique.xlsx
-const indianBanks = require('../constants/indianBanks.json');
-const INDIAN_BANKS_SET = new Set(indianBanks.map(b => b.toUpperCase()));
+const { supabase } = require('../db/supabase');
+// S6 FIX: App-layer reference list of Indian bank names, now DB-backed
+// (indian_bank_master, 026_create_indian_bank_master.sql) instead of the
+// static JSON it replaced. Kept as a plain in-memory Set (not a DB round
+// trip per request) because validate.js only ever calls Zod's synchronous
+// safeParse — going fully async here would mean touching every
+// validateRequest call site in this codebase. INDIAN_BANKS_SET starts out
+// seeded from the JSON file as a safe default in case the DB read below
+// hasn't resolved yet (e.g. the very first requests after a cold start),
+// then gets replaced by refreshIndianBanksCache() below, and kept current
+// after that by upsertIndianBank (acctRequisition.controller.js) adding/
+// updating entries in-place on every successful write. This is a per-process
+// cache — a second server instance won't see a newly-added bank until its
+// own next refresh/restart, an accepted tradeoff (see migration 026's notes).
+const staticIndianBanksFallback = require('../constants/indianBanks.json');
+let INDIAN_BANKS_SET = new Set(staticIndianBanksFallback.map(b => b.toUpperCase()));
+
+async function refreshIndianBanksCache() {
+  try {
+    const { data, error } = await supabase
+      .from('indian_bank_master')
+      .select('bank_name')
+      .eq('is_active', true);
+    if (error) throw error;
+    if (data && data.length > 0) {
+      INDIAN_BANKS_SET = new Set(data.map(b => b.bank_name.toUpperCase()));
+    }
+  } catch (error) {
+    console.error(`refreshIndianBanksCache failed, keeping previous bank list: ${error.message}`);
+  }
+}
+
+// Fire-and-forget at module load — don't block server startup on this read.
+refreshIndianBanksCache();
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const uuidSchema = z.string().regex(uuidRegex, 'Invalid UUID.');
@@ -107,9 +138,18 @@ const exportNeftSchema = {
   body: z.object({ item_ids: z.array(uuidSchema).min(1) })
 };
 
+const upsertIndianBankSchema = {
+  body: z.object({
+    bank_name: z.string().trim().min(1, 'bank_name is required.'),
+    is_active: z.boolean().optional()
+  })
+};
+
 module.exports = {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
-  exportNeftSchema
+  upsertIndianBankSchema,
+  exportNeftSchema,
+  refreshIndianBanksCache
 };

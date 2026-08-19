@@ -11,7 +11,7 @@ import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportBu
 import {
   getSheetById, submitSheet,
   addLineItem, updateLineItem, deleteLineItem, resubmitLineItem,
-  getBankBalances, getAccountSubTitles, upsertAccountSubTitle
+  getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks
 } from '../api/acctRequisitionsApi';
 
 const ITEMS_PER_PAGE = 20;
@@ -63,12 +63,23 @@ const AcctRequisitionSheetView = () => {
     enabled: isAccountsUser
   });
 
-  const { data: accountSubTitles = [] } = useQuery({
+  const { data: accountSubTitlesRaw = [] } = useQuery({
     queryKey: ['acctAccountSubTitles'],
     queryFn: async () => (await getAccountSubTitles()).data?.accountSubTitles ?? [],
     staleTime: 60 * 1000,
     enabled: isAccountsUser
   });
+  // getAccountSubTitles now returns inactive rows too (needed by the
+  // Sub-titles master page) — the line-item dropdown only offers active ones.
+  const accountSubTitles = accountSubTitlesRaw.filter(t => t.is_active);
+
+  const { data: indianBanksRaw = [] } = useQuery({
+    queryKey: ['acctIndianBanks'],
+    queryFn: async () => (await getIndianBanks()).data?.indianBanks ?? [],
+    staleTime: 60 * 1000,
+    enabled: isAccountsUser
+  });
+  const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
 
   const handleCreateAccountSubTitle = async (title) => {
     const res = await upsertAccountSubTitle({ title });
@@ -255,6 +266,7 @@ const AcctRequisitionSheetView = () => {
                   sheetStatus={sheetDetail.sheet_status}
                   bankBalances={bankBalances}
                   accountSubTitles={accountSubTitles}
+                  indianBanks={indianBanks}
                   onCreateAccountSubTitle={handleCreateAccountSubTitle}
                   onSave={handleSaveItem}
                   onResubmit={handleResubmitItem}

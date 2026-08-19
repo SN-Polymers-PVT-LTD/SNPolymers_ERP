@@ -3,7 +3,8 @@ const {
   createSheet, getSheets, getSheetById, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
-  getAccountSubTitles, upsertAccountSubTitle, exportBulkNeft
+  getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
+  getIndianBanks, upsertIndianBank, exportBulkNeft
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -12,6 +13,7 @@ const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
+  upsertIndianBankSchema,
   exportNeftSchema
 } = require('../validation/acctRequisition.schema');
 
@@ -29,6 +31,9 @@ router.get('/account-sub-titles', requireRole(readerRoles), getAccountSubTitles)
 router.put('/account-sub-titles', requireRole(accountsRoles), validateRequest(upsertAccountSubTitleSchema), upsertAccountSubTitle);
 router.get('/beneficiary', requireRole(accountsRoles), lookupBeneficiary);
 router.put('/beneficiary', requireRole(accountsRoles), validateRequest(upsertBeneficiarySchema), upsertBeneficiary);
+router.get('/beneficiary-master', requireRole(readerRoles), getBeneficiaries);
+router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
+router.put('/indian-banks', requireRole(accountsRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
 router.get('/sheets', requireRole(readerRoles), getSheets);
 router.get('/sheets/:sheetId', requireRole(readerRoles), getSheetById);
 router.post('/sheets', requireRole(accountsRoles), createSheet);
