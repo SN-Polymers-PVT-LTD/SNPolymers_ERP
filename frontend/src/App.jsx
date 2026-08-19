@@ -46,6 +46,7 @@ const DigitalTwinHub = React.lazy(() => import('./pages/DigitalTwinHub'));
 const JeLeaderboard = React.lazy(() => import('./pages/JeLeaderboard'));
 
 const AcctRequisitions = React.lazy(() => import('./pages/AcctRequisitions'));
+const AcctRequisitionSheetView = React.lazy(() => import('./pages/AcctRequisitionSheetView'));
 const AcctBankBalances = React.lazy(() => import('./pages/AcctBankBalances'));
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
 
@@ -128,6 +129,7 @@ function App() {
                 {/* Accounts HO Approval Protected Routes (Accounts, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['accounts', 'admin']} />}>
                   <Route path="/acct-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitions /></React.Suspense>} />
+                  <Route path="/acct-requisitions/sheets/:id" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionSheetView /></React.Suspense>} />
                   <Route path="/acct-requisitions/bank-balances" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBankBalances /></React.Suspense>} />
                 </Route>
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge } from '../ui';
+import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge, TableRow, TableCell } from '../ui';
 import BeneficiaryAutofill from './BeneficiaryAutofill';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
@@ -59,6 +59,11 @@ const emptyDraft = (item) => ({
  * always disabled, never hidden, while a row is Hold or Returned for
  * Correction) — it reuses the same field layout as the editable form but
  * with every field disabled and no submit control.
+ *
+ * Rendered as a <tr> (this row lives inside the sheet detail page's line
+ * items <table>) rather than a <form> — a <form> cannot wrap a <tr>, so
+ * saving is triggered directly from the Save/Resubmit button's onClick
+ * instead of a form submit event.
  */
 const LineItemRow = ({
   item,
@@ -105,8 +110,8 @@ const LineItemRow = ({
   };
 
   // Reads from the refs (not the `draft`/`confirmedBeneficiaryKey` state
-  // closures) so this same function works both as the row's own form submit
-  // handler and as an externally-triggered save (AcctRequisitions.jsx's
+  // closures) so this same function works both as the row's own Save button
+  // handler and as an externally-triggered save (the detail page's
   // "Save Draft" batches this across every openPath row via `registerSave`,
   // calling it outside of any render this component controls).
   const performSave = async () => {
@@ -162,15 +167,12 @@ const LineItemRow = ({
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSaveClick = async () => {
     try {
       await performSave();
     } catch {
       // performSave already set the row's own error state; nothing further
-      // to do here — this handler exists only to prevent the native form
-      // submit's page navigation and to swallow the re-thrown error so it
-      // doesn't surface as an unhandled rejection.
+      // to do here.
     }
   };
 
@@ -187,30 +189,37 @@ const LineItemRow = ({
 
   if (!editable && !viewOnlyFull) {
     return (
-      <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-bold text-slate-100">{item.beneficiary_name || item.particulars || 'Line item'}</p>
-            <p className="text-xs text-slate-500">{item.debit_bank_ac_type} · {item.payment_mode}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
+      <TableRow>
+        <TableCell colSpan={2}>
+          <p className="text-sm font-bold text-slate-100">{item.particulars || '—'}</p>
+        </TableCell>
+        <TableCell>
+          <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
+          <p className="text-[10px] text-slate-500">{item.beneficiary_ac_no} · {item.beneficiary_ifsc}</p>
+        </TableCell>
+        <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
+        <TableCell align="right">
+          <span className="font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
+        </TableCell>
+        <TableCell>{item.payment_mode || '—'}</TableCell>
+        <TableCell>
+          <div className="flex flex-col gap-1.5 items-start">
             <Badge variant={STATUS_VARIANTS[item.requisition_status] || 'slate'}>
               {item.requisition_status || 'Draft'}
             </Badge>
+            <LastHoActionTag item={item} />
+            <ReopenedBadge item={item} />
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <LastHoActionTag item={item} />
-          <ReopenedBadge item={item} />
-        </div>
-        {selectable && (
-          <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-            <input type="checkbox" checked={!!selected} onChange={(e) => onToggleSelect?.(item.id, e.target.checked)} />
-            Select for NEFT export
-          </label>
-        )}
-      </div>
+        </TableCell>
+        <TableCell>
+          {selectable && (
+            <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+              <input type="checkbox" checked={!!selected} onChange={(e) => onToggleSelect?.(item.id, e.target.checked)} />
+              Select
+            </label>
+          )}
+        </TableCell>
+      </TableRow>
     );
   }
 
@@ -218,34 +227,28 @@ const LineItemRow = ({
   const holdDays = viewOnlyFull ? daysOnHold(item) : null;
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className={`flex flex-col gap-3 p-4 rounded-2xl border ${editable ? 'bg-white/[0.03] border-amber-500/20' : 'bg-white/[0.02] border-orange-500/20'}`}
-    >
-      {returnedPath && (
-        <div className="flex items-center gap-2">
-          <Badge variant="red">Returned for Correction</Badge>
-          <LastHoActionTag item={item} />
-        </div>
-      )}
-
-      {viewOnlyFull && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="orange">On Hold</Badge>
-          {holdDays != null && (
-            <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">
-              {holdDays} day{holdDays === 1 ? '' : 's'} on hold
-            </span>
+    <TableRow className={editable ? 'bg-amber-500/[0.03]' : 'bg-orange-500/[0.03]'}>
+      <TableCell className="min-w-[160px]">
+        <div className="flex flex-col gap-2">
+          {returnedPath && <Badge variant="red">Returned for Correction</Badge>}
+          {viewOnlyFull && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant="orange">On Hold</Badge>
+              {holdDays != null && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-orange-400">
+                  {holdDays}d
+                </span>
+              )}
+            </div>
           )}
+          <Input disabled={readOnly} value={draft.particulars} onChange={(e) => setField('particulars', e.target.value)} placeholder="Particulars" size="sm" />
           <LastHoActionTag item={item} />
           <ReopenedBadge item={item} />
         </div>
-      )}
+      </TableCell>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Input label="Particulars" disabled={readOnly} value={draft.particulars} onChange={(e) => setField('particulars', e.target.value)} />
+      <TableCell className="min-w-[160px]">
         <SearchableSelect
-          label="Account Sub-title"
           disabled={readOnly}
           value={draft.account_sub_title_text}
           onChange={handleSubTitleTextChange}
@@ -254,78 +257,98 @@ const LineItemRow = ({
           onCreate={onCreateAccountSubTitle ? handleCreateSubTitle : undefined}
           placeholder="Search or add a title..."
         />
-        <Input label="Beneficiary A/C No." disabled={readOnly} value={draft.beneficiary_ac_no} onChange={(e) => setField('beneficiary_ac_no', e.target.value)} />
-        <Input label="Beneficiary IFSC" disabled={readOnly} value={draft.beneficiary_ifsc} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase())} />
-        <Input label="Beneficiary Name" disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} />
-        <Select
-          label="Beneficiary Bank"
-          disabled={readOnly}
-          value={draft.beneficiary_bank_name}
-          onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
-          options={[{ value: '', label: 'Select bank...' }, ...BANK_OPTIONS]}
-        />
-      </div>
+      </TableCell>
 
-      {editable && (
-        <BeneficiaryAutofill
-          accountNumber={draft.beneficiary_ac_no}
-          ifsc={draft.beneficiary_ifsc}
-          onAutofill={(b) => {
-            setDraft(prev => ({
-              ...prev,
-              beneficiary_name: b.beneficiary_name,
-              beneficiary_bank_name: b.beneficiary_bank_name
-            }));
-            setConfirmedBeneficiaryKey(beneficiaryKey(draft.beneficiary_ac_no, draft.beneficiary_ifsc));
-          }}
-        />
-      )}
+      <TableCell className="min-w-[220px]">
+        <div className="flex flex-col gap-1.5">
+          <Input disabled={readOnly} value={draft.beneficiary_ac_no} onChange={(e) => setField('beneficiary_ac_no', e.target.value)} placeholder="A/C No." size="sm" />
+          <Input disabled={readOnly} value={draft.beneficiary_ifsc} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase())} placeholder="IFSC" size="sm" />
+          <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
+          <Select
+            disabled={readOnly}
+            value={draft.beneficiary_bank_name}
+            onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
+            options={[{ value: '', label: 'Select bank...' }, ...BANK_OPTIONS]}
+          />
+          {editable && (
+            <BeneficiaryAutofill
+              accountNumber={draft.beneficiary_ac_no}
+              ifsc={draft.beneficiary_ifsc}
+              onAutofill={(b) => {
+                setDraft(prev => ({
+                  ...prev,
+                  beneficiary_name: b.beneficiary_name,
+                  beneficiary_bank_name: b.beneficiary_bank_name
+                }));
+                setConfirmedBeneficiaryKey(beneficiaryKey(draft.beneficiary_ac_no, draft.beneficiary_ifsc));
+              }}
+            />
+          )}
+        </div>
+      </TableCell>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <TableCell className="min-w-[140px]">
         <Select
-          label="Debit Bank A/C"
           disabled={readOnly}
           value={draft.debit_bank_ac_type}
           onChange={(e) => setField('debit_bank_ac_type', e.target.value)}
           options={[{ value: '', label: 'Select...' }, ...bankOptions]}
         />
+      </TableCell>
+
+      <TableCell className="min-w-[140px]">
         <FormattedCurrencyInput
-          label="Requested Amount"
           disabled={readOnly}
           value={draft.req_amount}
           onValueChange={(val) => setField('req_amount', val)}
         />
-        <Select
-          label="Payment Mode"
-          disabled={readOnly}
-          value={draft.payment_mode}
-          onChange={(e) => setField('payment_mode', e.target.value)}
-          options={[{ value: '', label: 'Select...' }, ...PAYMENT_MODES]}
-        />
-      </div>
+      </TableCell>
 
-      {draft.payment_mode === 'Cheque' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="Cheque No." required disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} />
-          <Input label="Cheque Date" required disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} />
-        </div>
-      )}
-
-      {error && <p className="text-[10px] font-semibold text-red-400">{error}</p>}
-
-      {editable && (
-        <div className="flex items-center gap-2">
-          <Button type="submit" variant={returnedPath ? 'amber' : 'primary'} size="sm" loading={saving}>
-            {returnedPath ? 'Resubmit' : 'Save'}
-          </Button>
-          {openPath && onDelete && (
-            <Button type="button" variant="danger" size="sm" onClick={() => onDelete(item.id)}>
-              Delete
-            </Button>
+      <TableCell className="min-w-[160px]">
+        <div className="flex flex-col gap-1.5">
+          <Select
+            disabled={readOnly}
+            value={draft.payment_mode}
+            onChange={(e) => setField('payment_mode', e.target.value)}
+            options={[{ value: '', label: 'Select...' }, ...PAYMENT_MODES]}
+          />
+          {draft.payment_mode === 'Cheque' && (
+            <>
+              <Input required disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No." size="sm" />
+              <Input required disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date" size="sm" />
+            </>
           )}
         </div>
-      )}
-    </form>
+      </TableCell>
+
+      <TableCell className="min-w-[100px]">
+        <Badge variant={STATUS_VARIANTS[item.requisition_status] || 'slate'}>
+          {item.requisition_status || 'Draft'}
+        </Badge>
+        {error && <p className="text-[10px] font-semibold text-red-400 mt-1.5">{error}</p>}
+      </TableCell>
+
+      <TableCell className="min-w-[140px]">
+        {editable && (
+          <div className="flex items-center gap-2">
+            <Button type="button" variant={returnedPath ? 'amber' : 'primary'} size="sm" loading={saving} onClick={handleSaveClick}>
+              {returnedPath ? 'Resubmit' : 'Save'}
+            </Button>
+            {openPath && onDelete && (
+              <Button type="button" variant="danger" size="sm" onClick={() => onDelete(item.id)}>
+                Delete
+              </Button>
+            )}
+          </div>
+        )}
+        {selectable && (
+          <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-2">
+            <input type="checkbox" checked={!!selected} onChange={(e) => onToggleSelect?.(item.id, e.target.checked)} />
+            Select
+          </label>
+        )}
+      </TableCell>
+    </TableRow>
   );
 };
 

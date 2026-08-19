@@ -1,278 +1,276 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Modal, SkeletonPage } from '../components/ui';
+import { Button, Input, Badge, SkeletonCard, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getSheets, createSheet } from '../api/acctRequisitionsApi';
 
-import SheetCard from '../components/acctRequisition/SheetCard';
-import LineItemRow from '../components/acctRequisition/LineItemRow';
-import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
-import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
+const getStatusBadgeVariant = (status) => {
+  switch (status) {
+    case 'Open':
+      return 'amber';
+    case 'Submitted':
+      return 'blue';
+    default:
+      return 'slate';
+  }
+};
 
-import {
-  getSheets, getSheetById, createSheet, submitSheet,
-  addLineItem, updateLineItem, deleteLineItem, resubmitLineItem,
-  getBankBalances, getAccountSubTitles, upsertAccountSubTitle
-} from '../api/acctRequisitionsApi';
+const formatINR = (value) => {
+  const num = Number(value) || 0;
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 2
+  }).format(num);
+};
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return null;
+  return new Date(dateStr).toLocaleDateString('en-IN');
+};
 
 const AcctRequisitions = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [selectedSheetId, setSelectedSheetId] = useState(null);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [selectedItemIds, setSelectedItemIds] = useState([]);
-  const [savingDraft, setSavingDraft] = useState(false);
-  const saveFnsRef = useRef({});
 
-  const registerSave = useCallback((itemId, fn) => {
-    if (fn) {
-      saveFnsRef.current[itemId] = fn;
-    } else {
-      delete saveFnsRef.current[itemId];
-    }
-  }, []);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(20);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
-  const { data: sheets = [], isLoading: loadingSheets } = useQuery({
-    queryKey: ['acctSheets'],
-    queryFn: async () => (await getSheets()).data?.sheets ?? [],
-    staleTime: 15 * 1000
+  const { data: sheetsData, isLoading: loading, error: queryError } = useQuery({
+    queryKey: ['acctSheets', { page, searchQuery, dateFrom, dateTo, statusFilter }],
+    queryFn: async () => {
+      const params = { page, limit };
+      if (searchQuery) params.sheet_number = searchQuery;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (statusFilter !== 'All') params.sheet_status = statusFilter;
+      const res = await getSheets(params);
+      return res.data;
+    },
+    staleTime: 15 * 1000,
+    enabled: isAccountsUser
   });
 
-  const { data: sheetDetail, isLoading: loadingDetail } = useQuery({
-    queryKey: ['acctSheet', selectedSheetId],
-    queryFn: async () => (await getSheetById(selectedSheetId)).data?.sheet,
-    enabled: !!selectedSheetId
-  });
+  const sheets = sheetsData?.sheets || [];
+  const totalPages = sheetsData?.pagination?.totalPages || 1;
+  const totalItems = sheetsData?.pagination?.total || 0;
+  const displayError = error || queryError?.response?.data?.message || queryError?.message || '';
 
-  const { data: bankBalances = [] } = useQuery({
-    queryKey: ['acctBankBalances'],
-    queryFn: async () => (await getBankBalances()).data?.bankBalances ?? [],
-    staleTime: 60 * 1000
-  });
+  const openCount = sheets.filter(s => s.sheet_status === 'Open').length;
+  const submittedCount = sheets.filter(s => s.sheet_status === 'Submitted').length;
 
-  const { data: accountSubTitles = [] } = useQuery({
-    queryKey: ['acctAccountSubTitles'],
-    queryFn: async () => (await getAccountSubTitles()).data?.accountSubTitles ?? [],
-    staleTime: 60 * 1000
-  });
-
-  const handleCreateAccountSubTitle = async (title) => {
-    const res = await upsertAccountSubTitle({ title });
-    queryClient.invalidateQueries({ queryKey: ['acctAccountSubTitles'] });
-    return res.data.accountSubTitle;
-  };
-
-  const invalidateSheet = () => {
-    queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
-    queryClient.invalidateQueries({ queryKey: ['acctSheet', selectedSheetId] });
+  const handleCardClick = (sheet) => {
+    navigate(`/acct-requisitions/sheets/${sheet.id}`);
   };
 
   const handleCreateSheet = async () => {
     setError('');
+    setCreating(true);
     try {
       const res = await createSheet({});
-      setSuccess(`Sheet ${res.data.sheet.sheet_number} created.`);
       queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
-      setSelectedSheetId(res.data.sheet.id);
+      navigate(`/acct-requisitions/sheets/${res.data.sheet.id}`);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create sheet.');
-    }
-  };
-
-  const handleAddItem = async () => {
-    setError('');
-    try {
-      await addLineItem(selectedSheetId, {});
-      invalidateSheet();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to add line item.');
-    }
-  };
-
-  const handleSaveItem = async (itemId, payload) => {
-    await updateLineItem(selectedSheetId, itemId, payload);
-    invalidateSheet();
-  };
-
-  const handleResubmitItem = async (itemId, payload) => {
-    await resubmitLineItem(itemId, payload);
-    invalidateSheet();
-    setSuccess('Line item resubmitted for HO review.');
-  };
-
-  // Batch-saves every currently-editable (openPath) row in one click — each
-  // row registered its own save function via `registerSave` while mounted.
-  // Row-level errors already surface inline (LineItemRow sets its own error
-  // state); this only summarizes how many rows failed so the user knows to
-  // scroll and check, without duplicating per-row error text here.
-  const handleSaveDraft = async () => {
-    setError('');
-    setSuccess('');
-    const saveFns = Object.values(saveFnsRef.current);
-    if (saveFns.length === 0) return;
-
-    setSavingDraft(true);
-    try {
-      const results = await Promise.allSettled(saveFns.map((fn) => fn()));
-      const failureCount = results.filter((r) => r.status === 'rejected').length;
-      invalidateSheet();
-      if (failureCount > 0) {
-        setError(`${failureCount} of ${saveFns.length} line item(s) failed to save. Check the errors below.`);
-      } else {
-        setSuccess('Draft saved.');
-      }
     } finally {
-      setSavingDraft(false);
+      setCreating(false);
     }
   };
 
-  const handleDeleteItem = async (itemId) => {
-    setError('');
-    try {
-      await deleteLineItem(selectedSheetId, itemId);
-      invalidateSheet();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete line item.');
-    }
-  };
-
-  const handleSubmitSheet = async () => {
-    setError('');
-    try {
-      await submitSheet(selectedSheetId);
-      setSuccess('Sheet submitted for HO review.');
-      invalidateSheet();
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit sheet.');
-    }
-  };
-
-  const toggleSelectItem = (itemId, checked) => {
-    setSelectedItemIds(prev => checked ? [...prev, itemId] : prev.filter(id => id !== itemId));
+  const resetFilters = () => {
+    setSearchQuery('');
+    setDateFrom('');
+    setDateTo('');
+    setStatusFilter('All');
+    setPage(1);
   };
 
   if (!isAccountsUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
 
-  const items = sheetDetail?.items || [];
-  const primaryBank = bankBalances.find(b => items.some(i => i.debit_bank_ac_type === b.bank_name)) || bankBalances[0];
-  const eligibleNeftItemIds = items
-    .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
-    .map(i => i.id);
-
   return (
     <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-6 pb-6 border-b border-white/5 shrink-0">
         <div>
           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 font-mono">
             Accounts Department · HO Approval
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Requisition Sheets</h1>
+          <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, review, and track the workflow status of all requisition sheets.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
             Manage Bank Balances
           </Button>
-          <Button onClick={handleCreateSheet}>New Sheet</Button>
+          <Button onClick={handleCreateSheet} loading={creating}>New Sheet</Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-1 flex flex-col gap-3">
-          {loadingSheets ? (
-            <SkeletonPage />
-          ) : sheets.length === 0 ? (
-            <p className="text-xs text-slate-500 text-center p-8">No requisition sheets yet.</p>
-          ) : (
-            sheets.map(sheet => (
-              <SheetCard
-                key={sheet.id}
-                sheet={sheet}
-                selected={sheet.id === selectedSheetId}
-                onClick={(s) => setSelectedSheetId(s.id)}
+      {displayError && (
+        <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5 shrink-0">
+          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+          {displayError}
+        </div>
+      )}
+
+      {/* Top Stats */}
+      <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02] flex justify-around items-center text-center divide-x divide-white/5 shrink-0">
+        <div className="flex-1">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block mb-1">Total Sheets</span>
+          <span className="text-2xl font-black text-slate-100 font-mono">{totalItems}</span>
+        </div>
+        <div className="flex-1">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 block mb-1">Open (this page)</span>
+          <span className="text-2xl font-black text-amber-400 font-mono">{openCount}</span>
+        </div>
+        <div className="flex-1">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-sky-500 block mb-1">Submitted (this page)</span>
+          <span className="text-2xl font-black text-sky-400 font-mono">{submittedCount}</span>
+        </div>
+      </div>
+
+      {/* Main Two-Column Workspace */}
+      <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden min-h-0">
+
+        {/* Left Column: Search & Filters */}
+        <div className="w-full md:w-64 flex flex-col gap-4 shrink-0">
+          <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col gap-5">
+            <div>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Sheet Number</span>
+              <Input
+                type="text"
+                placeholder="Enter sheet number..."
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                size="sm"
               />
-            ))
-          )}
+            </div>
+
+            <div className="pt-4 border-t border-white/5">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Created Date Range</span>
+              <div className="space-y-2">
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                  size="sm"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                  size="sm"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-white/5 space-y-2">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Status</span>
+              {['All', 'Open', 'Submitted'].map((s) => (
+                <Button
+                  key={s}
+                  onClick={() => { setStatusFilter(s); setPage(1); }}
+                  variant={statusFilter === s ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-full justify-start"
+                >
+                  {s === 'All' ? 'All Sheets' : `${s} Sheets`}
+                </Button>
+              ))}
+            </div>
+
+            {(searchQuery || dateFrom || dateTo || statusFilter !== 'All') && (
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="w-full">
+                Reset Filters
+              </Button>
+            )}
+          </div>
         </div>
 
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          {!selectedSheetId ? (
-            <p className="text-xs text-slate-500 text-center p-12">Select a sheet to view its line items.</p>
-          ) : loadingDetail ? (
-            <SkeletonPage />
-          ) : (
-            <>
-              {primaryBank && <BankBalanceBanner bankBalance={primaryBank} lineItems={items} />}
+        {/* Right Column: Sheet Card Grid */}
+        <div className="flex-grow flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-3xl p-6 relative overflow-hidden">
+          <div className="flex justify-between items-center mb-6 shrink-0 z-10">
+            <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Requisition Sheets</h3>
+            <span className="text-[10px] font-bold text-slate-500 font-mono">Found {totalItems} results</span>
+          </div>
 
-              {sheetDetail.sheet_status === 'Open' && (
-                <div className="flex items-center gap-2">
-                  <Button variant="glass" size="sm" onClick={handleAddItem}>
-                    + Add Line Item
-                  </Button>
-                  {items.length > 0 && (
-                    <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
-                      Save Draft
-                    </Button>
-                  )}
-                </div>
-              )}
+          <div className="flex-grow overflow-y-auto no-scrollbar min-h-0 pr-1 mb-4 z-10">
+            {loading ? (
+              <div className="space-y-4">
+                <SkeletonCard />
+                <SkeletonCard />
+              </div>
+            ) : sheets.length === 0 ? (
+              <div className="text-center py-20 text-slate-500 text-xs uppercase font-extrabold tracking-widest border border-dashed border-white/5 rounded-2xl">
+                No matching requisition sheets found.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {sheets.map((sheet) => (
+                  <div
+                    key={sheet.id}
+                    onClick={() => handleCardClick(sheet)}
+                    className="glass-panel p-5 rounded-2xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] cursor-pointer transition duration-300 flex flex-col justify-between gap-4 group relative"
+                  >
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="min-w-0">
+                        <span className="text-xl font-black text-amber-500 font-mono tracking-wide block mb-2">
+                          {sheet.sheet_number}
+                        </span>
+                        <span className="text-xs text-slate-400 font-medium block">
+                          {sheet.item_count} item{sheet.item_count === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div className="flex items-start gap-3 shrink-0">
+                        <Badge variant={getStatusBadgeVariant(sheet.sheet_status)} showDot={false}>
+                          {sheet.sheet_status}
+                        </Badge>
+                        <button className="h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 flex items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300 shrink-0">
+                          <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
 
-              <div className="flex flex-col gap-3">
-                {items.map(item => (
-                  <LineItemRow
-                    key={item.id}
-                    item={item}
-                    sheetStatus={sheetDetail.sheet_status}
-                    bankBalances={bankBalances}
-                    accountSubTitles={accountSubTitles}
-                    onCreateAccountSubTitle={handleCreateAccountSubTitle}
-                    onSave={handleSaveItem}
-                    onResubmit={handleResubmitItem}
-                    onDelete={handleDeleteItem}
-                    selectable={sheetDetail.sheet_status === 'Submitted' && item.payment_mode === 'Bulk NEFT'}
-                    selected={selectedItemIds.includes(item.id)}
-                    onToggleSelect={toggleSelectItem}
-                    registerSave={registerSave}
-                  />
+                    <div className="flex justify-between items-center border-t border-white/5 pt-3.5 mt-2">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                        {sheet.submitted_at ? `Submitted ${formatDate(sheet.submitted_at)}` : `Created ${formatDate(sheet.created_at)}`}
+                      </span>
+                      <div className="text-right">
+                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Total Requested</span>
+                        <span className="text-lg font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
+            )}
+          </div>
 
-              {sheetDetail.sheet_status === 'Open' && items.length > 0 && (
-                <Button variant="amber" onClick={handleSubmitSheet} className="self-start">
-                  Submit Sheet
-                </Button>
-              )}
-
-              {sheetDetail.sheet_status === 'Submitted' && eligibleNeftItemIds.length > 0 && (
-                <BulkNeftExportButton
-                  sheetId={selectedSheetId}
-                  selectedItemIds={selectedItemIds}
-                  onExported={() => setSelectedItemIds([])}
-                />
-              )}
-            </>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            maxVisible={5}
+            showLabel={true}
+            totalRecords={totalItems}
+            className="rounded-2xl z-10"
+          />
         </div>
       </div>
-
-      {success && (
-        <Modal isOpen={true} onClose={() => setSuccess('')} title="Success" size="sm"
-          footer={<Button variant="amber" onClick={() => setSuccess('')} className="w-full">Continue</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{success}</p>
-        </Modal>
-      )}
-
-      {error && (
-        <Modal isOpen={true} onClose={() => setError('')} title="Action Blocked" size="sm"
-          footer={<Button variant="primary" onClick={() => setError('')} className="w-full">Understood</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{error}</p>
-        </Modal>
-      )}
     </>
   );
 };
