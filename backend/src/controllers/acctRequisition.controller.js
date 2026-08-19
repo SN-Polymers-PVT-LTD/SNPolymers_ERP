@@ -76,16 +76,74 @@ async function createSheet(req, res) {
 async function getSheets(req, res) {
   try {
     const query = req.query || {};
-    let dbQuery = supabase.from('acct_requisition_sheets').select('*');
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase.from('acct_requisition_sheets').select('*', { count: 'exact' });
 
     if (query.sheet_status && ['Open', 'Submitted'].includes(query.sheet_status)) {
       dbQuery = dbQuery.eq('sheet_status', query.sheet_status);
     }
 
-    const { data: sheets, error } = await dbQuery.order('created_at', { ascending: false });
+    if (query.sheet_number) {
+      dbQuery = dbQuery.ilike('sheet_number', `%${query.sheet_number}%`);
+    }
+
+    if (query.date_from) {
+      dbQuery = dbQuery.gte('created_at', query.date_from);
+    }
+
+    if (query.date_to) {
+      // date_to is a plain date (YYYY-MM-DD); push to end-of-day so the
+      // filter includes the whole day rather than cutting off at midnight.
+      dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+    }
+
+    const { data: sheets, count, error } = await dbQuery
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
     if (error) throw error;
 
-    return res.status(200).json({ success: true, sheets: sheets || [] });
+    const sheetIds = (sheets || []).map(s => s.id);
+    let statsMap = {};
+
+    if (sheetIds.length > 0) {
+      const { data: items, error: itemsErr } = await supabase
+        .from('acct_requisition_line_items')
+        .select('sheet_id, req_amount')
+        .in('sheet_id', sheetIds);
+
+      if (itemsErr) throw itemsErr;
+
+      statsMap = (items || []).reduce((acc, item) => {
+        const entry = acc[item.sheet_id] || { item_count: 0, total_req_amount: 0 };
+        entry.item_count += 1;
+        entry.total_req_amount += Number(item.req_amount) || 0;
+        acc[item.sheet_id] = entry;
+        return acc;
+      }, {});
+    }
+
+    const enrichedSheets = (sheets || []).map(sheet => ({
+      ...sheet,
+      item_count: statsMap[sheet.id]?.item_count || 0,
+      total_req_amount: statsMap[sheet.id]?.total_req_amount || 0
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      sheets: enrichedSheets,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
   } catch (error) {
     console.error(`getSheets failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheets.' });
