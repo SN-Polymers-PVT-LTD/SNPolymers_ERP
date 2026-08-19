@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Modal, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
@@ -16,12 +16,47 @@ import {
 
 const ITEMS_PER_PAGE = 20;
 
+const escapeCsvField = (val) => {
+  if (val == null) return '';
+  const str = String(val);
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+};
+
+const CSV_COLUMNS = [
+  ['Sheet Number', (item, sheet) => sheet.sheet_number],
+  ['Particulars', (item) => item.particulars],
+  ['Account Sub-title', (item) => item.account_sub_title_text],
+  ['Beneficiary Name', (item) => item.beneficiary_name],
+  ['Beneficiary A/C No', (item) => item.beneficiary_ac_no],
+  ['Beneficiary IFSC', (item) => item.beneficiary_ifsc],
+  ['Beneficiary Bank', (item) => item.beneficiary_bank_name],
+  ['Debit Bank', (item) => item.debit_bank_ac_type],
+  ['Requested Amount', (item) => item.req_amount],
+  ['Payment Mode', (item) => item.payment_mode],
+  ['Cheque No', (item) => item.cheque_no],
+  ['Cheque Date', (item) => item.cheque_date],
+  ['Status', (item) => item.requisition_status || 'Draft'],
+  ['HO Pass Amount', (item) => item.ho_pass_amount],
+  ['HO Remarks', (item) => item.ho_remarks],
+  ['Created At', (item) => item.created_at],
+  ['Updated At', (item) => item.updated_at],
+  ['HO Actioned At', (item) => item.ho_actioned_at]
+];
+
+const buildSheetCsv = (sheet, items) => {
+  const headerRow = CSV_COLUMNS.map(([label]) => label);
+  const dataRows = items.map((item) => CSV_COLUMNS.map(([, getValue]) => getValue(item, sheet)));
+  return [headerRow, ...dataRows].map((row) => row.map(escapeCsvField).join(',')).join('\r\n');
+};
+
 const getStatusBadgeVariant = (status) => {
   switch (status) {
     case 'Open':
       return 'amber';
     case 'Submitted':
       return 'blue';
+    case 'Reviewed':
+      return 'emerald';
     default:
       return 'slate';
   }
@@ -35,10 +70,24 @@ const AcctRequisitionSheetView = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [selectedItemIds, setSelectedItemIds] = useState([]);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState(null);
   const [page, setPage] = useState(1);
   const saveFnsRef = useRef({});
+
+  // BeneficiaryAutofill's "Found beneficiary" prompt is dismissed/confirmed
+  // per (account_number, ifsc) key. Without this, that state lived only
+  // inside each row's own component instance — so two rows paying the same
+  // beneficiary (a common case: one vendor, several charge types) each
+  // independently re-prompt for a match you already confirmed on an earlier
+  // row in this same sheet. Tracking dismissed keys at the sheet level means
+  // confirming or dismissing a beneficiary once covers every row referencing
+  // it, for the rest of this sheet-editing session.
+  const [dismissedBeneficiaryKeys, setDismissedBeneficiaryKeys] = useState(() => new Set());
+  const dismissBeneficiaryKey = useCallback((key) => {
+    setDismissedBeneficiaryKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  }, []);
 
   const registerSave = useCallback((itemId, fn) => {
     if (fn) {
@@ -92,15 +141,77 @@ const AcctRequisitionSheetView = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheet', id] });
   };
 
+  // Patches the cached sheet's items in place instead of invalidating +
+  // refetching the whole sheet — addLineItem/deleteLineItem already tell us
+  // exactly what changed, so there's no need for a second GET round trip
+  // (and the visible gap that comes with it) just to learn what we already
+  // know. The sheet list ('acctSheets', e.g. item counts) still gets
+  // invalidated, but that refetch happens off-screen on a different page.
+  const patchItems = (updater) => {
+    queryClient.setQueryData(['acctSheet', id], (old) => (
+      old ? { ...old, items: updater(old.items || []) } : old
+    ));
+  };
+
+  // Optimistic add: a real create still costs a network round trip (POST +
+  // the backend's own sheet-status guard + insert), so the row is rendered
+  // immediately as a disabled "Creating…" placeholder rather than waiting on
+  // that round trip to show anything. It's reconciled with the real item
+  // (real id, actually editable) once the request resolves, or removed if it
+  // fails. The temp- prefix is how LineItemRow knows to treat it as pending.
   const handleAddItem = async () => {
     setError('');
+    setAddingItem(true);
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const placeholder = {
+      id: tempId,
+      particulars: '',
+      account_sub_title_id: null,
+      account_sub_title_text: '',
+      beneficiary_ac_no: '',
+      beneficiary_name: '',
+      beneficiary_ifsc: '',
+      beneficiary_bank_name: '',
+      debit_bank_ac_type: '',
+      req_amount: null,
+      payment_mode: '',
+      cheque_no: '',
+      cheque_date: '',
+      requisition_status: null
+    };
+    patchItems((items) => [...items, placeholder]);
     try {
-      await addLineItem(id, {});
-      invalidateSheet();
+      const res = await addLineItem(id, {});
+      const newItem = res.data?.item;
+      patchItems((items) => items.map((i) => (i.id === tempId ? newItem : i)));
+      queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     } catch (err) {
+      patchItems((items) => items.filter((i) => i.id !== tempId));
       setError(err.response?.data?.message || 'Failed to add line item.');
+    } finally {
+      setAddingItem(false);
     }
   };
+
+  // Ctrl+Alt+N adds a line item without reaching for the mouse — only wired
+  // up while the sheet is Open (the only state new items can be added in).
+  // Single-modifier combos on 'n' keep colliding with something the browser
+  // or OS already owns and can't be overridden via preventDefault: Ctrl/Cmd+N
+  // opens a new browser window, Ctrl+Shift+N opens an Incognito window, and
+  // plain Alt+N is a common window-manager/menu-mnemonic binding on Linux.
+  // Three-way combos like this one are essentially never claimed elsewhere.
+  useEffect(() => {
+    if (sheetDetail?.sheet_status !== 'Open') return undefined;
+    const onKeyDown = (e) => {
+      if (e.ctrlKey && e.altKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault();
+        handleAddItem();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sheetDetail?.sheet_status, id]);
 
   const handleSaveItem = async (itemId, payload) => {
     await updateLineItem(id, itemId, payload);
@@ -141,11 +252,15 @@ const AcctRequisitionSheetView = () => {
 
   const handleDeleteItem = async (itemId) => {
     setError('');
+    setDeletingItemId(itemId);
     try {
       await deleteLineItem(id, itemId);
-      invalidateSheet();
+      patchItems((items) => items.filter((i) => i.id !== itemId));
+      queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to delete line item.');
+    } finally {
+      setDeletingItemId(null);
     }
   };
 
@@ -158,10 +273,6 @@ const AcctRequisitionSheetView = () => {
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit sheet.');
     }
-  };
-
-  const toggleSelectItem = (itemId, checked) => {
-    setSelectedItemIds(prev => checked ? [...prev, itemId] : prev.filter(id2 => id2 !== itemId));
   };
 
   if (!isAccountsUser) {
@@ -183,10 +294,19 @@ const AcctRequisitionSheetView = () => {
   const items = sheetDetail.items || [];
   const totalPages = Math.max(Math.ceil(items.length / ITEMS_PER_PAGE), 1);
   const pagedItems = items.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-  const primaryBank = bankBalances.find(b => items.some(i => i.debit_bank_ac_type === b.bank_name)) || bankBalances[0];
-  const eligibleNeftItemIds = items
+  const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
-    .map(i => i.id);
+    .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
+
+  const handleExportCsv = () => {
+    const csv = buildSheetCsv(sheetDetail, items);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   return (
     <>
@@ -212,12 +332,18 @@ const AcctRequisitionSheetView = () => {
         </div>
       </div>
 
-      {primaryBank && <BankBalanceBanner bankBalance={primaryBank} lineItems={items} />}
+      {bankBalances.length > 0 && (
+        <div className="flex flex-wrap gap-4">
+          {bankBalances.map((bank) => (
+            <BankBalanceBanner key={bank.bank_name} bankBalance={bank} lineItems={items} />
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mt-6 mb-4">
         {sheetDetail.sheet_status === 'Open' && (
           <>
-            <Button variant="glass" size="sm" onClick={handleAddItem}>
+            <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
               + Add Line Item
             </Button>
             {items.length > 0 && (
@@ -232,12 +358,13 @@ const AcctRequisitionSheetView = () => {
             Submit Sheet
           </Button>
         )}
-        {sheetDetail.sheet_status === 'Submitted' && eligibleNeftItemIds.length > 0 && (
-          <BulkNeftExportButton
-            sheetId={id}
-            selectedItemIds={selectedItemIds}
-            onExported={() => setSelectedItemIds([])}
-          />
+        {['Submitted', 'Reviewed'].includes(sheetDetail.sheet_status) && (
+          <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
+        )}
+        {items.length > 0 && (
+          <Button variant="glass" size="sm" onClick={handleExportCsv}>
+            Export to CSV
+          </Button>
         )}
       </div>
 
@@ -271,9 +398,12 @@ const AcctRequisitionSheetView = () => {
                   onSave={handleSaveItem}
                   onResubmit={handleResubmitItem}
                   onDelete={handleDeleteItem}
-                  selectable={sheetDetail.sheet_status === 'Submitted' && item.payment_mode === 'Bulk NEFT'}
-                  selected={selectedItemIds.includes(item.id)}
-                  onToggleSelect={toggleSelectItem}
+                  deleting={deletingItemId === item.id}
+                  onAddItem={handleAddItem}
+                  dismissedBeneficiaryKeys={dismissedBeneficiaryKeys}
+                  onDismissBeneficiaryKey={dismissBeneficiaryKey}
+                  addingItem={addingItem}
+                  pending={typeof item.id === 'string' && item.id.startsWith('temp-')}
                   registerSave={registerSave}
                 />
               ))}
@@ -307,4 +437,5 @@ const AcctRequisitionSheetView = () => {
   );
 };
 
+export { buildSheetCsv };
 export default AcctRequisitionSheetView;

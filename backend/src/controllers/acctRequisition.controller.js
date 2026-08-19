@@ -3,7 +3,7 @@
 const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const {
-  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
+  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertIndianBankSchema,
@@ -86,7 +86,7 @@ async function getSheets(req, res) {
 
     let dbQuery = supabase.from('acct_requisition_sheets').select('*', { count: 'exact' });
 
-    if (query.sheet_status && ['Open', 'Submitted'].includes(query.sheet_status)) {
+    if (query.sheet_status && ['Open', 'Submitted', 'Reviewed'].includes(query.sheet_status)) {
       dbQuery = dbQuery.eq('sheet_status', query.sheet_status);
     }
 
@@ -429,17 +429,15 @@ async function actOnLineItem(req, res) {
       throw rpcErr;
     }
 
-    const {
-      notifyAcctLineItemActed,
-      notifyAcctSheetReviewComplete
-    } = require('../services/telegram.service');
+    const { notifyAcctSheetReviewComplete } = require('../services/telegram.service');
 
-    if (data.requisition_status === 'Returned for Correction' || data.requisition_status === 'Rejected') {
-      notifyAcctLineItemActed(data, data.requisition_status).catch(err => {
-        console.error(`[ACCT ITEM] Telegram notification failed: ${err.message}`);
-      });
-    }
-
+    // Returned/Rejected items no longer get their own immediate Telegram
+    // message here — on a large sheet that meant one ping per item as HO
+    // worked through the queue. They're folded into the single
+    // review-complete summary below instead (which already collects every
+    // Returned/Rejected item's particulars/amount/remarks), fired once per
+    // review session rather than once per action.
+    //
     // Event 2 — fires once HO has no more Pending HO Review / On Hold items
     // left on this sheet; a "review session" boundary, not a terminal state.
     const { count: pendingCount, error: pendingErr } = await supabase
@@ -458,6 +456,100 @@ async function actOnLineItem(req, res) {
   } catch (error) {
     console.error(`actOnLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to act on line item.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/sheets/:sheetId/items/batch-action
+ * Batch counterpart of actOnLineItem — one request carrying every HO
+ * decision for a review session (mirrors the cost-estimate HO review's
+ * submit_row_approvals), instead of one PATCH per line item per click.
+ *
+ * act_acct_line_items_batch_transact (migration 027) runs every action in
+ * one transaction but isolates each item behind its own savepoint, so one
+ * item failing (e.g. insufficient bank balance) doesn't roll back the
+ * others — the response reports success/failure per item rather than
+ * succeeding or failing as a whole.
+ */
+async function actOnLineItemsBatch(req, res) {
+  if (!validate(req, res, actOnLineItemsBatchSchema)) return;
+  const { sheetId } = req.params;
+  const { actions } = req.body;
+
+  try {
+    const itemIds = actions.map(a => a.line_item_id);
+    const { data: items, error: itemsErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id, debit_bank_ac_type, req_amount')
+      .eq('sheet_id', sheetId)
+      .in('id', itemIds);
+    if (itemsErr) throw itemsErr;
+
+    const foundIds = new Set((items || []).map(i => i.id));
+    const notInSheet = itemIds.filter(id => !foundIds.has(id));
+    if (notInSheet.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `${notInSheet.length} item(s) do not belong to this sheet.`
+      });
+    }
+    const itemById = new Map((items || []).map(i => [i.id, i]));
+
+    const { data: results, error: rpcErr } = await supabase.rpc('act_acct_line_items_batch_transact', {
+      p_actions: actions.map(a => ({
+        line_item_id: a.line_item_id,
+        action: a.action,
+        ho_pass_amount: a.ho_pass_amount ?? null,
+        ho_remarks: a.ho_remarks?.trim() || null
+      })),
+      p_actioned_by: req.user.mobile_number
+    });
+    if (rpcErr) throw rpcErr;
+
+    const { notifyAcctBankBalanceInsufficient, notifyAcctSheetReviewComplete } = require('../services/telegram.service');
+
+    const failed = results.filter(r => !r.success);
+    // Fire-and-forget, same as the single-item path — one message per bank
+    // that hit BAL01 in this batch, not deduped, matching existing behavior.
+    for (const r of failed) {
+      if (r.error_code === 'BAL01') {
+        const item = itemById.get(r.line_item_id);
+        const action = actions.find(a => a.line_item_id === r.line_item_id);
+        supabase.from('bank_balance_master')
+          .select('available_balance')
+          .eq('bank_name', item?.debit_bank_ac_type)
+          .maybeSingle()
+          .then(({ data: bbm }) => notifyAcctBankBalanceInsufficient(
+            item?.debit_bank_ac_type,
+            bbm?.available_balance ?? 0,
+            action?.ho_pass_amount ?? item?.req_amount
+          ))
+          .catch(err => console.error(`[ACCT BANK] Telegram notification failed: ${err.message}`));
+      }
+    }
+
+    // Same "review session complete" boundary as the single-item path, just
+    // checked once after the whole batch instead of after every action.
+    const { count: pendingCount, error: pendingErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('sheet_id', sheetId)
+      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+
+    if (!pendingErr && pendingCount === 0) {
+      notifyAcctSheetReviewComplete(sheetId).catch(err => {
+        console.error(`[ACCT SHEET] Telegram notification failed: ${err.message}`);
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      results,
+      message: `${results.length - failed.length} of ${results.length} action(s) applied.`
+    });
+  } catch (error) {
+    console.error(`actOnLineItemsBatch failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to apply batch actions.' });
   }
 }
 
@@ -1022,7 +1114,7 @@ async function exportBulkNeft(req, res) {
 module.exports = {
   createSheet, getSheets, getSheetById,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
-  actOnLineItem, resubmitLineItem, reopenLineItem,
+  actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,

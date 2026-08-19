@@ -11,6 +11,8 @@ const getStatusBadgeVariant = (status) => {
       return 'amber';
     case 'Submitted':
       return 'blue';
+    case 'Reviewed':
+      return 'emerald';
     default:
       return 'slate';
   }
@@ -68,6 +70,7 @@ const AcctRequisitions = () => {
 
   const openCount = sheets.filter(s => s.sheet_status === 'Open').length;
   const submittedCount = sheets.filter(s => s.sheet_status === 'Submitted').length;
+  const reviewedCount = sheets.filter(s => s.sheet_status === 'Reviewed').length;
 
   const handleCardClick = (sheet) => {
     navigate(`/acct-requisitions/sheets/${sheet.id}`);
@@ -139,6 +142,10 @@ const AcctRequisitions = () => {
           <span className="text-[10px] uppercase font-bold tracking-widest text-sky-500 block mb-1">Submitted (this page)</span>
           <span className="text-2xl font-black text-sky-400 font-mono">{submittedCount}</span>
         </div>
+        <div className="flex-1">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-500 block mb-1">Reviewed (this page)</span>
+          <span className="text-2xl font-black text-emerald-400 font-mono">{reviewedCount}</span>
+        </div>
       </div>
 
       {/* Main Two-Column Workspace */}
@@ -176,19 +183,26 @@ const AcctRequisitions = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-white/5 space-y-2">
+            <div className="pt-4 border-t border-white/5 space-y-1.5">
               <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Status</span>
-              {['All', 'Open', 'Submitted'].map((s) => (
-                <Button
-                  key={s}
-                  onClick={() => { setStatusFilter(s); setPage(1); }}
-                  variant={statusFilter === s ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className="w-full justify-start"
-                >
-                  {s === 'All' ? 'All Sheets' : `${s} Sheets`}
-                </Button>
-              ))}
+              {['All', 'Open', 'Submitted', 'Reviewed'].map((s) => {
+                const isActive = statusFilter === s;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => { setStatusFilter(s); setPage(1); }}
+                    className={`w-full text-left px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 flex items-center justify-between select-none ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20 font-extrabold ring-1 ring-amber-400'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{s === 'All' ? 'All Sheets' : `${s} Sheets`}</span>
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-slate-950"></span>}
+                  </button>
+                );
+              })}
             </div>
 
             {(searchQuery || dateFrom || dateTo || statusFilter !== 'All') && (

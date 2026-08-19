@@ -40,5 +40,8 @@ export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
 export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${itemId}/action`, data);
+// One request carrying every staged HO decision for a sheet, instead of one
+// PATCH per line item — actions: [{ line_item_id, action, ho_pass_amount?, ho_remarks? }]
+export const actOnLineItemsBatch = (sheetId, actions) => authApi.post(`${BASE}/sheets/${sheetId}/items/batch-action`, { actions });
 export const resubmitLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/resubmit`, data);
 export const reopenLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/reopen`, data);

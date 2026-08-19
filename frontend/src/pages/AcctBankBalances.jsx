@@ -10,7 +10,8 @@ import { getBankBalances } from '../api/acctRequisitionsApi';
 
 const AcctBankBalances = () => {
   const { user } = useAuth();
-  const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
+  const canAccess = ['accounts', 'ho', 'admin'].includes(user?.role);
+  const canEdit = ['accounts', 'admin'].includes(user?.role);
   const [showAddBank, setShowAddBank] = useState(false);
 
   const { data: bankBalances = [], isLoading } = useQuery({
@@ -19,7 +20,7 @@ const AcctBankBalances = () => {
     staleTime: 60 * 1000
   });
 
-  if (!isAccountsUser) {
+  if (!canAccess) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
 
@@ -32,10 +33,12 @@ const AcctBankBalances = () => {
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Bank Balance Master</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">
-            Manually-maintained reference table — debit/credit an existing account or add a new bank.
+            {canEdit
+              ? 'Manually-maintained reference table — debit/credit an existing account or add a new bank.'
+              : 'Reference table of active company bank accounts and current available balances.'}
           </p>
         </div>
-        <Button onClick={() => setShowAddBank(true)}>+ Add Bank</Button>
+        {canEdit && <Button onClick={() => setShowAddBank(true)}>+ Add Bank</Button>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -44,12 +47,12 @@ const AcctBankBalances = () => {
             <div className="py-12 text-center text-xs text-slate-500">Loading balances...</div>
           ) : bankBalances.length === 0 ? (
             <div className="glass-panel rounded-3xl p-8 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
-              No bank accounts set up yet. Use "+ Add Bank" to create one.
+              {canEdit ? 'No bank accounts set up yet. Use "+ Add Bank" to create one.' : 'No bank accounts set up yet.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {bankBalances.map((b) => (
-                <BankCard key={b.bank_name} bank={b} />
+                <BankCard key={b.bank_name} bank={b} readOnly={!canEdit} />
               ))}
             </div>
           )}

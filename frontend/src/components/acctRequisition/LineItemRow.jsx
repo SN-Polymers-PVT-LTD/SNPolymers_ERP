@@ -72,11 +72,19 @@ const LineItemRow = ({
   onSave,
   onResubmit,
   onDelete,
+  deleting,
+  pending,
+  onAddItem,
+  addingItem,
   onCreateAccountSubTitle,
   selectable,
   selected,
   onToggleSelect,
-  registerSave
+  registerSave,
+  dismissedBeneficiaryKeys,
+  onDismissBeneficiaryKey,
+  renderExtraCell,
+  showActionsCell = true
 }) => {
   const openPath = sheetStatus === 'Open';
   const returnedPath = item.requisition_status === 'Returned for Correction';
@@ -117,19 +125,14 @@ const LineItemRow = ({
   const performSave = async () => {
     const currentDraft = draftRef.current;
     setError('');
-    if (currentDraft.payment_mode === 'Cheque' && (!currentDraft.cheque_no || !currentDraft.cheque_date)) {
-      const msg = 'cheque_no and cheque_date are required when payment_mode is Cheque.';
-      setError(msg);
-      throw new Error(msg);
-    }
     setSaving(true);
     try {
       const payload = {
         ...currentDraft,
         req_amount: currentDraft.req_amount === '' ? null : Number(currentDraft.req_amount),
         payment_mode: currentDraft.payment_mode || null,
-        cheque_no: currentDraft.payment_mode === 'Cheque' ? currentDraft.cheque_no : null,
-        cheque_date: currentDraft.payment_mode === 'Cheque' ? currentDraft.cheque_date : null
+        cheque_no: currentDraft.cheque_no || null,
+        cheque_date: currentDraft.cheque_date || null
       };
       if (openPath) {
         await onSave(item.id, payload);
@@ -181,11 +184,11 @@ const LineItemRow = ({
   // stay opt-in via their own "Resubmit" button and are never silently
   // included in a bulk "Save Draft" click.
   useEffect(() => {
-    if (!openPath || !registerSave) return undefined;
+    if (!openPath || !registerSave || pending) return undefined;
     registerSave(item.id, performSave);
     return () => registerSave(item.id, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openPath, item.id, registerSave]);
+  }, [openPath, item.id, registerSave, pending]);
 
   if (!editable && !viewOnlyFull) {
     return (
@@ -193,16 +196,29 @@ const LineItemRow = ({
         <TableCell colSpan={2}>
           <p className="text-sm font-bold text-slate-100">{item.particulars || '—'}</p>
         </TableCell>
-        <TableCell>
-          <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
-          <p className="text-[10px] text-slate-500">{item.beneficiary_ac_no} · {item.beneficiary_ifsc}</p>
+        <TableCell className="min-w-[200px]">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
+            {item.beneficiary_ac_no && (
+              <p className="text-[10px] text-slate-500">
+                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">A/C</span>
+                {item.beneficiary_ac_no}
+              </p>
+            )}
+            {item.beneficiary_ifsc && (
+              <p className="text-[10px] text-slate-500">
+                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">IFSC</span>
+                {item.beneficiary_ifsc}
+              </p>
+            )}
+          </div>
         </TableCell>
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
         <TableCell align="right">
           <span className="font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
         </TableCell>
         <TableCell>{item.payment_mode || '—'}</TableCell>
-        <TableCell>
+        <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
             <Badge variant={STATUS_VARIANTS[item.requisition_status] || 'slate'}>
               {item.requisition_status || 'Draft'}
@@ -211,25 +227,29 @@ const LineItemRow = ({
             <ReopenedBadge item={item} />
           </div>
         </TableCell>
-        <TableCell>
-          {selectable && (
-            <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              <input type="checkbox" checked={!!selected} onChange={(e) => onToggleSelect?.(item.id, e.target.checked)} />
-              Select
-            </label>
-          )}
-        </TableCell>
+        {showActionsCell && (
+          <TableCell>
+            {selectable && (
+              <label className="flex items-center gap-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                <input type="checkbox" checked={!!selected} onChange={(e) => onToggleSelect?.(item.id, e.target.checked)} />
+                Select
+              </label>
+            )}
+          </TableCell>
+        )}
+        {renderExtraCell && <TableCell className="min-w-[260px]">{renderExtraCell(item)}</TableCell>}
       </TableRow>
     );
   }
 
-  const readOnly = !editable; // true exactly when viewOnlyFull (the early return above already excludes every other non-editable status)
+  const readOnly = !editable || pending; // viewOnlyFull, or a not-yet-reconciled optimistic placeholder
   const holdDays = viewOnlyFull ? daysOnHold(item) : null;
 
   return (
     <TableRow className={editable ? 'bg-amber-500/[0.03]' : 'bg-orange-500/[0.03]'}>
       <TableCell className="min-w-[160px]">
         <div className="flex flex-col gap-2">
+          {pending && <Badge variant="slate">Creating…</Badge>}
           {returnedPath && <Badge variant="red">Returned for Correction</Badge>}
           {viewOnlyFull && (
             <div className="flex flex-wrap items-center gap-1.5">
@@ -274,6 +294,10 @@ const LineItemRow = ({
             <BeneficiaryAutofill
               accountNumber={draft.beneficiary_ac_no}
               ifsc={draft.beneficiary_ifsc}
+              currentName={draft.beneficiary_name}
+              currentBankName={draft.beneficiary_bank_name}
+              sheetDismissedKeys={dismissedBeneficiaryKeys}
+              onSheetDismiss={onDismissBeneficiaryKey}
               onAutofill={(b) => {
                 setDraft(prev => ({
                   ...prev,
@@ -312,12 +336,8 @@ const LineItemRow = ({
             onChange={(e) => setField('payment_mode', e.target.value)}
             options={[{ value: '', label: 'Select...' }, ...PAYMENT_MODES]}
           />
-          {draft.payment_mode === 'Cheque' && (
-            <>
-              <Input required disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No." size="sm" />
-              <Input required disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date" size="sm" />
-            </>
-          )}
+          <Input disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No. (optional)" size="sm" />
+          <Input disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date (optional)" size="sm" />
         </div>
       </TableCell>
 
@@ -328,16 +348,46 @@ const LineItemRow = ({
         {error && <p className="text-[10px] font-semibold text-red-400 mt-1.5">{error}</p>}
       </TableCell>
 
+      {showActionsCell && (
       <TableCell className="min-w-[140px]">
         {editable && (
           <div className="flex items-center gap-2">
-            <Button type="button" variant={returnedPath ? 'amber' : 'primary'} size="sm" loading={saving} onClick={handleSaveClick}>
-              {returnedPath ? 'Resubmit' : 'Save'}
-            </Button>
-            {openPath && onDelete && (
-              <Button type="button" variant="danger" size="sm" onClick={() => onDelete(item.id)}>
-                Delete
+            {returnedPath && (
+              <Button type="button" variant="amber" size="sm" loading={saving} onClick={handleSaveClick}>
+                Resubmit
               </Button>
+            )}
+            {openPath && onAddItem && !pending && (
+              <button
+                type="button"
+                aria-label="Add line item"
+                title="Add line item"
+                disabled={addingItem}
+                onClick={onAddItem}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v14m-7-7h14" />
+                </svg>
+              </button>
+            )}
+            {openPath && onDelete && !pending && (
+              <button
+                type="button"
+                aria-label="Delete line item"
+                title="Delete line item"
+                disabled={deleting}
+                onClick={() => onDelete(item.id)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className={`w-4 h-4 ${deleting ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {deleting ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V2.5" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 7h12M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0-1 13a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7h12z" />
+                  )}
+                </svg>
+              </button>
             )}
           </div>
         )}
@@ -348,6 +398,8 @@ const LineItemRow = ({
           </label>
         )}
       </TableCell>
+      )}
+      {renderExtraCell && <TableCell className="min-w-[260px]">{renderExtraCell(item)}</TableCell>}
     </TableRow>
   );
 };

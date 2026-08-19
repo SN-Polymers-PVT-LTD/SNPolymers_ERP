@@ -19,20 +19,18 @@ const LastHoActionTag = ({ item }) => {
   if (!shouldShow) return null;
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 w-full">
       <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">
         Last HO Action
       </span>
-      <div className="flex items-center gap-2">
-        <Badge variant={PROCESS_VARIANTS[item.last_ho_process] || 'slate'}>
-          {item.last_ho_process}
-        </Badge>
-        {item.last_ho_remarks && (
-          <span className="text-xs text-slate-400 italic truncate max-w-xs" title={item.last_ho_remarks}>
-            "{item.last_ho_remarks}"
-          </span>
-        )}
-      </div>
+      <Badge variant={PROCESS_VARIANTS[item.last_ho_process] || 'slate'}>
+        {item.last_ho_process}
+      </Badge>
+      {item.last_ho_remarks && (
+        <span className="text-[11px] text-slate-400 italic leading-snug line-clamp-2" title={item.last_ho_remarks}>
+          "{item.last_ho_remarks}"
+        </span>
+      )}
     </div>
   );
 };

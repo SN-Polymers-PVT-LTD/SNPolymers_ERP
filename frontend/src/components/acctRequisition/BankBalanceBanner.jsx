@@ -10,8 +10,15 @@ const formatCurrency = (val) =>
  * the current one. Only the not-yet-submitted rows on the currently-open
  * sheet remain a genuine client-side projection, since those haven't reached
  * HO yet and so can't be reflected in the stored balance.
+ *
+ * `stagedDebit` is a second, separate client-side-only projection: on the HO
+ * review page, it's the sum of req_amount/ho_pass_amount for whatever this
+ * bank's items are currently staged as Approve/Partially Approve in the
+ * decision panel — before "Submit Decisions" is even clicked. Purely a UX
+ * preview so HO can see the effect of decisions still being made; it's never
+ * sent anywhere and has no bearing on the real balance until submitted.
  */
-const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
+const BankBalanceBanner = ({ bankBalance, lineItems = [], stagedDebit = 0 }) => {
   const projected = useMemo(() => {
     if (!bankBalance) return null;
 
@@ -20,8 +27,8 @@ const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
       .filter(i => i.debit_bank_ac_type === bankName && i.requisition_status == null)
       .reduce((sum, i) => sum + Number(i.req_amount || 0), 0);
 
-    return Number(bankBalance.available_balance) - openRunning;
-  }, [bankBalance, lineItems]);
+    return Number(bankBalance.available_balance) - openRunning - Number(stagedDebit || 0);
+  }, [bankBalance, lineItems, stagedDebit]);
 
   if (!bankBalance) return null;
 
@@ -34,6 +41,11 @@ const BankBalanceBanner = ({ bankBalance, lineItems = [] }) => {
       <div>
         <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Projected After Open Sheet</span>
         <p className="text-sm font-bold text-amber-400">{formatCurrency(projected)}</p>
+        {stagedDebit > 0 && (
+          <p className="text-[9px] font-semibold text-amber-500/70">
+            includes {formatCurrency(stagedDebit)} staged this session
+          </p>
+        )}
       </div>
     </div>
   );

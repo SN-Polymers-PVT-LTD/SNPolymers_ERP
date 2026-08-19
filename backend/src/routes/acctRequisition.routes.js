@@ -1,7 +1,7 @@
 const express = require('express');
 const {
   createSheet, getSheets, getSheetById, addLineItem, updateLineItem,
-  deleteLineItem, submitSheet, actOnLineItem, resubmitLineItem, reopenLineItem,
+  deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getIndianBanks, upsertIndianBank, exportBulkNeft
@@ -10,7 +10,7 @@ const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
 const validateRequest = require('../middleware/validateRequest');
 const {
-  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
+  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertIndianBankSchema,
@@ -43,6 +43,7 @@ router.post('/sheets/:sheetId/items', requireRole(accountsRoles), validateReques
 router.patch('/sheets/:sheetId/items/:itemId', requireRole(accountsRoles), validateRequest(updateLineItemSchema), updateLineItem);
 router.delete('/sheets/:sheetId/items/:itemId', requireRole(accountsRoles), deleteLineItem);
 router.patch('/items/:itemId/action', requireRole(hoRoles), validateRequest(actOnLineItemSchema), actOnLineItem);
+router.post('/sheets/:sheetId/items/batch-action', requireRole(hoRoles), validateRequest(actOnLineItemsBatchSchema), actOnLineItemsBatch);
 router.post('/items/:itemId/resubmit', requireRole(accountsRoles), validateRequest(resubmitLineItemSchema), resubmitLineItem);
 router.post('/items/:itemId/reopen', requireRole(hoRoles), validateRequest(reopenLineItemSchema), reopenLineItem);
 

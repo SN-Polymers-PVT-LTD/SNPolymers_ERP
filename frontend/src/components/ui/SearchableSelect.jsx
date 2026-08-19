@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Input from './Input';
 
 /**
@@ -27,17 +28,58 @@ const SearchableSelect = ({
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [menuRect, setMenuRect] = useState(null);
   const containerRef = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
+    // menuRef is checked too: the dropdown now renders through a portal
+    // (see below), so it's no longer a DOM descendant of containerRef —
+    // without this, a click on an option would count as "outside" and close
+    // the menu before its own onClick had a chance to fire.
     const handleClickOutside = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-      }
+      if (containerRef.current?.contains(e.target)) return;
+      if (menuRef.current?.contains(e.target)) return;
+      setOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Rendered through a portal (see below) instead of nested inside the
+  // table's own DOM, so position is tracked in viewport coordinates rather
+  // than relying on CSS position:absolute + z-index within the table's own
+  // stacking context. Flips above the input (instead of always opening
+  // downward) when the row is near the bottom of the viewport and there
+  // isn't room below for the menu — otherwise it just runs off-screen for
+  // the last row(s) in the table.
+  const MENU_MAX_HEIGHT = 224; // px, matches max-h-56
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+
+    const updateRect = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const flip = spaceBelow < MENU_MAX_HEIGHT && spaceAbove > spaceBelow;
+      setMenuRect({
+        left: rect.left,
+        width: rect.width,
+        flip,
+        top: flip ? undefined : rect.bottom + 4,
+        bottom: flip ? window.innerHeight - rect.top + 4 : undefined
+      });
+    };
+
+    updateRect();
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [open]);
 
   const filtered = useMemo(() => {
     const q = value.trim().toLowerCase();
@@ -84,8 +126,16 @@ const SearchableSelect = ({
         onChange={(e) => { onChange?.(e.target.value); setOpen(true); }}
       />
 
-      {open && !disabled && (
-        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0d131f] shadow-xl">
+      {open && !disabled && menuRect && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-50 max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0d131f] shadow-xl"
+          style={{
+            left: menuRect.left,
+            width: menuRect.width,
+            ...(menuRect.flip ? { bottom: menuRect.bottom } : { top: menuRect.top })
+          }}
+        >
           {filtered.length === 0 && !onCreate && (
             <p className="px-4 py-3 text-xs text-slate-500">No matches.</p>
           )}
@@ -111,7 +161,8 @@ const SearchableSelect = ({
               {creating ? 'Adding…' : createLabel(value.trim())}
             </button>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -14,7 +14,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
  * number via the "Add Bank" modal). This posts a delta against the current
  * balance rather than requiring the operator to type the full new figure.
  */
-const BankCard = ({ bank }) => {
+const BankCard = ({ bank, readOnly = false }) => {
   const queryClient = useQueryClient();
   const [adjusting, setAdjusting] = useState(false);
   const [direction, setDirection] = useState('credit');
@@ -84,54 +84,56 @@ const BankCard = ({ bank }) => {
         </span>
       </div>
 
-      {!adjusting ? (
-        <Button variant="glass" size="sm" onClick={() => setAdjusting(true)}>
-          Debit / Credit
-        </Button>
-      ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3 pt-3 border-t border-white/5">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setDirection('credit')}
-              className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                direction === 'credit'
-                  ? 'bg-emerald-500 text-slate-950'
-                  : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
-              }`}
-            >
-              + Credit
-            </button>
-            <button
-              type="button"
-              onClick={() => setDirection('debit')}
-              className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
-                direction === 'debit'
-                  ? 'bg-rose-500 text-slate-950'
-                  : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
-              }`}
-            >
-              - Debit
-            </button>
-          </div>
+      {!readOnly && (
+        !adjusting ? (
+          <Button variant="glass" size="sm" onClick={() => setAdjusting(true)}>
+            Debit / Credit
+          </Button>
+        ) : (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3 pt-3 border-t border-white/5">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setDirection('credit')}
+                className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
+                  direction === 'credit'
+                    ? 'bg-emerald-500 text-slate-950'
+                    : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                + Credit
+              </button>
+              <button
+                type="button"
+                onClick={() => setDirection('debit')}
+                className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition ${
+                  direction === 'debit'
+                    ? 'bg-rose-500 text-slate-950'
+                    : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
+                }`}
+              >
+                - Debit
+              </button>
+            </div>
 
-          <FormattedCurrencyInput
-            placeholder="Amount"
-            value={amount}
-            onValueChange={setAmount}
-          />
+            <FormattedCurrencyInput
+              placeholder="Amount"
+              value={amount}
+              onValueChange={setAmount}
+            />
 
-          {error && <p className="text-[10px] font-semibold text-red-400">{error}</p>}
+            {error && <p className="text-[10px] font-semibold text-red-400">{error}</p>}
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="glass" size="sm" onClick={closeAdjuster} disabled={submitting}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm" loading={submitting}>
-              Confirm
-            </Button>
-          </div>
-        </form>
+            <div className="grid grid-cols-2 gap-2">
+              <Button type="button" variant="glass" size="sm" onClick={closeAdjuster} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={submitting}>
+                Confirm
+              </Button>
+            </div>
+          </form>
+        )
       )}
     </div>
   );

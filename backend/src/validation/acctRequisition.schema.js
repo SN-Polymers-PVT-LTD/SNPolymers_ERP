@@ -44,9 +44,13 @@ const accountsLineItemBody = z.object({
   particulars:            z.string().trim().optional().nullable(),
   beneficiary_ac_no:      z.string().trim().optional().nullable(),
   beneficiary_name:       z.string().trim().optional().nullable(),
-  beneficiary_ifsc:       z.string().trim()
-                            .regex(ifscRegex, 'ifsc must be 11-char in format AAAA0XXXXXX.')
-                            .optional().nullable(),
+  // Not .regex() directly: that rejects '' outright, which a partially-filled
+  // row sends on every autosave until the field is complete. Empty string is
+  // treated the same as omitted/null; only a non-empty value has to match.
+  beneficiary_ifsc:       z.string().trim().optional().nullable()
+                            .refine(val => !val || ifscRegex.test(val), {
+                              message: 'ifsc must be 11-char in format AAAA0XXXXXX.'
+                            }),
   beneficiary_bank_name:  z.string().trim().optional().nullable()
                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                               message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
@@ -56,10 +60,7 @@ const accountsLineItemBody = z.object({
   payment_mode:           z.enum(['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT']).optional().nullable(),
   cheque_no:              z.string().trim().optional().nullable(),
   cheque_date:            z.string().trim().optional().nullable(),
-}).refine(
-  data => data.payment_mode !== 'Cheque' || (data.cheque_no && data.cheque_date),
-  { message: 'cheque_no and cheque_date are required when payment_mode is Cheque.', path: ['cheque_no'] }
-);
+});
 
 const addLineItemSchema = {
   params: z.object({ sheetId: uuidSchema }),
@@ -71,19 +72,37 @@ const updateLineItemSchema = {
   body: accountsLineItemBody
 };
 
+// Shared by both the single-item and batch action endpoints — same rule
+// either way: ho_pass_amount required for PartiallyApprove, ho_remarks
+// required for Hold/Return/Reject.
+const acctLineItemActionFields = {
+  action:         z.enum(['Approve', 'PartiallyApprove', 'Hold', 'Return', 'Reject']),
+  ho_pass_amount: z.coerce.number().positive().optional().nullable(),
+  ho_remarks:     z.string().trim().optional().nullable(),
+};
+const acctLineItemActionRefine = (data, ctx) => {
+  if (data.action === 'PartiallyApprove' && !data.ho_pass_amount) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ho_pass_amount is required for Partially Approve.', path: ['ho_pass_amount'] });
+  }
+  if (['Return', 'Hold', 'Reject'].includes(data.action) && !data.ho_remarks?.trim()) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ho_remarks is required for this action.', path: ['ho_remarks'] });
+  }
+};
+
 const actOnLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
+  body: z.object(acctLineItemActionFields).superRefine(acctLineItemActionRefine)
+};
+
+// Batch counterpart of actOnLineItemSchema — one request carrying every HO
+// decision for a review session (mirrors the cost-estimate HO review's
+// submit_row_approvals), instead of one PATCH per line item per click.
+const actOnLineItemsBatchSchema = {
+  params: z.object({ sheetId: uuidSchema }),
   body: z.object({
-    action:         z.enum(['Approve', 'PartiallyApprove', 'Hold', 'Return', 'Reject']),
-    ho_pass_amount: z.coerce.number().positive().optional().nullable(),
-    ho_remarks:     z.string().trim().optional().nullable(),
-  }).superRefine((data, ctx) => {
-    if (data.action === 'PartiallyApprove' && !data.ho_pass_amount) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ho_pass_amount is required for Partially Approve.', path: ['ho_pass_amount'] });
-    }
-    if (['Return', 'Hold', 'Reject'].includes(data.action) && !data.ho_remarks?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ho_remarks is required for this action.', path: ['ho_remarks'] });
-    }
+    actions: z.array(
+      z.object({ line_item_id: uuidSchema, ...acctLineItemActionFields }).superRefine(acctLineItemActionRefine)
+    ).min(1, 'At least one action is required.')
   })
 };
 
@@ -146,7 +165,7 @@ const upsertIndianBankSchema = {
 };
 
 module.exports = {
-  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema,
+  addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertIndianBankSchema,

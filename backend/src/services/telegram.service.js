@@ -2213,6 +2213,49 @@ async function notifyHoAcctSheetSubmitted(sheet) {
  * confirmed no items on the sheet remain in those two statuses.
  * To: the accounts user who created the sheet.
  */
+// Split out from notifyAcctSheetReviewComplete so the message formatting —
+// including the Returned/Rejected breakdown that replaced their own
+// individual Telegram messages — can be unit-tested without a DB or network.
+function buildReviewCompleteMessage(sheetNumber, items) {
+  const counts = {};
+  let approvedAmount = 0;
+  const returnedOrRejected = [];
+  for (const item of items || []) {
+    const status = item.requisition_status || 'Unknown';
+    counts[status] = (counts[status] || 0) + 1;
+    if (status === 'Approved' || status === 'Partially Approved') {
+      approvedAmount += Number(item.ho_pass_amount || 0);
+    }
+    if (status === 'Returned for Correction' || status === 'Rejected') {
+      returnedOrRejected.push(item);
+    }
+  }
+
+  const lines = [
+    `<b>Approved:</b> ${counts['Approved'] || 0}`,
+    `<b>Partially Approved:</b> ${counts['Partially Approved'] || 0}`,
+    `<b>On Hold:</b> ${counts['On Hold'] || 0}`,
+    `<b>Returned for Correction:</b> ${counts['Returned for Correction'] || 0}`,
+    `<b>Rejected:</b> ${counts['Rejected'] || 0}`
+  ];
+
+  const returnedOrRejectedBlock = returnedOrRejected.length > 0
+    ? '\n\n<b>Needs your attention:</b>\n' + returnedOrRejected.map(item =>
+        `• ${escapeHtml(item.particulars || 'N/A')} (₹${fmtInr(item.req_amount)}) — ` +
+        `${item.requisition_status === 'Rejected' ? 'Rejected' : 'Returned'}` +
+        (item.ho_remarks ? `: ${escapeHtml(item.ho_remarks)}` : '')
+      ).join('\n')
+    : '';
+
+  return (
+    `<b>Sheet ${escapeHtml(sheetNumber)} — HO Review Complete</b>\n\n` +
+    lines.join('\n') + '\n' +
+    `<b>Total Approved Amount:</b> ₹${fmtInr(approvedAmount)}` +
+    returnedOrRejectedBlock + '\n\n' +
+    `Please review the outcomes on the IDBP dashboard.`
+  );
+}
+
 async function notifyAcctSheetReviewComplete(sheetId) {
   if (process.env.NODE_ENV === 'test') return;
   try {
@@ -2226,23 +2269,19 @@ async function notifyAcctSheetReviewComplete(sheetId) {
       return;
     }
 
+    // Return/Reject used to each fire their own Telegram message the instant
+    // HO actioned them — with a large sheet that meant one ping per item,
+    // back-to-back, as HO worked through the queue. Folding their details
+    // into this one end-of-review summary instead (which already fires
+    // exactly once, when the last Pending/On-Hold item on the sheet clears)
+    // keeps the accounts user informed without the spam.
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('requisition_status, req_amount, ho_pass_amount')
+      .select('particulars, requisition_status, req_amount, ho_pass_amount, ho_remarks')
       .eq('sheet_id', sheetId);
     if (itemsErr) {
       console.warn(`[ACCT SHEET] Failed to fetch line items for sheet ${sheetId}: ${itemsErr.message}`);
       return;
-    }
-
-    const counts = {};
-    let approvedAmount = 0;
-    for (const item of items || []) {
-      const status = item.requisition_status || 'Unknown';
-      counts[status] = (counts[status] || 0) + 1;
-      if (status === 'Approved' || status === 'Partially Approved') {
-        approvedAmount += Number(item.ho_pass_amount || 0);
-      }
     }
 
     const { data: acctUser, error: userErr } = await supabase
@@ -2255,53 +2294,10 @@ async function notifyAcctSheetReviewComplete(sheetId) {
       return;
     }
 
-    const lines = [
-      `<b>Approved:</b> ${counts['Approved'] || 0}`,
-      `<b>Partially Approved:</b> ${counts['Partially Approved'] || 0}`,
-      `<b>On Hold:</b> ${counts['On Hold'] || 0}`,
-      `<b>Returned for Correction:</b> ${counts['Returned for Correction'] || 0}`,
-      `<b>Rejected:</b> ${counts['Rejected'] || 0}`
-    ];
-
-    const messageText =
-      `<b>Sheet ${escapeHtml(sheet.sheet_number)} — HO Review Complete</b>\n\n` +
-      lines.join('\n') + '\n' +
-      `<b>Total Approved Amount:</b> ₹${fmtInr(approvedAmount)}\n\n` +
-      `Please review the outcomes on the IDBP dashboard.`;
-
+    const messageText = buildReviewCompleteMessage(sheet.sheet_number, items);
     await broadcastTelegram([acctUser], messageText, '[ACCT SHEET]');
   } catch (error) {
     console.error(`[ACCT SHEET] notifyAcctSheetReviewComplete failed: ${error.message}`);
-  }
-}
-
-/**
- * Events 3/4 — a single line item was Returned for Correction or Rejected.
- * To: the accounts user who created the item.
- */
-async function notifyAcctLineItemActed(item, action) {
-  if (process.env.NODE_ENV === 'test') return;
-  try {
-    const { data: acctUser, error } = await supabase
-      .from('authorised_users')
-      .select('display_name, telegram_chat_id')
-      .eq('mobile_number', item.created_by)
-      .maybeSingle();
-    if (error || !acctUser || !acctUser.telegram_chat_id || acctUser.telegram_chat_id.trim() === '') {
-      console.warn(`[ACCT ITEM] Accounts user ${item.created_by} has no Telegram chat ID configured.`);
-      return;
-    }
-
-    const title = action === 'Rejected' ? 'Line Item Rejected' : 'Line Item Returned for Correction';
-    const messageText =
-      `<b>${title}</b>\n\n` +
-      `<b>Particulars:</b> ${escapeHtml(item.particulars || 'N/A')}\n` +
-      `<b>Amount:</b> ₹${fmtInr(item.req_amount)}\n` +
-      `<b>Remarks:</b> ${escapeHtml(item.ho_remarks || 'None')}`;
-
-    await broadcastTelegram([acctUser], messageText, '[ACCT ITEM]');
-  } catch (error) {
-    console.error(`[ACCT ITEM] notifyAcctLineItemActed failed: ${error.message}`);
   }
 }
 
@@ -2445,7 +2441,7 @@ module.exports = {
   notifyBreakStatusChanged,
   notifyHoAcctSheetSubmitted,
   notifyAcctSheetReviewComplete,
-  notifyAcctLineItemActed,
+  buildReviewCompleteMessage,
   notifyHoAcctItemResubmitted,
   notifyAcctBankBalanceInsufficient,
   notifyAcctBulkNeftExported,

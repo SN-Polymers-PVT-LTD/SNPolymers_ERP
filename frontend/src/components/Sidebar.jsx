@@ -120,6 +120,19 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+    }
+    if (['ho', 'admin'].includes(user?.role)) {
+      finItems.push({
+        to: '/acct-requisitions/ho-queue',
+        label: 'HO Acct Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
+    }
+    if (['accounts', 'ho', 'admin'].includes(user?.role)) {
       finItems.push({
         to: '/acct-requisitions/bank-balances',
         label: 'Bank Balances',
@@ -129,6 +142,8 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+    }
+    if (['accounts', 'admin'].includes(user?.role)) {
       finItems.push({
         to: '/acct-requisitions/sub-titles',
         label: 'Sub-titles',
@@ -144,17 +159,6 @@ export const MobileHeader = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
-          </svg>
-        )
-      });
-    }
-    if (['ho', 'admin'].includes(user?.role)) {
-      finItems.push({
-        to: '/acct-requisitions/ho-queue',
-        label: 'HO Acct Queue',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       });
@@ -595,6 +599,19 @@ const Sidebar = () => {
           </svg>
         )
       });
+    }
+    if (['ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/acct-requisitions/ho-queue',
+        label: 'HO Acct Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
+    }
+    if (['accounts', 'ho', 'admin'].includes(user?.role)) {
       navItems.push({
         to: '/acct-requisitions/bank-balances',
         label: 'Bank Balances',
@@ -604,6 +621,8 @@ const Sidebar = () => {
           </svg>
         )
       });
+    }
+    if (['accounts', 'admin'].includes(user?.role)) {
       navItems.push({
         to: '/acct-requisitions/sub-titles',
         label: 'Sub-titles',
@@ -619,17 +638,6 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
-          </svg>
-        )
-      });
-    }
-    if (['ho', 'admin'].includes(user?.role)) {
-      navItems.push({
-        to: '/acct-requisitions/ho-queue',
-        label: 'HO Acct Queue',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       });
