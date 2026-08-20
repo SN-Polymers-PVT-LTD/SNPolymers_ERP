@@ -30,25 +30,27 @@ export const TableBody = ({ children, className = '', ...props }) => {
 };
 
 // Table Row
-export const TableRow = ({
+export const TableRow = React.forwardRef(({
   children,
   className = '',
   hover = true,
   interactive = false,
   ...props
-}) => {
+}, ref) => {
   const hoverClass = hover ? 'hover:bg-white/[0.025] transition-colors duration-200' : '';
   const interactiveClass = interactive ? 'cursor-pointer group' : '';
 
   return (
     <tr
+      ref={ref}
       className={`${hoverClass} ${interactiveClass} ${className}`}
       {...props}
     >
       {children}
     </tr>
   );
-};
+});
+TableRow.displayName = 'TableRow';
 
 // Table Cell (handles both th and td)
 export const TableCell = ({

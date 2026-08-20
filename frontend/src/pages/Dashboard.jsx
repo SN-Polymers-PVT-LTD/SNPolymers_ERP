@@ -4,6 +4,7 @@ import HoDashboardView from './dashboard/HoDashboardView';
 import ZoDashboardView from './dashboard/ZoDashboardView';
 import JeDashboardView from './dashboard/JeDashboardView';
 import StaffDashboardView from './dashboard/StaffDashboardView';
+import AcctDashboardView from './dashboard/AcctDashboardView';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -25,6 +26,8 @@ const Dashboard = () => {
         <ZoDashboardView />
       ) : user?.role === 'je' ? (
         <JeDashboardView />
+      ) : user?.role === 'accounts' ? (
+        <AcctDashboardView />
       ) : (
         <StaffDashboardView />
       )}

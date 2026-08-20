@@ -3,6 +3,7 @@ export { default as Input } from './Input';
 export { default as FormattedCurrencyInput } from './FormattedCurrencyInput';
 export { default as TextArea } from './TextArea';
 export { default as Select } from './Select';
+export { default as SearchableSelect } from './SearchableSelect';
 export { default as Checkbox } from './Checkbox';
 export { default as Badge } from './Badge';
 export { default as Modal } from './Modal';
@@ -11,4 +12,5 @@ export { default as Skeleton, SkeletonCard, SkeletonTable, SkeletonPage } from '
 export { default as Pagination } from './Pagination';
 export { default as SuccessPopup } from './SuccessPopup';
 export { default as ErrorPopup } from './ErrorPopup';
+export { default as PremiumSuccessModal } from './PremiumSuccessModal';
 

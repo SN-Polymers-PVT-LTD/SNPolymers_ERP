@@ -48,8 +48,15 @@ authApi.interceptors.response.use(
       }
 
       if (!originalRequest._retry) {
-        // If /me or /refresh returns 401, session is completely expired -> trigger auth-failure
-        if (url.includes('/me') || url.includes('/refresh') || url.includes('/login')) {
+        // /refresh itself failing means the refresh token is genuinely invalid/expired —
+        // no point retrying. /login failing is just a bad OTP/credential, not a session
+        // expiry, so it shouldn't trigger a global auth-failure either. /me is deliberately
+        // NOT special-cased here: it's called on every AuthProvider mount (including a plain
+        // page reload), and the access token is short-lived (15m) — treating its 401 as
+        // "session over" instead of running it through the refresh-then-retry flow below
+        // logs the user out on any reload more than 15 minutes after their last token
+        // refresh, even though their 7-day refresh token cookie is still perfectly valid.
+        if (url.includes('/refresh') || url.includes('/login')) {
           window.dispatchEvent(new Event('auth-failure'));
           return Promise.reject(error);
         }

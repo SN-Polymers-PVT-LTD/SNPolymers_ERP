@@ -63,9 +63,34 @@ describe('authApi — 401 interceptor behavior', () => {
     expect(window.dispatchEvent).not.toHaveBeenCalled();
   });
 
-  it('dispatches auth-failure on /me 401 without refresh retry', async () => {
+  // A plain page reload remounts AuthProvider, which calls /me. The access
+  // token is short-lived (15m), so /me returning 401 well within a still-valid
+  // 7-day refresh-token session is routine, not "logged out" — it must go
+  // through the same refresh-then-retry flow as any other protected endpoint
+  // instead of immediately logging the user out.
+  it('refreshes and retries on /me 401, instead of immediately dispatching auth-failure', async () => {
     const interceptorRejected = mocks.getInterceptorRejected();
+    const error = make401Error('/me');
+
+    await expect(interceptorRejected(error)).resolves.toEqual({ status: 200, data: { success: true } });
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(axios.post.mock.calls[0][0]).toMatch(/\/refresh$/);
+    expect(window.dispatchEvent).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-failure' }));
+  });
+
+  it('dispatches auth-failure on /me 401 only when the refresh itself also fails', async () => {
+    const interceptorRejected = mocks.getInterceptorRejected();
+    axios.post.mockRejectedValueOnce({ response: { status: 401 } });
+
     await expect(interceptorRejected(make401Error('/me'))).rejects.toMatchObject({
+      response: { status: 401 }
+    });
+    expect(window.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-failure' }));
+  });
+
+  it('dispatches auth-failure on /refresh 401 immediately, without retrying', async () => {
+    const interceptorRejected = mocks.getInterceptorRejected();
+    await expect(interceptorRejected(make401Error('/refresh'))).rejects.toMatchObject({
       response: { status: 401 }
     });
     expect(window.dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'auth-failure' }));

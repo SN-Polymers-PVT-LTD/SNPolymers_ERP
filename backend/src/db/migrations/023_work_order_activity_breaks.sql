@@ -1,5 +1,5 @@
 -- ===========================================================================
--- Migration 021: Work Order Activity Breaks
+-- Migration 023: Work Order Activity Breaks
 -- DB: PostgreSQL (Supabase)
 --
 -- 1. New table work_order_activity_breaks (7-state status, expected_end_date)

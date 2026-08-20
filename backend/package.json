@@ -41,6 +41,7 @@
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "express-rate-limit": "^7.3.1",
     "helmet": "^8.2.0",
@@ -48,6 +49,7 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^9.0.1",
     "supabase": "^2.109.0",
+    "to-words": "^5.7.0",
     "uuid": "^14.0.0",
     "zod": "^4.4.3"
   },

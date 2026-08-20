@@ -251,7 +251,7 @@ async function processWebhookUpdate(update) {
       console.log(`[BOT] Database update result:`, updateData);
 
       const successMsg = `✅ *Account Linked Successfully!*\n\nHello *${user.display_name || firstName}*,\n\nYour Telegram account is now securely linked to the Integrated Digital Business Platform.\n\nYou can close Telegram and return to your web browser to continue logging in.`;
-      
+
       const replyMarkup = { remove_keyboard: true };
       const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(chatId)}&text=${encodeURIComponent(successMsg)}&parse_mode=Markdown&reply_markup=${encodeURIComponent(JSON.stringify(replyMarkup))}`;
       await fetch(url);
@@ -358,6 +358,58 @@ async function getDisplayName(mobileNumber) {
 }
 
 /**
+ * Retrieves all active users of a given role with a configured Telegram chat ID.
+ * Shared by the Accounts HO-approval notifiers (§ below), which need "all HO" /
+ * "all Accounts" broadcast recipients in several places.
+ * @param {string} role
+ * @returns {Promise<Array<{display_name: string, telegram_chat_id: string}>>}
+ */
+async function getRoleRecipients(role) {
+  const { data, error } = await supabase
+    .from('authorised_users')
+    .select('display_name, telegram_chat_id')
+    .eq('role', role)
+    .eq('is_active', true)
+    .not('telegram_chat_id', 'is', null);
+
+  if (error) {
+    console.warn(`[TELEGRAM ALERTS] Failed to retrieve active ${role} users: ${error.message}`);
+    return [];
+  }
+  return (data || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+}
+
+/**
+ * Sends the same HTML message to a list of recipients, logging per-recipient
+ * failures without letting one bad chat ID abort the rest.
+ * @param {Array<{display_name: string, telegram_chat_id: string}>} recipients
+ * @param {string} messageText
+ * @param {string} logLabel - prefix used in warn/error logs (e.g. '[ACCT LEDGER]')
+ */
+async function broadcastTelegram(recipients, messageText, logLabel) {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.warn(`${logLabel} TELEGRAM_BOT_TOKEN is not set.`);
+    return;
+  }
+  if (!recipients || recipients.length === 0) {
+    console.warn(`${logLabel} No recipients with a configured Telegram chat ID.`);
+    return;
+  }
+  for (const recipient of recipients) {
+    try {
+      const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(recipient.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!data.ok) {
+        console.warn(`${logLabel} Failed to send to ${recipient.display_name}: ${data.description}`);
+      }
+    } catch (err) {
+      console.warn(`${logLabel} Failed to send to ${recipient.display_name}: ${err.message}`);
+    }
+  }
+}
+
+/**
  * Retrieves the active mapped ZO user details (display_name, telegram_chat_id) for a given JE user ID.
  * @param {string} jeUserId - The JE's mobile number
  * @returns {Promise<object|null>}
@@ -454,7 +506,7 @@ async function notifyZoEstimateSubmitted(estimate) {
     const jeName = await getDisplayName(estimate.je_user_id);
     const jeUserId = escapeHtml(jeName);
 
-    const messageText = 
+    const messageText =
       `📝 <b>New Estimate Submitted</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -526,7 +578,7 @@ async function notifyHoEstimateApproved(estimate) {
     const zoName = await getDisplayName(estimate.zo_approved_by);
     const zoApprovedBy = escapeHtml(zoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by ZO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1477,7 +1529,7 @@ async function notifyAllEstimateFinalApproved(estimate) {
     const hoName = await getDisplayName(estimate.ho_approved_by);
     const hoApprovedBy = escapeHtml(hoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by HO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1537,7 +1589,7 @@ async function notifyJeEstimateZoApproved(estimate) {
     const zoName = await getDisplayName(estimate.zo_approved_by);
     const zoApprovedBy = escapeHtml(zoName);
 
-    const messageText = 
+    const messageText =
       `<b>Cost Estimate Approved by ZO</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1586,7 +1638,7 @@ async function notifyJeEstimateRejected(estimate) {
     const amount = Number(estimate.estimate_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const workOrder = escapeHtml(estimate.work_order_no || 'N/A');
     const siteDetails = escapeHtml(estimate.projects_master?.site_details || 'N/A');
-    
+
     let rejectedByRole = 'Zonal Office';
     let remarks = estimate.zo_remarks || 'No remarks provided.';
     let actorMobile = estimate.zo_approved_by;
@@ -1600,7 +1652,7 @@ async function notifyJeEstimateRejected(estimate) {
     }
     const actorName = await getDisplayName(actorMobile);
 
-    const messageText = 
+    const messageText =
       `❌ <b>Cost Estimate Rejected</b>\n\n` +
       `<b>Estimate No:</b> ${estimateNo}\n` +
       `<b>Work Order:</b> ${workOrder}\n` +
@@ -1709,7 +1761,7 @@ async function notifyHoExcessReturnAccepted(returnRequest) {
     if (!TELEGRAM_BOT_TOKEN) return;
 
     const amount = Number(returnRequest.requested_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    
+
     let breakdownText = '';
     if (returnRequest.breakdown && Array.isArray(returnRequest.breakdown)) {
       breakdownText = `\n<b>Breakdown Allocation:</b>\n` + returnRequest.breakdown.map(item => {
@@ -2006,15 +2058,15 @@ async function notifyBreakZoActed(breakRecord) {
     if (jeUser) {
       const jeMessage = accepted
         ? `✅ <b>Activity Break Accepted by ZO</b>\n\n` +
-          `Your activity break request was accepted by the Zonal Office and is now pending HO approval.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `You will be notified once HO takes final action.`
+        `Your activity break request was accepted by the Zonal Office and is now pending HO approval.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `You will be notified once HO takes final action.`
         : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
-          `Your activity break request was rejected by the Zonal Office.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `You may submit a new request if needed.`;
+        `Your activity break request was rejected by the Zonal Office.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `You may submit a new request if needed.`;
       await sendBreakTelegramMessages([jeUser], jeMessage);
     }
 
@@ -2022,14 +2074,14 @@ async function notifyBreakZoActed(breakRecord) {
     if (hoUsers.length > 0) {
       const hoMessage = accepted
         ? `📋 <b>Activity Break Pending HO Approval</b>\n\n` +
-          `The Zonal Office accepted an activity break request. HO approval is required.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
-          `Please review on the IDBP dashboard.`
+        `The Zonal Office accepted an activity break request. HO approval is required.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}\n\n` +
+        `Please review on the IDBP dashboard.`
         : `❌ <b>Activity Break Rejected by ZO</b>\n\n` +
-          `The Zonal Office rejected an activity break request.\n\n` +
-          `${periodLine}\n` +
-          `<b>ZO Remarks:</b> ${zoRemarks}`;
+        `The Zonal Office rejected an activity break request.\n\n` +
+        `${periodLine}\n` +
+        `<b>ZO Remarks:</b> ${zoRemarks}`;
       await sendBreakTelegramMessages(hoUsers, hoMessage);
     }
   } catch (error) {
@@ -2125,6 +2177,237 @@ async function notifyBreakStatusChanged(breakRecord, newStatus) {
   }
 }
 
+// ============================================================================
+// Accounts HO-Approval module notifications
+// ============================================================================
+
+const fmtInr = (val) => Number(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/**
+ * Event 1 — Sheet submitted for HO review. To: all HO.
+ */
+async function notifyHoAcctSheetSubmitted(sheet) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('ho');
+    const submitterName = await getDisplayName(sheet.submitted_by || sheet.created_by);
+
+    const messageText =
+      `📥 <b>New Requisition Sheet Submitted</b>\n\n` +
+      `<b>Sheet No:</b> ${escapeHtml(sheet.sheet_number)}\n` +
+      `<b>Line Items:</b> ${sheet.row_count_at_submission ?? 'N/A'}\n` +
+      `<b>Submitted By:</b> ${escapeHtml(submitterName)}\n\n` +
+      `Please review this sheet on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT SHEET]');
+  } catch (error) {
+    console.error(`[ACCT SHEET] notifyHoAcctSheetSubmitted failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 2 — HO has cleared every Pending HO Review / On Hold item on this sheet
+ * (a "review session" boundary, not a terminal sheet state — items can cycle
+ * back in via Return->Resubmit or Reject->Reopen and trigger this again later).
+ * Called by the controller right after any actOnLineItem success, once it has
+ * confirmed no items on the sheet remain in those two statuses.
+ * To: the accounts user who created the sheet.
+ */
+// Split out from notifyAcctSheetReviewComplete so the message formatting —
+// including the Returned/Rejected breakdown that replaced their own
+// individual Telegram messages — can be unit-tested without a DB or network.
+function buildReviewCompleteMessage(sheetNumber, items) {
+  const counts = {};
+  let approvedAmount = 0;
+  const returnedOrRejected = [];
+  for (const item of items || []) {
+    const status = item.requisition_status || 'Unknown';
+    counts[status] = (counts[status] || 0) + 1;
+    if (status === 'Approved' || status === 'Partially Approved') {
+      approvedAmount += Number(item.ho_pass_amount || 0);
+    }
+    if (status === 'Returned for Correction' || status === 'Rejected') {
+      returnedOrRejected.push(item);
+    }
+  }
+
+  const lines = [
+    `<b>Approved:</b> ${counts['Approved'] || 0}`,
+    `<b>Partially Approved:</b> ${counts['Partially Approved'] || 0}`,
+    `<b>On Hold:</b> ${counts['On Hold'] || 0}`,
+    `<b>Returned for Correction:</b> ${counts['Returned for Correction'] || 0}`,
+    `<b>Rejected:</b> ${counts['Rejected'] || 0}`
+  ];
+
+  const returnedOrRejectedBlock = returnedOrRejected.length > 0
+    ? '\n\n<b>Needs your attention:</b>\n' + returnedOrRejected.map(item =>
+        `• ${escapeHtml(item.particulars || 'N/A')} (₹${fmtInr(item.req_amount)}) — ` +
+        `${item.requisition_status === 'Rejected' ? 'Rejected' : 'Returned'}` +
+        (item.ho_remarks ? `: ${escapeHtml(item.ho_remarks)}` : '')
+      ).join('\n')
+    : '';
+
+  return (
+    `<b>Sheet ${escapeHtml(sheetNumber)} — HO Review Complete</b>\n\n` +
+    lines.join('\n') + '\n' +
+    `<b>Total Approved Amount:</b> ₹${fmtInr(approvedAmount)}` +
+    returnedOrRejectedBlock + '\n\n' +
+    `Please review the outcomes on the IDBP dashboard.`
+  );
+}
+
+async function notifyAcctSheetReviewComplete(sheetId) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const { data: sheet, error: sheetErr } = await supabase
+      .from('acct_requisition_sheets')
+      .select('sheet_number, created_by')
+      .eq('id', sheetId)
+      .maybeSingle();
+    if (sheetErr || !sheet) {
+      console.warn(`[ACCT SHEET] Failed to fetch sheet ${sheetId} for review-complete notification: ${sheetErr?.message}`);
+      return;
+    }
+
+    // Return/Reject used to each fire their own Telegram message the instant
+    // HO actioned them — with a large sheet that meant one ping per item,
+    // back-to-back, as HO worked through the queue. Folding their details
+    // into this one end-of-review summary instead (which already fires
+    // exactly once, when the last Pending/On-Hold item on the sheet clears)
+    // keeps the accounts user informed without the spam.
+    const { data: items, error: itemsErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('particulars, requisition_status, req_amount, ho_pass_amount, ho_remarks')
+      .eq('sheet_id', sheetId);
+    if (itemsErr) {
+      console.warn(`[ACCT SHEET] Failed to fetch line items for sheet ${sheetId}: ${itemsErr.message}`);
+      return;
+    }
+
+    const { data: acctUser, error: userErr } = await supabase
+      .from('authorised_users')
+      .select('display_name, telegram_chat_id')
+      .eq('mobile_number', sheet.created_by)
+      .maybeSingle();
+    if (userErr || !acctUser || !acctUser.telegram_chat_id || acctUser.telegram_chat_id.trim() === '') {
+      console.warn(`[ACCT SHEET] Accounts user ${sheet.created_by} has no Telegram chat ID configured for review-complete notification.`);
+      return;
+    }
+
+    const messageText = buildReviewCompleteMessage(sheet.sheet_number, items);
+    await broadcastTelegram([acctUser], messageText, '[ACCT SHEET]');
+  } catch (error) {
+    console.error(`[ACCT SHEET] notifyAcctSheetReviewComplete failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 5 — a returned item was resubmitted. To: the HO who returned it
+ * (last_ho_actioned_by), falling back to all HO if that's unavailable.
+ */
+async function notifyHoAcctItemResubmitted(item) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    let recipients = [];
+    if (item.last_ho_actioned_by) {
+      const { data: hoUser } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .eq('mobile_number', item.last_ho_actioned_by)
+        .maybeSingle();
+      if (hoUser && hoUser.telegram_chat_id && hoUser.telegram_chat_id.trim() !== '') {
+        recipients = [hoUser];
+      }
+    }
+    if (recipients.length === 0) {
+      recipients = await getRoleRecipients('ho');
+    }
+
+    const resubmitterName = await getDisplayName(item.created_by);
+    const messageText =
+      `<b>Line Item Resubmitted</b>\n\n` +
+      `<b>Particulars:</b> ${escapeHtml(item.particulars || 'N/A')}\n` +
+      `<b>Amount:</b> ₹${fmtInr(item.req_amount)}\n` +
+      `<b>Resubmitted By:</b> ${escapeHtml(resubmitterName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT ITEM]');
+  } catch (error) {
+    console.error(`[ACCT ITEM] notifyHoAcctItemResubmitted failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 6 — HO tried to approve/partial-approve but the bank balance guardrail
+ * (BAL01) blocked it. To: all Accounts.
+ */
+async function notifyAcctBankBalanceInsufficient(bankName, remaining, requested) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('accounts');
+    const messageText =
+      `⚠️ <b>Approval Blocked — Insufficient Balance</b>\n\n` +
+      `<b>Bank:</b> ${escapeHtml(bankName)}\n` +
+      `<b>Remaining:</b> ₹${fmtInr(remaining)}\n` +
+      `<b>Requested:</b> ₹${fmtInr(requested)}\n\n` +
+      `This bank needs reconciliation before HO can approve further items against it.`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT BANK]');
+  } catch (error) {
+    console.error(`[ACCT BANK] notifyAcctBankBalanceInsufficient failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 7 — a Bulk NEFT export file was generated. To: all Accounts.
+ */
+async function notifyAcctBulkNeftExported(sheetId, itemCount, totalAmount, exportedByMobile) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const { data: sheet } = await supabase
+      .from('acct_requisition_sheets')
+      .select('sheet_number')
+      .eq('id', sheetId)
+      .maybeSingle();
+
+    const recipients = await getRoleRecipients('accounts');
+    const exporterName = await getDisplayName(exportedByMobile);
+
+    const messageText =
+      `<b>Bulk NEFT Export Generated</b>\n\n` +
+      `<b>Sheet No:</b> ${escapeHtml(sheet?.sheet_number || sheetId)}\n` +
+      `<b>Items:</b> ${itemCount}\n` +
+      `<b>Total:</b> ₹${fmtInr(totalAmount)}\n` +
+      `<b>Exported By:</b> ${escapeHtml(exporterName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT NEFT]');
+  } catch (error) {
+    console.error(`[ACCT NEFT] notifyAcctBulkNeftExported failed: ${error.message}`);
+  }
+}
+
+/**
+ * Event 8 — a bank balance was manually credited/debited/reconciled (not a
+ * brand-new bank being added). To: all Accounts.
+ */
+async function notifyAcctBankBalanceAdjusted(bankName, direction, delta, newBalance, actorMobile) {
+  if (process.env.NODE_ENV === 'test') return;
+  try {
+    const recipients = await getRoleRecipients('accounts');
+    const actorName = await getDisplayName(actorMobile);
+
+    const messageText =
+      `<b>Bank Balance Adjusted</b>\n\n` +
+      `<b>Bank:</b> ${escapeHtml(bankName)}\n` +
+      `<b>${escapeHtml(direction)}:</b> ₹${fmtInr(Math.abs(delta))}\n` +
+      `<b>New Balance:</b> ₹${fmtInr(newBalance)}\n` +
+      `<b>By:</b> ${escapeHtml(actorName)}`;
+
+    await broadcastTelegram(recipients, messageText, '[ACCT BANK]');
+  } catch (error) {
+    console.error(`[ACCT BANK] notifyAcctBankBalanceAdjusted failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   escapeHtml,
   sendOtp,
@@ -2135,7 +2418,7 @@ module.exports = {
   notifyHoEstimateApproved,
   notifyJeEstimateZoApproved,
   notifyJeEstimateRejected,
-  zo_balances_reconcile: () => {}, // placeholder if needed
+  zo_balances_reconcile: () => { }, // placeholder if needed
   notifyZoFundRequestApproved,
   notifyJeRevisionRequested,
   notifyHoFundRequestSubmitted,
@@ -2155,5 +2438,12 @@ module.exports = {
   notifyBreakZoActed,
   notifyBreakHoApproved,
   notifyBreakReopenRequested,
-  notifyBreakStatusChanged
+  notifyBreakStatusChanged,
+  notifyHoAcctSheetSubmitted,
+  notifyAcctSheetReviewComplete,
+  buildReviewCompleteMessage,
+  notifyHoAcctItemResubmitted,
+  notifyAcctBankBalanceInsufficient,
+  notifyAcctBulkNeftExported,
+  notifyAcctBankBalanceAdjusted
 };
