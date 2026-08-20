@@ -52,6 +52,7 @@ const BulkNeftExportButton = ({ sheetId, items = [], onExported }) => {
         link.href = URL.createObjectURL(res.data);
         link.download = `Bulk_NEFT_${safeFilenamePart(bankNames[0])}.xlsx`;
         link.click();
+        URL.revokeObjectURL(link.href);
       } else {
         const JSZip = (await import('jszip')).default;
         const zip = new JSZip();
@@ -64,6 +65,7 @@ const BulkNeftExportButton = ({ sheetId, items = [], onExported }) => {
         link.href = URL.createObjectURL(content);
         link.download = `Bulk_NEFT_${sheetId}.zip`;
         link.click();
+        URL.revokeObjectURL(link.href);
       }
 
       setIsError(false);

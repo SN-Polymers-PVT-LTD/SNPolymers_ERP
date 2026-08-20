@@ -214,3 +214,86 @@ describe('LineItemRow — renderExtraCell appends a trailing cell for callers th
     expect(screen.queryByText(/^Decision for/)).not.toBeInTheDocument();
   });
 });
+
+// The Status column otherwise keeps showing the item's real DB status while
+// HO is still staging a decision — picking "Hold" in the panel would look
+// like nothing happened until "Submit Decisions" is clicked.
+describe('LineItemRow — statusOverride previews a staged-but-unsubmitted decision', () => {
+  it('shows the overridden status instead of the real requisition_status, with a staged hint', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Pending HO Review' },
+      statusOverride: 'On Hold'
+    });
+    expect(screen.getByText('On Hold')).toBeInTheDocument();
+    expect(screen.queryByText('Pending HO Review')).not.toBeInTheDocument();
+    expect(screen.getByText(/staged, not yet submitted/i)).toBeInTheDocument();
+  });
+
+  it('falls back to the real requisition_status when no decision is staged', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Pending HO Review' }
+    });
+    expect(screen.getByText('Pending HO Review')).toBeInTheDocument();
+    expect(screen.queryByText(/staged, not yet submitted/i)).not.toBeInTheDocument();
+  });
+});
+
+// The collapsed/view-only row (Already Decided, Rejected, Submitted-sheet
+// display) used to merge Particulars and Account Sub-title into one cell via
+// colSpan, which silently dropped account_sub_title_text from view — now
+// each gets its own cell under its own header column.
+describe('LineItemRow — collapsed row shows particulars and account sub-title in separate cells', () => {
+  it('renders both particulars and account_sub_title_text', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Approved', account_sub_title_text: 'Advertisement Expenses' }
+    });
+    expect(screen.getByText('Test item')).toBeInTheDocument();
+    expect(screen.getByText('Advertisement Expenses')).toBeInTheDocument();
+  });
+});
+
+// LastHoActionTag only ever shows last_ho_remarks — a snapshot of a PRIOR,
+// already-superseded HO cycle populated by resubmit/reopen. On a first-time
+// Return/Hold, nothing has been superseded yet, so last_ho_remarks stays
+// empty and Accounts never saw HO's actual reason. The live ho_remarks field
+// (set the moment HO returns/holds) must be shown directly instead.
+describe('LineItemRow — shows the live ho_remarks for a Returned/On Hold item', () => {
+  it('shows ho_remarks for a Returned for Correction row (editable/full-form path)', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Returned for Correction', ho_remarks: 'Wrong beneficiary account.' }
+    });
+    expect(screen.getByText('"Wrong beneficiary account."')).toBeInTheDocument();
+  });
+
+  it('shows ho_remarks for an On Hold row (viewOnlyFull path)', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'On Hold', ho_remarks: 'Awaiting budget confirmation.' }
+    });
+    expect(screen.getByText('"Awaiting budget confirmation."')).toBeInTheDocument();
+  });
+
+  it('does not show ho_remarks on a plain open-path draft row', () => {
+    renderRow({ item: { ...baseItem, ho_remarks: 'Should not appear.' } });
+    expect(screen.queryByText('"Should not appear."')).not.toBeInTheDocument();
+  });
+});
+
+// After "+ Add Line Item" reconciles the optimistic placeholder with the
+// real created item, the sheet page flags that row's id so its Particulars
+// field grabs focus without the user reaching for the mouse.
+describe('LineItemRow — autoFocusParticulars focuses the Particulars field on mount', () => {
+  it('focuses the Particulars input when autoFocusParticulars is true', () => {
+    renderRow({ autoFocusParticulars: true });
+    expect(screen.getByPlaceholderText('Particulars')).toHaveFocus();
+  });
+
+  it('does not steal focus when autoFocusParticulars is false (default)', () => {
+    renderRow();
+    expect(screen.getByPlaceholderText('Particulars')).not.toHaveFocus();
+  });
+});

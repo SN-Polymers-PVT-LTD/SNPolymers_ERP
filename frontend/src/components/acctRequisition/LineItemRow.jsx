@@ -81,10 +81,10 @@ const LineItemRow = ({
   selected,
   onToggleSelect,
   registerSave,
-  dismissedBeneficiaryKeys,
-  onDismissBeneficiaryKey,
   renderExtraCell,
-  showActionsCell = true
+  showActionsCell = true,
+  autoFocusParticulars = false,
+  statusOverride
 }) => {
   const openPath = sheetStatus === 'Open';
   const returnedPath = item.requisition_status === 'Returned for Correction';
@@ -193,9 +193,10 @@ const LineItemRow = ({
   if (!editable && !viewOnlyFull) {
     return (
       <TableRow>
-        <TableCell colSpan={2}>
+        <TableCell>
           <p className="text-sm font-bold text-slate-100">{item.particulars || '—'}</p>
         </TableCell>
+        <TableCell>{item.account_sub_title_text || '—'}</TableCell>
         <TableCell className="min-w-[200px]">
           <div className="flex flex-col gap-1">
             <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
@@ -211,6 +212,12 @@ const LineItemRow = ({
                 {item.beneficiary_ifsc}
               </p>
             )}
+            {item.beneficiary_bank_name && (
+              <p className="text-[10px] text-slate-500">
+                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Bank</span>
+                {item.beneficiary_bank_name}
+              </p>
+            )}
           </div>
         </TableCell>
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
@@ -220,9 +227,12 @@ const LineItemRow = ({
         <TableCell>{item.payment_mode || '—'}</TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
-            <Badge variant={STATUS_VARIANTS[item.requisition_status] || 'slate'}>
-              {item.requisition_status || 'Draft'}
+            <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>
+              {statusOverride || item.requisition_status || 'Draft'}
             </Badge>
+            {statusOverride && (
+              <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500/70">Staged, not yet submitted</span>
+            )}
             <LastHoActionTag item={item} />
             <ReopenedBadge item={item} />
           </div>
@@ -261,7 +271,14 @@ const LineItemRow = ({
               )}
             </div>
           )}
-          <Input disabled={readOnly} value={draft.particulars} onChange={(e) => setField('particulars', e.target.value)} placeholder="Particulars" size="sm" />
+          {/* Live ho_remarks — the reason HO gave for *this* Return/Hold. Distinct
+              from LastHoActionTag's last_ho_remarks, which only ever shows a PRIOR
+              (already-superseded) cycle's remark and stays empty on a first-time
+              Return/Hold, since nothing has been superseded yet. */}
+          {(returnedPath || viewOnlyFull) && item.ho_remarks && (
+            <span className="text-[11px] text-slate-400 italic leading-snug">"{item.ho_remarks}"</span>
+          )}
+          <Input autoFocus={autoFocusParticulars} disabled={readOnly} value={draft.particulars} onChange={(e) => setField('particulars', e.target.value)} placeholder="Particulars" size="sm" />
           <LastHoActionTag item={item} />
           <ReopenedBadge item={item} />
         </div>
@@ -296,8 +313,6 @@ const LineItemRow = ({
               ifsc={draft.beneficiary_ifsc}
               currentName={draft.beneficiary_name}
               currentBankName={draft.beneficiary_bank_name}
-              sheetDismissedKeys={dismissedBeneficiaryKeys}
-              onSheetDismiss={onDismissBeneficiaryKey}
               onAutofill={(b) => {
                 setDraft(prev => ({
                   ...prev,

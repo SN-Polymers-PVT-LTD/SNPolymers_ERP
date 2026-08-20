@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Modal, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
+import { Button, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Pagination, SuccessPopup, ErrorPopup, PremiumSuccessModal } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
@@ -13,41 +13,9 @@ import {
   addLineItem, updateLineItem, deleteLineItem, resubmitLineItem,
   getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks
 } from '../api/acctRequisitionsApi';
+import { buildSheetCsv } from '../utils/acctSheetCsv';
 
 const ITEMS_PER_PAGE = 20;
-
-const escapeCsvField = (val) => {
-  if (val == null) return '';
-  const str = String(val);
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-};
-
-const CSV_COLUMNS = [
-  ['Sheet Number', (item, sheet) => sheet.sheet_number],
-  ['Particulars', (item) => item.particulars],
-  ['Account Sub-title', (item) => item.account_sub_title_text],
-  ['Beneficiary Name', (item) => item.beneficiary_name],
-  ['Beneficiary A/C No', (item) => item.beneficiary_ac_no],
-  ['Beneficiary IFSC', (item) => item.beneficiary_ifsc],
-  ['Beneficiary Bank', (item) => item.beneficiary_bank_name],
-  ['Debit Bank', (item) => item.debit_bank_ac_type],
-  ['Requested Amount', (item) => item.req_amount],
-  ['Payment Mode', (item) => item.payment_mode],
-  ['Cheque No', (item) => item.cheque_no],
-  ['Cheque Date', (item) => item.cheque_date],
-  ['Status', (item) => item.requisition_status || 'Draft'],
-  ['HO Pass Amount', (item) => item.ho_pass_amount],
-  ['HO Remarks', (item) => item.ho_remarks],
-  ['Created At', (item) => item.created_at],
-  ['Updated At', (item) => item.updated_at],
-  ['HO Actioned At', (item) => item.ho_actioned_at]
-];
-
-const buildSheetCsv = (sheet, items) => {
-  const headerRow = CSV_COLUMNS.map(([label]) => label);
-  const dataRows = items.map((item) => CSV_COLUMNS.map(([, getValue]) => getValue(item, sheet)));
-  return [headerRow, ...dataRows].map((row) => row.map(escapeCsvField).join(',')).join('\r\n');
-};
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -70,24 +38,15 @@ const AcctRequisitionSheetView = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [premiumSuccess, setPremiumSuccess] = useState(null);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [submittingSheet, setSubmittingSheet] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState(null);
   const [page, setPage] = useState(1);
+  const [focusItemId, setFocusItemId] = useState(null);
+  const [showRejected, setShowRejected] = useState(false);
   const saveFnsRef = useRef({});
-
-  // BeneficiaryAutofill's "Found beneficiary" prompt is dismissed/confirmed
-  // per (account_number, ifsc) key. Without this, that state lived only
-  // inside each row's own component instance — so two rows paying the same
-  // beneficiary (a common case: one vendor, several charge types) each
-  // independently re-prompt for a match you already confirmed on an earlier
-  // row in this same sheet. Tracking dismissed keys at the sheet level means
-  // confirming or dismissing a beneficiary once covers every row referencing
-  // it, for the rest of this sheet-editing session.
-  const [dismissedBeneficiaryKeys, setDismissedBeneficiaryKeys] = useState(() => new Set());
-  const dismissBeneficiaryKey = useCallback((key) => {
-    setDismissedBeneficiaryKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
-  }, []);
 
   const registerSave = useCallback((itemId, fn) => {
     if (fn) {
@@ -180,10 +139,22 @@ const AcctRequisitionSheetView = () => {
       requisition_status: null
     };
     patchItems((items) => [...items, placeholder]);
+    // Reads the cache directly (after the patch above, so it already
+    // includes the new placeholder) rather than closing over the
+    // render-scope `visibleItems` — the Ctrl+Alt+N handler below is
+    // captured once by an effect that only re-runs on sheet_status/id
+    // changes, so a render-scope value here would freeze at whatever it was
+    // on that render and go stale for the rest of the editing session (every
+    // keyboard-triggered add would jump to the same wrong page instead of
+    // the current last page).
+    const cachedItems = (queryClient.getQueryData(['acctSheet', id])?.items || []);
+    const visibleCountAfterAdd = cachedItems.filter(i => i.requisition_status !== 'Rejected').length;
+    setPage(Math.max(Math.ceil(visibleCountAfterAdd / ITEMS_PER_PAGE), 1));
     try {
       const res = await addLineItem(id, {});
       const newItem = res.data?.item;
       patchItems((items) => items.map((i) => (i.id === tempId ? newItem : i)));
+      setFocusItemId(newItem.id);
       queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     } catch (err) {
       patchItems((items) => items.filter((i) => i.id !== tempId));
@@ -224,24 +195,32 @@ const AcctRequisitionSheetView = () => {
     setSuccess('Line item resubmitted for HO review.');
   };
 
-  // Batch-saves every currently-editable (openPath) row in one click — each
-  // row registered its own save function via `registerSave` while mounted.
+  // Batch-saves every currently-editable (openPath) row — each row registered
+  // its own save function via `registerSave` while mounted. Shared by the
+  // "Save Draft" button and by Submit Sheet (which needs every row actually
+  // persisted first: submit_acct_sheet_transact validates the DB rows, not
+  // whatever's still sitting unsaved in a row's local input state).
+  const saveAllRows = async () => {
+    const saveFns = Object.values(saveFnsRef.current);
+    if (saveFns.length === 0) return { total: 0, failureCount: 0 };
+    const results = await Promise.allSettled(saveFns.map((fn) => fn()));
+    const failureCount = results.filter((r) => r.status === 'rejected').length;
+    invalidateSheet();
+    return { total: saveFns.length, failureCount };
+  };
+
   // Row-level errors already surface inline (LineItemRow sets its own error
   // state); this only summarizes how many rows failed so the user knows to
   // scroll and check, without duplicating per-row error text here.
   const handleSaveDraft = async () => {
     setError('');
     setSuccess('');
-    const saveFns = Object.values(saveFnsRef.current);
-    if (saveFns.length === 0) return;
-
     setSavingDraft(true);
     try {
-      const results = await Promise.allSettled(saveFns.map((fn) => fn()));
-      const failureCount = results.filter((r) => r.status === 'rejected').length;
-      invalidateSheet();
+      const { total, failureCount } = await saveAllRows();
+      if (total === 0) return;
       if (failureCount > 0) {
-        setError(`${failureCount} of ${saveFns.length} line item(s) failed to save. Check the errors below.`);
+        setError(`${failureCount} of ${total} line item(s) failed to save. Check the errors below.`);
       } else {
         setSuccess('Draft saved.');
       }
@@ -266,12 +245,33 @@ const AcctRequisitionSheetView = () => {
 
   const handleSubmitSheet = async () => {
     setError('');
+    setSuccess('');
+    setSubmittingSheet(true);
     try {
+      // Persist every row's unsaved edits first — submitSheet validates the
+      // DB rows, not whatever's still sitting in a row's local input state,
+      // so submitting without this first would fail for any row the user
+      // hadn't explicitly clicked Save Draft on.
+      const { failureCount } = await saveAllRows();
+      if (failureCount > 0) {
+        setError(`${failureCount} line item(s) failed to save — fix the errors below, then Submit Sheet again.`);
+        return;
+      }
+
       await submitSheet(id);
-      setSuccess('Sheet submitted for HO review.');
+      setPremiumSuccess({
+        title: 'Sheet Submitted',
+        message: 'This sheet has been sent to HO for review.',
+        details: [
+          { label: 'Sheet Number', value: sheetDetail.sheet_number },
+          { label: 'New Status', value: 'Submitted', pill: true }
+        ]
+      });
       invalidateSheet();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit sheet.');
+    } finally {
+      setSubmittingSheet(false);
     }
   };
 
@@ -292,8 +292,15 @@ const AcctRequisitionSheetView = () => {
   }
 
   const items = sheetDetail.items || [];
-  const totalPages = Math.max(Math.ceil(items.length / ITEMS_PER_PAGE), 1);
-  const pagedItems = items.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  // Rejected items are terminal (see act_acct_line_item_non_approve_transact)
+  // and only ever come back via HO's separate Reopen action — keeping them
+  // in the main paginated table just adds noise for Accounts, who can't act
+  // on them anyway. They're still in `items` for CSV export/bank projections;
+  // just excluded from the main table and tucked into a collapsed section.
+  const visibleItems = items.filter(i => i.requisition_status !== 'Rejected');
+  const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
+  const totalPages = Math.max(Math.ceil(visibleItems.length / ITEMS_PER_PAGE), 1);
+  const pagedItems = visibleItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
@@ -321,6 +328,7 @@ const AcctRequisitionSheetView = () => {
               {sheetDetail.sheet_status}
             </Badge>
           </div>
+          <p className="text-xs text-slate-400 font-medium mt-1.5">Add, edit, and submit requisition line items for HO review.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
@@ -333,43 +341,19 @@ const AcctRequisitionSheetView = () => {
       </div>
 
       {bankBalances.length > 0 && (
-        <div className="flex flex-wrap gap-4">
-          {bankBalances.map((bank) => (
-            <BankBalanceBanner key={bank.bank_name} bankBalance={bank} lineItems={items} />
-          ))}
+        <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02]">
+          <div className="flex flex-wrap gap-4">
+            {bankBalances.map((bank) => (
+              <BankBalanceBanner key={bank.bank_name} bankBalance={bank} lineItems={items} />
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-6 mb-4">
-        {sheetDetail.sheet_status === 'Open' && (
-          <>
-            <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
-              + Add Line Item
-            </Button>
-            {items.length > 0 && (
-              <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
-                Save Draft
-              </Button>
-            )}
-          </>
-        )}
-        {sheetDetail.sheet_status === 'Open' && items.length > 0 && (
-          <Button variant="amber" onClick={handleSubmitSheet}>
-            Submit Sheet
-          </Button>
-        )}
-        {['Submitted', 'Reviewed'].includes(sheetDetail.sheet_status) && (
-          <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
-        )}
-        {items.length > 0 && (
-          <Button variant="glass" size="sm" onClick={handleExportCsv}>
-            Export to CSV
-          </Button>
-        )}
-      </div>
-
-      {items.length === 0 ? (
+      {visibleItems.length === 0 && rejectedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet yet.</p>
+      ) : visibleItems.length === 0 ? (
+        <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">All line items on this sheet have been rejected — see below.</p>
       ) : (
         <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
           <Table containerClassName="min-w-[1100px]">
@@ -400,11 +384,10 @@ const AcctRequisitionSheetView = () => {
                   onDelete={handleDeleteItem}
                   deleting={deletingItemId === item.id}
                   onAddItem={handleAddItem}
-                  dismissedBeneficiaryKeys={dismissedBeneficiaryKeys}
-                  onDismissBeneficiaryKey={dismissBeneficiaryKey}
                   addingItem={addingItem}
                   pending={typeof item.id === 'string' && item.id.startsWith('temp-')}
                   registerSave={registerSave}
+                  autoFocusParticulars={item.id === focusItemId}
                 />
               ))}
             </TableBody>
@@ -415,27 +398,93 @@ const AcctRequisitionSheetView = () => {
             onPageChange={setPage}
             maxVisible={5}
             showLabel={true}
-            totalRecords={items.length}
+            totalRecords={visibleItems.length}
           />
         </div>
       )}
 
-      {success && (
-        <Modal isOpen={true} onClose={() => setSuccess('')} title="Success" size="sm"
-          footer={<Button variant="amber" onClick={() => setSuccess('')} className="w-full">Continue</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{success}</p>
-        </Modal>
+      {rejectedItems.length > 0 && (
+        <div className="flex flex-col gap-2 mt-6">
+          <button
+            type="button"
+            onClick={() => setShowRejected((v) => !v)}
+            className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-slate-300 transition-colors w-fit"
+          >
+            <span className={`transition-transform ${showRejected ? 'rotate-90' : ''}`}>▸</span>
+            {rejectedItems.length} Rejected {rejectedItems.length === 1 ? 'item' : 'items'} (click to {showRejected ? 'hide' : 'view'})
+          </button>
+          {showRejected && (
+            <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
+              <Table containerClassName="min-w-[1100px]">
+                <TableHeader>
+                  <TableRow hover={false}>
+                    <TableCell isHeader>Particulars</TableCell>
+                    <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>Beneficiary</TableCell>
+                    <TableCell isHeader>Debit Bank</TableCell>
+                    <TableCell isHeader align="right">Requested Amount</TableCell>
+                    <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Status</TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rejectedItems.map(item => (
+                    <LineItemRow
+                      key={item.id}
+                      item={item}
+                      sheetStatus={sheetDetail.sheet_status}
+                      bankBalances={bankBalances}
+                      showActionsCell={false}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
       )}
 
-      {error && (
-        <Modal isOpen={true} onClose={() => setError('')} title="Action Blocked" size="sm"
-          footer={<Button variant="primary" onClick={() => setError('')} className="w-full">Understood</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{error}</p>
-        </Modal>
-      )}
+      <div className="glass-panel p-6 rounded-3xl border border-white/10 flex flex-col sm:flex-row justify-between items-center gap-4 mt-6 mb-4 bg-gradient-to-r from-amber-500/[0.01] to-white/[0.01]">
+        <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+          {sheetDetail.sheet_status === 'Open' && (
+            <>
+              <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
+                + Add Line Item
+              </Button>
+              {items.length > 0 && (
+                <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
+                  Save Draft
+                </Button>
+              )}
+            </>
+          )}
+          {['Submitted', 'Reviewed'].includes(sheetDetail.sheet_status) && (
+            <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
+          )}
+          {items.length > 0 && (
+            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+              Export to CSV
+            </Button>
+          )}
+        </div>
+        {sheetDetail.sheet_status === 'Open' && items.length > 0 && (
+          <Button variant="amber" onClick={handleSubmitSheet} loading={submittingSheet}>
+            Submit Sheet
+          </Button>
+        )}
+      </div>
+
+      <SuccessPopup isOpen={!!success} onClose={() => setSuccess('')} title="Saved" description={success} />
+      <ErrorPopup isOpen={!!error} onClose={() => setError('')} title="Action Blocked" description={error} />
+      <PremiumSuccessModal
+        isOpen={!!premiumSuccess}
+        onClose={() => setPremiumSuccess(null)}
+        title={premiumSuccess?.title}
+        message={premiumSuccess?.message}
+        details={premiumSuccess?.details || []}
+      />
     </>
   );
 };
 
-export { buildSheetCsv };
 export default AcctRequisitionSheetView;

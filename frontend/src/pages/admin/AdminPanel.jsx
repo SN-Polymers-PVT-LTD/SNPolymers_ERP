@@ -515,26 +515,6 @@ const AdminPanel = () => {
                 </select>
               </div>
 
-              {editRole === 'ho' && (
-                <div>
-                  <label className="flex items-center gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!editPermissions['ho.requisition.reopen']}
-                      onChange={(e) => setEditPermissions(prev => ({ ...prev, 'ho.requisition.reopen': e.target.checked }))}
-                      disabled={editSubmitting}
-                      className="w-4 h-4 rounded accent-amber-500"
-                    />
-                    <span className="text-xs font-semibold text-slate-300">
-                      Can reopen rejected Accounts requisitions
-                    </span>
-                  </label>
-                  <p className="mt-1.5 ml-7 text-[10px] text-slate-500">
-                    Lets this HO user reopen a Rejected line item in the Accounts HO Approval queue.
-                  </p>
-                </div>
-              )}
-
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">
                   Account Status

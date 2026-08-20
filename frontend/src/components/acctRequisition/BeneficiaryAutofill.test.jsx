@@ -12,44 +12,26 @@ vi.mock('../../api/acctRequisitionsApi', () => ({
 
 const match = { beneficiary_name: 'shreyan ghosh', beneficiary_bank_name: 'HDFC Bank' };
 
-describe('BeneficiaryAutofill — sheet-level dismissed keys are shared across rows', () => {
-  it('shows the match banner when neither locally nor sheet-level dismissed', async () => {
+describe('BeneficiaryAutofill — dismissal is scoped to this row only', () => {
+  it('shows the match banner when not yet dismissed on this row', async () => {
     render(<BeneficiaryAutofill accountNumber="112023052202" ifsc="HDFC0000106" />);
     await waitFor(() => expect(screen.getByText(/found beneficiary/i)).toBeInTheDocument());
   });
 
-  it('does not show the banner if the key is already in sheetDismissedKeys', async () => {
-    const sheetDismissedKeys = new Set(['112023052202|HDFC0000106']);
-    render(<BeneficiaryAutofill accountNumber="112023052202" ifsc="HDFC0000106" sheetDismissedKeys={sheetDismissedKeys} />);
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(screen.queryByText(/found beneficiary/i)).not.toBeInTheDocument();
-  });
-
-  it('calls onSheetDismiss with the key when "Use this" is clicked', async () => {
+  it('hides the banner on this row after "Use this", but a fresh row instance still prompts', async () => {
     const onAutofill = vi.fn();
-    const onSheetDismiss = vi.fn();
-    render(
-      <BeneficiaryAutofill
-        accountNumber="112023052202"
-        ifsc="HDFC0000106"
-        onAutofill={onAutofill}
-        onSheetDismiss={onSheetDismiss}
-      />
-    );
+    render(<BeneficiaryAutofill accountNumber="112023052202" ifsc="HDFC0000106" onAutofill={onAutofill} />);
     const useThis = await screen.findByText(/use this/i);
     fireEvent.click(useThis);
     expect(onAutofill).toHaveBeenCalledWith(match);
-    expect(onSheetDismiss).toHaveBeenCalledWith('112023052202|HDFC0000106');
+    expect(screen.queryByText(/found beneficiary/i)).not.toBeInTheDocument();
   });
 
-  it('calls onSheetDismiss with the key when "Dismiss" is clicked', async () => {
-    const onSheetDismiss = vi.fn();
-    render(
-      <BeneficiaryAutofill accountNumber="112023052202" ifsc="HDFC0000106" onSheetDismiss={onSheetDismiss} />
-    );
+  it('hides the banner on this row after "Dismiss"', async () => {
+    render(<BeneficiaryAutofill accountNumber="112023052202" ifsc="HDFC0000106" />);
     const dismiss = await screen.findByText(/^dismiss$/i);
     fireEvent.click(dismiss);
-    expect(onSheetDismiss).toHaveBeenCalledWith('112023052202|HDFC0000106');
+    expect(screen.queryByText(/found beneficiary/i)).not.toBeInTheDocument();
   });
 });
 

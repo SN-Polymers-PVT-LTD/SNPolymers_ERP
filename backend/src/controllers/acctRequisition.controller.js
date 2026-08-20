@@ -340,7 +340,17 @@ async function submitSheet(req, res) {
 
     if (rpcErr) {
       const mapped = mapAcctRpcError(rpcErr);
-      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      if (mapped) {
+        // VAL02 here means some row's edits were only ever typed into the
+        // form and never actually saved — submit_acct_sheet_transact
+        // validates against the persisted row data, not whatever's still
+        // sitting unsaved in the browser. Spelling that out avoids the
+        // confusing "it failed, then I saved a draft, then it worked" loop.
+        const message = rpcErr.code === 'VAL02'
+          ? `${mapped.message} Click "Save Draft" first to persist any unsaved edits, then Submit Sheet again.`
+          : mapped.message;
+        return res.status(mapped.status).json({ success: false, message });
+      }
       throw rpcErr;
     }
 
@@ -599,13 +609,10 @@ async function resubmitLineItem(req, res) {
 
 /**
  * POST /acct-requisitions/items/:itemId/reopen
- * Gate (§4c): req.user.permissions?.['ho.requisition.reopen'] === true, checked BEFORE any DB write.
+ * Any ho/admin user may reopen (gated by the route's requireRole(hoRoles) —
+ * no separate per-user permission).
  */
 async function reopenLineItem(req, res) {
-  if (req.user.permissions?.['ho.requisition.reopen'] !== true) {
-    return res.status(403).json({ success: false, message: 'Access denied. Reopen permission required.' });
-  }
-
   if (!validate(req, res, reopenLineItemSchema)) return;
   const { itemId } = req.params;
   const { reopen_remark } = req.body;

@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Modal, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup, PremiumSuccessModal } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
 import HoDecisionPanel from '../components/acctRequisition/HoDecisionPanel';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
+import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 
 import {
-  getSheetById, actOnLineItemsBatch, reopenLineItem, getBankBalances
+  getSheetById, actOnLineItemsBatch, reopenLineItem, getBankBalances, getIndianBanks
 } from '../api/acctRequisitionsApi';
+import { buildSheetCsv } from '../utils/acctSheetCsv';
 
 // No "Actions" column — HO's rows are never editable (no Save/Add/Delete),
 // so that column was always empty here, just dead space next to the Status
@@ -21,6 +23,17 @@ const TABLE_HEADERS = [
 ];
 
 const getStatusBadgeVariant = (status) => (status === 'Reviewed' ? 'emerald' : 'blue');
+
+// Preview label for a staged-but-not-yet-submitted decision — the Status
+// column otherwise keeps showing the item's real (pre-decision) DB status
+// while HO is mid-review, which reads as if picking "Hold" did nothing.
+const ACTION_TO_STATUS_LABEL = {
+  Approve: 'Approved',
+  PartiallyApprove: 'Partially Approved',
+  Hold: 'On Hold',
+  Return: 'Returned for Correction',
+  Reject: 'Rejected'
+};
 
 // Mirrors AcctRequisitionSheetView.jsx's layout (full-width header, one bank
 // balance card per bank, a real <Table>) rather than squeezing the review
@@ -34,6 +47,7 @@ const AcctHoSheetView = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [premiumSuccess, setPremiumSuccess] = useState(null);
   // Decisions staged in local state (mirrors the cost-estimate HO review's
   // rowDecisions) — no network call until "Save Draft"/"Submit Decisions"
   // batches every staged row into one request, instead of one PATCH per row
@@ -41,9 +55,13 @@ const AcctHoSheetView = () => {
   const [decisions, setDecisions] = useState({});
   const [batchErrors, setBatchErrors] = useState({});
   const [submittingDecisions, setSubmittingDecisions] = useState(false);
+  const [showRejected, setShowRejected] = useState(false);
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
-  const canReopen = user?.permissions?.['ho.requisition.reopen'] === true;
+  // Any HO/admin user reaching this page (gated by isHoUser above, and by the
+  // route's own requireRole(['ho','admin']) server-side) can reopen a
+  // Rejected item — no separate per-user permission required.
+  const canReopen = isHoUser;
 
   const { data: sheetDetail, isLoading: loadingDetail } = useQuery({
     queryKey: ['acctSheet', id],
@@ -58,8 +76,23 @@ const AcctHoSheetView = () => {
     enabled: isHoUser
   });
 
+  const { data: indianBanksRaw = [] } = useQuery({
+    queryKey: ['acctIndianBanks'],
+    queryFn: async () => (await getIndianBanks()).data?.indianBanks ?? [],
+    staleTime: 60 * 1000,
+    enabled: isHoUser
+  });
+  const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
+
+  // AcctHoQueue's list query is keyed ['acctSheets', 'submitted' | 'reviewed']
+  // depending on the active tab — invalidating just the 'submitted' variant
+  // (as this used to) means finishing a review (Submitted -> Reviewed) never
+  // refreshes the Reviewed tab, so the sheet that just got reviewed doesn't
+  // show up there until an unrelated refetch happens to occur. The bare
+  // ['acctSheets'] prefix (same pattern AcctRequisitionSheetView.jsx and
+  // AcctRequisitions.jsx already use) matches every variant at once.
   const invalidateSheet = () => {
-    queryClient.invalidateQueries({ queryKey: ['acctSheets', 'submitted'] });
+    queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     queryClient.invalidateQueries({ queryKey: ['acctSheet', id] });
   };
 
@@ -86,9 +119,10 @@ const AcctHoSheetView = () => {
   // malformed staged row would 400 the entire batch rather than failing
   // just that row. Filtering invalid rows out client-side keeps everyone
   // else's valid decisions submittable.
-  const handleSubmitDecisions = async () => {
+  const handleSubmitDecisions = async (isFinal = false) => {
     setError('');
     setSuccess('');
+    setPremiumSuccess(null);
     const nextBatchErrors = {};
     const actions = [];
 
@@ -137,6 +171,16 @@ const AcctHoSheetView = () => {
       const failedCount = results.filter((r) => !r.success).length;
       if (failedCount > 0) {
         setError(`${failedCount} of ${results.length} decision(s) failed — check the errors below.`);
+      } else if (isFinal) {
+        setPremiumSuccess({
+          title: 'Review Submitted',
+          message: 'Your decisions have been recorded for this sheet.',
+          details: [
+            { label: 'Sheet Number', value: sheetDetail.sheet_number },
+            { label: 'Decisions Applied', value: results.length },
+            { label: 'New Status', value: 'Reviewed', pill: true }
+          ]
+        });
       } else {
         setSuccess(`${results.length} decision(s) applied.`);
       }
@@ -178,7 +222,22 @@ const AcctHoSheetView = () => {
 
   const items = sheetDetail.items || [];
   const actionableItems = items.filter(i => ['Pending HO Review', 'On Hold'].includes(i.requisition_status));
-  const otherItems = items.filter(i => !['Pending HO Review', 'On Hold'].includes(i.requisition_status));
+  const otherItems = items.filter(i => !['Pending HO Review', 'On Hold', 'Rejected'].includes(i.requisition_status));
+  const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
+  const eligibleNeftItems = items
+    .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
+    .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
+
+  const handleExportCsv = () => {
+    const csv = buildSheetCsv(sheetDetail, items);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   const stagedCount = Object.values(decisions).filter((d) => d?.action).length;
   // "Save Draft" persists whatever's staged so far, complete or not — useful
   // incremental progress on a large sheet. "Submit Decisions" is the same
@@ -219,8 +278,10 @@ const AcctHoSheetView = () => {
               item={item}
               sheetStatus={sheetDetail.sheet_status}
               bankBalances={bankBalances}
+              indianBanks={indianBanks}
               showActionsCell={false}
               renderExtraCell={renderDecision}
+              statusOverride={ACTION_TO_STATUS_LABEL[decisions[item.id]?.action]}
             />
           ))}
         </TableBody>
@@ -239,6 +300,7 @@ const AcctHoSheetView = () => {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100">{sheetDetail.sheet_number}</h1>
             <Badge variant={getStatusBadgeVariant(sheetDetail.sheet_status)} showDot={false}>{sheetDetail.sheet_status}</Badge>
           </div>
+          <p className="text-xs text-slate-400 font-medium mt-1.5">Review and action every line item on this submitted sheet.</p>
         </div>
         <div className="flex items-center gap-3">
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/ho-queue')}>
@@ -247,14 +309,20 @@ const AcctHoSheetView = () => {
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
             View Bank Balances
           </Button>
+          {items.length > 0 && (
+            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+              Export to CSV
+            </Button>
+          )}
+          <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
           {actionableItems.length > 0 && (
             <>
-              <Button variant="glass" size="sm" onClick={handleSubmitDecisions} loading={submittingDecisions} disabled={stagedCount === 0}>
+              <Button variant="glass" size="sm" onClick={() => handleSubmitDecisions(false)} loading={submittingDecisions} disabled={stagedCount === 0}>
                 Save Draft{stagedCount > 0 ? ` (${stagedCount})` : ''}
               </Button>
               <Button
                 variant="amber"
-                onClick={handleSubmitDecisions}
+                onClick={() => handleSubmitDecisions(true)}
                 loading={submittingDecisions}
                 disabled={!allDecided}
                 title={!allDecided ? 'Stage a decision for every row before finishing review' : undefined}
@@ -267,19 +335,21 @@ const AcctHoSheetView = () => {
       </div>
 
       {bankBalances.length > 0 && (
-        <div className="flex flex-wrap gap-4 mb-6">
-          {bankBalances.map((bank) => (
-            <BankBalanceBanner
-              key={bank.bank_name}
-              bankBalance={bank}
-              lineItems={items}
-              stagedDebit={stagedDebitsByBank[bank.bank_name] || 0}
-            />
-          ))}
+        <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02]">
+          <div className="flex flex-wrap gap-4">
+            {bankBalances.map((bank) => (
+              <BankBalanceBanner
+                key={bank.bank_name}
+                bankBalance={bank}
+                lineItems={items}
+                stagedDebit={stagedDebitsByBank[bank.bank_name] || 0}
+              />
+            ))}
+          </div>
         </div>
       )}
 
-      {actionableItems.length === 0 && otherItems.length === 0 ? (
+      {actionableItems.length === 0 && otherItems.length === 0 && rejectedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet.</p>
       ) : (
         <>
@@ -293,22 +363,32 @@ const AcctHoSheetView = () => {
               {renderTable(otherItems)}
             </div>
           )}
+
+          {rejectedItems.length > 0 && (
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowRejected((v) => !v)}
+                className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-slate-300 transition-colors w-fit"
+              >
+                <span className={`transition-transform ${showRejected ? 'rotate-90' : ''}`}>▸</span>
+                {rejectedItems.length} Rejected {rejectedItems.length === 1 ? 'item' : 'items'} (click to {showRejected ? 'hide' : 'view'})
+              </button>
+              {showRejected && renderTable(rejectedItems)}
+            </div>
+          )}
         </>
       )}
 
-      {success && (
-        <Modal isOpen={true} onClose={() => setSuccess('')} title="Success" size="sm"
-          footer={<Button variant="amber" onClick={() => setSuccess('')} className="w-full">Continue</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{success}</p>
-        </Modal>
-      )}
-
-      {error && (
-        <Modal isOpen={true} onClose={() => setError('')} title="Action Blocked" size="sm"
-          footer={<Button variant="primary" onClick={() => setError('')} className="w-full">Understood</Button>}>
-          <p className="text-xs text-slate-300 text-center py-4">{error}</p>
-        </Modal>
-      )}
+      <SuccessPopup isOpen={!!success} onClose={() => setSuccess('')} title="Saved" description={success} />
+      <ErrorPopup isOpen={!!error} onClose={() => setError('')} title="Action Blocked" description={error} />
+      <PremiumSuccessModal
+        isOpen={!!premiumSuccess}
+        onClose={() => setPremiumSuccess(null)}
+        title={premiumSuccess?.title}
+        message={premiumSuccess?.message}
+        details={premiumSuccess?.details || []}
+      />
     </>
   );
 };

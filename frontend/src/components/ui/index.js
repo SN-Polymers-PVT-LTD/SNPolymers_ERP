@@ -12,4 +12,5 @@ export { default as Skeleton, SkeletonCard, SkeletonTable, SkeletonPage } from '
 export { default as Pagination } from './Pagination';
 export { default as SuccessPopup } from './SuccessPopup';
 export { default as ErrorPopup } from './ErrorPopup';
+export { default as PremiumSuccessModal } from './PremiumSuccessModal';
 

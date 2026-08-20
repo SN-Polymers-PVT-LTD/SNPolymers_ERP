@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildSheetCsv } from './AcctRequisitionSheetView';
+import { buildSheetCsv } from './acctSheetCsv';
 
 const sheet = { sheet_number: '19082026-1' };
 
 describe('buildSheetCsv — full plain-CSV dump of a sheet\'s line items', () => {
-  it('includes the sheet number and dates on every row, not just item fields', () => {
+  it('includes the sheet number and a plain dd/mm/yyyy created date, not a timestamp', () => {
     const items = [
       {
         particulars: 'AMC Charges', account_sub_title_text: 'Maintenance',
@@ -20,10 +20,19 @@ describe('buildSheetCsv — full plain-CSV dump of a sheet\'s line items', () =>
     const [header, row] = csv.split('\r\n');
 
     expect(header).toContain('Sheet Number');
-    expect(header).toContain('Created At');
+    expect(header).toContain('Created Date');
     expect(row).toContain('19082026-1');
     expect(row).toContain('AMC Charges');
-    expect(row).toContain('2026-08-19T08:00:00Z');
+    expect(row).toContain('19/08/2026');
+    expect(row).not.toContain('2026-08-19T08:00:00Z');
+  });
+
+  it('drops Updated At and HO Actioned At entirely — not needed in the export', () => {
+    const csv = buildSheetCsv(sheet, [{ particulars: 'x' }]);
+    const header = csv.split('\r\n')[0];
+
+    expect(header).not.toContain('Updated At');
+    expect(header).not.toContain('HO Actioned At');
   });
 
   it('produces just the header row when there are no items', () => {
@@ -43,7 +52,7 @@ describe('buildSheetCsv — full plain-CSV dump of a sheet\'s line items', () =>
   });
 
   it('renders a missing/null field as an empty CSV cell, not "null" or "undefined"', () => {
-    const items = [{ particulars: 'No beneficiary yet', requisition_status: null }];
+    const items = [{ particulars: 'No beneficiary yet', requisition_status: null, created_at: null }];
     const csv = buildSheetCsv(sheet, items);
     const row = csv.split('\r\n')[1];
 

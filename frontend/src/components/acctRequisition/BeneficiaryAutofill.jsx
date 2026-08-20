@@ -6,18 +6,15 @@ import { lookupBeneficiary } from '../../api/acctRequisitionsApi';
  * confirmation instead of silently overwriting fields the Accounts user may
  * already be mid-typing.
  *
- * `sheetDismissedKeys`/`onSheetDismiss` are optional and, when supplied,
- * shared across every row in the sheet (lifted up by the parent): once a
- * given (account_number, ifsc) is confirmed or dismissed on any row, it
- * won't re-prompt on other rows referencing the same beneficiary — without
- * them this component still works standalone, dismissing only for itself.
- *
  * `currentName`/`currentBankName` are the row's own already-typed values.
  * The lookup still runs (there's no way to know it's a no-op without it),
  * but if the match is identical to what's already filled in, there's
  * nothing left to autofill — showing the prompt anyway is just noise.
+ * Dismissal/confirmation is scoped to this row only, not the whole sheet:
+ * two rows paying the same beneficiary each get their own prompt if either
+ * one still has its name field empty.
  */
-const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, sheetDismissedKeys, onSheetDismiss, currentName, currentBankName }) => {
+const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, currentName, currentBankName }) => {
   const [match, setMatch] = useState(null);
   const [lookupError, setLookupError] = useState(false);
   const [dismissedKey, setDismissedKey] = useState(null);
@@ -33,7 +30,7 @@ const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, sheetDismissedKe
     }
 
     const key = `${accountNumber}|${ifsc}`;
-    if (key === dismissedKey || sheetDismissedKeys?.has(key)) {
+    if (key === dismissedKey) {
       setMatch(null);
       setLookupError(false);
       return;
@@ -55,7 +52,7 @@ const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, sheetDismissedKe
     }, 500);
 
     return () => clearTimeout(timerRef.current);
-  }, [accountNumber, ifsc, dismissedKey, sheetDismissedKeys]);
+  }, [accountNumber, ifsc, dismissedKey]);
 
   if (lookupError) {
     return (
@@ -83,7 +80,6 @@ const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, sheetDismissedKe
         onClick={() => {
           onAutofill?.(match);
           setDismissedKey(`${accountNumber}|${ifsc}`);
-          onSheetDismiss?.(`${accountNumber}|${ifsc}`);
           setMatch(null);
         }}
       >
@@ -94,7 +90,6 @@ const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, sheetDismissedKe
         className="text-slate-500 font-bold underline underline-offset-2"
         onClick={() => {
           setDismissedKey(`${accountNumber}|${ifsc}`);
-          onSheetDismiss?.(`${accountNumber}|${ifsc}`);
           setMatch(null);
         }}
       >
