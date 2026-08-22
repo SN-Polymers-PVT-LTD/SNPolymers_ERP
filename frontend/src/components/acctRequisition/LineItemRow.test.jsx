@@ -281,6 +281,36 @@ describe('LineItemRow — shows the live ho_remarks for a Returned/On Hold item'
     renderRow({ item: { ...baseItem, ho_remarks: 'Should not appear.' } });
     expect(screen.queryByText('"Should not appear."')).not.toBeInTheDocument();
   });
+
+  it('shows the live ho_remarks for a Rejected row (collapsed path) on a first-time reject', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Rejected', ho_remarks: 'Duplicate payment request.' }
+    });
+    expect(screen.getByText('"Duplicate payment request."')).toBeInTheDocument();
+  });
+});
+
+// A Partially Approved item only ever showed the originally requested amount
+// in the collapsed view — the actual approved figure (ho_pass_amount, which
+// can differ) was nowhere visible without opening HO's decision history.
+describe('LineItemRow — shows the approved amount for a Partially Approved row', () => {
+  it('shows both the requested and approved amounts', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Partially Approved', req_amount: 1000, ho_pass_amount: 750 }
+    });
+    expect(screen.getByText(/₹\s*1,000\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Approved ₹\s*750\.00/)).toBeInTheDocument();
+  });
+
+  it('does not show an approved-amount line for a fully Approved row', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Approved', req_amount: 1000, ho_pass_amount: 1000 }
+    });
+    expect(screen.queryByText(/Approved ₹/)).not.toBeInTheDocument();
+  });
 });
 
 // After "+ Add Line Item" reconciles the optimistic placeholder with the

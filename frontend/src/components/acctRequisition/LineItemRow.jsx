@@ -223,6 +223,11 @@ const LineItemRow = ({
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
         <TableCell align="right">
           <span className="font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
+          {item.requisition_status === 'Partially Approved' && item.ho_pass_amount != null && (
+            <span className="block text-[10px] font-bold text-emerald-400 mt-0.5">
+              Approved {formatCurrency(item.ho_pass_amount)}
+            </span>
+          )}
         </TableCell>
         <TableCell>{item.payment_mode || '—'}</TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
@@ -232,6 +237,16 @@ const LineItemRow = ({
             </Badge>
             {statusOverride && (
               <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500/70">Staged, not yet submitted</span>
+            )}
+            {/* Live ho_remarks — same gap as the Return/Hold case: LastHoActionTag
+                below only shows last_ho_remarks, a snapshot from a PRIOR cycle
+                populated by resubmit/reopen. A first-time Rejected item has no
+                prior cycle yet, so without this Accounts never sees HO's reason
+                until/unless the item is later reopened. */}
+            {item.requisition_status === 'Rejected' && item.ho_remarks && (
+              <span className="text-[11px] text-slate-400 italic leading-snug line-clamp-2" title={item.ho_remarks}>
+                "{item.ho_remarks}"
+              </span>
             )}
             <LastHoActionTag item={item} />
             <ReopenedBadge item={item} />
