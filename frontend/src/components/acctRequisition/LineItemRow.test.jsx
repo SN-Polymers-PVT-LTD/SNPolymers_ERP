@@ -140,6 +140,23 @@ describe('LineItemRow — no per-row Save button; Resubmit, Add, and Delete only
     expect(screen.getByRole('button', { name: /resubmit/i })).toBeInTheDocument();
   });
 
+  // Regression: a Returned-for-Correction item's status alone used to make
+  // the row editable regardless of which page rendered it. On HO's review
+  // page (which never passes onResubmit — HO can't resubmit an Accounts
+  // item), that rendered the full editable form anyway, including
+  // BeneficiaryAutofill, which calls an Accounts/Admin-only lookup endpoint
+  // and 403s for an HO user.
+  it('falls back to the read-only collapsed view for Returned for Correction when onResubmit is not supplied', () => {
+    renderRow({
+      item: { ...baseItem, requisition_status: 'Returned for Correction' },
+      sheetStatus: 'Submitted',
+      onResubmit: undefined
+    });
+    expect(screen.queryByRole('button', { name: /resubmit/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('A/C No.')).not.toBeInTheDocument();
+    expect(screen.getByText('Returned for Correction')).toBeInTheDocument();
+  });
+
   it('renders delete as an icon-only button with an accessible label', () => {
     const { onDelete } = renderRow();
     const deleteButton = screen.getByRole('button', { name: /delete line item/i });
@@ -168,7 +185,7 @@ describe('LineItemRow — optimistic "pending" placeholder row (temp- id, awaiti
   it('shows a Creating… badge and disables its fields', () => {
     renderRow({ item: { ...baseItem, id: 'temp-abc123' }, pending: true });
     expect(screen.getByText(/creating/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Particulars')).toBeDisabled();
+    expect(screen.getByPlaceholderText('Search or add particulars...')).toBeDisabled();
   });
 
   it('does not render Delete/Add buttons while pending, and does not register a save function', () => {
@@ -321,17 +338,129 @@ describe('LineItemRow — shows the approved amount for a Partially Approved row
   });
 });
 
+// "Already Decided" tables (HO's own, and the Accounts sheet view once it's
+// no longer Open) have nothing left to stage in the Decision/Actions
+// column — opt-in props swap it for a dedicated Approved Amount column and
+// an HO Remarks column instead, rather than showing dead space.
+describe('LineItemRow — showApprovedAmountColumn / showHoRemarksColumn (dedicated columns, not inline)', () => {
+  it('renders a separate Approved Amount cell instead of the inline note, when opted in', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      showApprovedAmountColumn: true,
+      item: { ...baseItem, requisition_status: 'Partially Approved', req_amount: 1000, ho_pass_amount: 750 }
+    });
+    // The inline "Approved ₹750.00" note under Requested Amount is suppressed...
+    expect(screen.queryByText(/Approved ₹\s*750\.00/)).not.toBeInTheDocument();
+    // ...in favor of a plain amount in its own column.
+    expect(screen.getByText(/₹\s*750\.00/)).toBeInTheDocument();
+  });
+
+  it('shows a dash in the Approved Amount column for a row with no ho_pass_amount', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      showApprovedAmountColumn: true,
+      item: {
+        ...baseItem,
+        requisition_status: 'Pending HO Review',
+        ho_pass_amount: null,
+        debit_bank_ac_type: 'CANARA SNP CA',
+        beneficiary_name: 'Test Beneficiary',
+        account_sub_title_text: 'AMC Charges',
+        payment_mode: 'NEFT'
+      }
+    });
+    // Only the Approved Amount cell should be a bare dash — everything else
+    // on this row has a real value.
+    expect(screen.getAllByText('—')).toHaveLength(1);
+  });
+
+  it('shows the live ho_remarks in its own column when opted in', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      showHoRemarksColumn: true,
+      item: { ...baseItem, requisition_status: 'Approved', ho_remarks: 'Approved with reduced amount.' }
+    });
+    expect(screen.getByText('"Approved with reduced amount."')).toBeInTheDocument();
+  });
+
+  it('does not render either dedicated column when not opted in (unaffected existing pages)', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Approved', ho_pass_amount: 1000, ho_remarks: 'Should not appear as a column.' }
+    });
+    expect(screen.queryByText('"Should not appear as a column."')).not.toBeInTheDocument();
+  });
+});
+
 // After "+ Add Line Item" reconciles the optimistic placeholder with the
 // real created item, the sheet page flags that row's id so its Particulars
 // field grabs focus without the user reaching for the mouse.
 describe('LineItemRow — autoFocusParticulars focuses the Particulars field on mount', () => {
   it('focuses the Particulars input when autoFocusParticulars is true', () => {
     renderRow({ autoFocusParticulars: true });
-    expect(screen.getByPlaceholderText('Particulars')).toHaveFocus();
+    expect(screen.getByPlaceholderText('Search or add particulars...')).toHaveFocus();
   });
 
   it('does not steal focus when autoFocusParticulars is false (default)', () => {
     renderRow();
-    expect(screen.getByPlaceholderText('Particulars')).not.toHaveFocus();
+    expect(screen.getByPlaceholderText('Search or add particulars...')).not.toHaveFocus();
+  });
+});
+
+// Particulars is now a master-based SearchableSelect (mirrors Account
+// Sub-title) instead of a plain free-text Input.
+describe('LineItemRow — Particulars is a searchable, creatable master-data field', () => {
+  const particulars = [
+    { id: 'p1', title: 'AMC Charges' },
+    { id: 'p2', title: 'Advertisement Expenses' }
+  ];
+
+  it('selecting an existing particular sets both particulars and particulars_id', async () => {
+    const { onSave, triggerSaveDraft } = renderRow({ particulars, item: { ...baseItem, particulars: '' } });
+    const input = screen.getByPlaceholderText('Search or add particulars...');
+    fireEvent.focus(input);
+    fireEvent.click(screen.getByText('AMC Charges'));
+
+    await triggerSaveDraft();
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [, payload] = onSave.mock.calls[onSave.mock.calls.length - 1];
+    expect(payload.particulars).toBe('AMC Charges');
+    expect(payload.particulars_id).toBe('p1');
+  });
+
+  it('creating a new particular calls onCreateParticular and selects the result', async () => {
+    const onCreateParticular = vi.fn().mockResolvedValue({ id: 'p3', title: 'Freight Charges' });
+    renderRow({ particulars, onCreateParticular });
+    const input = screen.getByPlaceholderText('Search or add particulars...');
+    fireEvent.change(input, { target: { value: 'Freight Charges' } });
+
+    fireEvent.click(screen.getByText('+ Add "Freight Charges" as new'));
+    await waitFor(() => expect(onCreateParticular).toHaveBeenCalledWith('Freight Charges'));
+    expect(await screen.findByDisplayValue('Freight Charges')).toBeInTheDocument();
+  });
+
+  it('does not offer create when onCreateParticular is not supplied (e.g. HO read-only view)', () => {
+    renderRow({ particulars, onCreateParticular: undefined });
+    const input = screen.getByPlaceholderText('Search or add particulars...');
+    fireEvent.change(input, { target: { value: 'Something new' } });
+    expect(screen.queryByText('+ Add "Something new" as new')).not.toBeInTheDocument();
+  });
+});
+
+// beneficiary_ac_no / beneficiary_ifsc: trimmed client-side on every change
+// and length-capped to match the tightened server-side validation (9-18
+// digits for A/C No., 11 chars for IFSC).
+describe('LineItemRow — beneficiary A/C No. and IFSC input constraints', () => {
+  it('caps A/C No. to 18 chars and IFSC to 11 chars', () => {
+    renderRow();
+    expect(screen.getByPlaceholderText('A/C No.')).toHaveAttribute('maxLength', '18');
+    expect(screen.getByPlaceholderText('IFSC')).toHaveAttribute('maxLength', '11');
+  });
+
+  it('trims and uppercases IFSC as typed', () => {
+    renderRow();
+    const ifscInput = screen.getByPlaceholderText('IFSC');
+    fireEvent.change(ifscInput, { target: { value: '  hdfc0000106  ' } });
+    expect(ifscInput).toHaveValue('HDFC0000106');
   });
 });

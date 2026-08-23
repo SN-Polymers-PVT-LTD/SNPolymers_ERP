@@ -11,7 +11,8 @@ import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportBu
 import {
   getSheetById, submitSheet,
   addLineItem, updateLineItem, deleteLineItem, resubmitLineItem,
-  getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks
+  getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks,
+  getParticulars, upsertParticular, deleteSheetIfEmpty
 } from '../api/acctRequisitionsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
@@ -64,6 +65,32 @@ const AcctRequisitionSheetView = () => {
     enabled: !!id && isAccountsUser
   });
 
+  // Best-effort cleanup for a sheet that's abandoned while still empty —
+  // never had a single item added, or had every item added then deleted.
+  // Deliberately not hooked into deleting an item directly: that would nuke
+  // the sheet mid-edit if the user deletes a wrong row and immediately adds
+  // a replacement, which is normal editing, not abandonment. Firing this on
+  // unmount (leaving the page) is the point where "empty" actually means
+  // "done with this sheet." Reads from a ref (not `sheetDetail` directly) so
+  // the cleanup effect can stay declared before the early loading/not-found
+  // returns below, as the Rules of Hooks require.
+  const emptySheetCleanupRef = useRef({ id, status: null, itemCount: 0 });
+  useEffect(() => {
+    emptySheetCleanupRef.current = {
+      id,
+      status: sheetDetail?.sheet_status,
+      itemCount: sheetDetail?.items?.length ?? 0
+    };
+  });
+  useEffect(() => {
+    return () => {
+      const { id: sid, status, itemCount } = emptySheetCleanupRef.current;
+      if (status === 'Open' && itemCount === 0) {
+        deleteSheetIfEmpty(sid).catch(() => {});
+      }
+    };
+  }, []);
+
   const { data: bankBalances = [] } = useQuery({
     queryKey: ['acctBankBalances'],
     queryFn: async () => (await getBankBalances()).data?.bankBalances ?? [],
@@ -93,6 +120,20 @@ const AcctRequisitionSheetView = () => {
     const res = await upsertAccountSubTitle({ title });
     queryClient.invalidateQueries({ queryKey: ['acctAccountSubTitles'] });
     return res.data.accountSubTitle;
+  };
+
+  const { data: particularsRaw = [] } = useQuery({
+    queryKey: ['acctParticulars'],
+    queryFn: async () => (await getParticulars()).data?.particulars ?? [],
+    staleTime: 60 * 1000,
+    enabled: isAccountsUser
+  });
+  const particulars = particularsRaw.filter(p => p.is_active);
+
+  const handleCreateParticular = async (title) => {
+    const res = await upsertParticular({ title });
+    queryClient.invalidateQueries({ queryKey: ['acctParticulars'] });
+    return res.data.particular;
   };
 
   const invalidateSheet = () => {
@@ -299,8 +340,16 @@ const AcctRequisitionSheetView = () => {
   // just excluded from the main table and tucked into a collapsed section.
   const visibleItems = items.filter(i => i.requisition_status !== 'Rejected');
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
-  const totalPages = Math.max(Math.ceil(visibleItems.length / ITEMS_PER_PAGE), 1);
-  const pagedItems = visibleItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  // Mirrors the HO review page's split: a "Pending" table for anything that
+  // still needs action (draft, Pending HO Review, On Hold, or Returned for
+  // Correction awaiting resubmission) and a separate, always-visible
+  // "Already Decided" table for Approved/Partially Approved items — which
+  // otherwise sat in the same table with an Actions column that was always
+  // blank for them, no matter what else was on the sheet.
+  const pendingItems = visibleItems.filter(i => !['Approved', 'Partially Approved'].includes(i.requisition_status));
+  const decidedItems = visibleItems.filter(i => ['Approved', 'Partially Approved'].includes(i.requisition_status));
+  const totalPages = Math.max(Math.ceil(pendingItems.length / ITEMS_PER_PAGE), 1);
+  const pagedItems = pendingItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
@@ -350,57 +399,103 @@ const AcctRequisitionSheetView = () => {
         </div>
       )}
 
-      {visibleItems.length === 0 && rejectedItems.length === 0 ? (
+      {pendingItems.length === 0 && decidedItems.length === 0 && rejectedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet yet.</p>
-      ) : visibleItems.length === 0 ? (
+      ) : pendingItems.length === 0 && decidedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">All line items on this sheet have been rejected — see below.</p>
       ) : (
-        <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-          <Table containerClassName="min-w-[1100px]">
-            <TableHeader>
-              <TableRow hover={false}>
-                <TableCell isHeader>Particulars</TableCell>
-                <TableCell isHeader>Account Sub-title</TableCell>
-                <TableCell isHeader>Beneficiary</TableCell>
-                <TableCell isHeader>Debit Bank</TableCell>
-                <TableCell isHeader align="right">Requested Amount</TableCell>
-                <TableCell isHeader>Payment Mode</TableCell>
-                <TableCell isHeader>Status</TableCell>
-                <TableCell isHeader>Actions</TableCell>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedItems.map(item => (
-                <LineItemRow
-                  key={item.id}
-                  item={item}
-                  sheetStatus={sheetDetail.sheet_status}
-                  bankBalances={bankBalances}
-                  accountSubTitles={accountSubTitles}
-                  indianBanks={indianBanks}
-                  onCreateAccountSubTitle={handleCreateAccountSubTitle}
-                  onSave={handleSaveItem}
-                  onResubmit={handleResubmitItem}
-                  onDelete={handleDeleteItem}
-                  deleting={deletingItemId === item.id}
-                  onAddItem={handleAddItem}
-                  addingItem={addingItem}
-                  pending={typeof item.id === 'string' && item.id.startsWith('temp-')}
-                  registerSave={registerSave}
-                  autoFocusParticulars={item.id === focusItemId}
-                />
-              ))}
-            </TableBody>
-          </Table>
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            maxVisible={5}
-            showLabel={true}
-            totalRecords={visibleItems.length}
-          />
-        </div>
+        <>
+          {pendingItems.length > 0 && (
+            <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
+              <Table containerClassName="min-w-[1100px]">
+                <TableHeader>
+                  <TableRow hover={false}>
+                    <TableCell isHeader>Particulars</TableCell>
+                    <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>Beneficiary</TableCell>
+                    <TableCell isHeader>Debit Bank</TableCell>
+                    <TableCell isHeader align="right">Requested Amount</TableCell>
+                    <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Status</TableCell>
+                    <TableCell isHeader>Actions</TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pagedItems.map(item => (
+                    <LineItemRow
+                      key={item.id}
+                      item={item}
+                      sheetStatus={sheetDetail.sheet_status}
+                      bankBalances={bankBalances}
+                      accountSubTitles={accountSubTitles}
+                      indianBanks={indianBanks}
+                      onCreateAccountSubTitle={handleCreateAccountSubTitle}
+                      particulars={particulars}
+                      onCreateParticular={handleCreateParticular}
+                      onSave={handleSaveItem}
+                      onResubmit={handleResubmitItem}
+                      onDelete={handleDeleteItem}
+                      deleting={deletingItemId === item.id}
+                      onAddItem={handleAddItem}
+                      addingItem={addingItem}
+                      pending={typeof item.id === 'string' && item.id.startsWith('temp-')}
+                      registerSave={registerSave}
+                      autoFocusParticulars={item.id === focusItemId}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                maxVisible={5}
+                showLabel={true}
+                totalRecords={pendingItems.length}
+              />
+            </div>
+          )}
+
+          {decidedItems.length > 0 && (
+            <div className="flex flex-col gap-2 mt-6">
+              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                Already Decided
+              </span>
+              <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
+                <Table containerClassName="min-w-[1100px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader>Particulars</TableCell>
+                      <TableCell isHeader>Account Sub-title</TableCell>
+                      <TableCell isHeader>Beneficiary</TableCell>
+                      <TableCell isHeader>Debit Bank</TableCell>
+                      <TableCell isHeader align="right">Requested Amount</TableCell>
+                      <TableCell isHeader align="right">Approved Amount</TableCell>
+                      <TableCell isHeader>Payment Mode</TableCell>
+                      <TableCell isHeader>Status</TableCell>
+                      <TableCell isHeader>HO Remarks</TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {decidedItems.map(item => (
+                      <LineItemRow
+                        key={item.id}
+                        item={item}
+                        sheetStatus={sheetDetail.sheet_status}
+                        bankBalances={bankBalances}
+                        indianBanks={indianBanks}
+                        particulars={particulars}
+                        showActionsCell={false}
+                        showApprovedAmountColumn
+                        showHoRemarksColumn
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {rejectedItems.length > 0 && (

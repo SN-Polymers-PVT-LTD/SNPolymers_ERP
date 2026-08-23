@@ -81,3 +81,17 @@ describe('SearchableSelect — flips above the input when there is no room below
     vi.restoreAllMocks();
   });
 });
+
+// autoFocus is forwarded to the underlying Input — needed by callers like
+// LineItemRow's Particulars field, which focuses a freshly-created row.
+describe('SearchableSelect — autoFocus', () => {
+  it('focuses the input on mount when autoFocus is true', () => {
+    render(<SearchableSelect options={options} placeholder="Search..." autoFocus />);
+    expect(screen.getByPlaceholderText('Search...')).toHaveFocus();
+  });
+
+  it('does not focus the input when autoFocus is false (default)', () => {
+    render(<SearchableSelect options={options} placeholder="Search..." />);
+    expect(screen.getByPlaceholderText('Search...')).not.toHaveFocus();
+  });
+});

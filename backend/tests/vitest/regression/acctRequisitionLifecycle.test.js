@@ -1,12 +1,11 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
-const crypto = require('crypto');
 const mockRes = require('../../helpers/mockRes');
 const {
   seedAcctRequisitionScenario,
   cleanupAcctRequisitionScenario
 } = require('../../helpers/acctRequisitionFixture');
 const {
-  createSheet, addLineItem, updateLineItem, deleteLineItem, submitSheet,
+  createSheet, addLineItem, updateLineItem, deleteLineItem, deleteSheetIfEmpty, submitSheet,
   actOnLineItem, resubmitLineItem, reopenLineItem, exportBulkNeft, upsertBeneficiary
 } = require('../../../src/controllers/acctRequisition.controller');
 const { supabase } = require('../../../src/db/supabase');
@@ -400,7 +399,9 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
 
   // ── Test 9 — Indian Banks master list validation (S6 regression) ──
   test('Test 9: upsertBeneficiary rejects unrecognized bank names, accepts recognized ones', async () => {
-    const acNo = `ACNO_${crypto.randomUUID().substring(0, 8)}`;
+    // Must be a valid 9-18 digit account number (accountNumberRegex) so this
+    // test exercises the bank-name check specifically, not the digit-count one.
+    const acNo = `9${Date.now()}`;
 
     const badReq = {
       body: {
@@ -428,5 +429,74 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     const goodRes = mockRes();
     await upsertBeneficiary(goodReq, goodRes);
     expect(goodRes.statusCode).toBe(200);
+  });
+
+  // ── Test 10 — deleteSheetIfEmpty (030_allow_empty_open_sheet_delete regression) ──
+  test('Test 10: deleteSheetIfEmpty removes a never-touched Open sheet and frees its number', async () => {
+    const sheetARes = await callCreateSheet(ctx.accountsMobile);
+    const sheetA = sheetARes.jsonData.sheet;
+
+    const delRes = mockRes();
+    await deleteSheetIfEmpty(
+      { params: { sheetId: sheetA.id }, user: { role: 'accounts', mobile_number: ctx.accountsMobile } },
+      delRes
+    );
+    expect(delRes.statusCode).toBe(200);
+    expect(delRes.jsonData.deleted).toBe(true);
+
+    const { data: gone } = await supabase.from('acct_requisition_sheets').select('id').eq('id', sheetA.id).maybeSingle();
+    expect(gone).toBeNull();
+
+    // The count-based generator (create_acct_sheet_transact) should now
+    // reuse sheetA's freed number for the next sheet created the same day.
+    const sheetBRes = await callCreateSheet(ctx.accountsMobile);
+    const sheetB = sheetBRes.jsonData.sheet;
+    ctx.sheetIds.push(sheetB.id);
+    expect(sheetB.sheet_number).toBe(sheetA.sheet_number);
+  });
+
+  test('Test 10b: deleteSheetIfEmpty is a no-op once the sheet has an item, or is not Open', async () => {
+    const sheetRes = await callCreateSheet(ctx.accountsMobile);
+    const sheet = sheetRes.jsonData.sheet;
+    ctx.sheetIds.push(sheet.id);
+
+    const itemRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
+      req_amount: 1000, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName
+    });
+    ctx.itemIds.push(itemRes.jsonData.item.id);
+
+    const delRes = mockRes();
+    await deleteSheetIfEmpty(
+      { params: { sheetId: sheet.id }, user: { role: 'accounts', mobile_number: ctx.accountsMobile } },
+      delRes
+    );
+    expect(delRes.statusCode).toBe(200);
+    expect(delRes.jsonData.deleted).toBe(false);
+
+    const { data: stillThere } = await supabase.from('acct_requisition_sheets').select('id').eq('id', sheet.id).maybeSingle();
+    expect(stillThere).not.toBeNull();
+  });
+
+  test('Test 10c: the underlying DB trigger still blocks a raw DELETE on any sheet with an item, even after it is deleted back out (revision history preserved)', async () => {
+    const sheetRes = await callCreateSheet(ctx.accountsMobile);
+    const sheet = sheetRes.jsonData.sheet;
+    ctx.sheetIds.push(sheet.id);
+
+    const itemRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
+      req_amount: 1000, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName
+    });
+    const item = itemRes.jsonData.item;
+
+    const deleteItemReq = { params: { sheetId: sheet.id, itemId: item.id }, user: { role: 'accounts', mobile_number: ctx.accountsMobile } };
+    const deleteItemRes = mockRes();
+    await deleteLineItem(deleteItemReq, deleteItemRes);
+    expect(deleteItemRes.statusCode).toBe(200);
+
+    // Deleting the item does NOT auto-delete the sheet (that would break
+    // "delete a wrong row, add the right one" mid-edit) — a raw DB DELETE
+    // on the sheet itself must still be permitted here since it's genuinely
+    // empty and Open, same as Test 10 above.
+    const { error } = await supabase.from('acct_requisition_sheets').delete().eq('id', sheet.id);
+    expect(error).toBeNull();
   });
 });

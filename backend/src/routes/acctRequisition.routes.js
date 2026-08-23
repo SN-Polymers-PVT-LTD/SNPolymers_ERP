@@ -1,9 +1,10 @@
 const express = require('express');
 const {
-  createSheet, getSheets, getSheetById, addLineItem, updateLineItem,
+  createSheet, getSheets, getSheetById, deleteSheetIfEmpty, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
+  getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
@@ -13,6 +14,7 @@ const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
+  upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema
 } = require('../validation/acctRequisition.schema');
@@ -29,6 +31,8 @@ router.get('/bank-ledger', requireRole(readerRoles), getBankBalanceLedger);
 router.put('/bank-balances', requireRole(accountsRoles), validateRequest(upsertBankBalanceSchema), upsertBankBalance);
 router.get('/account-sub-titles', requireRole(readerRoles), getAccountSubTitles);
 router.put('/account-sub-titles', requireRole(accountsRoles), validateRequest(upsertAccountSubTitleSchema), upsertAccountSubTitle);
+router.get('/particulars', requireRole(readerRoles), getParticulars);
+router.put('/particulars', requireRole(accountsRoles), validateRequest(upsertParticularsSchema), upsertParticular);
 router.get('/beneficiary', requireRole(accountsRoles), lookupBeneficiary);
 router.put('/beneficiary', requireRole(accountsRoles), validateRequest(upsertBeneficiarySchema), upsertBeneficiary);
 router.get('/beneficiary-master', requireRole(readerRoles), getBeneficiaries);
@@ -37,6 +41,7 @@ router.put('/indian-banks', requireRole(accountsRoles), validateRequest(upsertIn
 router.get('/sheets', requireRole(readerRoles), getSheets);
 router.get('/sheets/:sheetId', requireRole(readerRoles), getSheetById);
 router.post('/sheets', requireRole(accountsRoles), createSheet);
+router.delete('/sheets/:sheetId', requireRole(accountsRoles), deleteSheetIfEmpty);
 router.post('/sheets/:sheetId/submit', requireRole(accountsRoles), submitSheet);
 router.post('/sheets/:sheetId/export-neft', requireRole(accountsRoles), validateRequest(exportNeftSchema), exportBulkNeft);
 router.post('/sheets/:sheetId/items', requireRole(accountsRoles), validateRequest(addLineItemSchema), addLineItem);
