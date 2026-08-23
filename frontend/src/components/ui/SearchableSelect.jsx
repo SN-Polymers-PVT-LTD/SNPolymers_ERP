@@ -23,7 +23,8 @@ const SearchableSelect = ({
   placeholder,
   containerClassName = '',
   size = 'md',
-  disabled = false
+  disabled = false,
+  autoFocus = false
 }) => {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -120,6 +121,7 @@ const SearchableSelect = ({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        autoFocus={autoFocus}
         autoComplete="off"
         size={size}
         onFocus={() => setOpen(true)}

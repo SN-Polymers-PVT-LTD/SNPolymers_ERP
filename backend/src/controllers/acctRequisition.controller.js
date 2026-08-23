@@ -6,6 +6,7 @@ const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
+  upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
   refreshIndianBanksCache
@@ -69,6 +70,58 @@ async function createSheet(req, res) {
   } catch (error) {
     console.error(`createSheet failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to create requisition sheet.' });
+  }
+}
+
+/**
+ * DELETE /acct-requisitions/sheets/:sheetId
+ * Best-effort cleanup, called when the frontend leaves a sheet that's still
+ * Open with zero line items — whether it was never touched or every item on
+ * it was added then deleted. Deliberately NOT hooked into deleteLineItem
+ * itself: deleting a row and then immediately adding a replacement in the
+ * same session is normal editing, not abandonment, so the sheet must not
+ * disappear out from under that flow. The DB trigger
+ * (030_allow_empty_open_sheet_delete.sql) only permits deletion for this
+ * exact still-Open-zero-items case, so this silently no-ops (still 200)
+ * rather than erroring if the sheet is already gone, not Open, or no longer
+ * empty by the time this runs.
+ */
+async function deleteSheetIfEmpty(req, res) {
+  const { sheetId } = req.params;
+  if (!uuidRegex.test(sheetId)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    const { data: sheet, error: sheetErr } = await supabase
+      .from('acct_requisition_sheets')
+      .select('id, sheet_status')
+      .eq('id', sheetId)
+      .maybeSingle();
+    if (sheetErr) throw sheetErr;
+    if (!sheet || sheet.sheet_status !== 'Open') {
+      return res.status(200).json({ success: true, deleted: false });
+    }
+
+    const { count, error: countErr } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('sheet_id', sheetId);
+    if (countErr) throw countErr;
+    if (count > 0) {
+      return res.status(200).json({ success: true, deleted: false });
+    }
+
+    const { error: deleteErr } = await supabase
+      .from('acct_requisition_sheets')
+      .delete()
+      .eq('id', sheetId);
+    if (deleteErr) throw deleteErr;
+
+    return res.status(200).json({ success: true, deleted: true });
+  } catch (error) {
+    console.error(`deleteSheetIfEmpty failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to clean up empty sheet.' });
   }
 }
 
@@ -949,6 +1002,63 @@ async function upsertAccountSubTitle(req, res) {
 }
 
 // ============================================================================
+// Master data — Particulars
+// ============================================================================
+
+/**
+ * GET /acct-requisitions/particulars
+ */
+async function getParticulars(req, res) {
+  try {
+    // Returns both active and inactive rows — the line-item dropdown
+    // (LineItemRow.jsx) filters to active ones client-side where needed;
+    // the particulars master page needs to see/reactivate inactive rows too.
+    const { data, error } = await supabase
+      .from('particulars_master')
+      .select('*')
+      .order('title', { ascending: true });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, particulars: data || [] });
+  } catch (error) {
+    console.error(`getParticulars failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve particulars.' });
+  }
+}
+
+/**
+ * PUT /acct-requisitions/particulars
+ */
+async function upsertParticular(req, res) {
+  if (!validate(req, res, upsertParticularsSchema)) return;
+  const { title, is_active } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('particulars_master')
+      .upsert(
+        {
+          title,
+          is_active: is_active !== undefined ? is_active : true,
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'title' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, particular: data, message: 'Particular saved.' });
+  } catch (error) {
+    console.error(`upsertParticular failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save particular.' });
+  }
+}
+
+// ============================================================================
 // Master data — Indian banks
 // ============================================================================
 
@@ -1119,12 +1229,13 @@ async function exportBulkNeft(req, res) {
 }
 
 module.exports = {
-  createSheet, getSheets, getSheetById,
+  createSheet, getSheets, getSheetById, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,
+  getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank,
   exportBulkNeft
 };

@@ -34,6 +34,7 @@ const emptyDraft = (item) => ({
   account_sub_title_id: item.account_sub_title_id || null,
   account_sub_title_text: item.account_sub_title_text || '',
   particulars: item.particulars || '',
+  particulars_id: item.particulars_id || null,
   beneficiary_ac_no: item.beneficiary_ac_no || '',
   beneficiary_name: item.beneficiary_name || '',
   beneficiary_ifsc: item.beneficiary_ifsc || '',
@@ -69,6 +70,7 @@ const LineItemRow = ({
   bankBalances = [],
   accountSubTitles = [],
   indianBanks = [],
+  particulars = [],
   onSave,
   onResubmit,
   onDelete,
@@ -77,6 +79,7 @@ const LineItemRow = ({
   onAddItem,
   addingItem,
   onCreateAccountSubTitle,
+  onCreateParticular,
   selectable,
   selected,
   onToggleSelect,
@@ -84,10 +87,19 @@ const LineItemRow = ({
   renderExtraCell,
   showActionsCell = true,
   autoFocusParticulars = false,
-  statusOverride
+  statusOverride,
+  showApprovedAmountColumn = false,
+  showHoRemarksColumn = false
 }) => {
   const openPath = sheetStatus === 'Open';
-  const returnedPath = item.requisition_status === 'Returned for Correction';
+  // Also requires onResubmit: sheetStatus/item status alone can't tell
+  // whether the page rendering this row actually supports editing. HO's
+  // review page never passes onResubmit (HO can't resubmit an Accounts
+  // item), but a Returned-for-Correction item's status is identical there —
+  // without this guard it rendered the full editable form on HO's page too,
+  // including BeneficiaryAutofill, which calls an Accounts/Admin-only
+  // lookup endpoint and 403s for an HO user.
+  const returnedPath = item.requisition_status === 'Returned for Correction' && Boolean(onResubmit);
   const editable = openPath || returnedPath;
   const viewOnlyFull = !editable && item.requisition_status === 'On Hold';
 
@@ -104,6 +116,7 @@ const LineItemRow = ({
   const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
   const indianBankOptions = indianBanks.map(b => ({ value: b, label: b }));
+  const particularsOptions = particulars.map(p => ({ value: p.id, label: p.title }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
@@ -114,6 +127,16 @@ const LineItemRow = ({
 
   const handleCreateSubTitle = async (title) => {
     const created = await onCreateAccountSubTitle(title);
+    return { value: created.id, label: created.title };
+  };
+
+  const handleParticularsTextChange = (text) => {
+    const match = particularsOptions.find(o => o.label.trim().toLowerCase() === text.trim().toLowerCase());
+    setDraft(prev => ({ ...prev, particulars: text, particulars_id: match?.value || null }));
+  };
+
+  const handleCreateParticularOption = async (title) => {
+    const created = await onCreateParticular(title);
     return { value: created.id, label: created.title };
   };
 
@@ -223,12 +246,21 @@ const LineItemRow = ({
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
         <TableCell align="right">
           <span className="font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
-          {['Approved', 'Partially Approved'].includes(item.requisition_status) && item.ho_pass_amount != null && (
+          {!showApprovedAmountColumn && ['Approved', 'Partially Approved'].includes(item.requisition_status) && item.ho_pass_amount != null && (
             <span className="block text-[10px] font-bold text-emerald-400 mt-0.5">
               Approved {formatCurrency(item.ho_pass_amount)}
             </span>
           )}
         </TableCell>
+        {showApprovedAmountColumn && (
+          <TableCell align="right">
+            {['Approved', 'Partially Approved'].includes(item.requisition_status) && item.ho_pass_amount != null ? (
+              <span className="font-bold text-emerald-400">{formatCurrency(item.ho_pass_amount)}</span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </TableCell>
+        )}
         <TableCell>{item.payment_mode || '—'}</TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
@@ -252,6 +284,17 @@ const LineItemRow = ({
             <ReopenedBadge item={item} />
           </div>
         </TableCell>
+        {showHoRemarksColumn && (
+          <TableCell className="min-w-[200px] max-w-[260px]">
+            {item.ho_remarks ? (
+              <span className="text-xs text-slate-400 italic leading-snug line-clamp-3" title={item.ho_remarks}>
+                "{item.ho_remarks}"
+              </span>
+            ) : (
+              <span className="text-slate-600">—</span>
+            )}
+          </TableCell>
+        )}
         {showActionsCell && (
           <TableCell>
             {selectable && (
@@ -293,7 +336,17 @@ const LineItemRow = ({
           {(returnedPath || viewOnlyFull) && item.ho_remarks && (
             <span className="text-[11px] text-slate-400 italic leading-snug">"{item.ho_remarks}"</span>
           )}
-          <Input autoFocus={autoFocusParticulars} disabled={readOnly} value={draft.particulars} onChange={(e) => setField('particulars', e.target.value)} placeholder="Particulars" size="sm" />
+          <SearchableSelect
+            autoFocus={autoFocusParticulars}
+            disabled={readOnly}
+            value={draft.particulars}
+            onChange={handleParticularsTextChange}
+            options={particularsOptions}
+            onSelect={(opt) => setDraft(prev => ({ ...prev, particulars_id: opt.value, particulars: opt.label }))}
+            onCreate={onCreateParticular ? handleCreateParticularOption : undefined}
+            placeholder="Search or add particulars..."
+            size="sm"
+          />
           <LastHoActionTag item={item} />
           <ReopenedBadge item={item} />
         </div>
@@ -313,8 +366,8 @@ const LineItemRow = ({
 
       <TableCell className="min-w-[220px]">
         <div className="flex flex-col gap-1.5">
-          <Input disabled={readOnly} value={draft.beneficiary_ac_no} onChange={(e) => setField('beneficiary_ac_no', e.target.value)} placeholder="A/C No." size="sm" />
-          <Input disabled={readOnly} value={draft.beneficiary_ifsc} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase())} placeholder="IFSC" size="sm" />
+          <Input disabled={readOnly} value={draft.beneficiary_ac_no} maxLength={18} inputMode="numeric" onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))} placeholder="A/C No." size="sm" />
+          <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase().trim())} placeholder="IFSC" size="sm" />
           <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
           <Select
             disabled={readOnly}

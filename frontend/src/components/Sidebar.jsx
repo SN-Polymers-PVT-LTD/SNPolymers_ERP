@@ -154,6 +154,15 @@ export const MobileHeader = () => {
         )
       });
       finItems.push({
+        to: '/acct-requisitions/particulars',
+        label: 'Particulars',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V18a2 2 0 01-2 2z" />
+          </svg>
+        )
+      });
+      finItems.push({
         to: '/acct-requisitions/beneficiary-master',
         label: 'Beneficiary Master',
         icon: (
@@ -629,6 +638,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/particulars',
+        label: 'Particulars',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V18a2 2 0 01-2 2z" />
           </svg>
         )
       });

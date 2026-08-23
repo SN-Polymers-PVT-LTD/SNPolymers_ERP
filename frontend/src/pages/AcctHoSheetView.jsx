@@ -10,7 +10,7 @@ import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 
 import {
-  getSheetById, actOnLineItemsBatch, reopenLineItem, getBankBalances, getIndianBanks
+  getSheetById, actOnLineItemsBatch, reopenLineItem, getBankBalances, getIndianBanks, getParticulars
 } from '../api/acctRequisitionsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
@@ -20,6 +20,15 @@ import { buildSheetCsv } from '../utils/acctSheetCsv';
 const TABLE_HEADERS = [
   'Particulars', 'Account Sub-title', 'Beneficiary', 'Debit Bank',
   'Requested Amount', 'Payment Mode', 'Status', 'Decision'
+];
+
+// "Already Decided" items (Approved / Partially Approved / Returned) have
+// nothing left to stage — HoDecisionPanel renders nothing for them, so the
+// Decision column here was always dead space too. Approved Amount and HO
+// Remarks are actually useful to see at a glance for a sheet that's done.
+const DECIDED_TABLE_HEADERS = [
+  'Particulars', 'Account Sub-title', 'Beneficiary', 'Debit Bank',
+  'Requested Amount', 'Approved Amount', 'Payment Mode', 'Status', 'HO Remarks'
 ];
 
 const getStatusBadgeVariant = (status) => (status === 'Reviewed' ? 'emerald' : 'blue');
@@ -83,6 +92,14 @@ const AcctHoSheetView = () => {
     enabled: isHoUser
   });
   const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
+
+  const { data: particularsRaw = [] } = useQuery({
+    queryKey: ['acctParticulars'],
+    queryFn: async () => (await getParticulars()).data?.particulars ?? [],
+    staleTime: 60 * 1000,
+    enabled: isHoUser
+  });
+  const particulars = particularsRaw.filter(p => p.is_active);
 
   // AcctHoQueue's list query is keyed ['acctSheets', 'submitted' | 'reviewed']
   // depending on the active tab — invalidating just the 'submitted' variant
@@ -224,6 +241,12 @@ const AcctHoSheetView = () => {
   const actionableItems = items.filter(i => ['Pending HO Review', 'On Hold'].includes(i.requisition_status));
   const otherItems = items.filter(i => !['Pending HO Review', 'On Hold', 'Rejected'].includes(i.requisition_status));
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
+  // A Returned-for-Correction item still renders through LineItemRow's full
+  // editable-field layout (not the collapsed one), which has no Approved
+  // Amount / HO Remarks cells — mixing it into the "decided" column swap
+  // would misalign the table. Only swap when every row here is genuinely
+  // collapsed-view.
+  const otherItemsAllDecided = !otherItems.some(i => i.requisition_status === 'Returned for Correction');
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
@@ -261,13 +284,13 @@ const AcctHoSheetView = () => {
     return acc;
   }, {});
 
-  const renderTable = (rows) => (
+  const renderTable = (rows, { decided = false } = {}) => (
     <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
       <Table containerClassName="min-w-[1180px]">
         <TableHeader>
           <TableRow hover={false}>
-            {TABLE_HEADERS.map((h) => (
-              <TableCell key={h} isHeader align={h === 'Requested Amount' ? 'right' : 'left'}>{h}</TableCell>
+            {(decided ? DECIDED_TABLE_HEADERS : TABLE_HEADERS).map((h) => (
+              <TableCell key={h} isHeader align={h === 'Requested Amount' || h === 'Approved Amount' ? 'right' : 'left'}>{h}</TableCell>
             ))}
           </TableRow>
         </TableHeader>
@@ -279,8 +302,11 @@ const AcctHoSheetView = () => {
               sheetStatus={sheetDetail.sheet_status}
               bankBalances={bankBalances}
               indianBanks={indianBanks}
+              particulars={particulars}
               showActionsCell={false}
-              renderExtraCell={renderDecision}
+              renderExtraCell={decided ? undefined : renderDecision}
+              showApprovedAmountColumn={decided}
+              showHoRemarksColumn={decided}
               statusOverride={ACTION_TO_STATUS_LABEL[decisions[item.id]?.action]}
             />
           ))}
@@ -360,7 +386,7 @@ const AcctHoSheetView = () => {
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
                 Already Decided
               </span>
-              {renderTable(otherItems)}
+              {renderTable(otherItems, { decided: otherItemsAllDecided })}
             </div>
           )}
 

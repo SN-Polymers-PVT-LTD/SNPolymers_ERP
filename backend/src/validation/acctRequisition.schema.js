@@ -37,12 +37,21 @@ refreshIndianBanksCache();
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const uuidSchema = z.string().regex(uuidRegex, 'Invalid UUID.');
 const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+// Indian bank account numbers commonly run 9-18 digits, numeric only.
+const accountNumberRegex = /^\d{9,18}$/;
 
 const accountsLineItemBody = z.object({
   account_sub_title_id:   uuidSchema.optional().nullable(),
   account_sub_title_text: z.string().trim().optional().nullable(),
   particulars:            z.string().trim().optional().nullable(),
-  beneficiary_ac_no:      z.string().trim().optional().nullable(),
+  particulars_id:         uuidSchema.optional().nullable(),
+  beneficiary_ac_no:      z.string().trim().optional().nullable()
+                            // Not .regex() directly: see beneficiary_ifsc below — a
+                            // partially-filled row autosaves '' until this field is
+                            // complete, so empty string must pass through untouched.
+                            .refine(val => !val || accountNumberRegex.test(val), {
+                              message: 'beneficiary_ac_no must be 9-18 digits.'
+                            }),
   beneficiary_name:       z.string().trim().optional().nullable(),
   // Not .regex() directly: that rejects '' outright, which a partially-filled
   // row sends on every autosave until the field is complete. Empty string is
@@ -139,9 +148,18 @@ const upsertAccountSubTitleSchema = {
   })
 };
 
+// Mirrors upsertAccountSubTitleSchema exactly — same upsert-by-title convention.
+const upsertParticularsSchema = {
+  body: z.object({
+    title:     z.string().trim().min(1, 'title is required.'),
+    is_active: z.boolean().optional()
+  })
+};
+
 const upsertBeneficiarySchema = {
   body: z.object({
-    account_number:        z.string().trim().min(1, 'account_number is required.'),
+    account_number:        z.string().trim()
+                             .regex(accountNumberRegex, 'account_number must be 9-18 digits.'),
     ifsc:                  z.string().trim()
                              .regex(ifscRegex, 'ifsc must be 11-char in format AAAA0XXXXXX.'),
     beneficiary_name:      z.string().trim().min(1, 'beneficiary_name is required.'),
@@ -168,6 +186,7 @@ module.exports = {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema, reopenLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
+  upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
   refreshIndianBanksCache

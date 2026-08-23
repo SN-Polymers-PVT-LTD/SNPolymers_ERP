@@ -11,6 +11,10 @@ export const getBankLedger = (params) => authApi.get(`${BASE}/bank-ledger`, { pa
 export const getAccountSubTitles = () => authApi.get(`${BASE}/account-sub-titles`);
 export const upsertAccountSubTitle = (data) => authApi.put(`${BASE}/account-sub-titles`, data);
 
+// ── Particulars ──────────────────────────────────────────────────────────
+export const getParticulars = () => authApi.get(`${BASE}/particulars`);
+export const upsertParticular = (data) => authApi.put(`${BASE}/particulars`, data);
+
 // ── Beneficiary ──────────────────────────────────────────────────────────
 export const lookupBeneficiary = (params) => authApi.get(`${BASE}/beneficiary`, { params });
 export const upsertBeneficiary = (data) => authApi.put(`${BASE}/beneficiary`, data);
@@ -24,6 +28,10 @@ export const upsertIndianBank = (data) => authApi.put(`${BASE}/indian-banks`, da
 export const getSheets = (params) => authApi.get(`${BASE}/sheets`, { params });
 export const getSheetById = (id) => authApi.get(`${BASE}/sheets/${id}`);
 export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
+// Best-effort cleanup — deletes the sheet only if it's still Open with zero
+// line items; a no-op (still 200) otherwise. Called when leaving an empty
+// sheet so its number isn't permanently burned for nothing.
+export const deleteSheetIfEmpty = (id) => authApi.delete(`${BASE}/sheets/${id}`);
 export const submitSheet = (id) => authApi.post(`${BASE}/sheets/${id}/submit`);
 
 // exportBulkNeft: returns the real 'Bulk Sheet 1'-format .xlsx as bytes, not

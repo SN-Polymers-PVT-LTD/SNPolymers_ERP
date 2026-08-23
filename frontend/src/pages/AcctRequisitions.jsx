@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, Badge, SkeletonCard, Pagination } from '../components/ui';
+import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSheets, createSheet } from '../api/acctRequisitionsApi';
 
@@ -213,7 +213,9 @@ const AcctRequisitions = () => {
           </div>
         </div>
 
-        {/* Right Column: Sheet Card Grid */}
+        {/* Right Column: Sheet List — a dense table row per sheet reads more
+            like the spreadsheet this team already works in day to day, and
+            fits more sheets on screen at once than a 2-column card grid. */}
         <div className="flex-grow flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-3xl p-6 relative overflow-hidden">
           <div className="flex justify-between items-center mb-6 shrink-0 z-10">
             <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">Requisition Sheets</h3>
@@ -222,54 +224,55 @@ const AcctRequisitions = () => {
 
           <div className="flex-grow overflow-y-auto no-scrollbar min-h-0 pr-1 mb-4 z-10">
             {loading ? (
-              <div className="space-y-4">
-                <SkeletonCard />
-                <SkeletonCard />
-              </div>
+              <SkeletonTable rows={8} cols={6} />
             ) : sheets.length === 0 ? (
               <div className="text-center py-20 text-slate-500 text-xs uppercase font-extrabold tracking-widest border border-dashed border-white/5 rounded-2xl">
                 No matching requisition sheets found.
               </div>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {sheets.map((sheet) => (
-                  <div
-                    key={sheet.id}
-                    onClick={() => handleCardClick(sheet)}
-                    className="glass-panel p-5 rounded-2xl border border-white/5 hover:border-white/10 hover:bg-white/[0.02] cursor-pointer transition duration-300 flex flex-col justify-between gap-4 group relative"
-                  >
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="min-w-0">
-                        <span className="text-xl font-black text-amber-500 font-mono tracking-wide block mb-2">
-                          {sheet.sheet_number}
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium block">
-                          {sheet.item_count} item{sheet.item_count === 1 ? '' : 's'}
-                        </span>
-                      </div>
-                      <div className="flex items-start gap-3 shrink-0">
-                        <Badge variant={getStatusBadgeVariant(sheet.sheet_status)} showDot={false}>
-                          {sheet.sheet_status}
-                        </Badge>
-                        <button className="h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 flex items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300 shrink-0">
-                          <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center border-t border-white/5 pt-3.5 mt-2">
-                      <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
-                        {sheet.submitted_at ? `Submitted ${formatDate(sheet.submitted_at)}` : `Created ${formatDate(sheet.created_at)}`}
-                      </span>
-                      <div className="text-right">
-                        <span className="text-[9px] text-slate-500 uppercase font-bold block">Total Requested</span>
-                        <span className="text-lg font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+                <Table containerClassName="min-w-[720px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader>Sheet Number</TableCell>
+                      <TableCell isHeader>Status</TableCell>
+                      <TableCell isHeader align="right">Items</TableCell>
+                      <TableCell isHeader>Date</TableCell>
+                      <TableCell isHeader align="right">Total Requested</TableCell>
+                      <TableCell isHeader />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sheets.map((sheet) => (
+                      <TableRow key={sheet.id} onClick={() => handleCardClick(sheet)} interactive>
+                        <TableCell>
+                          <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{sheet.sheet_number}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getStatusBadgeVariant(sheet.sheet_status)} showDot={false}>{sheet.sheet_status}</Badge>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="text-xs text-slate-400 font-medium font-mono">{sheet.item_count}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">
+                            {sheet.submitted_at ? `Submitted ${formatDate(sheet.submitted_at)}` : `Created ${formatDate(sheet.created_at)}`}
+                          </span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">
+                            <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
