@@ -8,6 +8,7 @@ import {
 import {
   getBeneficiaries, upsertBeneficiary, getIndianBanks, upsertIndianBank
 } from '../api/acctRequisitionsApi';
+import { exportBeneficiariesToExcel } from '../utils/exportHelpers';
 
 const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
@@ -143,6 +144,8 @@ const BeneficiariesTab = () => {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['acctBeneficiaries', { page, search }],
@@ -161,6 +164,34 @@ const BeneficiariesTab = () => {
   const totalItems = data?.pagination?.total || 0;
   const displayError = queryError?.response?.data?.message || queryError?.message || '';
 
+  // The list view is paginated 20 at a time, but an export should cover
+  // every beneficiary matching the current search (or the whole master
+  // list if there's no search) — not just whatever page happens to be on
+  // screen. getBeneficiaries caps at 100/page server-side, so this pages
+  // through until every row matching the filter has been collected.
+  const handleExport = async () => {
+    setExportError('');
+    setExporting(true);
+    try {
+      const all = [];
+      let fetchPage = 1;
+      let totalPages_ = 1;
+      do {
+        const params = { page: fetchPage, limit: 100 };
+        if (search) params.search = search;
+        const res = await getBeneficiaries(params);
+        all.push(...(res.data?.beneficiaries || []));
+        totalPages_ = res.data?.pagination?.totalPages || 1;
+        fetchPage += 1;
+      } while (fetchPage <= totalPages_);
+      await exportBeneficiariesToExcel(all);
+    } catch (err) {
+      setExportError(err.response?.data?.message || 'Failed to export beneficiaries.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
@@ -172,13 +203,18 @@ const BeneficiariesTab = () => {
           size="sm"
           className="w-full sm:w-80"
         />
-        <Button onClick={() => setShowAdd(true)}>+ Add Beneficiary</Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="glass" size="sm" onClick={handleExport} loading={exporting} disabled={totalItems === 0}>
+            Export to Excel
+          </Button>
+          <Button onClick={() => setShowAdd(true)}>+ Add Beneficiary</Button>
+        </div>
       </div>
 
-      {displayError && (
+      {(displayError || exportError) && (
         <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-4 flex items-center gap-2.5">
           <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-          {displayError}
+          {displayError || exportError}
         </div>
       )}
 
