@@ -463,4 +463,11 @@ describe('LineItemRow — beneficiary A/C No. and IFSC input constraints', () =>
     fireEvent.change(ifscInput, { target: { value: '  hdfc0000106  ' } });
     expect(ifscInput).toHaveValue('HDFC0000106');
   });
+
+  it('strips non-digit characters from A/C No. as typed', () => {
+    renderRow();
+    const acInput = screen.getByPlaceholderText('A/C No.');
+    fireEvent.change(acInput, { target: { value: '12a 34-56b' } });
+    expect(acInput).toHaveValue('123456');
+  });
 });
