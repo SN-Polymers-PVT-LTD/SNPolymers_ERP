@@ -82,6 +82,31 @@ export async function exportMaterialsToExcel(materials) {
   XLSX.writeFile(workbook, `Material_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export async function exportBeneficiariesToExcel(beneficiaries) {
+  if (!beneficiaries || beneficiaries.length === 0) {
+    alert('No beneficiaries to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = beneficiaries.map((b, index) => ({
+    "Sl. No.": index + 1,
+    "Account Number": b.account_number || '',
+    "IFSC": b.ifsc || '',
+    "Beneficiary Name": b.beneficiary_name || '',
+    "Bank": b.beneficiary_bank_name || '',
+    "Last Used": b.last_used_at ? new Date(b.last_used_at).toLocaleDateString('en-IN') : '',
+    "Created": b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Beneficiary Master");
+
+  XLSX.writeFile(workbook, `Beneficiary_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
 export async function exportProjectsToExcel(projects) {
   if (!projects || projects.length === 0) {
     alert('No projects to export.');
