@@ -304,10 +304,18 @@ describe('LineItemRow — shows the approved amount for a Partially Approved row
     expect(screen.getByText(/Approved ₹\s*750\.00/)).toBeInTheDocument();
   });
 
-  it('does not show an approved-amount line for a fully Approved row', () => {
+  it('also shows the approved-amount line for a fully Approved row', () => {
     renderRow({
       sheetStatus: 'Submitted',
       item: { ...baseItem, requisition_status: 'Approved', req_amount: 1000, ho_pass_amount: 1000 }
+    });
+    expect(screen.getByText(/Approved ₹\s*1,000\.00/)).toBeInTheDocument();
+  });
+
+  it('does not show an approved-amount line when ho_pass_amount is not yet set', () => {
+    renderRow({
+      sheetStatus: 'Submitted',
+      item: { ...baseItem, requisition_status: 'Pending HO Review', req_amount: 1000, ho_pass_amount: null }
     });
     expect(screen.queryByText(/Approved ₹/)).not.toBeInTheDocument();
   });

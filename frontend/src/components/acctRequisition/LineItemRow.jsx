@@ -223,7 +223,7 @@ const LineItemRow = ({
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
         <TableCell align="right">
           <span className="font-bold text-slate-200">{formatCurrency(item.req_amount)}</span>
-          {item.requisition_status === 'Partially Approved' && item.ho_pass_amount != null && (
+          {['Approved', 'Partially Approved'].includes(item.requisition_status) && item.ho_pass_amount != null && (
             <span className="block text-[10px] font-bold text-emerald-400 mt-0.5">
               Approved {formatCurrency(item.ho_pass_amount)}
             </span>
