@@ -261,7 +261,23 @@ const LineItemRow = ({
             )}
           </TableCell>
         )}
-        <TableCell>{item.payment_mode || '—'}</TableCell>
+        <TableCell>
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold text-slate-300">{item.payment_mode || '—'}</p>
+            {item.payment_mode === 'Cheque' && item.cheque_no && (
+              <p className="text-[10px] text-slate-500">
+                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Cheque No</span>
+                {item.cheque_no}
+              </p>
+            )}
+            {item.payment_mode === 'Cheque' && item.cheque_date && (
+              <p className="text-[10px] text-slate-500">
+                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Cheque Date</span>
+                {item.cheque_date}
+              </p>
+            )}
+          </div>
+        </TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
             <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>

@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { getSheets } from '../api/acctRequisitionsApi';
+import RequisitionDetailsPanel from '../components/acctRequisition/RequisitionDetailsPanel';
 
 const STATUS_TABS = [
   { value: 'Submitted', label: 'Pending Review', emptyText: 'No submitted sheets pending review.' },
@@ -35,6 +36,7 @@ const AcctHoQueue = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
+  const [activeView, setActiveView] = useState('Sheets');
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
   const handleStatusChange = (value) => {
@@ -110,6 +112,27 @@ const AcctHoQueue = () => {
         </div>
       </div>
 
+      {/* View Toggle */}
+      <div className="flex items-center gap-2 mb-6 shrink-0">
+        {['Sheets', 'Requisition Details'].map((view) => (
+          <button
+            key={view}
+            type="button"
+            onClick={() => setActiveView(view)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
+              activeView === view
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5'
+            }`}
+          >
+            {view}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'Requisition Details' ? (
+        <RequisitionDetailsPanel sheetDetailBasePath="/acct-requisitions/ho-queue/sheets" />
+      ) : (
       <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden min-h-0">
         {/* Left Column: Search & Filters */}
         <div className="w-full md:w-64 flex flex-col gap-4 shrink-0">
@@ -246,6 +269,7 @@ const AcctHoQueue = () => {
           )}
         </div>
       </div>
+      )}
     </>
   );
 };

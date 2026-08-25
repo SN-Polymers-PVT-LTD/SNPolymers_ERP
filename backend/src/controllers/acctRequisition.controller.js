@@ -206,6 +206,105 @@ async function getSheets(req, res) {
 }
 
 /**
+ * GET /acct-requisitions/line-items
+ * Flattened, cross-sheet search over requisition line items for the
+ * "Requisition Details" filter view (Account Sub-title, Beneficiary A/c No.,
+ * Debit Bank Account, date range) — shared by accounts and ho, unlike
+ * getSheets/getSheetById which are sheet-scoped. Only items that have left
+ * an Open sheet (requisition_status is set) count as "requisitions" here.
+ *
+ * `export=true` skips pagination and returns up to 5000 matching rows in one
+ * shot, for the frontend's "export all filtered rows" button — same filters,
+ * no page window.
+ */
+async function getLineItems(req, res) {
+  try {
+    const query = req.query || {};
+    const isExport = query.export === 'true' || query.export === true;
+
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('acct_requisition_line_items')
+      .select('*', { count: 'exact' })
+      .not('requisition_status', 'is', null);
+
+    if (query.account_sub_title) {
+      dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
+    }
+
+    if (query.beneficiary_ac_no) {
+      dbQuery = dbQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+    }
+
+    if (query.debit_bank_ac_type) {
+      dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
+    }
+
+    if (query.date_from) {
+      dbQuery = dbQuery.gte('created_at', query.date_from);
+    }
+
+    if (query.date_to) {
+      // date_to is a plain date (YYYY-MM-DD); push to end-of-day so the
+      // filter includes the whole day rather than cutting off at midnight.
+      dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+    }
+
+    dbQuery = dbQuery.order('created_at', { ascending: false });
+    dbQuery = isExport ? dbQuery.limit(5000) : dbQuery.range(offset, offset + limit - 1);
+
+    const { data: items, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const sheetIds = [...new Set((items || []).map(i => i.sheet_id))];
+    let sheetMap = {};
+
+    if (sheetIds.length > 0) {
+      const { data: sheets, error: sheetsErr } = await supabase
+        .from('acct_requisition_sheets')
+        .select('id, sheet_number, sheet_status')
+        .in('id', sheetIds);
+      if (sheetsErr) throw sheetsErr;
+
+      sheetMap = (sheets || []).reduce((acc, s) => {
+        acc[s.id] = s;
+        return acc;
+      }, {});
+    }
+
+    const enrichedItems = (items || []).map(item => ({
+      ...item,
+      sheet_number: sheetMap[item.sheet_id]?.sheet_number || null,
+      sheet_status: sheetMap[item.sheet_id]?.sheet_status || null
+    }));
+
+    if (isExport) {
+      return res.status(200).json({ success: true, items: enrichedItems });
+    }
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      items: enrichedItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
+  } catch (error) {
+    console.error(`getLineItems failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve requisition line items.' });
+  }
+}
+
+/**
  * GET /acct-requisitions/sheets/:sheetId
  */
 async function getSheetById(req, res) {
@@ -1229,7 +1328,7 @@ async function exportBulkNeft(req, res) {
 }
 
 module.exports = {
-  createSheet, getSheets, getSheetById, deleteSheetIfEmpty,
+  createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
