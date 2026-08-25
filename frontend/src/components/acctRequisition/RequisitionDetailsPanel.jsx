@@ -215,7 +215,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               <Table containerClassName="min-w-[900px]">
                 <TableHeader>
                   <TableRow hover={false}>
-                    <TableCell isHeader>Sheet Number</TableCell>
+                    <TableCell isHeader className="whitespace-nowrap">Req. No.</TableCell>
                     <TableCell isHeader>Date</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
                     <TableCell isHeader>Beneficiary A/c No.</TableCell>
@@ -228,7 +228,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                 <TableBody>
                   {items.map((item) => (
                     <TableRow key={item.id} onClick={() => handleRowClick(item)} interactive>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{item.sheet_number || '—'}</span>
                       </TableCell>
                       <TableCell>
