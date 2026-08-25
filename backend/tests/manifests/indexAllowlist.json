@@ -10,5 +10,12 @@
   "idx_project_health_mv_wo",
   "idx_activity_breaks_wo_status",
   "idx_activity_breaks_active",
-  "idx_activity_breaks_one_active_per_wo"
+  "idx_activity_breaks_one_active_per_wo",
+  "idx_arli_created_at",
+  "idx_arli_sub_title_trgm",
+  "idx_arli_beneficiary_ac_no_trgm",
+  "idx_arli_debit_bank_ac_type",
+  "idx_bm_account_number_trgm",
+  "idx_bm_beneficiary_name_trgm",
+  "idx_ars_sheet_status_created_at"
 ]
