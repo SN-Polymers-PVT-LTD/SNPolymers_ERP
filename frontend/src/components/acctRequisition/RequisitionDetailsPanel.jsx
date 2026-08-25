@@ -221,6 +221,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                     <TableCell isHeader>Beneficiary A/c No.</TableCell>
                     <TableCell isHeader>Debit Bank Account</TableCell>
                     <TableCell isHeader align="right">Req. Amount</TableCell>
+                    <TableCell isHeader align="right">Approved Amount</TableCell>
                     <TableCell isHeader>Status</TableCell>
                   </TableRow>
                 </TableHeader>
@@ -244,6 +245,13 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                       </TableCell>
                       <TableCell align="right">
                         <span className="text-sm font-black text-slate-200 font-mono">{formatINR(item.req_amount)}</span>
+                      </TableCell>
+                      <TableCell align="right">
+                        {['Approved', 'Partially Approved'].includes(item.requisition_status) && item.ho_pass_amount != null ? (
+                          <span className="text-sm font-black text-emerald-400 font-mono">{formatINR(item.ho_pass_amount)}</span>
+                        ) : (
+                          <span className="text-slate-600">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeVariant(item.requisition_status)} showDot={false}>{item.requisition_status || '—'}</Badge>
