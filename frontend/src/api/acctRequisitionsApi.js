@@ -26,6 +26,11 @@ export const upsertIndianBank = (data) => authApi.put(`${BASE}/indian-banks`, da
 
 // ── Sheets ───────────────────────────────────────────────────────────────
 export const getSheets = (params) => authApi.get(`${BASE}/sheets`, { params });
+// Flattened, cross-sheet line-item search for the "Requisition Details"
+// filter view (Account Sub-title / Beneficiary A/c No. / Debit Bank Account /
+// date range) — pass { export: true } to fetch all matching rows (no page
+// window, capped server-side at 5000) for the Excel export button.
+export const getLineItems = (params) => authApi.get(`${BASE}/line-items`, { params });
 export const getSheetById = (id) => authApi.get(`${BASE}/sheets/${id}`);
 export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 // Best-effort cleanup — deletes the sheet only if it's still Open with zero

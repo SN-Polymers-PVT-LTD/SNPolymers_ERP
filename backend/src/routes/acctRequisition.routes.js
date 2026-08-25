@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  createSheet, getSheets, getSheetById, deleteSheetIfEmpty, addLineItem, updateLineItem,
+  createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
@@ -38,6 +38,7 @@ router.put('/beneficiary', requireRole(accountsRoles), validateRequest(upsertBen
 router.get('/beneficiary-master', requireRole(readerRoles), getBeneficiaries);
 router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
 router.put('/indian-banks', requireRole(accountsRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
+router.get('/line-items', requireRole(readerRoles), getLineItems);
 router.get('/sheets', requireRole(readerRoles), getSheets);
 router.get('/sheets/:sheetId', requireRole(readerRoles), getSheetById);
 router.post('/sheets', requireRole(accountsRoles), createSheet);
