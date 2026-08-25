@@ -139,6 +139,57 @@ async function fetchIndexes(indexNames) {
   });
 }
 
+async function fetchExtensions(extNames) {
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `SELECT extname FROM pg_extension WHERE extname = ANY($1::text[])`,
+      [extNames]
+    );
+    return rows.map((row) => row.extname);
+  });
+}
+
+async function fetchExistingIndexNames(indexNames) {
+  return withClient(async (client) => {
+    const { rows } = await client.query(
+      `SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+      [indexNames]
+    );
+    return rows.map((row) => row.indexname);
+  });
+}
+
+/**
+ * Runs EXPLAIN (FORMAT JSON) for `sql` inside a rolled-back transaction (no
+ * side effects) and returns the plan tree. `enable_seqscan = off` is set
+ * LOCAL to that transaction so the planner is forced to consider the index
+ * path even against the tiny row counts a fresh test DB has — on a handful
+ * of rows Postgres will otherwise always prefer a sequential scan regardless
+ * of which indexes exist, which would make "does the planner use this index"
+ * untestable here. This proves the index is *usable* for the query shape
+ * (right columns, right operator class for ilike/trigram, etc.) rather than
+ * that the planner picks it by cost at today's tiny data volume.
+ */
+async function explainPlan(sql, params = []) {
+  return withClient(async (client) => {
+    await client.query('BEGIN');
+    try {
+      await client.query('SET LOCAL enable_seqscan = off');
+      const { rows } = await client.query(`EXPLAIN (FORMAT JSON) ${sql}`, params);
+      return rows[0]['QUERY PLAN'][0].Plan;
+    } finally {
+      await client.query('ROLLBACK');
+    }
+  });
+}
+
+/** Recursively searches an EXPLAIN plan tree for a node using the given index. */
+function planUsesIndex(planNode, indexName) {
+  if (!planNode) return false;
+  if (planNode['Index Name'] === indexName) return true;
+  return (planNode.Plans || []).some((child) => planUsesIndex(child, indexName));
+}
+
 async function fetchAppliedMigrations() {
   return withClient(async (client) => {
     const tableExists = await client.query(
@@ -178,6 +229,10 @@ module.exports = {
   fetchSchemaTables,
   fetchRpcFunctions,
   fetchIndexes,
+  fetchExtensions,
+  fetchExistingIndexNames,
+  explainPlan,
+  planUsesIndex,
   fetchAppliedMigrations,
   fetchStorageBuckets,
   refreshAnalyticsViews,

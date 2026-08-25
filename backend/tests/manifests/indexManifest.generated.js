@@ -21,6 +21,34 @@ module.exports = {
       "table": "work_order_activity_breaks",
       "definition": "CREATE INDEX idx_activity_breaks_wo_status ON public.work_order_activity_breaks USING btree (work_order_no, status)"
     },
+    "idx_arli_beneficiary_ac_no_trgm": {
+      "table": "acct_requisition_line_items",
+      "definition": "CREATE INDEX idx_arli_beneficiary_ac_no_trgm ON public.acct_requisition_line_items USING gin (beneficiary_ac_no gin_trgm_ops)"
+    },
+    "idx_arli_created_at": {
+      "table": "acct_requisition_line_items",
+      "definition": "CREATE INDEX idx_arli_created_at ON public.acct_requisition_line_items USING btree (created_at)"
+    },
+    "idx_arli_debit_bank_ac_type": {
+      "table": "acct_requisition_line_items",
+      "definition": "CREATE INDEX idx_arli_debit_bank_ac_type ON public.acct_requisition_line_items USING btree (debit_bank_ac_type)"
+    },
+    "idx_arli_sub_title_trgm": {
+      "table": "acct_requisition_line_items",
+      "definition": "CREATE INDEX idx_arli_sub_title_trgm ON public.acct_requisition_line_items USING gin (account_sub_title_text gin_trgm_ops)"
+    },
+    "idx_ars_sheet_status_created_at": {
+      "table": "acct_requisition_sheets",
+      "definition": "CREATE INDEX idx_ars_sheet_status_created_at ON public.acct_requisition_sheets USING btree (sheet_status, created_at DESC)"
+    },
+    "idx_bm_account_number_trgm": {
+      "table": "beneficiary_master",
+      "definition": "CREATE INDEX idx_bm_account_number_trgm ON public.beneficiary_master USING gin (account_number gin_trgm_ops)"
+    },
+    "idx_bm_beneficiary_name_trgm": {
+      "table": "beneficiary_master",
+      "definition": "CREATE INDEX idx_bm_beneficiary_name_trgm ON public.beneficiary_master USING gin (beneficiary_name gin_trgm_ops)"
+    },
     "idx_fund_requests_status": {
       "table": "fund_requests",
       "definition": "CREATE INDEX idx_fund_requests_status ON public.fund_requests USING btree (request_status) WHERE (request_status = 'Pending'::fund_request_status_enum)"
