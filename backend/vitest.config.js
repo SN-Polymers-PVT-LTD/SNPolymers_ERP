@@ -40,16 +40,12 @@ module.exports = defineConfig({
     // Default terminal output plus HTML reporting
     reporters: ['default', 'html'],
 
-    // Silence Telegram notifications and default to local Supabase Docker target for Vitest runs
+    // Silence Telegram notifications and enforce local Supabase Docker target for all Vitest runs
     env: {
       NODE_ENV: 'test',
-      SUPABASE_URL: process.env.SUPABASE_URL || 'http://127.0.0.1:54321',
-      SUPABASE_SERVICE_ROLE_KEY:
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
-      SUPABASE_TEST_DB_URI:
-        process.env.SUPABASE_TEST_DB_URI ||
-        'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
+      SUPABASE_URL: 'http://127.0.0.1:54321',
+      SUPABASE_SERVICE_ROLE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
+      SUPABASE_TEST_DB_URI: 'postgresql://postgres:postgres@127.0.0.1:54322/postgres',
       TELEGRAM_MODE: 'disabled'
     }
   }

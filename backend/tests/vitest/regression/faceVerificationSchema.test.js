@@ -17,6 +17,10 @@ describe('faceVerificationSchema — Phase 1 schema, constraints & triggers', ()
 
   afterAll(async () => {
     if (client) {
+      // Safety-net sweep: cascade-deletes any authorised_users row (and its
+      // linked sessions/face_descriptors) left behind by a test that failed
+      // before reaching its own inline cleanup DELETE.
+      await client.query(`DELETE FROM public.authorised_users WHERE mobile_number LIKE '9900%'`);
       await client.end();
     }
   });
