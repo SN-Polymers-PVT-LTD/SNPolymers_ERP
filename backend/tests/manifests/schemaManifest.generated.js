@@ -126,6 +126,24 @@ module.exports = {
           "udtName": "bool",
           "nullable": true,
           "default": "true"
+        },
+        "last_face_verified_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "face_locked": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "face_verification_misses": {
+          "type": "smallint",
+          "udtName": "int2",
+          "nullable": false,
+          "default": "0"
         }
       }
     },
@@ -1108,6 +1126,46 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        }
+      }
+    },
+    "face_descriptors": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "descriptor": {
+          "type": "ARRAY",
+          "udtName": "_float8",
+          "nullable": false,
+          "default": null
+        },
+        "enrolled_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "consented_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": null
         }
       }
     }

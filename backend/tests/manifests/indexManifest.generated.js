@@ -76,6 +76,10 @@ module.exports = {
     "idx_sessions_user_login": {
       "table": "sessions",
       "definition": "CREATE INDEX idx_sessions_user_login ON public.sessions USING btree (user_id, login_at DESC)"
+    },
+    "uq_face_descriptors_user_id": {
+      "table": "face_descriptors",
+      "definition": "CREATE UNIQUE INDEX uq_face_descriptors_user_id ON public.face_descriptors USING btree (user_id)"
     }
   }
 };

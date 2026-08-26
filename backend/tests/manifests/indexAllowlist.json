@@ -17,5 +17,6 @@
   "idx_arli_debit_bank_ac_type",
   "idx_bm_account_number_trgm",
   "idx_bm_beneficiary_name_trgm",
-  "idx_ars_sheet_status_created_at"
+  "idx_ars_sheet_status_created_at",
+  "uq_face_descriptors_user_id"
 ]
