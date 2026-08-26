@@ -200,3 +200,10 @@ VITE_API_URL=https://snpolymers.onrender.com/api/v1/auth
 - **MIME type verification:** Storage uploads restrict incoming files to strict PDF/JPG/PNG structures using server-side inspection instead of trusting extensions.
 - **Immutability Protection:** Running account and final bill documents are protected against unauthorized updates or deletions at the database schema level via triggers.
 - **UI Architecture Discipline:** Frontend strictly enforces Zero Ad-Hoc Components Policy, responsive drawer standards, and dual-theme accessibility per [frontend_guidelines.md](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/frontend_guidelines.md).
+
+
+
+
+'''
+cd /home/zenoguy/Desktop/projects/SNPolymers && zip -r ../SNPolymers.zip .   -x ".git/*"   -x "*/node_modules/*"   -x "*/.env"   -x "*/.env.*"   -x "backend/html/*"   -x "*/coverage/*"   -x ".cursor/*"
+'''

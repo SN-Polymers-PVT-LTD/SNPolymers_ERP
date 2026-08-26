@@ -45,6 +45,15 @@ const ProjectDigitalTwin = React.lazy(() => import('./pages/ProjectDigitalTwin')
 const DigitalTwinHub = React.lazy(() => import('./pages/DigitalTwinHub'));
 const JeLeaderboard = React.lazy(() => import('./pages/JeLeaderboard'));
 
+const AcctRequisitions = React.lazy(() => import('./pages/AcctRequisitions'));
+const AcctRequisitionSheetView = React.lazy(() => import('./pages/AcctRequisitionSheetView'));
+const AcctSubTitles = React.lazy(() => import('./pages/AcctSubTitles'));
+const AcctParticulars = React.lazy(() => import('./pages/AcctParticulars'));
+const AcctBeneficiaryMaster = React.lazy(() => import('./pages/AcctBeneficiaryMaster'));
+const AcctBankBalances = React.lazy(() => import('./pages/AcctBankBalances'));
+const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
+const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
+
 
 
 import { SkeletonPage } from './components/ui';
@@ -97,7 +106,7 @@ function App() {
             <Route path="/docs/:pageId" element={<Docs />} />
 
             {/* Protected Routes utilizing Persistent AppLayout */}
-            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
               <Route element={
                 <AppLayout />
               }>
@@ -119,6 +128,26 @@ function App() {
                 {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
                   <Route path="/fund-requests" element={<React.Suspense fallback={<AppChunkLoader />}><FundRequests /></React.Suspense>} />
+                </Route>
+
+                {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}
+                <Route element={<ProtectedRoute allowedRoles={['accounts', 'ho', 'admin']} />}>
+                  <Route path="/acct-requisitions/bank-balances" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBankBalances /></React.Suspense>} />
+                </Route>
+
+                {/* Accounts HO Approval Protected Routes (Accounts, Admin) */}
+                <Route element={<ProtectedRoute allowedRoles={['accounts', 'admin']} />}>
+                  <Route path="/acct-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitions /></React.Suspense>} />
+                  <Route path="/acct-requisitions/sheets/:id" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionSheetView /></React.Suspense>} />
+                  <Route path="/acct-requisitions/sub-titles" element={<React.Suspense fallback={<AppChunkLoader />}><AcctSubTitles /></React.Suspense>} />
+                  <Route path="/acct-requisitions/particulars" element={<React.Suspense fallback={<AppChunkLoader />}><AcctParticulars /></React.Suspense>} />
+                  <Route path="/acct-requisitions/beneficiary-master" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBeneficiaryMaster /></React.Suspense>} />
+                </Route>
+
+                {/* Accounts HO Approval Protected Routes (HO, Admin) */}
+                <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
+                  <Route path="/acct-requisitions/ho-queue" element={<React.Suspense fallback={<AppChunkLoader />}><AcctHoQueue /></React.Suspense>} />
+                  <Route path="/acct-requisitions/ho-queue/sheets/:id" element={<React.Suspense fallback={<AppChunkLoader />}><AcctHoSheetView /></React.Suspense>} />
                 </Route>
 
                 {/* RA/Final Bills & User/Work Order Mappings Protected Routes (ZO, HO, Admin) */}

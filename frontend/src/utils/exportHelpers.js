@@ -82,6 +82,31 @@ export async function exportMaterialsToExcel(materials) {
   XLSX.writeFile(workbook, `Material_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+export async function exportBeneficiariesToExcel(beneficiaries) {
+  if (!beneficiaries || beneficiaries.length === 0) {
+    alert('No beneficiaries to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = beneficiaries.map((b, index) => ({
+    "Sl. No.": index + 1,
+    "Account Number": b.account_number || '',
+    "IFSC": b.ifsc || '',
+    "Beneficiary Name": b.beneficiary_name || '',
+    "Bank": b.beneficiary_bank_name || '',
+    "Last Used": b.last_used_at ? new Date(b.last_used_at).toLocaleDateString('en-IN') : '',
+    "Created": b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Beneficiary Master");
+
+  XLSX.writeFile(workbook, `Beneficiary_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
 export async function exportProjectsToExcel(projects) {
   if (!projects || projects.length === 0) {
     alert('No projects to export.');
@@ -255,6 +280,39 @@ export async function exportArchiveToZip(estimate, items, quotations) {
   link.href = URL.createObjectURL(content);
   link.download = `${baseFilename}_Archive.zip`;
   link.click();
+}
+
+export async function exportRequisitionDetailsToExcel(items) {
+  if (!items || items.length === 0) {
+    alert('No requisition details to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = items.map((item, index) => ({
+    "Sl. No.": index + 1,
+    "Sheet Number": item.sheet_number || '',
+    "Date": item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN') : '',
+    "Account Sub-title": item.account_sub_title_text || '',
+    "Particulars": item.particulars || '',
+    "Beneficiary A/c No.": item.beneficiary_ac_no || '',
+    "Beneficiary Name": item.beneficiary_name || '',
+    "Beneficiary IFSC": item.beneficiary_ifsc || '',
+    "Beneficiary Bank": item.beneficiary_bank_name || '',
+    "Debit Bank Account": item.debit_bank_ac_type || '',
+    "Req. Amount (INR)": item.req_amount || 0,
+    "Payment Mode": item.payment_mode || '',
+    "Requisition Status": item.requisition_status || '',
+    "HO Pass Amount (INR)": item.ho_pass_amount || 0,
+    "HO Remarks": item.ho_remarks || ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Requisition Details");
+
+  XLSX.writeFile(workbook, `Requisition_Details_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
 

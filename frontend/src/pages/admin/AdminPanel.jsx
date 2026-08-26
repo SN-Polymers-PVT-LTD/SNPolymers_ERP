@@ -36,6 +36,7 @@ const AdminPanel = () => {
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState('je');
   const [editActive, setEditActive] = useState(true);
+  const [editPermissions, setEditPermissions] = useState({});
   const [editSubmitting, setEditSubmitting] = useState(false);
   const [clearingTelegram, setClearingTelegram] = useState(false);
 
@@ -103,6 +104,7 @@ const AdminPanel = () => {
     setEditName(user.display_name || '');
     setEditRole(user.role || 'je');
     setEditActive(user.is_active);
+    setEditPermissions(user.permissions || {});
     setError('');
     setSuccess('');
     setShowEditModal(true);
@@ -119,6 +121,7 @@ const AdminPanel = () => {
         displayName: editName,
         role: editRole,
         isActive: editActive,
+        permissions: editPermissions,
       });
 
       if (response.data?.success) {
@@ -416,6 +419,7 @@ const AdminPanel = () => {
                 <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                 <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                 <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
                 <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
               </select>
             </div>
@@ -506,6 +510,7 @@ const AdminPanel = () => {
                   <option value="je" className="bg-slate-900 text-slate-100">Junior Engineer (JE)</option>
                   <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                   <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
+                  <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
                   <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
                 </select>
               </div>

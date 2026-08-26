@@ -15,6 +15,8 @@ const TopNavbar = () => {
   const isAdmin = role === 'admin';
   const isAuthorizedZOOrHOOrAdmin = ['zo', 'ho', 'admin'].includes(role);
   const isAuthorizedFinance = ['je', 'zo', 'ho', 'admin', 'staff'].includes(role);
+  const isAuthorizedAccounts = ['accounts', 'ho', 'admin'].includes(role);
+  const isAuthorizedProjects = ['je', 'zo', 'ho', 'admin', 'staff'].includes(role);
 
   // Helper to resolve the first route the user has access to for each module
   const getFinanceRoute = () => {
@@ -39,6 +41,12 @@ const TopNavbar = () => {
     return null;
   };
 
+  const getAccountsRoute = () => {
+    if (['accounts', 'admin'].includes(role)) return '/acct-requisitions';
+    if (role === 'ho') return '/acct-requisitions/ho-queue';
+    return null;
+  };
+
   // Define macro-modules
   const modules = [
     // 1. Home / Overview
@@ -53,16 +61,20 @@ const TopNavbar = () => {
       isActive: currentPath === '/dashboard' || currentPath === '/profile'
     },
     // 2. Project Management
-    {
-      label: 'Projects',
-      icon: (
-        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-      to: '/estimates',
-      isActive: ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p))
-    },
+    ...(isAuthorizedProjects
+      ? [
+          {
+            label: 'Projects',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            ),
+            to: '/estimates',
+            isActive: ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p))
+          }
+        ]
+      : []),
     // 3. Finance & Requisitions
     ...(isAuthorizedFinance && getFinanceRoute()
       ? [
@@ -75,6 +87,21 @@ const TopNavbar = () => {
             ),
             to: getFinanceRoute(),
             isActive: ['/requisitions', '/fund-requests', '/ra-final-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p))
+          }
+        ]
+      : []),
+    // 3b. Accounts Department
+    ...(isAuthorizedAccounts && getAccountsRoute()
+      ? [
+          {
+            label: 'Accounts',
+            icon: (
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+              </svg>
+            ),
+            to: getAccountsRoute(),
+            isActive: currentPath.startsWith('/acct-requisitions')
           }
         ]
       : []),

@@ -267,7 +267,7 @@ The following views select from `project_health_mv` and will benefit from the fr
 
 ### 3.3 Migration File
 
-**Filename:** `021_work_order_activity_breaks.sql`
+**Filename:** `023_work_order_activity_breaks.sql`
 
 Follows the naming convention enforced by [`apply-migrations.js`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/scripts/apply-migrations.js): leading numeric prefix, idempotent DDL. The next available number after `020_create_estimate_quotations.sql` is `021`.
 
@@ -587,7 +587,7 @@ Wherever `health_status` or a stalled/critical badge is rendered, add two branch
 
 | File | Purpose |
 |---|---|
-| `backend/src/db/migrations/021_work_order_activity_breaks.sql` | DB migration (includes RLS, `Cancelled by JE`, status-only CTE, `expected_end_date`) |
+| `backend/src/db/migrations/023_work_order_activity_breaks.sql` | DB migration (includes RLS, `Cancelled by JE`, status-only CTE, `expected_end_date`) |
 | `backend/src/controllers/activityBreaks.controller.js` | Business logic (Cancel→`Cancelled by JE`, 23505 handler) |
 | `backend/src/routes/activityBreaks.routes.js` | Express router (PATCH open to `je` for Cancel) |
 | `backend/src/validation/activityBreaks.schema.js` | Zod schemas (`.refine()`, `expected_end_date`, `Cancel` in enum) |
@@ -925,7 +925,7 @@ describe('activityBreakMvFreeze — project_health_mv freeze behavior', () => {
 
 ### 11.3 Migration tracking coverage (already handled)
 
-`migrationSmoke.test.js`'s first test (`all SQL migration files are recorded in _migration_log`) is filesystem-driven and will automatically cover `021_work_order_activity_breaks.sql` once it lands — no change needed.
+`migrationSmoke.test.js`'s first test (`all SQL migration files are recorded in _migration_log`) is filesystem-driven and will automatically cover `023_work_order_activity_breaks.sql` once it lands — no change needed.
 
 ### 10.10 Updated File Change List for Ledger Integration
 

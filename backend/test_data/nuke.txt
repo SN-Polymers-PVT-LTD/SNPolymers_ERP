@@ -1,13 +1,30 @@
 -- 1. Nuke all database tables
 TRUNCATE TABLE 
-  requisitions,
-  ra_final_bills,
-  daily_progress_reports,
+  -- Accounts HO Requisitions & Banking
+  acct_requisition_line_items,
+  acct_requisition_sheets,
+  account_sub_title_master,
+  beneficiary_master,
+  bank_balance_master,
+  indian_bank_master,
+
+  -- Estimates, Work Orders & Activity Breaks
+  work_order_activity_breaks,
+  estimated_bills,
+  estimate_quotations,
   project_cost_estimate_items, 
   project_cost_estimates, 
   estimate_revision_log, 
+
+  -- Field Operations & Billing
+  requisitions,
+  ra_final_bills,
+  daily_progress_reports,
   fund_requests, 
   fund_reports, 
+  excess_fund_returns,
+
+  -- Master Data & Mappings
   audit_log,
   purchase_data,
   material_master,
@@ -16,7 +33,8 @@ TRUNCATE TABLE
   work_order_mappings,
   zo_balances,
   zo_fund_ledger,
-  excess_fund_returns,
+
+  -- Auth & Sessions
   sessions,
   otp_requests
 CASCADE;
@@ -30,7 +48,7 @@ UPDATE public.authorised_users
 SET daily_streak = 0, 
     last_report_date = NULL;
 
--- 4. Refresh materialized views to clear cached data
+-- 4. Refresh materialized views to clear cached analytics data
 REFRESH MATERIALIZED VIEW public.project_health_mv;
 REFRESH MATERIALIZED VIEW public.approval_sla_mv;
 REFRESH MATERIALIZED VIEW public.estimate_accuracy_mv;
@@ -40,4 +58,4 @@ REFRESH MATERIALIZED VIEW public.zone_performance_mv;
 REFRESH MATERIALIZED VIEW public.budget_leakage_mv;
 REFRESH MATERIALIZED VIEW public.executive_kpi_mv;
 
--- This is FOR DEVELOPEMENT DB ONLY . DO NOT USE THIS IN PROD L NOOBS 
+-- This is FOR DEVELOPMENT DB ONLY. DO NOT USE THIS IN PROD
