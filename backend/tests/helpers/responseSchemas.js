@@ -56,11 +56,25 @@ const projectsHealthResponseSchema = z.object({
   data: z.array(projectsHealthItemSchema)
 });
 
+const enrollOtpSuccessSchema = z.object({
+  success: z.literal(true),
+  message: z.string()
+}).passthrough();
+
+const enrollFaceSuccessSchema = z.object({
+  success: z.literal(true),
+  message: z.string(),
+  enrolled_at: z.string(),
+  updated_at: z.string()
+}).passthrough();
+
 module.exports = {
   errorResponseSchema,
   healthResponseSchema,
   requestOtpSuccessSchema,
   verifyOtpSuccessSchema,
   authMeResponseSchema,
-  projectsHealthResponseSchema
+  projectsHealthResponseSchema,
+  enrollOtpSuccessSchema,
+  enrollFaceSuccessSchema
 };

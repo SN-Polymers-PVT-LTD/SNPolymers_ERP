@@ -17,7 +17,7 @@
     "test:ui": "vitest --ui",
     "test:unit": "vitest run tests/vitest/unit",
     "test:contracts": "vitest run tests/vitest/contracts/deployContract.test.js tests/vitest/contracts/appBoot.test.js",
-    "test:contracts:db": "vitest run tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js tests/vitest/contracts/indexContract.test.js tests/vitest/contracts/apiResponseShape.test.js tests/vitest/contracts/apiSnapshots.test.js tests/vitest/contracts/apiSerialization.test.js tests/vitest/contracts/analyticsContract.test.js",
+    "test:contracts:db": "vitest run tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js tests/vitest/contracts/indexContract.test.js tests/vitest/contracts/apiResponseShape.test.js tests/vitest/contracts/apiSnapshots.test.js tests/vitest/contracts/apiSerialization.test.js tests/vitest/contracts/analyticsContract.test.js tests/vitest/contracts/faceVerification.contract.test.js",
     "test:regression": "vitest run tests/vitest/regression",
     "test:business-rules": "bash scripts/test-local.sh tests/vitest/regression/businessRuleInvariants.test.js tests/vitest/regression/rpcRejectionContracts.test.js",
     "test:milestones": "bash scripts/test-local.sh tests/vitest/milestones",

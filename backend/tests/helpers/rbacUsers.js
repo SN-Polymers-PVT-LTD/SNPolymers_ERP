@@ -8,7 +8,8 @@ async function seedRbacUsers() {
     je: `9100${id}`,
     zo: `9200${id}`,
     ho: `9300${id}`,
-    admin: `9400${id}`
+    admin: `9400${id}`,
+    accounts: `9500${id}`
   };
 
   await setupUsers([
@@ -38,6 +39,13 @@ async function seedRbacUsers() {
       role: 'admin',
       is_active: true,
       display_name: `RBAC Admin ${id}`,
+      permissions: {}
+    },
+    {
+      mobile_number: users.accounts,
+      role: 'accounts',
+      is_active: true,
+      display_name: `RBAC Accounts ${id}`,
       permissions: {}
     }
   ]);

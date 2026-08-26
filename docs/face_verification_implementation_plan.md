@@ -13,7 +13,7 @@ Also note: `accounts` role and `acctRequisition.*` files exist only on the `acco
 - Verification runs periodically (every 30s) while an Accounts write view is open, not per-frame — keeps CPU/battery usage low.
 - **Grace period is scoped to absence only, not to security events**: if a periodic check finds *no face at all* (temporary absence — user leaned back, glanced away), the backend allows `N` consecutive misses (default 2, ~90s) before locking, since this is the one failure mode that's plausibly transient. A **wrong/unrecognized face**, **multiple faces**, or a **camera error/disconnected/access-denied** report locks the session **immediately, on the first occurrence** — these are treated as security-relevant events, not glitches, and get no grace.
 - The backend is the sole authority: a new `requireFaceVerified` middleware (parallel to `requireRole`) enforces staleness/lock state and is applied **only to Accounts write routes**. Accounts read routes remain accessible even when face verification is unavailable or locked.
-- Enrollment/re-enrollment is authorized via **Telegram OTP** sent to the user's registered `telegram_chat_id` — reusing the exact `generateOtp`/`storeOtp`/`verifyOtp` (`otp.service.js`) and `sendOtp` (`telegram.service.js`) functions the login flow already uses, plus the existing `otpRequestLimiter`/`otpVerifyLimiter` rate limiters.
+- Enrollment/re-enrollment is authorized via **Telegram OTP** sent to the user's registered `telegram_chat_id` — reusing the exact `generateOtp`/`storeOtp`/`verifyOtp` (`otp.service.js`) and `sendOtp` (`telegram.service.js`) functions the login flow already uses. The verify step reuses the existing `otpVerifyLimiter`; the request step gets its own dedicated limiter (see Phase 2) since the existing `otpRequestLimiter` keys on a request-body field that doesn't exist on an authenticated route.
 
 ---
 
@@ -49,26 +49,52 @@ Also note: `accounts` role and `acctRequisition.*` files exist only on the `acco
 **Goal**: let an `accounts`/`admin` user register (or re-register) their face embedding, authorized by a Telegram OTP tied to their own account — reusing the existing OTP machinery wholesale, not reimplementing it.
 
 **Changes**:
-- `backend/src/validation/faceVerification.schema.js` — zod schemas: `requestEnrollOtpSchema` (no body needed, identity comes from JWT), `enrollFaceSchema` (`{ descriptor: number[128], otp: string }`).
+- `backend/src/validation/faceVerification.schema.js` — zod schemas: `enrollFaceSchema` (`{ descriptor: z.array(z.number().finite()).length(128, 'Descriptor must be exactly 128 numbers'), otp: z.string() }`). No schema for `request-otp` — see routing note below, it has no body to validate.
+- `backend/src/middleware/rateLimiter.js` — add a **new**, dedicated `enrollOtpRequestLimiter` (do not touch the existing `otpRequestLimiter`/`otpVerifyLimiter`, which key on `req.body.mobileNumber || req.ip` for the *public* login route — `req.body` is empty on an authenticated bodyless enroll route, which would silently degrade that limiter to IP-only keying and break office-NAT scenarios):
+  ```js
+  const enrollOtpRequestLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: isDev ? 100 : 7,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.user?.mobile_number || req.ip,
+    handler: logOtpRequestLimitExceeded
+  });
+  ```
+  Export it alongside the existing limiters. `otpVerifyLimiter` (already keyed defensively) is reused as-is for `/enroll`.
 - `backend/src/services/faceVerification.service.js`:
   - `enrollDescriptor(userId, descriptor, consentedAt)` — upsert into `face_descriptors` by `user_id`.
   - `getDescriptor(userId)`, `euclideanDistance(a, b)` (used in Phase 3).
 - `backend/src/controllers/faceVerification.controller.js`:
-  - `requestEnrollOtp(req, res)` — loads `req.user` (already attached by `verifyJwt`) from `authorised_users` to get `mobile_number`/`telegram_chat_id`; calls `generateOtp()` → `hashOtp()` → `storeOtp(mobileNumber, hash)` → `sendOtp(telegram_chat_id, rawOtp)`, exactly mirroring `requestOtp` in `auth.controller.js:71`. Returns `{ success: true, message: 'OTP sent' }`.
+  - `requestEnrollOtp(req, res)` — `verifyJwt` attaches `req.user` but its `authorised_users` select is `'is_active, display_name'` only (confirmed in `verifyJwt.js`) — it does **not** carry `telegram_chat_id`. Fetch it explicitly and minimally:
+    ```js
+    const { data: user, error } = await supabase
+      .from('authorised_users')
+      .select('telegram_chat_id, mobile_number, is_active')
+      .eq('id', req.user.id)
+      .maybeSingle();
+    ```
+    Then `generateOtp()` → `hashOtp()` → `storeOtp(user.mobile_number, hash)` → `sendOtp(user.telegram_chat_id, rawOtp)`, mirroring `requestOtp` in `auth.controller.js:71`. Returns `{ success: true, message: 'OTP sent' }`.
   - `enrollFace(req, res)` — calls `verifyOtp(req.user.mobile_number, req.body.otp)`; on failure returns `400 { success: false, code: 'INVALID_OTP', message }` (reuse existing failure shape/`attemptsLeft`); on success calls `enrollDescriptor(req.user.id, req.body.descriptor, new Date())`. Never trusts a client-supplied user id — identity is always `req.user.id`.
-- `backend/src/routes/faceVerification.routes.js`:
+- `backend/src/routes/faceVerification.routes.js` (add `'use strict'` header, matching `activityBreaks.routes.js`'s convention rather than `auth.routes.js`'s):
   ```js
   router.use(verifyJwt);
-  router.post('/enroll/request-otp', requireRole(['accounts','admin']), otpRequestLimiter, requestEnrollOtp);
+  router.post('/enroll/request-otp', requireRole(['accounts','admin']), enrollOtpRequestLimiter, requestEnrollOtp);
   router.post('/enroll', requireRole(['accounts','admin']), otpVerifyLimiter, validateRequest(enrollFaceSchema), enrollFace);
   ```
-  Reuses `otpRequestLimiter`/`otpVerifyLimiter` from `backend/src/middleware/rateLimiter.js` — same abuse protection as login OTP, no new limiter needed. Mount router in `backend/src/app.js` at `/api/face-verification`.
+  `request-otp` has no body, so — matching the established convention (`/refresh`, `/logout` in `auth.routes.js` are both bodyless POSTs and neither uses `validateRequest`) — no schema is wired to it.
+- Mount in `backend/src/app.js` at **`/api/v1/auth/face-verification`** — every existing route in `app.js` (confirmed by reading it end to end: `authRoutes`, `acctRequisitionRoutes`, `activityBreaksRoutes`, etc.) mounts under `/api/v1/auth/...` with zero exceptions. No alias at a different path — that would break the "everything auth'd lives under one prefix" convention and create an easy-to-miss audit gap.
 
 **Tests** (`backend/tests/vitest/unit/faceVerification.service.test.js`, `backend/tests/vitest/contracts/faceVerification.contract.test.js`):
 - Unit: `euclideanDistance` correctness; `enrollDescriptor` upserts (not duplicates).
 - Contract: `/enroll/request-otp` sends via `sendOtp` (mocked) only for `accounts`/`admin` roles (403 otherwise); `/enroll` rejects wrong/expired/reused OTP (400 `INVALID_OTP`, matching `verifyOtp`'s existing attempts/expiry rules) and malformed descriptors (400); succeeds end-to-end with a valid OTP and persists to `face_descriptors`.
+- **This new contract test file must be added explicitly to the `test:contracts:db` script in `package.json`** — that script is a hardcoded file list (`vitest run tests/vitest/contracts/schemaContract.test.js tests/vitest/contracts/rpcSignature.test.js ...`), not a directory glob, so a new file is silently skipped in CI unless added.
+- Add `enrollOtpSuccessSchema`/`enrollFaceSuccessSchema` entries to `tests/helpers/responseSchemas.js` for contract-shape validation, following its existing pattern.
+- Test fixtures need a seeded `accounts`-role user **with `telegram_chat_id` set** — neither `setupUsers.js` nor `acctRequisitionFixture.js` currently sets it (confirmed by reading both). Extend `setupUsers` to accept an optional `telegram_chat_id`, or add a small dedicated fixture helper for this suite.
+- Test teardown must use `deleteAuthTestUser` from `tests/helpers/authFlow.js`, not a raw `authorised_users` delete — `deleteAuthTestUser` explicitly cleans `sessions`, `otp_requests`, and `authorised_users`; `otp_requests` is keyed by `mobile_number` text (not an FK), so it will **not** be cleaned by cascade once these tests start generating real OTP rows.
+- Add RBAC coverage in `tests/helpers/rbacMatrix.js` for the two new routes: `je`/`zo`/`ho` → `expectAllowed: false`, `accounts`/`admin` → `expectAllowed: true`, following the existing declarative entry shape (see the `fund_requests.*` entries for the pattern).
 
-**Acceptance criteria**: enrollment is impossible without a valid Telegram OTP delivered to the account's own `telegram_chat_id`; re-enrollment (e.g. after appearance change) follows the identical OTP flow and overwrites the prior descriptor (row count stays 1 per user).
+**Acceptance criteria**: enrollment is impossible without a valid Telegram OTP delivered to the account's own `telegram_chat_id`; re-enrollment (e.g. after appearance change) follows the identical OTP flow and overwrites the prior descriptor (row count stays 1 per user); the new contract test actually runs in CI (verified by checking `test:contracts:db`'s output lists it); RBAC matrix denies `je`/`zo`/`ho` on both new routes.
 
 ---
 
@@ -77,8 +103,10 @@ Also note: `accounts` role and `acctRequisition.*` files exist only on the `acco
 **Goal**: verify a submitted embedding, apply the grace period only to plain absence, lock immediately on anything security-relevant, and enforce on Accounts **write** routes only — the actual backend-authority requirement.
 
 **Changes**:
+- `faceVerification.schema.js` — add `verifyFaceSchema` (`{ descriptor: z.array(z.number().finite()).length(128) }`, same shape as `enrollFaceSchema`'s descriptor field) and `detectionFailureSchema` (`{ reason: z.enum(['no-face', 'multiple-faces', 'camera-error']) }`), used by the two new routes below.
 - `faceVerification.service.js` — add `verifyDescriptor(userId, submittedDescriptor, threshold=0.6)` → `{ match, distance }` (0.6 is face-api.js's documented default threshold; tune in Phase 6 smoke testing).
 - `session.service.js` — add, following the existing fetch-then-update `closeSession` pattern:
+  - `getSession(sessionId)` — plain fetch-by-id (`select('*').eq('id', sessionId).single()`); does not exist yet in this file (confirmed — current exports are only `generateTokens`, `createSession`, `closeSession`, `formatDuration`) and is needed by `requireFaceVerified` below.
   - `recordFaceSuccess(sessionId)` — sets `last_face_verified_at = now()`, `face_verification_misses = 0`, `face_locked = false`.
   - `recordFaceAbsenceMiss(sessionId, maxMisses)` — **absence-only grace path**: increments `face_verification_misses`; if the new count `>= maxMisses`, sets `face_locked = true`. Used only when the client reports *no face detected at all*.
   - `lockSessionImmediately(sessionId, reason)` — **no-grace path**: sets `face_locked = true` directly on the first occurrence, regardless of the current miss count. Used for a wrong/unrecognized face (mismatch), multiple faces detected, and camera error/disconnected/access-denied.

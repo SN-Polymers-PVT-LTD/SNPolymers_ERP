@@ -334,6 +334,67 @@ const RBAC_MATRIX = [
     allowedRoles: ['zo', 'ho', 'admin'],
     role: 'je',
     expectAllowed: false
+  },
+  // --- Face Verification enrollment (faceVerification.routes.js) ---
+  {
+    id: 'face_verification.enroll_otp.je_denied',
+    module: 'face_verification',
+    endpoint: 'POST /enroll/request-otp',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'je',
+    expectAllowed: false
+  },
+  {
+    id: 'face_verification.enroll_otp.zo_denied',
+    module: 'face_verification',
+    endpoint: 'POST /enroll/request-otp',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'zo',
+    expectAllowed: false
+  },
+  {
+    id: 'face_verification.enroll_otp.ho_denied',
+    module: 'face_verification',
+    endpoint: 'POST /enroll/request-otp',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'ho',
+    expectAllowed: false
+  },
+  {
+    id: 'face_verification.enroll_otp.accounts_allowed',
+    module: 'face_verification',
+    endpoint: 'POST /enroll/request-otp',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'accounts',
+    expectAllowed: true
+  },
+  {
+    id: 'face_verification.enroll.je_denied',
+    module: 'face_verification',
+    endpoint: 'POST /enroll',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'je',
+    expectAllowed: false
+  },
+  {
+    id: 'face_verification.enroll.accounts_allowed',
+    module: 'face_verification',
+    endpoint: 'POST /enroll',
+    layer: 'middleware',
+    guard: 'requireRole',
+    allowedRoles: ['accounts', 'admin'],
+    role: 'accounts',
+    expectAllowed: true
   }
 ];
 

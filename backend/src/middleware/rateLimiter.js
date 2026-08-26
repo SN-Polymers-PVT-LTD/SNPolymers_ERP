@@ -77,6 +77,20 @@ const otpVerifyLimiter = rateLimit({
 });
 
 /**
+ * Enrollment OTP Request rate limiter (authenticated route — keys on JWT mobile_number).
+ * Applied only to POST /face-verification/enroll/request-otp.
+ * Same thresholds as otpRequestLimiter; separate instance to avoid polluting the login bucket.
+ */
+const enrollOtpRequestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: isDev ? 100 : 7,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?.mobile_number || req.ip,
+  handler: logOtpRequestLimitExceeded
+});
+
+/**
  * Global general-purpose rate limiter:
  * 1,000 requests per 1-minute window.
  *
@@ -119,6 +133,7 @@ const adminLimiter = rateLimit({
 module.exports = {
   otpRequestLimiter,
   otpVerifyLimiter,
+  enrollOtpRequestLimiter,
   globalLimiter,
   refreshTokenLimiter,
   adminLimiter
