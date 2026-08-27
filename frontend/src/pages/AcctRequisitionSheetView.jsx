@@ -306,7 +306,7 @@ const AcctRequisitionSheetView = () => {
         title: 'Sheet Submitted',
         message: 'This sheet has been sent to HO for review.',
         details: [
-          { label: 'Sheet Number', value: sheetDetail.sheet_number },
+          { label: 'Req. No.', value: sheetDetail.sheet_number },
           { label: 'New Status', value: 'Submitted', pill: true }
         ]
       });
