@@ -408,7 +408,7 @@ const LineItemRow = ({
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[190px]">
         <Select
           disabled={readOnly}
           value={draft.debit_bank_ac_type}

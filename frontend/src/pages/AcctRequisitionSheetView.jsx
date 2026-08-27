@@ -410,7 +410,7 @@ const AcctRequisitionSheetView = () => {
         <>
           {actionableItems.length > 0 && (
             <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-              <Table containerClassName="min-w-[1100px]">
+              <Table containerClassName="min-w-[1150px]">
                 <TableHeader>
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
