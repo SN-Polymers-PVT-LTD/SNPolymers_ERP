@@ -181,10 +181,10 @@ const AcctRequisitions = () => {
         <div className="w-full md:w-64 flex flex-col gap-4 shrink-0">
           <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col gap-5">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Sheet Number</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Req. No.</span>
               <Input
                 type="text"
-                placeholder="Enter sheet number..."
+                placeholder="Enter req. no..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 size="sm"
@@ -260,7 +260,7 @@ const AcctRequisitions = () => {
                 <Table containerClassName="min-w-[720px]">
                   <TableHeader>
                     <TableRow hover={false}>
-                      <TableCell isHeader>Sheet Number</TableCell>
+                      <TableCell isHeader>Req. No.</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader align="right">Items</TableCell>
                       <TableCell isHeader>Date</TableCell>

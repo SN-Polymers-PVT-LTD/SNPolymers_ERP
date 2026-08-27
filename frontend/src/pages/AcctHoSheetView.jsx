@@ -183,7 +183,7 @@ const AcctHoSheetView = () => {
           title: 'Review Submitted',
           message: 'Your decisions have been recorded for this sheet.',
           details: [
-            { label: 'Sheet Number', value: sheetDetail.sheet_number },
+            { label: 'Req. No.', value: sheetDetail.sheet_number },
             { label: 'Decisions Applied', value: results.length },
             { label: 'New Status', value: 'Reviewed', pill: true }
           ]
