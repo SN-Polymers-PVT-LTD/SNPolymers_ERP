@@ -88,9 +88,21 @@ const AcctRequisitionSheetView = () => {
     return () => {
       const { id: sid, status, itemCount } = emptySheetCleanupRef.current;
       if (status === 'Open' && itemCount === 0) {
-        deleteSheetIfEmpty(sid).catch(() => {});
+        deleteSheetIfEmpty(sid)
+          .then((res) => {
+            // If this sheet had received an imported item that was later
+            // removed again before submit, deleting it restores that
+            // item's eligibility (039_delete_empty_sheet_restores_imports.sql)
+            // — the Held/Rejected list needs to know, or it'll keep
+            // showing stale data missing the just-restored item.
+            if (res.data?.restoredImportCount > 0) {
+              queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
+            }
+          })
+          .catch(() => {});
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { data: bankBalances = [] } = useQuery({

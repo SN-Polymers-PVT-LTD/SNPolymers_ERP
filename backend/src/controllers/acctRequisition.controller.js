@@ -1161,17 +1161,24 @@ async function lookupBeneficiary(req, res) {
  * idx_beneficiary_master_acno_prefix (038) backs this query.
  */
 async function searchBeneficiariesByAcNo(req, res) {
-  const prefix = (req.query?.prefix || '').trim();
+  // Strip LIKE metacharacters (% and _) so a caller can't wildcard-expand
+  // the match — same convention as getBeneficiaries' `search` sanitization.
+  const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
   if (prefix.length < 3) {
     return res.status(200).json({ success: true, beneficiaries: [] });
   }
   const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
 
   try {
+    // .like(), not .ilike(): idx_beneficiary_master_acno_prefix (038) uses
+    // varchar_pattern_ops, which only accelerates case-sensitive LIKE, not
+    // ILIKE. Account numbers are digits-only (chk/regex-enforced elsewhere),
+    // so a case-sensitive match is exactly as correct and actually uses the
+    // index instead of falling back to a sequential scan on every keystroke.
     const { data, error } = await supabase
       .from('beneficiary_master')
       .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name')
-      .ilike('account_number', `${prefix}%`)
+      .like('account_number', `${prefix}%`)
       .order('last_used_at', { ascending: false, nullsFirst: false })
       .limit(limit);
     if (error) throw error;

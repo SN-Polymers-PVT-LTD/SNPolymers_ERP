@@ -109,6 +109,15 @@ const AcctRequisitions = () => {
     try {
       const res = await deleteSheetIfEmpty(sheet.id);
       queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+
+      if (!res.data?.deleted) {
+        // The list row was stale — someone else added an item or submitted
+        // this sheet since it was last fetched. Nothing was discarded; the
+        // invalidation above will refetch and show its current state.
+        setError('This sheet is no longer empty — it couldn\'t be discarded. Refreshing the list.');
+        return;
+      }
+
       // A restored count means an item that was imported into this sheet
       // (then removed again before submit) is back in the Held/Rejected
       // eligible list (039_delete_empty_sheet_restores_imports.sql).
