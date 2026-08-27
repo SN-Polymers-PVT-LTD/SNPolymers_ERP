@@ -90,6 +90,14 @@ const AcctRequisitionSheetView = () => {
       if (status === 'Open' && itemCount === 0) {
         deleteSheetIfEmpty(sid)
           .then((res) => {
+            if (!res.data?.deleted) return;
+            // Without this, the sheet list page's cached query never learns
+            // this sheet is gone — if it's already mounted (e.g. the user
+            // navigates straight back to it), the deleted sheet keeps
+            // showing as a live row until some unrelated refetch happens,
+            // and clicking its own Discard button then fails confusingly
+            // (the sheet is already gone, not "no longer empty").
+            queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
             // If this sheet had received an imported item that was later
             // removed again before submit, deleting it restores that
             // item's eligibility (039_delete_empty_sheet_restores_imports.sql)
@@ -153,6 +161,18 @@ const AcctRequisitionSheetView = () => {
   const invalidateSheet = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     queryClient.invalidateQueries({ queryKey: ['acctSheet', id] });
+  };
+
+  // Forces the sheet list to refetch fresh the moment this navigation
+  // actually happens, rather than only relying on the unmount cleanup
+  // effect's own (async, delete-dependent) invalidation below — that one
+  // still fires and invalidates again once an auto-delete actually
+  // completes, but this makes the common case (nothing to clean up, or the
+  // cleanup finishes quickly) show an up-to-date list immediately instead
+  // of whatever was last cached.
+  const handleBackToSheets = () => {
+    queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+    navigate('/acct-requisitions');
   };
 
   // Patches the cached sheet's items in place instead of invalidating +
@@ -395,7 +415,7 @@ const AcctRequisitionSheetView = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">Add, edit, and submit requisition line items for HO review.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+          <Button variant="glass" size="sm" onClick={handleBackToSheets}>
             ← Back to Sheets
           </Button>
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>

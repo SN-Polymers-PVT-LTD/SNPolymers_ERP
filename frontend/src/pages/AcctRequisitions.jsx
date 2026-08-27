@@ -111,10 +111,18 @@ const AcctRequisitions = () => {
       queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
 
       if (!res.data?.deleted) {
-        // The list row was stale — someone else added an item or submitted
-        // this sheet since it was last fetched. Nothing was discarded; the
-        // invalidation above will refetch and show its current state.
-        setError('This sheet is no longer empty — it couldn\'t be discarded. Refreshing the list.');
+        if (res.data?.alreadyGone) {
+          // Not really a failure — this sheet was already auto-discarded
+          // elsewhere (e.g. its own detail page was opened and left empty)
+          // before this stale list row's Discard button was clicked. The
+          // invalidation above removes it from the list either way.
+          setSuccess('This sheet was already discarded.');
+        } else {
+          // The list row was stale — someone else added an item or
+          // submitted this sheet since it was last fetched. Nothing was
+          // discarded; the invalidation above will refetch its current state.
+          setError('This sheet is no longer empty — it couldn\'t be discarded. Refreshing the list.');
+        }
         return;
       }
 
