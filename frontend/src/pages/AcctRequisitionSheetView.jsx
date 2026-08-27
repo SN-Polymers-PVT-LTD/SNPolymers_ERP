@@ -417,7 +417,7 @@ const AcctRequisitionSheetView = () => {
                     <TableCell isHeader>Account Sub-title</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
-                    <TableCell isHeader align="right">Requested Amount</TableCell>
+                    <TableCell isHeader>Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
                     <TableCell isHeader>Status</TableCell>
                     <TableCell isHeader>Actions</TableCell>
