@@ -410,14 +410,14 @@ const AcctRequisitionSheetView = () => {
         <>
           {actionableItems.length > 0 && (
             <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-              <Table containerClassName="min-w-[1100px]">
+              <Table containerClassName="min-w-[1150px]">
                 <TableHeader>
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
-                    <TableCell isHeader align="right">Requested Amount</TableCell>
+                    <TableCell isHeader>Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
                     <TableCell isHeader>Status</TableCell>
                     <TableCell isHeader>Actions</TableCell>

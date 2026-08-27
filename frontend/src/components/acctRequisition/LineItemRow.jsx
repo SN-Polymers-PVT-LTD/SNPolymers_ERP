@@ -408,7 +408,7 @@ const LineItemRow = ({
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[220px]">
         <Select
           disabled={readOnly}
           value={draft.debit_bank_ac_type}
@@ -417,7 +417,7 @@ const LineItemRow = ({
         />
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[90px]">
         <FormattedCurrencyInput
           disabled={readOnly}
           value={draft.req_amount}
