@@ -17,6 +17,8 @@ export const upsertParticular = (data) => authApi.put(`${BASE}/particulars`, dat
 
 // ── Beneficiary ──────────────────────────────────────────────────────────
 export const lookupBeneficiary = (params) => authApi.get(`${BASE}/beneficiary`, { params });
+export const searchBeneficiariesByAcNo = (prefix, limit = 8) =>
+  authApi.get(`${BASE}/beneficiary-suggestions`, { params: { prefix, limit } });
 export const upsertBeneficiary = (data) => authApi.put(`${BASE}/beneficiary`, data);
 export const getBeneficiaries = (params) => authApi.get(`${BASE}/beneficiary-master`, { params });
 
