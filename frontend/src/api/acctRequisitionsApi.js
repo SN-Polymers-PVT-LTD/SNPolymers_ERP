@@ -52,9 +52,15 @@ export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${she
 export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/sheets/${sheetId}/items/${itemId}`, data);
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
+// ── Import On Hold/Rejected items into a new sheet ──────────────────────
+// Accumulating, cross-sheet list of On Hold/Rejected items that haven't
+// been imported or dismissed yet (034_add_line_item_import.sql).
+export const getImportEligibleItems = (params) => authApi.get(`${BASE}/import-eligible-items`, { params });
+export const importLineItem = (itemId, targetSheetId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, { target_sheet_id: targetSheetId });
+export const dismissImportEligibleItem = (itemId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`);
+
 export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${itemId}/action`, data);
 // One request carrying every staged HO decision for a sheet, instead of one
 // PATCH per line item — actions: [{ line_item_id, action, ho_pass_amount?, ho_remarks? }]
 export const actOnLineItemsBatch = (sheetId, actions) => authApi.post(`${BASE}/sheets/${sheetId}/items/batch-action`, { actions });
 export const resubmitLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/resubmit`, data);
-export const reopenLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/reopen`, data);

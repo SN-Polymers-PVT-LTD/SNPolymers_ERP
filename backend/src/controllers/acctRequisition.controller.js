@@ -4,7 +4,7 @@ const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
-  resubmitLineItemSchema, reopenLineItemSchema,
+  resubmitLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
@@ -24,14 +24,16 @@ const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-
 function mapAcctRpcError(rpcErr) {
   switch (rpcErr.code) {
     case 'STA01':
-    case 'STA02':
     case 'STA03':
-    case 'STA04':
+    case 'STA05':
+    case 'STA06':
+    case 'STA07':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
     case 'VAL03':
     case 'VAL04':
+    case 'VAL05':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -351,25 +353,25 @@ async function addLineItem(req, res) {
   const { sheetId } = req.params;
 
   try {
-    const { data: sheet, error: sheetErr } = await supabase
-      .from('acct_requisition_sheets')
-      .select('id, sheet_status')
-      .eq('id', sheetId)
-      .maybeSingle();
+    // add_acct_line_item_transact (033_add_line_item_transact_and_neft_beneficiary_check.sql)
+    // locks the sheet row FOR UPDATE before checking sheet_status, closing the race where a
+    // concurrent submit could flip the sheet to 'Submitted' between a separate SELECT check
+    // and this INSERT, stranding the new item with requisition_status = NULL.
+    const { data: item, error: rpcErr } = await supabase.rpc('add_acct_line_item_transact', {
+      p_sheet_id: sheetId,
+      p_created_by: req.user.mobile_number,
+      p_item: req.body
+    });
 
-    if (sheetErr) throw sheetErr;
-    if (!sheet) return res.status(404).json({ success: false, message: 'Requisition sheet not found.' });
-    if (sheet.sheet_status !== 'Open') {
-      return res.status(403).json({ success: false, message: 'Line items can only be added while the sheet is Open.' });
+    if (rpcErr) {
+      if (rpcErr.message && rpcErr.message.includes('Sheet not found')) {
+        return res.status(404).json({ success: false, message: 'Requisition sheet not found.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(403).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
     }
-
-    const { data: item, error: insertErr } = await supabase
-      .from('acct_requisition_line_items')
-      .insert([{ ...req.body, sheet_id: sheetId, created_by: req.user.mobile_number }])
-      .select()
-      .single();
-
-    if (insertErr) throw insertErr;
 
     return res.status(201).json({ success: true, item, message: 'Line item added.' });
   } catch (error) {
@@ -524,7 +526,11 @@ async function submitSheet(req, res) {
 
 /**
  * PATCH /acct-requisitions/items/:itemId/action
- * Gate (§4c): fast-path check requisition_status IN ('Pending HO Review','On Hold') before RPC.
+ * Gate (§4c, tightened by 037_terminal_hold_and_rejected.sql): fast-path
+ * check requisition_status = 'Pending HO Review' before RPC. On Hold and
+ * Rejected are terminal on their original sheet — re-import into a new
+ * sheet (import_acct_line_item_transact) is the only way forward from
+ * either, not a repeat action here.
  */
 async function actOnLineItem(req, res) {
   if (!validate(req, res, actOnLineItemSchema)) return;
@@ -541,10 +547,10 @@ async function actOnLineItem(req, res) {
     if (itemErr) throw itemErr;
     if (!item) return res.status(404).json({ success: false, message: 'Line item not found.' });
 
-    if (!['Pending HO Review', 'On Hold'].includes(item.requisition_status)) {
+    if (item.requisition_status !== 'Pending HO Review') {
       return res.status(409).json({
         success: false,
-        message: `HO can only act on Pending HO Review or On Hold items. Current: ${item.requisition_status}`
+        message: `HO can only act on Pending HO Review items. Current: ${item.requisition_status}`
       });
     }
 
@@ -600,13 +606,15 @@ async function actOnLineItem(req, res) {
     // Returned/Rejected item's particulars/amount/remarks), fired once per
     // review session rather than once per action.
     //
-    // Event 2 — fires once HO has no more Pending HO Review / On Hold items
-    // left on this sheet; a "review session" boundary, not a terminal state.
+    // Event 2 — fires once HO has no more Pending HO Review items left on
+    // this sheet. On Hold is a terminal state now (037_terminal_hold_and_rejected.sql,
+    // no further in-place action possible), not "still needs a decision", so
+    // it no longer holds this boundary open.
     const { count: pendingCount, error: pendingErr } = await supabase
       .from('acct_requisition_line_items')
       .select('id', { count: 'exact', head: true })
       .eq('sheet_id', data.sheet_id)
-      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+      .eq('requisition_status', 'Pending HO Review');
 
     if (!pendingErr && pendingCount === 0) {
       notifyAcctSheetReviewComplete(data.sheet_id).catch(err => {
@@ -696,7 +704,7 @@ async function actOnLineItemsBatch(req, res) {
       .from('acct_requisition_line_items')
       .select('id', { count: 'exact', head: true })
       .eq('sheet_id', sheetId)
-      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+      .eq('requisition_status', 'Pending HO Review');
 
     if (!pendingErr && pendingCount === 0) {
       notifyAcctSheetReviewComplete(sheetId).catch(err => {
@@ -760,20 +768,110 @@ async function resubmitLineItem(req, res) {
 }
 
 /**
- * POST /acct-requisitions/items/:itemId/reopen
- * Any ho/admin user may reopen (gated by the route's requireRole(hoRoles) —
- * no separate per-user permission).
+ * GET /acct-requisitions/import-eligible-items
+ * On Hold/Rejected line items across ALL sheets that have not yet been
+ * imported into a later sheet or dismissed — same filter/pagination/
+ * sheet-join shape as getLineItems, narrowed to the importable subset
+ * (034_add_line_item_import.sql's idx_arli_importable backs this query).
  */
-async function reopenLineItem(req, res) {
-  if (!validate(req, res, reopenLineItemSchema)) return;
+async function getImportEligibleItems(req, res) {
+  try {
+    const query = req.query || {};
+    const isExport = query.export === 'true' || query.export === true;
+
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('acct_requisition_line_items')
+      .select('*', { count: 'exact' })
+      .in('requisition_status', ['On Hold', 'Rejected'])
+      .is('imported_to_sheet_id', null)
+      .eq('import_dismissed', false);
+
+    if (query.account_sub_title) {
+      dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
+    }
+
+    if (query.beneficiary_ac_no) {
+      dbQuery = dbQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+    }
+
+    if (query.debit_bank_ac_type) {
+      dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
+    }
+
+    if (query.date_from) {
+      dbQuery = dbQuery.gte('created_at', query.date_from);
+    }
+
+    if (query.date_to) {
+      dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+    }
+
+    dbQuery = dbQuery.order('created_at', { ascending: false });
+    dbQuery = isExport ? dbQuery.limit(5000) : dbQuery.range(offset, offset + limit - 1);
+
+    const { data: items, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const sheetIds = [...new Set((items || []).map(i => i.sheet_id))];
+    let sheetMap = {};
+
+    if (sheetIds.length > 0) {
+      const { data: sheets, error: sheetsErr } = await supabase
+        .from('acct_requisition_sheets')
+        .select('id, sheet_number, sheet_status')
+        .in('id', sheetIds);
+      if (sheetsErr) throw sheetsErr;
+
+      sheetMap = (sheets || []).reduce((acc, s) => {
+        acc[s.id] = s;
+        return acc;
+      }, {});
+    }
+
+    const enrichedItems = (items || []).map(item => ({
+      ...item,
+      sheet_number: sheetMap[item.sheet_id]?.sheet_number || null,
+      sheet_status: sheetMap[item.sheet_id]?.sheet_status || null
+    }));
+
+    if (isExport) {
+      return res.status(200).json({ success: true, items: enrichedItems });
+    }
+
+    return res.status(200).json({
+      success: true,
+      items: enrichedItems,
+      pagination: { page, limit, total: count || 0, totalPages: Math.ceil((count || 0) / limit) }
+    });
+  } catch (error) {
+    console.error(`getImportEligibleItems failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve importable line items.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/import-eligible-items/:itemId/import
+ * body: { target_sheet_id }
+ * Copies an On Hold/Rejected item into target_sheet_id as a brand-new line
+ * item and marks the source as imported (import_acct_line_item_transact,
+ * 034_add_line_item_import.sql) — the source row's requisition_status and
+ * every other field are left untouched.
+ */
+async function importLineItem(req, res) {
   const { itemId } = req.params;
-  const { reopen_remark } = req.body;
+  const { target_sheet_id } = req.body;
 
   try {
-    const { data, error: rpcErr } = await supabase.rpc('reopen_acct_line_item_transact', {
-      p_line_item_id: itemId,
-      p_reopened_by: req.user.mobile_number,
-      p_reopen_remark: reopen_remark
+    const { data, error: rpcErr } = await supabase.rpc('import_acct_line_item_transact', {
+      p_source_item_id: itemId,
+      p_target_sheet_id: target_sheet_id,
+      p_imported_by: req.user.mobile_number
     });
 
     if (rpcErr) {
@@ -782,10 +880,49 @@ async function reopenLineItem(req, res) {
       throw rpcErr;
     }
 
-    return res.status(200).json({ success: true, item: data, message: 'Line item reopened.' });
+    return res.status(201).json({ success: true, item: data, message: 'Line item imported.' });
   } catch (error) {
-    console.error(`reopenLineItem failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to reopen line item.' });
+    console.error(`importLineItem failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to import line item.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
+ * Soft-hides an eligible item from the import list without touching its
+ * real data — no hard delete, per this table's append-only guarantee
+ * (prevent_acct_sheet_hard_delete, 030_allow_empty_open_sheet_delete.sql).
+ */
+async function dismissImportEligibleItem(req, res) {
+  const { itemId } = req.params;
+
+  try {
+    const { data, error } = await supabase
+      .from('acct_requisition_line_items')
+      .update({
+        import_dismissed: true,
+        import_dismissed_at: new Date().toISOString(),
+        import_dismissed_by: req.user.mobile_number,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', itemId)
+      .is('imported_to_sheet_id', null)
+      .eq('import_dismissed', false)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(409).json({
+        success: false,
+        message: 'Item does not exist, or is already imported or dismissed.'
+      });
+    }
+
+    return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+  } catch (error) {
+    console.error(`dismissImportEligibleItem failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to dismiss line item.' });
   }
 }
 
@@ -1330,7 +1467,8 @@ async function exportBulkNeft(req, res) {
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
-  actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
+  actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,

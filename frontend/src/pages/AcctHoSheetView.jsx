@@ -10,7 +10,7 @@ import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 
 import {
-  getSheetById, actOnLineItemsBatch, reopenLineItem, getBankBalances, getIndianBanks, getParticulars
+  getSheetById, actOnLineItemsBatch, getBankBalances, getIndianBanks, getParticulars
 } from '../api/acctRequisitionsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
@@ -67,10 +67,6 @@ const AcctHoSheetView = () => {
   const [showRejected, setShowRejected] = useState(false);
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
-  // Any HO/admin user reaching this page (gated by isHoUser above, and by the
-  // route's own requireRole(['ho','admin']) server-side) can reopen a
-  // Rejected item — no separate per-user permission required.
-  const canReopen = isHoUser;
 
   const { data: sheetDetail, isLoading: loadingDetail } = useQuery({
     queryKey: ['acctSheet', id],
@@ -121,12 +117,6 @@ const AcctHoSheetView = () => {
       delete next[itemId];
       return next;
     });
-  };
-
-  const handleReopen = async (itemId, data) => {
-    await reopenLineItem(itemId, data);
-    invalidateSheet();
-    setSuccess('Line item reopened for review.');
   };
 
   // Same client-side checks HoDecisionPanel used to run before its own
@@ -214,8 +204,6 @@ const AcctHoSheetView = () => {
       item={item}
       decision={decisions[item.id]}
       onDecisionChange={handleDecisionChange}
-      onReopen={(data) => handleReopen(item.id, data)}
-      canReopen={canReopen}
       disabled={submittingDecisions}
       error={batchErrors[item.id]}
     />
@@ -238,15 +226,12 @@ const AcctHoSheetView = () => {
   }
 
   const items = sheetDetail.items || [];
-  const actionableItems = items.filter(i => ['Pending HO Review', 'On Hold'].includes(i.requisition_status));
-  const otherItems = items.filter(i => !['Pending HO Review', 'On Hold', 'Rejected'].includes(i.requisition_status));
+  // On Hold is terminal on this sheet now (037_terminal_hold_and_rejected.sql)
+  // — nothing further to stage, so it's folded into "Already Decided" below
+  // alongside Approved/Partially Approved, not the actionable table.
+  const actionableItems = items.filter(i => i.requisition_status === 'Pending HO Review');
+  const otherItems = items.filter(i => !['Pending HO Review', 'Rejected'].includes(i.requisition_status));
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
-  // A Returned-for-Correction item still renders through LineItemRow's full
-  // editable-field layout (not the collapsed one), which has no Approved
-  // Amount / HO Remarks cells — mixing it into the "decided" column swap
-  // would misalign the table. Only swap when every row here is genuinely
-  // collapsed-view.
-  const otherItemsAllDecided = !otherItems.some(i => i.requisition_status === 'Returned for Correction');
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
@@ -386,7 +371,7 @@ const AcctHoSheetView = () => {
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
                 Already Decided
               </span>
-              {renderTable(otherItems, { decided: otherItemsAllDecided })}
+              {renderTable(otherItems, { decided: true })}
             </div>
           )}
 
@@ -400,7 +385,7 @@ const AcctHoSheetView = () => {
                 <span className={`transition-transform ${showRejected ? 'rotate-90' : ''}`}>▸</span>
                 {rejectedItems.length} Rejected {rejectedItems.length === 1 ? 'item' : 'items'} (click to {showRejected ? 'hide' : 'view'})
               </button>
-              {showRejected && renderTable(rejectedItems)}
+              {showRejected && renderTable(rejectedItems, { decided: true })}
             </div>
           )}
         </>

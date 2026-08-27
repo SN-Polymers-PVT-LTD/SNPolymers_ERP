@@ -54,10 +54,12 @@ const emptyDraft = (item) => ({
  * and use different endpoints — this component only ever calls one of them
  * per render, matching the backend's split.
  *
- * A third mode, viewOnlyFull, covers On Hold (product doc §6: fields are
- * always disabled, never hidden, while a row is Hold or Returned for
- * Correction) — it reuses the same field layout as the editable form but
- * with every field disabled and no submit control.
+ * On Hold is terminal now (037_terminal_hold_and_rejected.sql — no further
+ * HO action, only re-import into a new sheet), so it renders through the
+ * same collapsed read-only row as every other decided status (Approved/
+ * Rejected/etc.) instead of the old full-field "always visible, always
+ * disabled" layout that only made sense while it could still be re-decided
+ * in place.
  *
  * Rendered as a <tr> (this row lives inside the sheet detail page's line
  * items <table>) rather than a <form> — a <form> cannot wrap a <tr>, so
@@ -101,7 +103,6 @@ const LineItemRow = ({
   // lookup endpoint and 403s for an HO user.
   const returnedPath = item.requisition_status === 'Returned for Correction' && Boolean(onResubmit);
   const editable = openPath || returnedPath;
-  const viewOnlyFull = !editable && item.requisition_status === 'On Hold';
 
   const [draft, setDraft] = useState(() => emptyDraft(item));
   const [saving, setSaving] = useState(false);
@@ -213,7 +214,8 @@ const LineItemRow = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openPath, item.id, registerSave, pending]);
 
-  if (!editable && !viewOnlyFull) {
+  if (!editable) {
+    const holdDays = daysOnHold(item);
     return (
       <TableRow>
         <TableCell>
@@ -280,18 +282,22 @@ const LineItemRow = ({
         </TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
-            <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>
-              {statusOverride || item.requisition_status || 'Draft'}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>
+                {statusOverride || item.requisition_status || 'Draft'}
+              </Badge>
+              {holdDays != null && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-orange-400">{holdDays}d</span>
+              )}
+            </div>
             {statusOverride && (
               <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500/70">Staged, not yet submitted</span>
             )}
-            {/* Live ho_remarks — same gap as the Return/Hold case: LastHoActionTag
-                below only shows last_ho_remarks, a snapshot from a PRIOR cycle
-                populated by resubmit/reopen. A first-time Rejected item has no
-                prior cycle yet, so without this Accounts never sees HO's reason
-                until/unless the item is later reopened. */}
-            {item.requisition_status === 'Rejected' && item.ho_remarks && (
+            {/* Live ho_remarks — LastHoActionTag below only shows
+                last_ho_remarks, a snapshot from a PRIOR cycle populated by
+                resubmit. A first-time Rejected/On Hold item has no prior
+                cycle yet, so without this Accounts never sees HO's reason. */}
+            {['Rejected', 'On Hold'].includes(item.requisition_status) && item.ho_remarks && (
               <span className="text-[11px] text-slate-400 italic leading-snug line-clamp-2" title={item.ho_remarks}>
                 "{item.ho_remarks}"
               </span>
@@ -326,30 +332,22 @@ const LineItemRow = ({
     );
   }
 
-  const readOnly = !editable || pending; // viewOnlyFull, or a not-yet-reconciled optimistic placeholder
-  const holdDays = viewOnlyFull ? daysOnHold(item) : null;
+  // This branch only ever renders for an editable row now (Open sheet, or
+  // Returned for Correction awaiting resubmit) — every other status
+  // (including On Hold) returns via the collapsed read-only row above.
+  const readOnly = pending; // not-yet-reconciled optimistic placeholder
 
   return (
-    <TableRow className={editable ? 'bg-amber-500/[0.03]' : 'bg-orange-500/[0.03]'}>
+    <TableRow className="bg-amber-500/[0.03]">
       <TableCell className="min-w-[160px]">
         <div className="flex flex-col gap-2">
           {pending && <Badge variant="slate">Creating…</Badge>}
           {returnedPath && <Badge variant="red">Returned for Correction</Badge>}
-          {viewOnlyFull && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="orange">On Hold</Badge>
-              {holdDays != null && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-orange-400">
-                  {holdDays}d
-                </span>
-              )}
-            </div>
-          )}
-          {/* Live ho_remarks — the reason HO gave for *this* Return/Hold. Distinct
+          {/* Live ho_remarks — the reason HO gave for this Return. Distinct
               from LastHoActionTag's last_ho_remarks, which only ever shows a PRIOR
               (already-superseded) cycle's remark and stays empty on a first-time
-              Return/Hold, since nothing has been superseded yet. */}
-          {(returnedPath || viewOnlyFull) && item.ho_remarks && (
+              Return, since nothing has been superseded yet. */}
+          {returnedPath && item.ho_remarks && (
             <span className="text-[11px] text-slate-400 italic leading-snug">"{item.ho_remarks}"</span>
           )}
           <SearchableSelect

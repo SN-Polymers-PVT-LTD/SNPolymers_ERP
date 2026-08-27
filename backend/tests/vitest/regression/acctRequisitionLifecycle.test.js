@@ -6,7 +6,7 @@ const {
 } = require('../../helpers/acctRequisitionFixture');
 const {
   createSheet, addLineItem, updateLineItem, deleteLineItem, deleteSheetIfEmpty, submitSheet,
-  actOnLineItem, resubmitLineItem, reopenLineItem, exportBulkNeft, upsertBeneficiary
+  actOnLineItem, resubmitLineItem, exportBulkNeft, upsertBeneficiary
 } = require('../../../src/controllers/acctRequisition.controller');
 const { supabase } = require('../../../src/db/supabase');
 
@@ -102,8 +102,13 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     expect(approveBRes.statusCode).toBe(422); // 40000 > 30000 remaining
   });
 
-  // ── Test 2 — Full audit log (9 named events, NB2 regression) ──
-  test('Test 2: full lifecycle produces the 9 expected audit_log events in order', async () => {
+  // ── Test 2 — Full audit log for the remaining legal chain (NB2 regression,
+  // updated for 037: Hold/Reject are now terminal so a single item can no
+  // longer chain through Hold -> Return -> ... -> Reopen -> Approve. The
+  // longest legal in-place chain left is Return -> Resubmit -> a final
+  // decision; Reject is used here since it's the one HO_HOLD_RELEASED/REOPEN
+  // can no longer precede. ──
+  test('Test 2: full lifecycle produces the expected audit_log events in order', async () => {
     const sheetRes = await callCreateSheet(ctx.accountsMobile);
     const sheet = sheetRes.jsonData.sheet;
     ctx.sheetIds.push(sheet.id);
@@ -119,7 +124,6 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     await callSubmitSheet(sheet.id, ctx.accountsMobile);
     expect((await getItem(item.id)).requisition_status).toBe('Pending HO Review');
 
-    await callActOnLineItem(item.id, ctx.ho1Mobile, { action: 'Hold', ho_remarks: 'need info' });
     await callActOnLineItem(item.id, ctx.ho1Mobile, { action: 'Return', ho_remarks: 'fix beneficiary' });
 
     const resubmitReq = {
@@ -131,19 +135,12 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     await resubmitLineItem(resubmitReq, resubmitRes);
     expect(resubmitRes.statusCode).toBe(200);
 
-    await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Reject', ho_remarks: 'not valid' });
+    const rejectRes = await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Reject', ho_remarks: 'not valid' });
+    expect(rejectRes.statusCode).toBe(200);
 
-    const reopenReq = {
-      params: { itemId: item.id },
-      body: { reopen_remark: 'reconsidered' },
-      user: { role: 'ho', mobile_number: ctx.ho2Mobile, permissions: { 'ho.requisition.reopen': true } }
-    };
-    const reopenRes = mockRes();
-    await reopenLineItem(reopenReq, reopenRes);
-    expect(reopenRes.statusCode).toBe(200);
-
-    const approveRes = await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Approve' });
-    expect(approveRes.statusCode).toBe(200);
+    // Terminal now — no further action possible on this item at all.
+    const postRejectAction = await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Approve' });
+    expect(postRejectAction.statusCode).toBe(409);
 
     const { data: log } = await supabase
       .from('audit_log')
@@ -153,8 +150,7 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
 
     expect(log.map(l => l.action)).toEqual([
       'LINE_ITEM_ADDED', 'PENDING_HO_REVIEW_FIRST_SUBMIT',
-      'HO_HELD', 'HO_HOLD_RELEASED', 'HO_RETURNED',
-      'RESUBMIT_AFTER_CORRECTION', 'HO_REJECTED', 'REOPEN', 'HO_APPROVED'
+      'HO_RETURNED', 'RESUBMIT_AFTER_CORRECTION', 'HO_REJECTED'
     ]);
   });
 
@@ -268,14 +264,22 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     const otherSheet = otherSheetRes.jsonData.sheet;
     ctx.sheetIds.push(otherSheet.id);
 
+    // Bulk NEFT items now require beneficiary details to pass submit_acct_sheet_transact's
+    // VAL02 check (033_add_line_item_transact_and_neft_beneficiary_check.sql) — a Bulk NEFT
+    // item with no beneficiary_ac_no/ifsc/name used to reach HO approval and exportBulkNeft
+    // with nothing to put in the bank-authorization workbook.
+    const beneficiaryFields = {
+      beneficiary_ac_no: '123456789012', beneficiary_ifsc: 'ABCD0123456', beneficiary_name: 'Test Beneficiary'
+    };
+
     const otherSheetItemRes = await callAddLineItem(otherSheet.id, ctx.accountsMobile, {
-      req_amount: 1000, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName
+      req_amount: 1000, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName, ...beneficiaryFields
     });
     const otherSheetItem = otherSheetItemRes.jsonData.item;
     ctx.itemIds.push(otherSheetItem.id);
 
     const pendingNeftRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
-      req_amount: 1200, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName
+      req_amount: 1200, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName, ...beneficiaryFields
     });
     const pendingNeftItem = pendingNeftRes.jsonData.item;
     ctx.itemIds.push(pendingNeftItem.id);
@@ -287,7 +291,7 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     ctx.itemIds.push(chequeItem.id);
 
     const approvedNeftRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
-      req_amount: 1500, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName
+      req_amount: 1500, payment_mode: 'Bulk NEFT', debit_bank_ac_type: ctx.bankName, ...beneficiaryFields
     });
     const approvedNeftItem = approvedNeftRes.jsonData.item;
     ctx.itemIds.push(approvedNeftItem.id);
@@ -356,45 +360,38 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     expect(error.message).toMatch(/Hard deletion of submitted acct_requisition_line_items/i);
   });
 
-  // ── Test 8 — Repeat reopen audit label (S5 regression) ──
-  test('Test 8: REOPEN audit action fires on every reopen cycle, not just the first', async () => {
+  // ── Test 8 — On Hold and Rejected are terminal on their original sheet (037 regression) ──
+  test('Test 8: no further HO action is possible once an item is On Hold or Rejected', async () => {
     const sheetRes = await callCreateSheet(ctx.accountsMobile);
     const sheet = sheetRes.jsonData.sheet;
     ctx.sheetIds.push(sheet.id);
 
-    const itemRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
+    const holdItemRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
       req_amount: 2000, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName
     });
-    const item = itemRes.jsonData.item;
-    ctx.itemIds.push(item.id);
+    const holdItem = holdItemRes.jsonData.item;
+    ctx.itemIds.push(holdItem.id);
+
+    const rejectedItemRes = await callAddLineItem(sheet.id, ctx.accountsMobile, {
+      req_amount: 2500, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName
+    });
+    const rejectedItem = rejectedItemRes.jsonData.item;
+    ctx.itemIds.push(rejectedItem.id);
+
     await callSubmitSheet(sheet.id, ctx.accountsMobile);
+    await callActOnLineItem(holdItem.id, ctx.ho1Mobile, { action: 'Hold', ho_remarks: 'hold for now' });
+    await callActOnLineItem(rejectedItem.id, ctx.ho1Mobile, { action: 'Reject', ho_remarks: 'rejecting' });
 
-    async function reopen(remark) {
-      const req = {
-        params: { itemId: item.id },
-        body: { reopen_remark: remark },
-        user: { role: 'ho', mobile_number: ctx.ho2Mobile, permissions: { 'ho.requisition.reopen': true } }
-      };
-      const res = mockRes();
-      await reopenLineItem(req, res);
-      return res;
-    }
+    // Re-Hold, Return, Reject, and Approve are all blocked from On Hold now —
+    // no in-place path back, only re-import (034_add_line_item_import.sql).
+    const reHold = await callActOnLineItem(holdItem.id, ctx.ho1Mobile, { action: 'Hold', ho_remarks: 'still on hold' });
+    expect(reHold.statusCode).toBe(409);
+    const approveFromHold = await callActOnLineItem(holdItem.id, ctx.ho1Mobile, { action: 'Approve' });
+    expect(approveFromHold.statusCode).toBe(409);
 
-    await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Reject', ho_remarks: 'first reject' });
-    expect((await reopen('First reopen')).statusCode).toBe(200);
-    await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Reject', ho_remarks: 'second reject' });
-    expect((await reopen('Second reopen')).statusCode).toBe(200);
-    await callActOnLineItem(item.id, ctx.ho2Mobile, { action: 'Approve' });
-
-    const { data: log } = await supabase
-      .from('audit_log')
-      .select('action')
-      .eq('record_identifier', item.id)
-      .order('timestamp', { ascending: true });
-
-    const actions = log.map(l => l.action);
-    expect(actions.filter(a => a === 'REOPEN').length).toBe(2);
-    expect(actions).not.toContain('PENDING_HO_REVIEW_ENTER');
+    // Same for an already-Rejected item — no more Reopen action exists.
+    const reReject = await callActOnLineItem(rejectedItem.id, ctx.ho1Mobile, { action: 'Reject', ho_remarks: 'again' });
+    expect(reReject.statusCode).toBe(409);
   });
 
   // ── Test 9 — Indian Banks master list validation (S6 regression) ──

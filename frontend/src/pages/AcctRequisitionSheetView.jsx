@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import LineItemRow from '../components/acctRequisition/LineItemRow';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
+import ImportEligibleItemsModal from '../components/acctRequisition/ImportEligibleItemsModal';
 
 import {
   getSheetById, submitSheet,
@@ -47,6 +48,7 @@ const AcctRequisitionSheetView = () => {
   const [page, setPage] = useState(1);
   const [focusItemId, setFocusItemId] = useState(null);
   const [showRejected, setShowRejected] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const saveFnsRef = useRef({});
 
   const registerSave = useCallback((itemId, fn) => {
@@ -340,16 +342,17 @@ const AcctRequisitionSheetView = () => {
   // just excluded from the main table and tucked into a collapsed section.
   const visibleItems = items.filter(i => i.requisition_status !== 'Rejected');
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
-  // Mirrors the HO review page's split: a "Pending" table for anything that
-  // still needs action (draft, Pending HO Review, On Hold, or Returned for
-  // Correction awaiting resubmission) and a separate, always-visible
-  // "Already Decided" table for Approved/Partially Approved items — which
-  // otherwise sat in the same table with an Actions column that was always
-  // blank for them, no matter what else was on the sheet.
-  const pendingItems = visibleItems.filter(i => !['Approved', 'Partially Approved'].includes(i.requisition_status));
-  const decidedItems = visibleItems.filter(i => ['Approved', 'Partially Approved'].includes(i.requisition_status));
-  const totalPages = Math.max(Math.ceil(pendingItems.length / ITEMS_PER_PAGE), 1);
-  const pagedItems = pendingItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  // Accounts can only ever act on a draft (status null, sheet still Open —
+  // edit/delete) or a Returned-for-Correction item (fix + resubmit). Every
+  // other status — Pending HO Review (nothing to do but wait), On Hold
+  // (terminal, 037_terminal_hold_and_rejected.sql — only re-import moves it
+  // forward), Approved/Partially Approved — has nothing left for Accounts
+  // to do here, so they share one read-only table with no Actions column
+  // instead of an Actions cell that was empty for most of them anyway.
+  const actionableItems = visibleItems.filter(i => i.requisition_status === null || i.requisition_status === 'Returned for Correction');
+  const otherItems = visibleItems.filter(i => i.requisition_status !== null && i.requisition_status !== 'Returned for Correction');
+  const totalPages = Math.max(Math.ceil(actionableItems.length / ITEMS_PER_PAGE), 1);
+  const pagedItems = actionableItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
@@ -399,13 +402,13 @@ const AcctRequisitionSheetView = () => {
         </div>
       )}
 
-      {pendingItems.length === 0 && decidedItems.length === 0 && rejectedItems.length === 0 ? (
+      {actionableItems.length === 0 && otherItems.length === 0 && rejectedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet yet.</p>
-      ) : pendingItems.length === 0 && decidedItems.length === 0 ? (
+      ) : actionableItems.length === 0 && otherItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">All line items on this sheet have been rejected — see below.</p>
       ) : (
         <>
-          {pendingItems.length > 0 && (
+          {actionableItems.length > 0 && (
             <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
               <Table containerClassName="min-w-[1100px]">
                 <TableHeader>
@@ -451,15 +454,15 @@ const AcctRequisitionSheetView = () => {
                 onPageChange={setPage}
                 maxVisible={5}
                 showLabel={true}
-                totalRecords={pendingItems.length}
+                totalRecords={actionableItems.length}
               />
             </div>
           )}
 
-          {decidedItems.length > 0 && (
+          {otherItems.length > 0 && (
             <div className="flex flex-col gap-2 mt-6">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
-                Already Decided
+                Read-Only
               </span>
               <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
                 <Table containerClassName="min-w-[1100px]">
@@ -477,7 +480,7 @@ const AcctRequisitionSheetView = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {decidedItems.map(item => (
+                    {otherItems.map(item => (
                       <LineItemRow
                         key={item.id}
                         item={item}
@@ -546,6 +549,9 @@ const AcctRequisitionSheetView = () => {
               <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
                 + Add Line Item
               </Button>
+              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)}>
+                Import Held / Rejected
+              </Button>
               {items.length > 0 && (
                 <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
                   Save Draft
@@ -568,6 +574,16 @@ const AcctRequisitionSheetView = () => {
           </Button>
         )}
       </div>
+
+      <ImportEligibleItemsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        targetSheetId={id}
+        onImported={() => {
+          invalidateSheet();
+          setSuccess('Line item imported.');
+        }}
+      />
 
       <SuccessPopup isOpen={!!success} onClose={() => setSuccess('')} title="Saved" description={success} />
       <ErrorPopup isOpen={!!error} onClose={() => setError('')} title="Action Blocked" description={error} />

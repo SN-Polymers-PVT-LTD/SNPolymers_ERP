@@ -54,8 +54,8 @@ const AcctHoQueue = () => {
   // A sheet moves from Submitted to Reviewed automatically once every item
   // on it has a decision (migration 028) — at which point it drops out of
   // the default queue view above. Without this tab there'd be nowhere an HO
-  // user could find that sheet again to reopen a decided item on it (the
-  // Accounts sheet list with the same filter is role-gated away from HO).
+  // user could find that sheet again to look back at (the Accounts sheet
+  // list with the same filter is role-gated away from HO).
   //
   // getSheets defaults to page 1 / limit 20 server-side — omitting `page`
   // here used to silently cap this queue at the newest 20 sheets with no
@@ -93,7 +93,7 @@ const AcctHoQueue = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">
             {statusFilter === 'Submitted'
               ? 'Submitted requisition sheets awaiting your review.'
-              : 'Sheets you have fully reviewed — reopen an item here if it needs another look.'}
+              : 'Sheets you have fully reviewed — held or rejected items can be brought back via Import on a new sheet.'}
           </p>
         </div>
         <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
