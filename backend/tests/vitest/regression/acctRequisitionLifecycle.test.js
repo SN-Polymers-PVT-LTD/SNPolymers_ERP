@@ -469,9 +469,36 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
     );
     expect(delRes.statusCode).toBe(200);
     expect(delRes.jsonData.deleted).toBe(false);
+    expect(delRes.jsonData.alreadyGone).toBe(false);
 
     const { data: stillThere } = await supabase.from('acct_requisition_sheets').select('id').eq('id', sheet.id).maybeSingle();
     expect(stillThere).not.toBeNull();
+  });
+
+  // A stale UI row (e.g. the sheet list's Discard button) can race the same
+  // sheet's own detail-page unmount cleanup, which auto-deletes it first.
+  // The second deleteSheetIfEmpty call must recognize "already gone" as a
+  // harmless no-op, distinct from "still exists but no longer eligible" —
+  // the caller needs to tell these apart to avoid a misleading error.
+  test('Test 10d: deleteSheetIfEmpty on an already-deleted sheet reports alreadyGone, not an error', async () => {
+    const sheetRes = await callCreateSheet(ctx.accountsMobile);
+    const sheet = sheetRes.jsonData.sheet;
+
+    const firstDelete = mockRes();
+    await deleteSheetIfEmpty(
+      { params: { sheetId: sheet.id }, user: { role: 'accounts', mobile_number: ctx.accountsMobile } },
+      firstDelete
+    );
+    expect(firstDelete.jsonData.deleted).toBe(true);
+
+    const secondDelete = mockRes();
+    await deleteSheetIfEmpty(
+      { params: { sheetId: sheet.id }, user: { role: 'accounts', mobile_number: ctx.accountsMobile } },
+      secondDelete
+    );
+    expect(secondDelete.statusCode).toBe(200);
+    expect(secondDelete.jsonData.deleted).toBe(false);
+    expect(secondDelete.jsonData.alreadyGone).toBe(true);
   });
 
   test('Test 10c: the underlying DB trigger still blocks a raw DELETE on any sheet with an item, even after it is deleted back out (revision history preserved)', async () => {

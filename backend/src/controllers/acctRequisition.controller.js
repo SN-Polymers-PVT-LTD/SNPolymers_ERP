@@ -101,8 +101,17 @@ async function deleteSheetIfEmpty(req, res) {
       .eq('id', sheetId)
       .maybeSingle();
     if (sheetErr) throw sheetErr;
-    if (!sheet || sheet.sheet_status !== 'Open') {
-      return res.status(200).json({ success: true, deleted: false });
+    // Distinct from "still exists but no longer eligible" below —
+    // `alreadyGone: true` lets the caller tell "someone else discarded it
+    // already" (a harmless race, not really a failure) apart from "it's not
+    // empty/Open anymore" (a real reason this specific attempt can't do
+    // anything). The auto-cleanup on leaving a sheet's own detail page and
+    // this manual list-row Discard button can race exactly this way.
+    if (!sheet) {
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: true });
+    }
+    if (sheet.sheet_status !== 'Open') {
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: false });
     }
 
     const { count, error: countErr } = await supabase
@@ -111,7 +120,7 @@ async function deleteSheetIfEmpty(req, res) {
       .eq('sheet_id', sheetId);
     if (countErr) throw countErr;
     if (count > 0) {
-      return res.status(200).json({ success: true, deleted: false });
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: false });
     }
 
     // Restores eligibility on any item imported into this sheet before
