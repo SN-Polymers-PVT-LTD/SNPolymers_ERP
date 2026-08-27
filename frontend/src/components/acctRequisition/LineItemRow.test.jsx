@@ -286,7 +286,7 @@ describe('LineItemRow — shows the live ho_remarks for a Returned/On Hold item'
     expect(screen.getByText('"Wrong beneficiary account."')).toBeInTheDocument();
   });
 
-  it('shows ho_remarks for an On Hold row (viewOnlyFull path)', () => {
+  it('shows ho_remarks for an On Hold row (collapsed path)', () => {
     renderRow({
       sheetStatus: 'Submitted',
       item: { ...baseItem, requisition_status: 'On Hold', ho_remarks: 'Awaiting budget confirmation.' }

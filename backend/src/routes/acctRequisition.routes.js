@@ -1,7 +1,8 @@
 const express = require('express');
 const {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty, addLineItem, updateLineItem,
-  deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
+  deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
@@ -12,7 +13,8 @@ const requireRole = require('../middleware/requireRole');
 const validateRequest = require('../middleware/validateRequest');
 const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
-  resubmitLineItemSchema, reopenLineItemSchema,
+  resubmitLineItemSchema,
+  importLineItemSchema, dismissLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
@@ -51,6 +53,9 @@ router.delete('/sheets/:sheetId/items/:itemId', requireRole(accountsRoles), dele
 router.patch('/items/:itemId/action', requireRole(hoRoles), validateRequest(actOnLineItemSchema), actOnLineItem);
 router.post('/sheets/:sheetId/items/batch-action', requireRole(hoRoles), validateRequest(actOnLineItemsBatchSchema), actOnLineItemsBatch);
 router.post('/items/:itemId/resubmit', requireRole(accountsRoles), validateRequest(resubmitLineItemSchema), resubmitLineItem);
-router.post('/items/:itemId/reopen', requireRole(hoRoles), validateRequest(reopenLineItemSchema), reopenLineItem);
+
+router.get('/import-eligible-items', requireRole(accountsRoles), getImportEligibleItems);
+router.post('/import-eligible-items/:itemId/import', requireRole(accountsRoles), validateRequest(importLineItemSchema), importLineItem);
+router.post('/import-eligible-items/:itemId/dismiss', requireRole(accountsRoles), validateRequest(dismissLineItemSchema), dismissImportEligibleItem);
 
 module.exports = router;

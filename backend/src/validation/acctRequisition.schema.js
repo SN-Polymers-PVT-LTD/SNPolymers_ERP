@@ -64,9 +64,29 @@ const accountsLineItemBody = z.object({
                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                               message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
                             }),
-  debit_bank_ac_type:     z.string().trim().optional().nullable(),
-  req_amount:             z.coerce.number().positive().optional().nullable(),
-  payment_mode:           z.enum(['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT']).optional().nullable(),
+  // Not left as '': the debit bank <select> autosaves '' until chosen, same
+  // as payment_mode below, but '' also isn't a valid bank_name — passing it
+  // through unstransformed would clear Zod fine and then fail at the DB's
+  // fk_arli_debit_bank foreign key instead. Transformed to null up front.
+  debit_bank_ac_type:     z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
+  // Preprocessed (not a bare z.coerce.number()): an unfilled amount field
+  // autosaves '' too, and z.coerce.number() would coerce '' to 0, which then
+  // fails .positive() — '' needs to become null *before* coercion, not after.
+  req_amount:             z.preprocess(
+                            val => (val === '' ? null : val),
+                            z.coerce.number().positive().optional().nullable()
+                          ),
+  // Not a bare z.enum(): the payment mode <select> autosaves '' (its
+  // unselected "Select..." placeholder) until the user actually picks one,
+  // same as the beneficiary fields above — '' must pass through as "not yet
+  // chosen" rather than fail validation. Transformed to null (not left as
+  // '') since chk_arli_payment_mode only allows NULL or a real enum value.
+  payment_mode:           z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val))
+                            .refine(val => val == null || ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT'].includes(val), {
+                              message: 'payment_mode must be one of Cheque, Bulk NEFT, RTGS, NEFT.'
+                            }),
   cheque_no:              z.string().trim().optional().nullable(),
   cheque_date:            z.string().trim().optional().nullable(),
 });
@@ -120,9 +140,13 @@ const resubmitLineItemSchema = {
   body: accountsLineItemBody
 };
 
-const reopenLineItemSchema = {
+const importLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
-  body: z.object({ reopen_remark: z.string().trim().min(1, 'reopen_remark is required.') })
+  body: z.object({ target_sheet_id: uuidSchema })
+};
+
+const dismissLineItemSchema = {
+  params: z.object({ itemId: uuidSchema })
 };
 
 const upsertBankBalanceSchema = {
@@ -184,7 +208,8 @@ const upsertIndianBankSchema = {
 
 module.exports = {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
-  resubmitLineItemSchema, reopenLineItemSchema,
+  resubmitLineItemSchema,
+  importLineItemSchema, dismissLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,

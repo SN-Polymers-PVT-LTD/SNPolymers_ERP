@@ -5,13 +5,18 @@ const {
   cleanupAcctRequisitionScenario
 } = require('../../helpers/acctRequisitionFixture');
 
-// Migration 028: acct_requisition_sheets.sheet_status is kept in sync with
-// its own line items by a DB trigger (sync_acct_sheet_review_status), in
-// both directions — Submitted -> Reviewed when the last Pending HO Review /
-// On Hold item clears, and back to Submitted if a decided item is reopened.
-// Driven by a trigger (not duplicated per RPC) so every path that can change
-// requisition_status — single-item action, batch action, reopen, resubmit —
-// stays correct without re-implementing the check each time.
+// Migration 028 (narrowed by 037_terminal_hold_and_rejected.sql):
+// acct_requisition_sheets.sheet_status is kept in sync with its own line
+// items by a DB trigger (sync_acct_sheet_review_status), in both directions
+// — Submitted -> Reviewed when the last Pending HO Review item clears (On
+// Hold no longer blocks this — it's terminal now, not "still awaiting
+// decision"), and back to Submitted if a Returned-for-Correction item is
+// resubmitted. Reopen used to be the other path back to Submitted, but it's
+// retired (037) along with every other in-place re-decision on an On
+// Hold/Rejected item — re-import into a new sheet is the only way forward
+// from either now. Driven by a trigger (not duplicated per RPC) so every
+// path that can change requisition_status — single-item action, batch
+// action, resubmit — stays correct without re-implementing the check.
 describe('acct_requisition_sheets.sheet_status — auto-synced from line items', () => {
   let ctx;
 
@@ -56,7 +61,7 @@ describe('acct_requisition_sheets.sheet_status — auto-synced from line items',
     expect(await getSheetStatus(sheet.id)).toBe('Reviewed');
   });
 
-  test('flips Reviewed -> Submitted when a decided item is reopened', async () => {
+  test('flips Reviewed -> Submitted when a Returned-for-Correction item is resubmitted', async () => {
     const { data: sheet } = await supabase.from('acct_requisition_sheets').insert([{
       sheet_number: `SYNC-B-${ctx.id}`, sheet_status: 'Submitted',
       created_by: ctx.accountsMobile, submitted_by: ctx.accountsMobile, submitted_at: new Date().toISOString()
@@ -69,14 +74,41 @@ describe('acct_requisition_sheets.sheet_status — auto-synced from line items',
     ctx.itemIds.push(...items.map(i => i.id));
 
     await supabase.rpc('act_acct_line_item_non_approve_transact', {
-      p_line_item_id: items[0].id, p_action: 'Reject', p_actioned_by: ctx.ho1Mobile, p_ho_remarks: 'test'
+      p_line_item_id: items[0].id, p_action: 'Return', p_actioned_by: ctx.ho1Mobile, p_ho_remarks: 'fix beneficiary'
+    });
+    // Returned for Correction was never counted as "still pending" here —
+    // it's with Accounts, not HO — so the sheet already flips to Reviewed.
+    expect(await getSheetStatus(sheet.id)).toBe('Reviewed');
+
+    await supabase.rpc('resubmit_acct_line_item_transact', {
+      p_line_item_id: items[0].id, p_resubmitted_by: ctx.accountsMobile,
+      p_req_amount: 100, p_payment_mode: 'NEFT', p_debit_bank_ac_type: ctx.bankName
+    });
+    expect(await getSheetStatus(sheet.id)).toBe('Submitted');
+  });
+
+  test('On Hold no longer blocks Submitted -> Reviewed — it is terminal, not still-pending', async () => {
+    const { data: sheet } = await supabase.from('acct_requisition_sheets').insert([{
+      sheet_number: `SYNC-D-${ctx.id}`, sheet_status: 'Submitted',
+      created_by: ctx.accountsMobile, submitted_by: ctx.accountsMobile, submitted_at: new Date().toISOString()
+    }]).select().single();
+    ctx.sheetIds.push(sheet.id);
+
+    const { data: items } = await supabase.from('acct_requisition_line_items').insert([
+      { sheet_id: sheet.id, created_by: ctx.accountsMobile, particulars: 'E', req_amount: 100, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName, requisition_status: 'Pending HO Review' }
+    ]).select();
+    ctx.itemIds.push(...items.map(i => i.id));
+
+    await supabase.rpc('act_acct_line_item_non_approve_transact', {
+      p_line_item_id: items[0].id, p_action: 'Hold', p_actioned_by: ctx.ho1Mobile, p_ho_remarks: 'need info'
     });
     expect(await getSheetStatus(sheet.id)).toBe('Reviewed');
 
-    await supabase.rpc('reopen_acct_line_item_transact', {
-      p_line_item_id: items[0].id, p_reopened_by: ctx.ho1Mobile, p_reopen_remark: 'new info received'
+    // And it stays terminal — no in-place path moves it off On Hold anymore.
+    const reHold = await supabase.rpc('act_acct_line_item_non_approve_transact', {
+      p_line_item_id: items[0].id, p_action: 'Hold', p_actioned_by: ctx.ho1Mobile, p_ho_remarks: 'still on hold'
     });
-    expect(await getSheetStatus(sheet.id)).toBe('Submitted');
+    expect(reHold.error?.code).toBe('STA01');
   });
 
   test('the batch RPC path also flips Submitted -> Reviewed on the last item', async () => {

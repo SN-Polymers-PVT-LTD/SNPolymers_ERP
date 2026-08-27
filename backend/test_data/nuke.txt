@@ -7,6 +7,7 @@ TRUNCATE TABLE
   beneficiary_master,
   bank_balance_master,
   indian_bank_master,
+  particulars_master,
 
   -- Estimates, Work Orders & Activity Breaks
   work_order_activity_breaks,
