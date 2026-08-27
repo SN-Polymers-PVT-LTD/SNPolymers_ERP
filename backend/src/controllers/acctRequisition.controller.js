@@ -114,13 +114,18 @@ async function deleteSheetIfEmpty(req, res) {
       return res.status(200).json({ success: true, deleted: false });
     }
 
-    const { error: deleteErr } = await supabase
-      .from('acct_requisition_sheets')
-      .delete()
-      .eq('id', sheetId);
+    // Restores eligibility on any item imported into this sheet before
+    // deleting it (039_delete_empty_sheet_restores_imports.sql) — this
+    // sheet has 0 current items, but if an imported copy was added and then
+    // removed again before submit, the source item elsewhere still points
+    // imported_to_sheet_id here, which would otherwise block the delete
+    // outright (ON DELETE RESTRICT).
+    const { data: restoredCount, error: deleteErr } = await supabase.rpc('delete_empty_acct_sheet_transact', {
+      p_sheet_id: sheetId
+    });
     if (deleteErr) throw deleteErr;
 
-    return res.status(200).json({ success: true, deleted: true });
+    return res.status(200).json({ success: true, deleted: true, restoredImportCount: restoredCount || 0 });
   } catch (error) {
     console.error(`deleteSheetIfEmpty failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to clean up empty sheet.' });
@@ -1147,6 +1152,45 @@ async function lookupBeneficiary(req, res) {
 }
 
 /**
+ * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...
+ * Live typeahead for the line-item entry row's A/C No. field — left-anchored
+ * prefix match only (not getBeneficiaries' substring/alphabetical search,
+ * which backs the Beneficiary Master management page instead), most
+ * recently used first, so the suggestion the user actually wants surfaces
+ * near the top instead of getting buried alphabetically by name.
+ * idx_beneficiary_master_acno_prefix (038) backs this query.
+ */
+async function searchBeneficiariesByAcNo(req, res) {
+  // Strip LIKE metacharacters (% and _) so a caller can't wildcard-expand
+  // the match — same convention as getBeneficiaries' `search` sanitization.
+  const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
+  if (prefix.length < 3) {
+    return res.status(200).json({ success: true, beneficiaries: [] });
+  }
+  const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
+
+  try {
+    // .like(), not .ilike(): idx_beneficiary_master_acno_prefix (038) uses
+    // varchar_pattern_ops, which only accelerates case-sensitive LIKE, not
+    // ILIKE. Account numbers are digits-only (chk/regex-enforced elsewhere),
+    // so a case-sensitive match is exactly as correct and actually uses the
+    // index instead of falling back to a sequential scan on every keystroke.
+    const { data, error } = await supabase
+      .from('beneficiary_master')
+      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name')
+      .like('account_number', `${prefix}%`)
+      .order('last_used_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, beneficiaries: data || [] });
+  } catch (error) {
+    console.error(`searchBeneficiariesByAcNo failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to search beneficiaries.' });
+  }
+}
+
+/**
  * PUT /acct-requisitions/beneficiary
  */
 async function upsertBeneficiary(req, res) {
@@ -1470,7 +1514,7 @@ module.exports = {
   actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
-  lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
+  lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank,

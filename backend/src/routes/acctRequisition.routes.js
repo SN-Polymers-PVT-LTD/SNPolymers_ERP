@@ -3,7 +3,7 @@ const {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem,
-  getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, upsertBeneficiary,
+  getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft
@@ -36,6 +36,7 @@ router.put('/account-sub-titles', requireRole(accountsRoles), validateRequest(up
 router.get('/particulars', requireRole(readerRoles), getParticulars);
 router.put('/particulars', requireRole(accountsRoles), validateRequest(upsertParticularsSchema), upsertParticular);
 router.get('/beneficiary', requireRole(accountsRoles), lookupBeneficiary);
+router.get('/beneficiary-suggestions', requireRole(accountsRoles), searchBeneficiariesByAcNo);
 router.put('/beneficiary', requireRole(accountsRoles), validateRequest(upsertBeneficiarySchema), upsertBeneficiary);
 router.get('/beneficiary-master', requireRole(readerRoles), getBeneficiaries);
 router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);

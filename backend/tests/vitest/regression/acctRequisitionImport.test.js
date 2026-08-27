@@ -5,7 +5,7 @@ const {
   cleanupAcctRequisitionScenario
 } = require('../../helpers/acctRequisitionFixture');
 const {
-  createSheet, addLineItem, submitSheet, actOnLineItem,
+  createSheet, addLineItem, submitSheet, actOnLineItem, deleteLineItem, deleteSheetIfEmpty,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem
 } = require('../../../src/controllers/acctRequisition.controller');
 const { supabase } = require('../../../src/db/supabase');
@@ -56,6 +56,20 @@ async function callDismissLineItem(itemId, mobile) {
   const req = { params: { itemId }, user: { role: 'accounts', mobile_number: mobile } };
   const res = mockRes();
   await dismissImportEligibleItem(req, res);
+  return res;
+}
+
+async function callDeleteLineItem(sheetId, itemId, mobile) {
+  const req = { params: { sheetId, itemId }, user: { role: 'accounts', mobile_number: mobile } };
+  const res = mockRes();
+  await deleteLineItem(req, res);
+  return res;
+}
+
+async function callDeleteSheetIfEmpty(sheetId, mobile) {
+  const req = { params: { sheetId }, user: { role: 'accounts', mobile_number: mobile } };
+  const res = mockRes();
+  await deleteSheetIfEmpty(req, res);
   return res;
 }
 
@@ -253,5 +267,55 @@ describe('Accounts HO Approval — import On Hold/Rejected items into a new shee
     const ids = res.jsonData.items.map(i => i.id);
     expect(ids).toContain(itemA.id);
     expect(ids).toContain(itemB.id);
+  });
+
+  // 039_delete_empty_sheet_restores_imports.sql — deleting an empty target
+  // sheet must restore eligibility on any item imported into it, not just
+  // leave it permanently "used up" for no reason once its copy is gone.
+  test('discarding an empty target sheet restores the source item to the eligible list', async () => {
+    const { item: source } = await makeDecidedItem(ctx, 'Hold');
+
+    const targetSheetRes = await callCreateSheet(ctx.accountsMobile);
+    const targetSheet = targetSheetRes.jsonData.sheet;
+    ctx.sheetIds.push(targetSheet.id);
+
+    const importRes = await callImportLineItem(source.id, targetSheet.id, ctx.accountsMobile);
+    const importedCopy = importRes.jsonData.item;
+    ctx.itemIds.push(importedCopy.id);
+
+    // Source is no longer eligible while imported.
+    const midway = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+    expect(midway.jsonData.items.map(i => i.id)).not.toContain(source.id);
+
+    // Remove the imported copy before ever submitting the target sheet,
+    // leaving it empty again — but the source item still points at it.
+    const deleteRes = await callDeleteLineItem(targetSheet.id, importedCopy.id, ctx.accountsMobile);
+    expect(deleteRes.statusCode).toBe(200);
+
+    const discardRes = await callDeleteSheetIfEmpty(targetSheet.id, ctx.accountsMobile);
+    expect(discardRes.statusCode).toBe(200);
+    expect(discardRes.jsonData.deleted).toBe(true);
+    expect(discardRes.jsonData.restoredImportCount).toBe(1);
+
+    const restoredSource = await getItem(source.id);
+    expect(restoredSource.imported_to_sheet_id).toBeNull();
+    expect(restoredSource.imported_at).toBeNull();
+    expect(restoredSource.imported_by).toBeNull();
+    // The source item's own decision/history is untouched by the restore.
+    expect(restoredSource.requisition_status).toBe('On Hold');
+
+    const after = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+    expect(after.jsonData.items.map(i => i.id)).toContain(source.id);
+  });
+
+  test('discarding an empty sheet with no imports reports zero restored items', async () => {
+    const sheetRes = await callCreateSheet(ctx.accountsMobile);
+    const sheet = sheetRes.jsonData.sheet;
+    ctx.sheetIds.push(sheet.id);
+
+    const res = await callDeleteSheetIfEmpty(sheet.id, ctx.accountsMobile);
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.deleted).toBe(true);
+    expect(res.jsonData.restoredImportCount).toBe(0);
   });
 });

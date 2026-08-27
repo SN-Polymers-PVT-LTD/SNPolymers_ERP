@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge, TableRow, TableCell } from '../ui';
 import BeneficiaryAutofill from './BeneficiaryAutofill';
+import BeneficiaryAcNoSuggestions from './BeneficiaryAcNoSuggestions';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
 import { upsertBeneficiary } from '../../api/acctRequisitionsApi';
@@ -380,7 +381,25 @@ const LineItemRow = ({
 
       <TableCell className="min-w-[220px]">
         <div className="flex flex-col gap-1.5">
-          <Input disabled={readOnly} value={draft.beneficiary_ac_no} maxLength={18} inputMode="numeric" onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))} placeholder="A/C No." size="sm" />
+          <BeneficiaryAcNoSuggestions
+            disabled={readOnly}
+            value={draft.beneficiary_ac_no}
+            maxLength={18}
+            inputMode="numeric"
+            onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))}
+            onSelect={(b) => {
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_ac_no: b.account_number,
+                beneficiary_ifsc: b.ifsc,
+                beneficiary_name: b.beneficiary_name,
+                beneficiary_bank_name: b.beneficiary_bank_name
+              }));
+              setConfirmedBeneficiaryKey(beneficiaryKey(b.account_number, b.ifsc));
+            }}
+            placeholder="A/C No."
+            size="sm"
+          />
           <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase().trim())} placeholder="IFSC" size="sm" />
           <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
           <Select

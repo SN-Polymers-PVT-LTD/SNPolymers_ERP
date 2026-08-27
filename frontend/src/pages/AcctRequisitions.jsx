@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSheets, createSheet } from '../api/acctRequisitionsApi';
+import { getSheets, createSheet, deleteSheetIfEmpty } from '../api/acctRequisitionsApi';
 import RequisitionDetailsPanel from '../components/acctRequisition/RequisitionDetailsPanel';
 
 const getStatusBadgeVariant = (status) => {
@@ -45,7 +45,9 @@ const AcctRequisitions = () => {
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [creating, setCreating] = useState(false);
+  const [discardingId, setDiscardingId] = useState(null);
   const [activeView, setActiveView] = useState('Sheets');
 
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
@@ -92,6 +94,47 @@ const AcctRequisitions = () => {
     }
   };
 
+  // Lets Accounts discard a still-Open, zero-item sheet directly from the
+  // list, instead of the only prior path — open its detail page, then leave,
+  // which fires the same deleteSheetIfEmpty as a side effect of unmounting.
+  // Without this, a sheet created by accident (e.g. a double-clicked "New
+  // Sheet") and never opened just sits here forever with its number
+  // permanently burned (030_allow_empty_open_sheet_delete.sql) and no way to
+  // clear it from this view.
+  const handleDiscardSheet = async (e, sheet) => {
+    e.stopPropagation();
+    setError('');
+    setSuccess('');
+    setDiscardingId(sheet.id);
+    try {
+      const res = await deleteSheetIfEmpty(sheet.id);
+      queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+
+      if (!res.data?.deleted) {
+        // The list row was stale — someone else added an item or submitted
+        // this sheet since it was last fetched. Nothing was discarded; the
+        // invalidation above will refetch and show its current state.
+        setError('This sheet is no longer empty — it couldn\'t be discarded. Refreshing the list.');
+        return;
+      }
+
+      // A restored count means an item that was imported into this sheet
+      // (then removed again before submit) is back in the Held/Rejected
+      // eligible list (039_delete_empty_sheet_restores_imports.sql).
+      const restoredCount = res.data?.restoredImportCount || 0;
+      if (restoredCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
+        setSuccess(`Sheet discarded. ${restoredCount} item(s) restored to the Held/Rejected eligible list.`);
+      } else {
+        setSuccess('Sheet discarded.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to discard sheet.');
+    } finally {
+      setDiscardingId(null);
+    }
+  };
+
   const resetFilters = () => {
     setSearchQuery('');
     setDateFrom('');
@@ -130,6 +173,13 @@ const AcctRequisitions = () => {
         <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5 shrink-0">
           <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
           {displayError}
+        </div>
+      )}
+
+      {success && (
+        <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-6 flex items-center gap-2.5 shrink-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          {success}
         </div>
       )}
 
@@ -289,11 +339,23 @@ const AcctRequisitions = () => {
                           <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
                         </TableCell>
                         <TableCell align="right">
-                          <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">
-                            <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </span>
+                          <div className="flex items-center justify-end gap-2">
+                            {sheet.sheet_status === 'Open' && sheet.item_count === 0 && (
+                              <Button
+                                variant="glass"
+                                size="sm"
+                                loading={discardingId === sheet.id}
+                                onClick={(e) => handleDiscardSheet(e, sheet)}
+                              >
+                                Discard
+                              </Button>
+                            )}
+                            <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">
+                              <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
