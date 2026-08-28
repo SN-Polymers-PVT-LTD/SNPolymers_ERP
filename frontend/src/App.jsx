@@ -53,6 +53,7 @@ const AcctBeneficiaryMaster = React.lazy(() => import('./pages/AcctBeneficiaryMa
 const AcctBankBalances = React.lazy(() => import('./pages/AcctBankBalances'));
 const AcctImportEligibleItems = React.lazy(() => import('./pages/AcctImportEligibleItems'));
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
+const AcctRequisitionLogs = React.lazy(() => import('./pages/AcctRequisitionLogs'));
 const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
 
 
@@ -134,6 +135,7 @@ function App() {
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['accounts', 'ho', 'admin']} />}>
                   <Route path="/acct-requisitions/bank-balances" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBankBalances /></React.Suspense>} />
+                  <Route path="/acct-requisitions/logs" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionLogs /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts HO Approval Protected Routes (Accounts, Admin) */}

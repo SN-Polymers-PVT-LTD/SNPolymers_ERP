@@ -244,10 +244,16 @@ async function getLineItems(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
+    // Exclude items that have since been re-imported into a later sheet
+    // (034_add_line_item_import.sql) — imported_to_sheet_id is set on the
+    // source row the moment its copy is created, so the copy (current state)
+    // is what should show here, not both the old On Hold/Rejected source
+    // row and its replacement.
     let dbQuery = supabase
       .from('acct_requisition_line_items')
       .select('*', { count: 'exact' })
-      .not('requisition_status', 'is', null);
+      .not('requisition_status', 'is', null)
+      .is('imported_to_sheet_id', null);
 
     if (query.account_sub_title) {
       dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
@@ -1517,6 +1523,103 @@ async function exportBulkNeft(req, res) {
   }
 }
 
+/**
+ * GET /acct-requisitions/logs
+ * Paginated status-change history for requisition line items, sourced from
+ * audit_log (module_name = 'Acct Requisition Line Item', written by the
+ * audit_acct_line_item_events trigger in 021_create_accounts_ho_approval.sql).
+ * This is the real history view — getLineItems/"Requisition Details" only
+ * shows current state. Optional ?record_identifier= (line item id) and
+ * ?date_from=/?date_to= filters, same pattern as getBankBalanceLedger.
+ */
+async function getRequisitionLogs(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('audit_log')
+      .select('*', { count: 'exact' })
+      .eq('module_name', 'Acct Requisition Line Item');
+
+    if (req.query.record_identifier) {
+      query = query.eq('record_identifier', req.query.record_identifier);
+    }
+    if (req.query.date_from) {
+      query = query.gte('timestamp', req.query.date_from);
+    }
+    if (req.query.date_to) {
+      query = query.lte('timestamp', `${req.query.date_to}T23:59:59.999`);
+    }
+
+    const { data, error, count } = await query
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const userIds = [...new Set((data || []).map(log => log.user_id).filter(Boolean))];
+    let userMap = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', userIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    // Enrich with the line item's identifying details (sub-title, beneficiary,
+    // amount, sheet number) so entries are readable without a separate lookup
+    // — line items are never hard-deleted (append-only, enforced by
+    // prevent_acct_sheet_hard_delete in 030), so record_identifier always resolves.
+    const itemIds = [...new Set((data || []).map(log => log.record_identifier).filter(Boolean))];
+    let itemMap = {};
+    if (itemIds.length > 0) {
+      const { data: items } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, account_sub_title_text, beneficiary_ac_no, req_amount')
+        .in('id', itemIds);
+
+      const sheetIds = [...new Set((items || []).map(i => i.sheet_id).filter(Boolean))];
+      let sheetMap = {};
+      if (sheetIds.length > 0) {
+        const { data: sheets } = await supabase
+          .from('acct_requisition_sheets')
+          .select('id, sheet_number')
+          .in('id', sheetIds);
+        (sheets || []).forEach(s => { sheetMap[s.id] = s.sheet_number; });
+      }
+
+      (items || []).forEach(i => {
+        itemMap[i.id] = {
+          account_sub_title_text: i.account_sub_title_text,
+          beneficiary_ac_no: i.beneficiary_ac_no,
+          req_amount: i.req_amount,
+          sheet_number: sheetMap[i.sheet_id] || null
+        };
+      });
+    }
+
+    const entries = (data || []).map(log => ({
+      ...log,
+      user_name: userMap[log.user_id] || log.user_id || 'System',
+      line_item: itemMap[log.record_identifier] || null
+    }));
+
+    return res.status(200).json({
+      success: true,
+      entries,
+      totalCount: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    });
+  } catch (error) {
+    console.error(`getRequisitionLogs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve requisition logs.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
@@ -1527,5 +1630,6 @@ module.exports = {
   getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank,
-  exportBulkNeft
+  exportBulkNeft,
+  getRequisitionLogs
 };
