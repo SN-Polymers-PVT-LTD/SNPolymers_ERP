@@ -142,6 +142,15 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/acct-requisitions/logs',
+        label: 'Requisition Logs',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
     }
     if (['accounts', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -627,6 +636,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/logs',
+        label: 'Requisition Logs',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       });

@@ -33,6 +33,9 @@ export const getSheets = (params) => authApi.get(`${BASE}/sheets`, { params });
 // date range) — pass { export: true } to fetch all matching rows (no page
 // window, capped server-side at 5000) for the Excel export button.
 export const getLineItems = (params) => authApi.get(`${BASE}/line-items`, { params });
+// Full status-change history (audit_log) for requisition line items — the
+// actual audit trail, distinct from getLineItems' current-state-only view.
+export const getRequisitionLogs = (params) => authApi.get(`${BASE}/logs`, { params });
 export const getSheetById = (id) => authApi.get(`${BASE}/sheets/${id}`);
 export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 // Best-effort cleanup — deletes the sheet only if it's still Open with zero
