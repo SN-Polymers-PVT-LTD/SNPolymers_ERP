@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import Modal from '../components/ui/Modal';
 import { SkeletonTable, Pagination, SuccessPopup, ErrorPopup } from '../components/ui';
-import { getUserMappings, createUserMapping, getEligibleJEs, getEligibleZOs } from '../api/userMappingsApi';
+import { getUserMappings, createUserMapping, deactivateUserMapping, getEligibleJEs, getEligibleZOs } from '../api/userMappingsApi';
 
 const UserMappings = () => {
   const { user } = useAuth();
@@ -25,9 +25,16 @@ const UserMappings = () => {
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  // Table filters
+  // Active Assignments / History tabs - separate mental models, not a filter toggle
+  // on one flat table (deactivated rows are audit history, not "just another status").
+  const [activeTab, setActiveTab] = useState('active'); // 'active', 'history'
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'inactive', 'all'
+
+  // Unmap (deactivate without transfer) modal state
+  const [showUnmapModal, setShowUnmapModal] = useState(false);
+  const [unmappingId, setUnmappingId] = useState(null);
+  const [submittingUnmap, setSubmittingUnmap] = useState(false);
+  const [unmapError, setUnmapError] = useState('');
 
   // Pagination & Modal JE Search
   const [page, setPage] = useState(1);
@@ -40,13 +47,16 @@ const UserMappings = () => {
     Promise.resolve().then(() => {
       setPage(1);
     });
-  }, [searchQuery, statusFilter, pageSize]);
+  }, [searchQuery, activeTab, pageSize]);
 
   const fetchMappings = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await getUserMappings();
+      const response = await getUserMappings({
+        status: activeTab === 'history' ? 'inactive' : 'active',
+        sort: activeTab === 'history' ? 'deactivated_at' : 'assigned_at'
+      });
       if (response.data?.success) {
         setMappings(response.data.mappings || []);
       }
@@ -57,6 +67,11 @@ const UserMappings = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchMappings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const fetchDropdownOptions = async () => {
     if (isReadOnly) return;
@@ -90,7 +105,6 @@ const UserMappings = () => {
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      fetchMappings();
       fetchDropdownOptions();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -140,20 +154,45 @@ const UserMappings = () => {
     }
   };
 
-  // Filter and search mappings list
+  const handleOpenUnmapModal = (id) => {
+    setUnmapError('');
+    setUnmappingId(id);
+    setShowUnmapModal(true);
+  };
+
+  const handleUnmap = async (e) => {
+    e.preventDefault();
+    setUnmapError('');
+    setSuccess('');
+
+    if (!unmappingId) return;
+
+    setSubmittingUnmap(true);
+    try {
+      const response = await deactivateUserMapping(unmappingId);
+      if (response.data?.success) {
+        setSuccess(response.data.message || 'Junior Engineer unmapped.');
+        setShowUnmapModal(false);
+        fetchMappings();
+        fetchDropdownOptions();
+      }
+    } catch (err) {
+      console.error(err);
+      setUnmapError(err.response?.data?.message || 'Failed to unmap Junior Engineer.');
+    } finally {
+      setSubmittingUnmap(false);
+    }
+  };
+
+  // Search filters within the current server-fetched tab (status/sort handled
+  // server-side - see fetchMappings above).
   const filteredMappings = mappings.filter(m => {
-    const matchesSearch =
+    return (
       m.je_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.je_user_id?.includes(searchQuery) ||
       m.zo_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.zo_user_id?.includes(searchQuery);
-
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && m.is_active) ||
-      (statusFilter === 'inactive' && !m.is_active);
-
-    return matchesSearch && matchesStatus;
+      m.zo_user_id?.includes(searchQuery)
+    );
   });
 
   const filteredEligibleJEs = eligibleJEs.filter(j => {
@@ -239,24 +278,29 @@ const UserMappings = () => {
             </div>
 
             <div className="flex gap-2">
-              {['active', 'inactive', 'all'].map((status) => (
+              {[
+                { key: 'active', label: 'Active Assignments' },
+                { key: 'history', label: 'History' }
+              ].map((tab) => (
                 <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${
-                    statusFilter === status
+                    activeTab === tab.key
                       ? 'bg-white text-black border-white'
                       : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
                   }`}
                 >
-                  {status}
+                  {tab.label}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {/* Data Grid */}
+        {/* Data Grid: Active tab is actionable (no Deactivation Info column, has an
+            Unmap action); History tab is read-only audit trail (no action column,
+            has Deactivation Info). */}
         <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -264,78 +308,78 @@ const UserMappings = () => {
                 <tr className="border-b border-white/5 text-[10px] uppercase font-bold tracking-widest text-slate-400 bg-white/2">
                   <th className="px-6 py-4">Junior Engineer</th>
                   <th className="px-6 py-4">Zonal Office</th>
-                  <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Assigned At</th>
                   <th className="px-6 py-4">Assigned By</th>
-                  <th className="px-6 py-4">Deactivation Info</th>
+                  {activeTab === 'history' && <th className="px-6 py-4">Deactivation Info</th>}
+                  {activeTab === 'active' && !isReadOnly && <th className="px-6 py-4 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs font-medium text-slate-300">
-                {loading ? (
-                  <tr>
-                    <td colSpan={6} className="p-0">
-                      <SkeletonTable rows={5} cols={6} />
-                    </td>
-                  </tr>
-                ) : filteredMappings.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                      No user mappings found matching your criteria.
-                    </td>
-                  </tr>
-                ) : (() => {
+                {(() => {
+                  const colCount = 4 + (activeTab === 'history' ? 1 : 0) + (activeTab === 'active' && !isReadOnly ? 1 : 0);
                   const currentMappings = filteredMappings.slice((page - 1) * pageSize, page * pageSize);
-                  
-                  return (
-                    <>
-                      {currentMappings.map((mapping) => (
-                        <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-slate-100">{mapping.je_name}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-slate-100">{mapping.zo_name}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span
-                              className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                mapping.is_active
-                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                  : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                              }`}
-                            >
-                              {mapping.is_active ? 'Active' : 'Inactive'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-[11px] text-slate-400">
-                            {new Date(mapping.assigned_at).toLocaleString()}
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="text-slate-300">{mapping.assigned_by_name}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {!mapping.is_active ? (
-                              <div>
-                                <div className="text-slate-400 text-[11px]">
-                                  Deactivated: {new Date(mapping.deactivated_at).toLocaleString()}
-                                </div>
-                                <div className="text-slate-500 text-[10px]">
-                                  By:{' '}
-                                  {mapping.deactivated_by_name ? (
-                                    mapping.deactivated_by_name
-                                  ) : (
-                                    <span className="text-amber-500/80 font-semibold">Auto (Project Inactive)</span>
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-slate-600">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </>
-                  );
+
+                  if (loading) {
+                    return (
+                      <tr>
+                        <td colSpan={colCount} className="p-0">
+                          <SkeletonTable rows={5} cols={colCount} />
+                        </td>
+                      </tr>
+                    );
+                  }
+                  if (currentMappings.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={colCount} className="px-6 py-12 text-center text-slate-500">
+                          {activeTab === 'history' ? 'No deactivated mappings found.' : 'No active user mappings found.'}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return currentMappings.map((mapping) => (
+                    <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-100">{mapping.je_name}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-100">{mapping.zo_name}</div>
+                      </td>
+                      <td className="px-6 py-4 text-[11px] text-slate-400">
+                        {new Date(mapping.assigned_at).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-slate-300">{mapping.assigned_by_name}</div>
+                      </td>
+                      {activeTab === 'history' && (
+                        <td className="px-6 py-4">
+                          <div>
+                            <div className="text-slate-400 text-[11px]">
+                              Deactivated: {new Date(mapping.deactivated_at).toLocaleString()}
+                            </div>
+                            <div className="text-slate-500 text-[10px]">
+                              By:{' '}
+                              {mapping.deactivated_by_name ? (
+                                mapping.deactivated_by_name
+                              ) : (
+                                <span className="text-amber-500/80 font-semibold">Auto (Project Inactive)</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      )}
+                      {activeTab === 'active' && !isReadOnly && (
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => handleOpenUnmapModal(mapping.id)}
+                            className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border border-red-900/30 text-red-400 bg-red-950/10 hover:bg-red-950/20 transition-all"
+                          >
+                            Unmap
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ));
                 })()}
               </tbody>
             </table>
@@ -579,6 +623,48 @@ const UserMappings = () => {
               disabled={submitting || loadingOptions}
             >
               {submitting ? 'Processing...' : 'Confirm Assignment'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Unmap Confirmation Modal - removes a JE from a ZO without requiring an
+          immediate replacement (previously only possible implicitly via transfer). */}
+      <Modal
+        isOpen={showUnmapModal}
+        onClose={() => setShowUnmapModal(false)}
+        title="Unmap Junior Engineer"
+        subtitle="Zonal Administration Settings"
+        size="sm"
+      >
+        <form onSubmit={handleUnmap} className="space-y-6">
+          {unmapError && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold leading-relaxed">
+              {unmapError}
+            </div>
+          )}
+
+          <p className="text-xs text-slate-400 leading-relaxed">
+            This removes the Junior Engineer's Zonal Office assignment without assigning a
+            replacement. They will not be able to receive new Work Order mappings until
+            re-assigned.
+          </p>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+            <button
+              type="button"
+              onClick={() => setShowUnmapModal(false)}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
+              disabled={submittingUnmap}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2.5 rounded-xl text-xs font-bold uppercase bg-red-600 text-white hover:bg-red-500 transition"
+              disabled={submittingUnmap}
+            >
+              {submittingUnmap ? 'Processing...' : 'Confirm Unmap'}
             </button>
           </div>
         </form>

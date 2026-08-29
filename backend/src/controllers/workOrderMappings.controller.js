@@ -6,24 +6,6 @@ const { createWorkOrderMappingSchema, deactivateWorkOrderMappingSchema } = requi
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-// Display name resolver helper
-async function resolveDisplayNames(mobiles) {
-  const uniqueMobiles = Array.from(new Set(mobiles.filter(Boolean)));
-  const userMap = {};
-  if (uniqueMobiles.length > 0) {
-    const { data: users, error } = await supabase
-      .from('authorised_users')
-      .select('mobile_number, display_name')
-      .in('mobile_number', uniqueMobiles);
-    if (!error && users) {
-      users.forEach(u => {
-        userMap[u.mobile_number] = u.display_name;
-      });
-    }
-  }
-  return userMap;
-}
-
 /**
  * POST /api/v1/auth/work-order-mappings
  * Assigns a Work Order to a Junior Engineer.
@@ -121,7 +103,18 @@ async function createWorkOrderMapping(req, res) {
       });
     }
 
-    // 8. Insert new active mapping row
+    // 8. Resolve display names once, to snapshot onto the new row (see migration 040) -
+    // read on subsequent GETs directly instead of re-joining/re-resolving live.
+    const { data: nameRows, error: nameErr } = await supabase
+      .from('authorised_users')
+      .select('mobile_number, display_name')
+      .in('mobile_number', [je_mobile_number, project.zo_user_id, req.user.mobile_number]);
+
+    if (nameErr) throw nameErr;
+    const nameMap = {};
+    (nameRows || []).forEach(u => { nameMap[u.mobile_number] = u.display_name; });
+
+    // 9. Insert new active mapping row
     const { data: newMapping, error: insertErr } = await supabase
       .from('work_order_mappings')
       .insert({
@@ -129,7 +122,11 @@ async function createWorkOrderMapping(req, res) {
         je_user_id: je_mobile_number,
         is_active: true,
         reason: 'Assigned',
-        assigned_by: req.user.mobile_number
+        assigned_by: req.user.mobile_number,
+        je_name: nameMap[je_mobile_number] || je_mobile_number,
+        zo_user_id: project.zo_user_id,
+        zo_name: nameMap[project.zo_user_id] || project.zo_user_id,
+        assigned_by_name: nameMap[req.user.mobile_number] || req.user.mobile_number
       })
       .select()
       .single();
@@ -171,43 +168,24 @@ async function deactivateWorkOrderMapping(req, res) {
   const { reason } = req.body;
 
   try {
-    // 1. Fetch assignment mapping
-    const { data: mapping, error: fetchErr } = await supabase
-      .from('work_order_mappings')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    // Locks the row and writes the deactivated_by_name snapshot atomically with the
+    // status flip (see migration 040) - closes the same class of race the JE-ZO
+    // transfer RPC closes, even though this deactivation is single-step.
+    const { data: updated, error: rpcErr } = await supabase.rpc('deactivate_work_order_mapping_transact', {
+      p_id: id,
+      p_reason: reason,
+      p_actor: req.user.mobile_number
+    });
 
-    if (fetchErr) throw fetchErr;
-    if (!mapping) {
-      return res.status(404).json({
-        success: false,
-        message: 'Work Order assignment not found.'
-      });
+    if (rpcErr) {
+      if (rpcErr.code === 'NF001') {
+        return res.status(404).json({ success: false, message: 'Work Order assignment not found.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: 'Mapping already inactive.' });
+      }
+      throw rpcErr;
     }
-
-    // 2. Validate it is active
-    if (!mapping.is_active) {
-      return res.status(409).json({
-        success: false,
-        message: 'Mapping already inactive.'
-      });
-    }
-
-    // 3. Update to inactive
-    const { data: updated, error: updateErr } = await supabase
-      .from('work_order_mappings')
-      .update({
-        is_active: false,
-        reason,
-        deactivated_at: new Date().toISOString(),
-        deactivated_by: req.user.mobile_number
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (updateErr) throw updateErr;
 
     return res.status(200).json({
       success: true,
@@ -227,50 +205,44 @@ async function deactivateWorkOrderMapping(req, res) {
  */
 async function getWorkOrderMappings(req, res) {
   try {
+    const { status = 'all', sort = 'assigned_at', page, pageSize } = req.query || {};
+
+    // zo_user_id/zo_name/je_name/assigned_by_name/deactivated_by_name are snapshot
+    // columns captured at write time (see migration 040) - no live join/lookup
+    // needed here, and a ZO's visibility is scoped to the ZO that owned the work
+    // order at assignment time rather than whoever owns it today.
     let dbQuery = supabase
       .from('work_order_mappings')
-      .select('*, projects_master!inner(zo_user_id)');
+      .select('*', { count: 'exact' });
 
     if (req.user.role === 'zo') {
-      dbQuery = dbQuery.eq('projects_master.zo_user_id', req.user.mobile_number);
+      dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
     }
 
-    const { data: mappings, error } = await dbQuery.order('assigned_at', { ascending: false });
+    if (status === 'active') {
+      dbQuery = dbQuery.eq('is_active', true);
+    } else if (status === 'inactive') {
+      dbQuery = dbQuery.eq('is_active', false);
+    }
+
+    const sortColumn = sort === 'deactivated_at' ? 'deactivated_at' : 'assigned_at';
+    dbQuery = dbQuery.order(sortColumn, { ascending: false, nullsFirst: false });
+
+    const pageNum = Number(page) > 0 ? Number(page) : null;
+    const pageSizeNum = Number(pageSize) > 0 ? Number(pageSize) : null;
+    if (pageNum && pageSizeNum) {
+      const from = (pageNum - 1) * pageSizeNum;
+      dbQuery = dbQuery.range(from, from + pageSizeNum - 1);
+    }
+
+    const { data: mappings, error, count } = await dbQuery;
 
     if (error) throw error;
 
-    const enriched = [];
-    if (mappings && mappings.length > 0) {
-      const mobiles = [];
-      mappings.forEach(m => {
-        mobiles.push(m.je_user_id);
-        mobiles.push(m.assigned_by);
-        mobiles.push(m.deactivated_by);
-        if (m.projects_master && m.projects_master.zo_user_id) {
-          mobiles.push(m.projects_master.zo_user_id);
-        }
-      });
-
-      const userMap = await resolveDisplayNames(mobiles);
-
-      mappings.forEach(m => {
-        // Strip inner projects_master select to keep output matching schema format
-        const { projects_master, ...rawMapping } = m;
-        const zoUserId = projects_master?.zo_user_id || null;
-        enriched.push({
-          ...rawMapping,
-          zo_user_id: zoUserId,
-          zo_name: zoUserId ? (userMap[zoUserId] || zoUserId) : 'N/A',
-          je_name: userMap[m.je_user_id] || m.je_user_id,
-          assigned_by_name: userMap[m.assigned_by] || m.assigned_by,
-          deactivated_by_name: userMap[m.deactivated_by] || m.deactivated_by || null
-        });
-      });
-    }
-
     return res.status(200).json({
       success: true,
-      mappings: enriched
+      mappings: mappings || [],
+      total: count ?? (mappings || []).length
     });
 
   } catch (error) {

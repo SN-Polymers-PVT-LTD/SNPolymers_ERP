@@ -1,10 +1,11 @@
 import authApi from './authApi';
 
 /**
- * Fetch all work order mappings (Admin, HO, and ZO roles)
+ * Fetch work order mappings (Admin, HO, and ZO roles)
  * ZO users only see mappings for projects owned by their ZO (enforced on the backend)
+ * @param {Object} params – { status: 'active'|'inactive'|'all', sort: 'assigned_at'|'deactivated_at', page, pageSize }
  */
-export const getWorkOrderMappings = () => authApi.get('/work-order-mappings');
+export const getWorkOrderMappings = (params = {}) => authApi.get('/work-order-mappings', { params });
 
 /**
  * Map a Junior Engineer to a Work Order (Admin and HO only)

@@ -77,16 +77,11 @@ async function getZonalBalances(req, res) {
     }
 
     // HO / Admin view: Fetch ONLY ZO users who have active work order mappings
-    const [
-      { data: mappedProjects },
-      { data: mappedWos },
-      { data: mappedJes },
-      { data: mappedLedger },
-      { data: mappedReqs },
-      { data: mappedFrs },
-      { data: balances, error: balErr }
-    ] = await Promise.all([
+    const results = await Promise.all([
       supabase.from('projects_master').select('zo_user_id').not('zo_user_id', 'is', null),
+      // zo_user_id is a snapshot column on work_order_mappings (see migration 040) -
+      // previously this query selected a column that didn't exist on this table at
+      // all, which errored and was silently swallowed since only `data` was read.
       supabase.from('work_order_mappings').select('zo_user_id').eq('is_active', true),
       supabase.from('je_zo_mappings').select('zo_user_id').eq('is_active', true),
       supabase.from('zo_fund_ledger').select('zo_user_id').not('work_order_no', 'is', null),
@@ -95,7 +90,18 @@ async function getZonalBalances(req, res) {
       supabase.from('zo_balances').select('*')
     ]);
 
-    if (balErr) throw balErr;
+    const failed = results.find(r => r.error);
+    if (failed) throw failed.error;
+
+    const [
+      { data: mappedProjects },
+      { data: mappedWos },
+      { data: mappedJes },
+      { data: mappedLedger },
+      { data: mappedReqs },
+      { data: mappedFrs },
+      { data: balances }
+    ] = results;
 
     // Strict set of ZO user IDs that have an explicit work order / project assignment
     const mappedZoIds = Array.from(new Set([

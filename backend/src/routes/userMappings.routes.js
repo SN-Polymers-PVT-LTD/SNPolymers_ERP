@@ -1,6 +1,7 @@
 const express = require('express');
 const {
   createOrUpdateUserMapping,
+  deactivateUserMapping,
   getUserMappings,
   getEligibleJEs,
   getEligibleZOs
@@ -17,6 +18,12 @@ router.post(
   '/',
   requireRole(['admin', 'ho']),
   createOrUpdateUserMapping
+);
+
+router.patch(
+  '/:id/deactivate',
+  requireRole(['admin', 'ho']),
+  deactivateUserMapping
 );
 
 router.get(
