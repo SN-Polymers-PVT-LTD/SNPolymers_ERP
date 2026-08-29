@@ -59,6 +59,15 @@ ALTER TABLE "public"."je_zo_mappings"
     ADD COLUMN IF NOT EXISTS "deactivated_by_name" character varying;
 
 -- Best-effort backfill using current related data (see header note above).
+-- Disabled for the duration: these UPDATEs only ever write the new snapshot
+-- columns and touch every historical row unconditionally, so they must not be
+-- able to fail on unrelated role/zonal-consistency checks against rows whose
+-- referenced user's role or project's ZO has since changed (this is what broke
+-- the first attempt to run this migration - see 041 for the permanent fix to
+-- the role-validation trigger itself).
+ALTER TABLE "public"."work_order_mappings" DISABLE TRIGGER "trg_validate_work_order_mapping_zonal_consistency";
+ALTER TABLE "public"."je_zo_mappings" DISABLE TRIGGER "trg_validate_je_zo_mapping_roles";
+
 UPDATE "public"."work_order_mappings" wom
 SET "je_name" = (SELECT display_name FROM authorised_users WHERE mobile_number = wom.je_user_id),
     "assigned_by_name" = (SELECT display_name FROM authorised_users WHERE mobile_number = wom.assigned_by),
@@ -76,6 +85,9 @@ SET "je_name" = (SELECT display_name FROM authorised_users WHERE mobile_number =
     "zo_name" = (SELECT display_name FROM authorised_users WHERE mobile_number = jzm.zo_user_id),
     "assigned_by_name" = (SELECT display_name FROM authorised_users WHERE mobile_number = jzm.assigned_by),
     "deactivated_by_name" = (SELECT display_name FROM authorised_users WHERE mobile_number = jzm.deactivated_by);
+
+ALTER TABLE "public"."work_order_mappings" ENABLE TRIGGER "trg_validate_work_order_mapping_zonal_consistency";
+ALTER TABLE "public"."je_zo_mappings" ENABLE TRIGGER "trg_validate_je_zo_mapping_roles";
 
 -- ============================================================================
 -- 2. RPC: transfer_je_to_zo_transact
