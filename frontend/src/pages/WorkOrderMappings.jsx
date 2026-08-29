@@ -34,28 +34,36 @@ const WorkOrderMappings = () => {
   const [submittingDeactivate, setSubmittingDeactivate] = useState(false);
   const [deactivateError, setDeactivateError] = useState('');
 
-  // Filters
+  // Active Assignments / History tabs - separate mental models, not a filter toggle
+  // on one flat table (deactivated rows are audit history, not "just another status").
+  const [activeTab, setActiveTab] = useState('active'); // 'active', 'history'
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('active'); // 'active', 'inactive', 'all'
 
-  // Pagination & JE Search
+  // Pagination (server-side) & JE Search
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
   const [jeSearch, setJeSearch] = useState('');
 
   useEffect(() => {
     Promise.resolve().then(() => {
       setPage(1);
     });
-  }, [searchQuery, statusFilter, pageSize]);
+  }, [searchQuery, activeTab, pageSize]);
 
   const fetchMappings = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await getWorkOrderMappings();
+      const response = await getWorkOrderMappings({
+        status: activeTab === 'history' ? 'inactive' : 'active',
+        sort: activeTab === 'history' ? 'deactivated_at' : 'assigned_at',
+        page,
+        pageSize
+      });
       if (response.data?.success) {
         setMappings(response.data.mappings || []);
+        setTotal(response.data.total ?? (response.data.mappings || []).length);
       }
     } catch (err) {
       console.error(err);
@@ -64,6 +72,11 @@ const WorkOrderMappings = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchMappings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, page, pageSize]);
 
   const fetchDropdownOptions = async () => {
     if (isReadOnly) return;
@@ -86,7 +99,6 @@ const WorkOrderMappings = () => {
 
   useEffect(() => {
     Promise.resolve().then(() => {
-      fetchMappings();
       fetchDropdownOptions();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,18 +217,14 @@ const WorkOrderMappings = () => {
     }
   };
 
+  // Search filters within the current server-fetched page/tab (status/sort/paging
+  // are handled server-side - see fetchMappings above).
   const filteredMappings = mappings.filter(m => {
-    const matchesSearch =
+    return (
       m.work_order_no?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.je_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.je_user_id?.includes(searchQuery);
-
-    const matchesStatus =
-      statusFilter === 'all' ||
-      (statusFilter === 'active' && m.is_active) ||
-      (statusFilter === 'inactive' && !m.is_active);
-
-    return matchesSearch && matchesStatus;
+      m.je_user_id?.includes(searchQuery)
+    );
   });
 
   const filteredEligibleJEs = eligibleJEs.filter(j => {
@@ -304,23 +312,27 @@ const WorkOrderMappings = () => {
           </div>
 
           <div className="flex gap-2">
-            {['active', 'inactive', 'all'].map((status) => (
+            {[
+              { key: 'active', label: 'Active Assignments' },
+              { key: 'history', label: 'History' }
+            ].map((tab) => (
               <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${statusFilter === status
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border ${activeTab === tab.key
                     ? 'bg-white text-black border-white'
                     : 'bg-white/5 text-slate-400 border-white/5 hover:bg-white/10 hover:text-slate-200'
                   }`}
               >
-                {status}
+                {tab.label}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Data Grid */}
+      {/* Data Grid: Active tab is actionable (no Deactivation Info column, has Actions);
+          History tab is read-only audit trail (no Actions column, has Deactivation Info). */}
       <div className="glass-panel rounded-3xl overflow-hidden shadow-2xl border border-white/5">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -329,103 +341,89 @@ const WorkOrderMappings = () => {
                 <th className="px-6 py-4">Work Order No</th>
                 <th className="px-6 py-4">Junior Engineer</th>
                 <th className="px-6 py-4">Zonal Officer</th>
-                <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Assigned At/By</th>
-                <th className="px-6 py-4">Deactivation Info</th>
-                {!isReadOnly && <th className="px-6 py-4 text-right">Actions</th>}
+                {activeTab === 'history' && <th className="px-6 py-4">Deactivation Info</th>}
+                {activeTab === 'active' && !isReadOnly && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-xs font-medium text-slate-300">
-              {loading ? (
-                <tr>
-                  <td colSpan={isReadOnly ? 6 : 7} className="p-0">
-                    <SkeletonTable rows={5} cols={isReadOnly ? 6 : 7} />
-                  </td>
-                </tr>
-              ) : filteredMappings.length === 0 ? (
-                <tr>
-                  <td colSpan={isReadOnly ? 6 : 7} className="px-6 py-12 text-center text-slate-500">
-                    No work order assignments found.
-                  </td>
-                </tr>
-              ) : (() => {
-                const currentMappings = filteredMappings.slice((page - 1) * pageSize, page * pageSize);
-
-                return (
-                  <>
-                    {currentMappings.map((mapping) => (
-                      <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
-                        <td className="px-6 py-4 font-semibold text-slate-100">
-                          {mapping.work_order_no}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-100">{mapping.je_name}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="font-semibold text-slate-100">{mapping.zo_name || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${mapping.is_active
-                                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                              }`}
-                          >
-                            {mapping.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-slate-300 text-[11px]">
-                            {new Date(mapping.assigned_at).toLocaleString()}
+              {(() => {
+                const colCount = 4 + (activeTab === 'history' ? 1 : 0) + (activeTab === 'active' && !isReadOnly ? 1 : 0);
+                if (loading) {
+                  return (
+                    <tr>
+                      <td colSpan={colCount} className="p-0">
+                        <SkeletonTable rows={5} cols={colCount} />
+                      </td>
+                    </tr>
+                  );
+                }
+                if (filteredMappings.length === 0) {
+                  return (
+                    <tr>
+                      <td colSpan={colCount} className="px-6 py-12 text-center text-slate-500">
+                        {activeTab === 'history' ? 'No deactivated assignments found.' : 'No active work order assignments found.'}
+                      </td>
+                    </tr>
+                  );
+                }
+                return filteredMappings.map((mapping) => (
+                  <tr key={mapping.id} className="hover:bg-white/2 transition-colors">
+                    <td className="px-6 py-4 font-semibold text-slate-100">
+                      {mapping.work_order_no}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-slate-100">{mapping.je_name}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-slate-100">{mapping.zo_name || 'N/A'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-slate-300 text-[11px]">
+                        {new Date(mapping.assigned_at).toLocaleString()}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        By: {mapping.assigned_by_name}
+                      </div>
+                    </td>
+                    {activeTab === 'history' && (
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-slate-400 text-[11px]">
+                            Reason: <span className="font-bold text-amber-500/90">{mapping.reason}</span>
                           </div>
-                          <div className="text-[10px] text-slate-500">
-                            By: {mapping.assigned_by_name}
+                          <div className="text-slate-500 text-[10px]">
+                            On: {new Date(mapping.deactivated_at).toLocaleString()}
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          {!mapping.is_active ? (
-                            <div>
-                              <div className="text-slate-400 text-[11px]">
-                                Reason: <span className="font-bold text-amber-500/90">{mapping.reason}</span>
-                              </div>
-                              <div className="text-slate-500 text-[10px]">
-                                On: {new Date(mapping.deactivated_at).toLocaleString()}
-                              </div>
-                              <div className="text-slate-500 text-[10px]">
-                                By: {mapping.deactivated_by_name}
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="text-slate-600">-</span>
-                          )}
-                        </td>
-                        {!isReadOnly && (
-                          <td className="px-6 py-4 text-right">
-                            {mapping.is_active ? (
-                              <button
-                                onClick={() => handleOpenDeactivateModal(mapping.id)}
-                                className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border border-red-900/30 text-red-400 bg-red-950/10 hover:bg-red-950/20 transition-all"
-                              >
-                                Deactivate
-                              </button>
-                            ) : (
-                              <span className="text-slate-600 text-[10px] font-bold">Resolved</span>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </>
-                );
+                          <div className="text-slate-500 text-[10px]">
+                            By: {mapping.deactivated_by_name}
+                          </div>
+                        </div>
+                      </td>
+                    )}
+                    {activeTab === 'active' && !isReadOnly && (
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => handleOpenDeactivateModal(mapping.id)}
+                          className="px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase border border-red-900/30 text-red-400 bg-red-950/10 hover:bg-red-950/20 transition-all"
+                        >
+                          Deactivate
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ));
               })()}
             </tbody>
           </table>
 
-          {/* Pagination Controls */}
-          {(() => {
-            const totalPages = Math.ceil(filteredMappings.length / pageSize);
-            return <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} maxVisible={5} />;
-          })()}
+          {/* Pagination Controls (server-side - see fetchMappings) */}
+          <Pagination
+            currentPage={page}
+            totalPages={Math.max(1, Math.ceil(total / pageSize))}
+            onPageChange={setPage}
+            maxVisible={5}
+          />
         </div>
       </div>
 

@@ -4,23 +4,7 @@ const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const { createUserMappingSchema } = require('../validation/userMappings.schema');
 
-// Display name resolver helper
-async function resolveDisplayNames(mobiles) {
-  const uniqueMobiles = Array.from(new Set(mobiles.filter(Boolean)));
-  const userMap = {};
-  if (uniqueMobiles.length > 0) {
-    const { data: users, error } = await supabase
-      .from('authorised_users')
-      .select('mobile_number, display_name')
-      .in('mobile_number', uniqueMobiles);
-    if (!error && users) {
-      users.forEach(u => {
-        userMap[u.mobile_number] = u.display_name;
-      });
-    }
-  }
-  return userMap;
-}
+const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 /**
  * POST /api/v1/auth/user-mappings
@@ -32,7 +16,9 @@ async function createOrUpdateUserMapping(req, res) {
   const { je_mobile_number, zo_mobile_number } = req.body;
 
   try {
-    // 1. Role Validation: Check user roles upfront before any DB writes
+    // 1. Role Validation: fast pre-check before hitting the RPC, for a quick error
+    // message. Not authoritative on its own - the RPC's own writes (backed by the
+    // fn_validate_je_zo_mapping_roles trigger) are what actually enforce this.
     const { data: users, error: usersErr } = await supabase
       .from('authorised_users')
       .select('mobile_number, role')
@@ -57,7 +43,10 @@ async function createOrUpdateUserMapping(req, res) {
       });
     }
 
-    // 2. Service-Layer Guard: Check if JE has any requisitions in 'Pending' or 'Hold' status
+    // 2. Fast pre-check for pending/hold requisitions, for immediate UX feedback.
+    // The RPC re-checks this same guard inside its advisory lock right before
+    // writing, which is what actually closes the race - a requisition created in
+    // the gap between this check and the RPC call is still caught there.
     const { data: requisitions, error: reqErr } = await supabase
       .from('requisitions')
       .select('requisition_id')
@@ -73,71 +62,30 @@ async function createOrUpdateUserMapping(req, res) {
       });
     }
 
-    // 3. Query existing active mapping for the JE
-    const { data: oldMapping, error: oldMapErr } = await supabase
-      .from('je_zo_mappings')
-      .select('*')
-      .eq('je_user_id', je_mobile_number)
-      .eq('is_active', true)
-      .maybeSingle();
+    // 3. Atomic transfer: deactivates any old work-order mappings and old JE-ZO
+    // mapping, then inserts the new one, all in a single DB transaction serialized
+    // per-JE by an advisory lock. See migration 040 for the full rationale - this
+    // replaces a previous 3-step non-transactional sequence that could orphan a JE
+    // (old mapping/work-orders deactivated, new mapping insert lost a unique-index
+    // race) under concurrent transfer requests.
+    const { data: newMapping, error: rpcErr } = await supabase.rpc('transfer_je_to_zo_transact', {
+      p_je: je_mobile_number,
+      p_zo: zo_mobile_number,
+      p_actor: req.user.mobile_number
+    });
 
-    if (oldMapErr) throw oldMapErr;
-
-    // If active mapping exists, deactivate assignments and mappings
-    if (oldMapping) {
-      // NOTE: We MUST deallocate work order mappings first.
-      // This is because the database trigger on work_order_mappings requires the JE to have an active ZO mapping.
-      // If we deactivate the je_zo_mappings row first, the trigger will fail during work_order_mappings updates.
-      const { data: oldProjects, error: oldProjectsErr } = await supabase
-        .from('projects_master')
-        .select('work_order_no')
-        .eq('zo_user_id', oldMapping.zo_user_id);
-
-      if (oldProjectsErr) throw oldProjectsErr;
-
-      if (oldProjects && oldProjects.length > 0) {
-        const oldProjectWos = oldProjects.map(p => p.work_order_no);
-        const { error: woDeallocErr } = await supabase
-          .from('work_order_mappings')
-          .update({
-            is_active: false,
-            reason: 'Transferred',
-            deactivated_at: new Date().toISOString(),
-            deactivated_by: req.user.mobile_number
-          })
-          .eq('je_user_id', je_mobile_number)
-          .eq('is_active', true)
-          .in('work_order_no', oldProjectWos);
-
-        if (woDeallocErr) throw woDeallocErr;
+    if (rpcErr) {
+      if (rpcErr.code === 'REQ01') {
+        return res.status(400).json({ success: false, message: rpcErr.message });
       }
-
-      // Now deactivate old mapping safely
-      const { error: deactivateErr } = await supabase
-        .from('je_zo_mappings')
-        .update({
-          is_active: false,
-          deactivated_at: new Date().toISOString(),
-          deactivated_by: req.user.mobile_number
-        })
-        .eq('id', oldMapping.id);
-
-      if (deactivateErr) throw deactivateErr;
+      if (rpcErr.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'Junior Engineer was just mapped to a Zonal Office by another request. Please refresh and retry.'
+        });
+      }
+      throw rpcErr;
     }
-
-    // 4. Insert new active mapping row
-    const { data: newMapping, error: insertErr } = await supabase
-      .from('je_zo_mappings')
-      .insert({
-        je_user_id: je_mobile_number,
-        zo_user_id: zo_mobile_number,
-        is_active: true,
-        assigned_by: req.user.mobile_number
-      })
-      .select()
-      .single();
-
-    if (insertErr) throw insertErr;
 
     return res.status(201).json({
       success: true,
@@ -152,11 +100,51 @@ async function createOrUpdateUserMapping(req, res) {
 }
 
 /**
+ * PATCH /api/v1/auth/user-mappings/:id/deactivate
+ * Unmaps a Junior Engineer from a Zonal Office without assigning a replacement.
+ */
+async function deactivateUserMapping(req, res) {
+  const { id } = req.params;
+  if (!uuidRegex.test(id)) {
+    return res.status(400).json({ success: false, message: 'Invalid mapping ID format.' });
+  }
+
+  try {
+    const { data: updated, error: rpcErr } = await supabase.rpc('deactivate_je_zo_mapping_transact', {
+      p_id: id,
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      if (rpcErr.code === 'NF001') {
+        return res.status(404).json({ success: false, message: 'JE-ZO mapping not found.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: 'Mapping already inactive.' });
+      }
+      throw rpcErr;
+    }
+
+    return res.status(200).json({
+      success: true,
+      mapping: updated,
+      message: 'Junior Engineer unmapped successfully.'
+    });
+
+  } catch (error) {
+    console.error(`deactivateUserMapping failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to unmap Junior Engineer.' });
+  }
+}
+
+/**
  * GET /api/v1/auth/user-mappings
  * Retrieves active and inactive user mappings. ZOs only see mappings for their own ZO.
  */
 async function getUserMappings(req, res) {
   try {
+    const { status = 'all', sort = 'assigned_at' } = req.query || {};
+
     let dbQuery = supabase
       .from('je_zo_mappings')
       .select('*');
@@ -167,36 +155,22 @@ async function getUserMappings(req, res) {
       dbQuery = dbQuery.eq('je_user_id', req.user.mobile_number);
     }
 
-    const { data: mappings, error } = await dbQuery.order('assigned_at', { ascending: false });
+    if (status === 'active') {
+      dbQuery = dbQuery.eq('is_active', true);
+    } else if (status === 'inactive') {
+      dbQuery = dbQuery.eq('is_active', false);
+    }
+
+    const sortColumn = sort === 'deactivated_at' ? 'deactivated_at' : 'assigned_at';
+    const { data: mappings, error } = await dbQuery.order(sortColumn, { ascending: false, nullsFirst: false });
 
     if (error) throw error;
 
-    const enriched = [];
-    if (mappings && mappings.length > 0) {
-      const mobiles = [];
-      mappings.forEach(m => {
-        mobiles.push(m.je_user_id);
-        mobiles.push(m.zo_user_id);
-        mobiles.push(m.assigned_by);
-        mobiles.push(m.deactivated_by);
-      });
-
-      const userMap = await resolveDisplayNames(mobiles);
-
-      mappings.forEach(m => {
-        enriched.push({
-          ...m,
-          je_name: userMap[m.je_user_id] || m.je_user_id,
-          zo_name: userMap[m.zo_user_id] || m.zo_user_id,
-          assigned_by_name: userMap[m.assigned_by] || m.assigned_by,
-          deactivated_by_name: userMap[m.deactivated_by] || m.deactivated_by || null
-        });
-      });
-    }
-
+    // je_name/zo_name/assigned_by_name/deactivated_by_name are snapshot columns
+    // captured at write time (see migration 040) - no live lookup needed here.
     return res.status(200).json({
       success: true,
-      mappings: enriched
+      mappings: mappings || []
     });
 
   } catch (error) {
@@ -272,6 +246,7 @@ async function getEligibleZOs(req, res) {
 
 module.exports = {
   createOrUpdateUserMapping,
+  deactivateUserMapping,
   getUserMappings,
   getEligibleJEs,
   getEligibleZOs
