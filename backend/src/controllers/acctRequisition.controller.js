@@ -29,12 +29,17 @@ function mapAcctRpcError(rpcErr) {
     case 'STA06':
     case 'STA07':
     case 'STA08':
+    case 'STA09':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
     case 'VAL03':
     case 'VAL04':
     case 'VAL05':
+    case 'VAL06':
+    case 'VAL07':
+    case 'VAL09':
+    case 'VAL10':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -582,6 +587,12 @@ async function actOnLineItem(req, res) {
         p_line_item_id: itemId,
         p_ho_process: action === 'Approve' ? 'Approved' : 'Partially Approved',
         p_ho_pass_amount: ho_pass_amount ?? null,
+        p_actioned_by: req.user.mobile_number,
+        p_ho_remarks: ho_remarks?.trim() || null
+      }));
+    } else if (action === 'CreditApprove') {
+      ({ data, error: rpcErr } = await supabase.rpc('credit_approve_acct_line_item_transact', {
+        p_line_item_id: itemId,
         p_actioned_by: req.user.mobile_number,
         p_ho_remarks: ho_remarks?.trim() || null
       }));
@@ -1670,6 +1681,131 @@ async function getRequisitionLogs(req, res) {
   }
 }
 
+// ============================================================================
+// Credit Ledger (042_credit_purchases_and_ledger.sql)
+// ============================================================================
+
+/**
+ * GET /acct-requisitions/credit-ledger
+ * ?status=Open (default) | Settled. Optional beneficiary name/date-range
+ * filters. Open entries are the "importable" list a future installment can
+ * be pulled from; Settled entries are history — same table, just a status
+ * filter, not two separate lists.
+ */
+async function getCreditLedger(req, res) {
+  try {
+    const query = req.query || {};
+    const status = query.status === 'Settled' ? 'Settled' : 'Open';
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('credit_ledger')
+      .select('*', { count: 'exact' })
+      .eq('ledger_status', status);
+
+    if (query.date_from) dbQuery = dbQuery.gte('created_at', query.date_from);
+    if (query.date_to) dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+
+    dbQuery = dbQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data: ledgerRows, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const beneficiaryIds = [...new Set((ledgerRows || []).map(r => r.beneficiary_id))];
+    const sourceItemIds = [...new Set((ledgerRows || []).map(r => r.source_line_item_id))];
+
+    let beneficiaryMap = {};
+    if (beneficiaryIds.length > 0) {
+      const { data: beneficiaries } = await supabase
+        .from('beneficiary_master')
+        .select('id, beneficiary_name, account_number, ifsc, beneficiary_bank_name')
+        .in('id', beneficiaryIds);
+      // Dealer-name filter applied post-fetch rather than a DB-side .ilike on
+      // a joined table — Supabase JS can't filter on a related table's
+      // column in one query without a Postgres view/RPC, and this table is
+      // small enough per page that filtering post-fetch is fine.
+      beneficiaryMap = (beneficiaries || []).reduce((acc, b) => { acc[b.id] = b; return acc; }, {});
+    }
+
+    let sourceItemMap = {};
+    if (sourceItemIds.length > 0) {
+      const { data: sourceItems } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, particulars')
+        .in('id', sourceItemIds);
+      const sheetIds = [...new Set((sourceItems || []).map(i => i.sheet_id))];
+      let sheetMap = {};
+      if (sheetIds.length > 0) {
+        const { data: sheets } = await supabase.from('acct_requisition_sheets').select('id, sheet_number').in('id', sheetIds);
+        sheetMap = (sheets || []).reduce((acc, s) => { acc[s.id] = s.sheet_number; return acc; }, {});
+      }
+      sourceItemMap = (sourceItems || []).reduce((acc, i) => {
+        acc[i.id] = { particulars: i.particulars, sheet_number: sheetMap[i.sheet_id] || null };
+        return acc;
+      }, {});
+    }
+
+    let enrichedRows = (ledgerRows || []).map(row => ({
+      ...row,
+      beneficiary: beneficiaryMap[row.beneficiary_id] || null,
+      source: sourceItemMap[row.source_line_item_id] || null
+    }));
+
+    if (query.dealer) {
+      const term = query.dealer.toLowerCase();
+      enrichedRows = enrichedRows.filter(r => r.beneficiary?.beneficiary_name?.toLowerCase().includes(term));
+    }
+
+    return res.status(200).json({
+      success: true,
+      entries: enrichedRows,
+      pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getCreditLedger failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve credit ledger.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/credit-ledger/:ledgerId/import
+ * body: { target_sheet_id }
+ * Creates a new, mostly-blank line item on the target Open sheet, prefilled
+ * only with the dealer's identity (import_credit_installment_transact, 042)
+ * — Accounts fills in the actual installment amount, a real debit bank, and
+ * payment mode afterward like any normal new row. Unlike importLineItem
+ * (Hold/Reject/Pending Review), the source credit_ledger row is untouched by
+ * this call — it stays importable again next time, until its own balance is
+ * driven to zero by a later approval.
+ */
+async function importCreditInstallment(req, res) {
+  const { ledgerId } = req.params;
+  const { target_sheet_id } = req.body;
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('import_credit_installment_transact', {
+      p_ledger_id: ledgerId,
+      p_target_sheet_id: target_sheet_id,
+      p_imported_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(201).json({ success: true, item: data, message: 'Installment line item created.' });
+  } catch (error) {
+    console.error(`importCreditInstallment failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to import credit installment.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
@@ -1681,5 +1817,6 @@ module.exports = {
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank,
   exportBulkNeft,
-  getRequisitionLogs
+  getRequisitionLogs,
+  getCreditLedger, importCreditInstallment
 };

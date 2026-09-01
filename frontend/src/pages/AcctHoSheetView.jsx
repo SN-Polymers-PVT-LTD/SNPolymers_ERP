@@ -39,6 +39,7 @@ const getStatusBadgeVariant = (status) => (status === 'Reviewed' ? 'emerald' : '
 const ACTION_TO_STATUS_LABEL = {
   Approve: 'Approved',
   PartiallyApprove: 'Partially Approved',
+  CreditApprove: 'Credit Approved',
   Hold: 'On Hold',
   Return: 'Returned for Correction',
   Reject: 'Rejected'
@@ -159,7 +160,7 @@ const AcctHoSheetView = () => {
       if (Object.keys(nextBatchErrors).length === 0) {
         setError('Stage at least one decision before submitting.');
       }
-      return;
+      return false;
     }
 
     setSubmittingDecisions(true);
@@ -194,9 +195,11 @@ const AcctHoSheetView = () => {
       } else {
         setSuccess(`${results.length} decision(s) applied.`);
       }
+      return failedCount === 0;
     } catch (err) {
       setBatchErrors(nextBatchErrors);
       setError(err.response?.data?.message || 'Failed to submit decisions.');
+      return false;
     } finally {
       setSubmittingDecisions(false);
     }
@@ -206,13 +209,22 @@ const AcctHoSheetView = () => {
   // persisted first — a decision only staged in local state and never sent
   // would otherwise get silently swept into 'Pending Review' by the RPC
   // below, since it only sees DB state, not this component's local state.
+  // If one of those staged decisions fails to apply (e.g. insufficient bank
+  // balance), handleSubmitDecisions surfaces it via batchErrors/error state
+  // but doesn't throw — so its own return value (false on any failure) is
+  // what stops the close here, rather than letting a failed decision get
+  // silently swept into Pending Review alongside genuinely-untouched items.
   const handleCloseReview = async () => {
     setError('');
     setSuccess('');
     setClosingReview(true);
     try {
       if (stagedCount > 0) {
-        await handleSubmitDecisions(false);
+        const allApplied = await handleSubmitDecisions(false);
+        if (!allApplied) {
+          setClosingReview(false);
+          return;
+        }
       }
       await closeSheetReview(id);
       setShowCloseConfirm(false);
@@ -392,7 +404,7 @@ const AcctHoSheetView = () => {
       {bankBalances.length > 0 && (
         <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02]">
           <div className="flex flex-wrap gap-4">
-            {bankBalances.map((bank) => (
+            {bankBalances.filter(b => !b.is_virtual).map((bank) => (
               <BankBalanceBanner
                 key={bank.bank_name}
                 bankBalance={bank}
@@ -459,18 +471,25 @@ const AcctHoSheetView = () => {
         details={premiumSuccess?.details || []}
       />
 
-      <Modal isOpen={showCloseConfirm} onClose={() => setShowCloseConfirm(false)} size="md" title="Close Review?">
+      <Modal
+        isOpen={showCloseConfirm}
+        onClose={() => setShowCloseConfirm(false)}
+        size="md"
+        title="Close Review?"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="glass" size="sm" onClick={() => setShowCloseConfirm(false)}>Cancel</Button>
+            <Button variant="amber" size="sm" onClick={handleCloseReview} loading={closingReview}>
+              Close Review
+            </Button>
+          </div>
+        }
+      >
         <p className="text-sm text-slate-300 mb-2">
           {actionableItems.length - stagedCount} item(s) will still be undecided. They'll move to the
           pending queue — Accounts can bring them into a new sheet later, but they can no longer be
           decided on this one.
         </p>
-        <div className="flex justify-end gap-3 mt-6">
-          <Button variant="glass" size="sm" onClick={() => setShowCloseConfirm(false)}>Cancel</Button>
-          <Button variant="amber" size="sm" onClick={handleCloseReview} loading={closingReview}>
-            Close Review
-          </Button>
-        </div>
       </Modal>
     </>
   );

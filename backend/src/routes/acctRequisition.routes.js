@@ -7,7 +7,8 @@ const {
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft,
-  getRequisitionLogs
+  getRequisitionLogs,
+  getCreditLedger, importCreditInstallment
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -19,7 +20,8 @@ const {
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
-  exportNeftSchema
+  exportNeftSchema,
+  importCreditInstallmentSchema
 } = require('../validation/acctRequisition.schema');
 
 const router = express.Router();
@@ -61,5 +63,8 @@ router.post('/items/:itemId/resubmit', requireRole(accountsRoles), validateReque
 router.get('/import-eligible-items', requireRole(accountsRoles), getImportEligibleItems);
 router.post('/import-eligible-items/:itemId/import', requireRole(accountsRoles), validateRequest(importLineItemSchema), importLineItem);
 router.post('/import-eligible-items/:itemId/dismiss', requireRole(accountsRoles), validateRequest(dismissLineItemSchema), dismissImportEligibleItem);
+
+router.get('/credit-ledger', requireRole(readerRoles), getCreditLedger);
+router.post('/credit-ledger/:ledgerId/import', requireRole(accountsRoles), validateRequest(importCreditInstallmentSchema), importCreditInstallment);
 
 module.exports = router;

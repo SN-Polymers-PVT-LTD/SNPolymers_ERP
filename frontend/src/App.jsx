@@ -55,6 +55,7 @@ const AcctImportEligibleItems = React.lazy(() => import('./pages/AcctImportEligi
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
 const AcctRequisitionLogs = React.lazy(() => import('./pages/AcctRequisitionLogs'));
 const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
+const AcctCreditLedger = React.lazy(() => import('./pages/AcctCreditLedger'));
 
 
 
@@ -135,6 +136,7 @@ function App() {
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['accounts', 'ho', 'admin']} />}>
                   <Route path="/acct-requisitions/bank-balances" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBankBalances /></React.Suspense>} />
+                  <Route path="/acct-requisitions/credit-ledger" element={<React.Suspense fallback={<AppChunkLoader />}><AcctCreditLedger /></React.Suspense>} />
                   <Route path="/acct-requisitions/logs" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionLogs /></React.Suspense>} />
                 </Route>
 

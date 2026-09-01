@@ -75,3 +75,12 @@ export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${it
 // PATCH per line item — actions: [{ line_item_id, action, ho_pass_amount?, ho_remarks? }]
 export const actOnLineItemsBatch = (sheetId, actions) => authApi.post(`${BASE}/sheets/${sheetId}/items/batch-action`, { actions });
 export const resubmitLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/resubmit`, data);
+
+// ── Credit Ledger ────────────────────────────────────────────────────────
+// Credit purchases approved via 'Credit Approved' land here as one row per
+// purchase. ?status=Open (default) is the repeatable-import list; ?status=
+// Settled is history — same table, not two separate endpoints
+// (042_credit_purchases_and_ledger.sql).
+export const getCreditLedger = (params) => authApi.get(`${BASE}/credit-ledger`, { params });
+export const importCreditInstallment = (ledgerId, targetSheetId) =>
+  authApi.post(`${BASE}/credit-ledger/${ledgerId}/import`, { target_sheet_id: targetSheetId });

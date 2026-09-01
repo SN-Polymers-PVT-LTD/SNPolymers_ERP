@@ -143,6 +143,15 @@ export const MobileHeader = () => {
         )
       });
       finItems.push({
+        to: '/acct-requisitions/credit-ledger',
+        label: 'Credit Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      finItems.push({
         to: '/acct-requisitions/logs',
         label: 'Requisition Logs',
         icon: (
@@ -636,6 +645,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/credit-ledger',
+        label: 'Credit Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
           </svg>
         )
       });
