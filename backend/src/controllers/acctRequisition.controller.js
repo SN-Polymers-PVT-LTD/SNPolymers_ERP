@@ -28,6 +28,7 @@ function mapAcctRpcError(rpcErr) {
     case 'STA05':
     case 'STA06':
     case 'STA07':
+    case 'STA08':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
@@ -744,6 +745,39 @@ async function actOnLineItemsBatch(req, res) {
 }
 
 /**
+ * POST /acct-requisitions/sheets/:sheetId/close-review
+ * HO ends a review session before every line item has a decision. Every
+ * item still at 'Pending HO Review' on this sheet becomes 'Pending Review'
+ * — a new terminal status that joins the existing On Hold/Rejected
+ * rollover queue (close_acct_sheet_review_transact, 041). Sheet moves to
+ * 'Reviewed' regardless of how many items were actually decided.
+ */
+async function closeSheetReview(req, res) {
+  const { sheetId } = req.params;
+  if (!uuidRegex.test(sheetId)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('close_acct_sheet_review_transact', {
+      p_sheet_id: sheetId,
+      p_closed_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(200).json({ success: true, sheet: data, message: 'Review closed. Remaining items moved to the pending queue.' });
+  } catch (error) {
+    console.error(`closeSheetReview failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to close sheet review.' });
+  }
+}
+
+/**
  * POST /acct-requisitions/items/:itemId/resubmit
  */
 async function resubmitLineItem(req, res) {
@@ -787,12 +821,17 @@ async function resubmitLineItem(req, res) {
   }
 }
 
+// On Hold/Rejected/Pending Review — the full set of terminal statuses that
+// accumulate in the import-eligible rollover queue (idx_arli_importable, 041).
+const IMPORT_ELIGIBLE_STATUSES = ['On Hold', 'Rejected', 'Pending Review'];
+
 /**
  * GET /acct-requisitions/import-eligible-items
- * On Hold/Rejected line items across ALL sheets that have not yet been
- * imported into a later sheet or dismissed — same filter/pagination/
+ * On Hold/Rejected/Pending Review line items across ALL sheets that have not
+ * yet been imported into a later sheet or dismissed — same filter/pagination/
  * sheet-join shape as getLineItems, narrowed to the importable subset
- * (034_add_line_item_import.sql's idx_arli_importable backs this query).
+ * (034_add_line_item_import.sql's idx_arli_importable backs this query,
+ * widened to include Pending Review by 041_close_review_pending_rollover.sql).
  */
 async function getImportEligibleItems(req, res) {
   try {
@@ -808,9 +847,20 @@ async function getImportEligibleItems(req, res) {
     let dbQuery = supabase
       .from('acct_requisition_line_items')
       .select('*', { count: 'exact' })
-      .in('requisition_status', ['On Hold', 'Rejected'])
+      .in('requisition_status', IMPORT_ELIGIBLE_STATUSES)
       .is('imported_to_sheet_id', null)
       .eq('import_dismissed', false);
+
+    // Narrow to one specific status, still within the eligible set — an
+    // out-of-set value is ignored rather than passed straight into .eq(),
+    // same whitelist convention getSheets uses for sheet_status.
+    if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
+      dbQuery = dbQuery.eq('requisition_status', query.status);
+    }
+
+    if (query.particulars) {
+      dbQuery = dbQuery.ilike('particulars', `%${query.particulars}%`);
+    }
 
     if (query.account_sub_title) {
       dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
@@ -1623,7 +1673,7 @@ async function getRequisitionLogs(req, res) {
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
-  actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
+  actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary, getBeneficiaries,

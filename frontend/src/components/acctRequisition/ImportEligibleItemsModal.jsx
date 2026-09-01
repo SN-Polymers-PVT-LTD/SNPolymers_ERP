@@ -3,14 +3,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Modal, Button, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../ui';
 import { getImportEligibleItems, importLineItem, dismissImportEligibleItem } from '../../api/acctRequisitionsApi';
 
-const STATUS_VARIANTS = { 'On Hold': 'orange', Rejected: 'red' };
+const STATUS_VARIANTS = { 'On Hold': 'orange', Rejected: 'red', 'Pending Review': 'indigo' };
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
 
 /**
- * Lists every On Hold/Rejected line item across ALL sheets that hasn't yet
- * been imported into a later sheet or dismissed (034_add_line_item_import.sql),
+ * Lists every On Hold/Rejected/Pending Review line item across ALL sheets
+ * that hasn't yet been imported into a later sheet or dismissed
+ * (034_add_line_item_import.sql),
  * and lets Accounts copy one into the current (Open) sheet as a fresh line
  * item, or dismiss it from the list for good. The source item is never
  * touched by either action — only its imported/dismissed bookkeeping
@@ -69,7 +70,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="2xl" subtitle="Accounts" title="Import Held / Rejected Items">
+    <Modal isOpen={isOpen} onClose={onClose} size="2xl" subtitle="Accounts" title="Import Held / Rejected / Pending Review Items">
       {error && (
         <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-400 font-medium">
           {error}
@@ -80,7 +81,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
         <p className="text-xs text-slate-500 text-center p-8">Loading…</p>
       ) : eligibleItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-8">
-          No On Hold or Rejected items are available to import.
+          No On Hold, Rejected, or Pending Review items are available to import.
         </p>
       ) : (
         <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">

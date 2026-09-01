@@ -581,7 +581,7 @@ const AcctRequisitionSheetView = () => {
               <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
                 + Add Line Item
               </Button>
-              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)}>
+              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import Held / Rejected / Pending Review items">
                 Import Held / Rejected
               </Button>
               {items.length > 0 && (

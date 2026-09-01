@@ -43,6 +43,10 @@ export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 // sheet so its number isn't permanently burned for nothing.
 export const deleteSheetIfEmpty = (id) => authApi.delete(`${BASE}/sheets/${id}`);
 export const submitSheet = (id) => authApi.post(`${BASE}/sheets/${id}/submit`);
+// Ends a review session before every line item has a decision — remaining
+// Pending HO Review items become Pending Review, joining the On
+// Hold/Rejected rollover queue (close_acct_sheet_review_transact, 041).
+export const closeSheetReview = (id) => authApi.post(`${BASE}/sheets/${id}/close-review`);
 
 // exportBulkNeft: returns the real 'Bulk Sheet 1'-format .xlsx as bytes, not
 // JSON — responseType: 'blob' is required so axios doesn't try to JSON-parse
@@ -57,9 +61,11 @@ export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${she
 export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/sheets/${sheetId}/items/${itemId}`, data);
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
-// ── Import On Hold/Rejected items into a new sheet ──────────────────────
-// Accumulating, cross-sheet list of On Hold/Rejected items that haven't
-// been imported or dismissed yet (034_add_line_item_import.sql).
+// ── Import On Hold/Rejected/Pending Review items into a new sheet ───────
+// Accumulating, cross-sheet list of On Hold/Rejected/Pending Review items
+// that haven't been imported or dismissed yet (034_add_line_item_import.sql,
+// widened to include Pending Review by 041_close_review_pending_rollover.sql).
+// params supports particulars/status filters alongside the existing ones.
 export const getImportEligibleItems = (params) => authApi.get(`${BASE}/import-eligible-items`, { params });
 export const importLineItem = (itemId, targetSheetId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, { target_sheet_id: targetSheetId });
 export const dismissImportEligibleItem = (itemId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`);
