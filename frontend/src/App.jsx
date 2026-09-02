@@ -155,6 +155,7 @@ function App() {
                 {/* Accounts HO Approval Protected Routes (HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
                   <Route path="/acct-requisitions/ho-queue" element={<React.Suspense fallback={<AppChunkLoader />}><AcctHoQueue /></React.Suspense>} />
+                  <Route path="/acct-requisitions/ho-queue/details" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionDetails /></React.Suspense>} />
                   <Route path="/acct-requisitions/ho-queue/sheets/:id" element={<React.Suspense fallback={<AppChunkLoader />}><AcctHoSheetView /></React.Suspense>} />
                 </Route>
 

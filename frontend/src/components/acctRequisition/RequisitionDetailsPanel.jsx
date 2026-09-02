@@ -14,8 +14,6 @@ const formatINR = (value) => {
   }).format(num);
 };
 
-const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '—');
-
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'Pending HO Review', label: 'Pending HO Review' },
@@ -48,7 +46,8 @@ const getStatusBadgeVariant = (status) => {
 
 // Shared "Requisition Details" filter/search view — line items flattened
 // across sheets, filterable by Account Sub-title / Beneficiary A/c No. /
-// Debit Bank Account / date range, with an "export everything matching" to
+// Beneficiary Name / Debit Bank Account / Status / date range, with an
+// "export everything matching" to
 // Excel. Mounted as a tab on both AcctRequisitions.jsx (accounts) and
 // AcctHoQueue.jsx (ho) — role only changes which sheet detail route a row
 // click lands on, since both sides read the same /line-items endpoint.
@@ -59,6 +58,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const [limit] = useState(20);
   const [accountSubTitle, setAccountSubTitle] = useState('');
   const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
   const [debitBankAcType, setDebitBankAcType] = useState('');
   const [requisitionStatus, setRequisitionStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -66,13 +66,14 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  const filters = { accountSubTitle, beneficiaryAcNo, debitBankAcType, requisitionStatus, dateFrom, dateTo };
-  const hasFilters = accountSubTitle || beneficiaryAcNo || debitBankAcType || requisitionStatus || dateFrom || dateTo;
+  const filters = { accountSubTitle, beneficiaryAcNo, beneficiaryName, debitBankAcType, requisitionStatus, dateFrom, dateTo };
+  const hasFilters = accountSubTitle || beneficiaryAcNo || beneficiaryName || debitBankAcType || requisitionStatus || dateFrom || dateTo;
 
   const buildParams = () => {
     const params = {};
     if (accountSubTitle) params.account_sub_title = accountSubTitle;
     if (beneficiaryAcNo) params.beneficiary_ac_no = beneficiaryAcNo;
+    if (beneficiaryName) params.beneficiary_name = beneficiaryName;
     if (debitBankAcType) params.debit_bank_ac_type = debitBankAcType;
     if (requisitionStatus) params.requisition_status = requisitionStatus;
     if (dateFrom) params.date_from = dateFrom;
@@ -113,6 +114,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const resetFilters = () => {
     setAccountSubTitle('');
     setBeneficiaryAcNo('');
+    setBeneficiaryName('');
     setDebitBankAcType('');
     setRequisitionStatus('');
     setDateFrom('');
@@ -159,6 +161,17 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               placeholder="Enter account number..."
               value={beneficiaryAcNo}
               onChange={(e) => { setBeneficiaryAcNo(e.target.value); setPage(1); }}
+              size="sm"
+            />
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Beneficiary Name</span>
+            <Input
+              type="text"
+              placeholder="Enter beneficiary name..."
+              value={beneficiaryName}
+              onChange={(e) => { setBeneficiaryName(e.target.value); setPage(1); }}
               size="sm"
             />
           </div>
@@ -243,8 +256,8 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                 <TableHeader>
                   <TableRow hover={false}>
                     <TableCell isHeader className="whitespace-nowrap">Req. No.</TableCell>
-                    <TableCell isHeader>Date</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>Beneficiary Name</TableCell>
                     <TableCell isHeader>Beneficiary A/c No.</TableCell>
                     <TableCell isHeader>Debit Bank Account</TableCell>
                     <TableCell isHeader align="right">Req. Amount</TableCell>
@@ -259,10 +272,10 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                         <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{item.sheet_number || '—'}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{formatDate(item.created_at)}</span>
+                        <span className="text-xs text-slate-300 font-medium">{item.account_sub_title_text || '—'}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-xs text-slate-300 font-medium">{item.account_sub_title_text || '—'}</span>
+                        <span className="text-xs text-slate-300">{item.beneficiary_name || '—'}</span>
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-slate-400 font-mono">{item.beneficiary_ac_no || '—'}</span>
