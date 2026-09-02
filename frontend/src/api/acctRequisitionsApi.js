@@ -84,3 +84,7 @@ export const resubmitLineItem = (itemId, data) => authApi.post(`${BASE}/items/${
 export const getCreditLedger = (params) => authApi.get(`${BASE}/credit-ledger`, { params });
 export const importCreditInstallment = (ledgerId, targetSheetId) =>
   authApi.post(`${BASE}/credit-ledger/${ledgerId}/import`, { target_sheet_id: targetSheetId });
+// HO-only manual correction of an Open entry's remaining balance, with
+// required remarks (adjust_credit_ledger_balance_transact, 044).
+export const adjustCreditLedgerBalance = (ledgerId, newRemainingBalance, remarks) =>
+  authApi.patch(`${BASE}/credit-ledger/${ledgerId}/adjust`, { new_remaining_balance: newRemainingBalance, remarks });

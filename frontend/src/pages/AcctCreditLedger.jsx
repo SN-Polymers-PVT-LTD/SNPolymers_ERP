@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { Button, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Input, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { getCreditLedger } from '../api/acctRequisitionsApi';
+import AdjustCreditBalanceModal from '../components/acctRequisition/AdjustCreditBalanceModal';
 
 const STATUS_TABS = [
   { value: 'Open', label: 'Open', emptyText: 'No open credit purchases.' },
@@ -19,26 +20,54 @@ const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString(
  * Browse/history view over credit_ledger (042_credit_purchases_and_ledger.sql)
  * — one row per credit purchase HO approved via "Credit Approved". Open tab
  * is the still-payable list; History is fully Settled purchases. This page
- * is browse-only, same split as AcctImportEligibleItems.jsx for the existing
- * Hold/Reject queue — the actual "pull an installment into my sheet" action
- * lives in CreditLedgerImportModal, opened from within an Open sheet, since
- * importing always needs a target sheet_id this page doesn't have.
+ * is browse-only for Accounts, same split as AcctImportEligibleItems.jsx for
+ * the existing Hold/Reject queue — the actual "pull an installment into my
+ * sheet" action lives in CreditLedgerImportModal, opened from within an Open
+ * sheet, since importing always needs a target sheet_id this page doesn't
+ * have. HO additionally gets an "Adjust Balance" action on Open entries
+ * (adjust_credit_ledger_balance_transact, 044) — a data-correction tool,
+ * not part of the normal installment-approval flow.
  */
 const AcctCreditLedger = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const canView = user?.role === 'accounts' || user?.role === 'ho' || user?.role === 'admin';
+  const canAdjust = user?.role === 'ho' || user?.role === 'admin';
 
   const [statusFilter, setStatusFilter] = useState('Open');
+  const [dealerFilter, setDealerFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [adjustingEntry, setAdjustingEntry] = useState(null);
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
+  const hasFilters = dealerFilter || dateFrom || dateTo;
+  const queryKey = ['acctCreditLedger', statusFilter, dealerFilter, dateFrom, dateTo];
+
   const { data: entries = [], isLoading, error: queryError } = useQuery({
-    queryKey: ['acctCreditLedger', statusFilter],
-    queryFn: async () => (await getCreditLedger({ status: statusFilter, limit: 100 })).data?.entries || [],
+    queryKey,
+    queryFn: async () => (await getCreditLedger({
+      status: statusFilter,
+      limit: 100,
+      dealer: dealerFilter || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined
+    })).data?.entries || [],
     enabled: canView
   });
 
   const displayError = queryError?.response?.data?.message || queryError?.message || '';
+
+  const resetFilters = () => {
+    setDealerFilter('');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const handleAdjusted = () => {
+    queryClient.invalidateQueries({ queryKey: ['acctCreditLedger'] });
+  };
 
   if (!canView) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
@@ -90,11 +119,37 @@ const AcctCreditLedger = () => {
         })}
       </div>
 
+      <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row flex-wrap items-end gap-3 mb-6">
+        <div className="w-full sm:w-56">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Dealer Name</span>
+          <Input
+            type="text"
+            placeholder="Search dealer..."
+            value={dealerFilter}
+            onChange={(e) => setDealerFilter(e.target.value)}
+            size="sm"
+          />
+        </div>
+        <div className="w-full sm:w-36">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">From</span>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} size="sm" />
+        </div>
+        <div className="w-full sm:w-36">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">To</span>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} size="sm" />
+        </div>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
+            Reset Filters
+          </Button>
+        )}
+      </div>
+
       {isLoading ? (
         <div className="py-12 text-center text-xs text-slate-500">Loading…</div>
       ) : entries.length === 0 ? (
         <div className="glass-panel rounded-3xl p-8 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
-          {activeTab.emptyText}
+          {hasFilters ? 'No entries match these filters.' : activeTab.emptyText}
         </div>
       ) : (
         <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
@@ -108,6 +163,7 @@ const AcctCreditLedger = () => {
                 <TableCell isHeader align="right">Remaining Balance</TableCell>
                 <TableCell isHeader>Status</TableCell>
                 {statusFilter === 'Settled' && <TableCell isHeader>Settled On</TableCell>}
+                {statusFilter === 'Open' && canAdjust && <TableCell isHeader>Actions</TableCell>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -144,12 +200,26 @@ const AcctCreditLedger = () => {
                       <span className="text-slate-400 text-xs">{formatDate(entry.settled_at)}</span>
                     </TableCell>
                   )}
+                  {statusFilter === 'Open' && canAdjust && (
+                    <TableCell>
+                      <Button variant="glass" size="sm" onClick={() => setAdjustingEntry(entry)}>
+                        Adjust Balance
+                      </Button>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      <AdjustCreditBalanceModal
+        isOpen={!!adjustingEntry}
+        onClose={() => setAdjustingEntry(null)}
+        entry={adjustingEntry}
+        onAdjusted={handleAdjusted}
+      />
     </>
   );
 };
