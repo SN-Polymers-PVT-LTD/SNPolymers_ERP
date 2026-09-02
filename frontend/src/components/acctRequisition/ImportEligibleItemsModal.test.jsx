@@ -1,14 +1,15 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ImportEligibleItemsModal from './ImportEligibleItemsModal';
-import { getImportEligibleItems, importLineItem, dismissImportEligibleItem } from '../../api/acctRequisitionsApi';
+import { getImportEligibleItems, importLineItem, dismissImportEligibleItem, getAccountSubTitles } from '../../api/acctRequisitionsApi';
 
 vi.mock('../../api/acctRequisitionsApi', () => ({
   getImportEligibleItems: vi.fn(),
   importLineItem: vi.fn(),
-  dismissImportEligibleItem: vi.fn()
+  dismissImportEligibleItem: vi.fn(),
+  getAccountSubTitles: vi.fn()
 }));
 
 const renderModal = (props = {}) => {
@@ -36,13 +37,15 @@ describe('ImportEligibleItemsModal — browse and act on On Hold/Rejected items'
     vi.mocked(getImportEligibleItems).mockReset();
     vi.mocked(importLineItem).mockReset();
     vi.mocked(dismissImportEligibleItem).mockReset();
+    vi.mocked(getAccountSubTitles).mockReset();
+    vi.mocked(getAccountSubTitles).mockResolvedValue({ data: { accountSubTitles: [] } });
   });
 
   it('shows an empty state when there are no eligible items', async () => {
     vi.mocked(getImportEligibleItems).mockResolvedValue({ data: { items: [] } });
     renderModal();
 
-    await waitFor(() => expect(screen.getByText(/no on hold or rejected items/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no on hold, rejected, or pending review items/i)).toBeInTheDocument());
   });
 
   it('lists eligible items with their source sheet, amount, and status', async () => {
@@ -53,7 +56,8 @@ describe('ImportEligibleItemsModal — browse and act on On Hold/Rejected items'
     expect(screen.getByText('AMC')).toBeInTheDocument();
     expect(screen.getByText('Person A')).toBeInTheDocument();
     expect(screen.getByText(/12,200/)).toBeInTheDocument();
-    expect(screen.getByText('On Hold')).toBeInTheDocument();
+    // 'On Hold' also appears as a Status filter option now, so scope to the table.
+    expect(within(screen.getByRole('table')).getByText('On Hold')).toBeInTheDocument();
   });
 
   it('imports an item into the target sheet and refreshes the list', async () => {
@@ -79,7 +83,7 @@ describe('ImportEligibleItemsModal — browse and act on On Hold/Rejected items'
     fireEvent.click(screen.getByRole('button', { name: /^import$/i }));
 
     // Optimistic: gone from the list even though importLineItem hasn't resolved yet.
-    await waitFor(() => expect(screen.getByText(/no on hold or rejected items/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no on hold, rejected, or pending review items/i)).toBeInTheDocument());
     resolveImport({ data: { item: { id: 'new-item' } } });
   });
 
@@ -108,7 +112,7 @@ describe('ImportEligibleItemsModal — browse and act on On Hold/Rejected items'
 
     await waitFor(() => expect(dismissImportEligibleItem).toHaveBeenCalledWith('item-1'));
     expect(importLineItem).not.toHaveBeenCalled();
-    await waitFor(() => expect(screen.getByText(/no on hold or rejected items/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/no on hold, rejected, or pending review items/i)).toBeInTheDocument());
   });
 
   it('restores the item to the list if dismiss fails', async () => {

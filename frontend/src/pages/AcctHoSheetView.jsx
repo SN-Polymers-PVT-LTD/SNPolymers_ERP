@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { Button, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup, PremiumSuccessModal } from '../components/ui';
+import { Button, SkeletonPage, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup, PremiumSuccessModal } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
 import HoDecisionPanel from '../components/acctRequisition/HoDecisionPanel';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
+import ExportCsvStatusModal from '../components/acctRequisition/ExportCsvStatusModal';
 
 import {
-  getSheetById, actOnLineItemsBatch, getBankBalances, getIndianBanks, getParticulars
+  getSheetById, actOnLineItemsBatch, closeSheetReview, getBankBalances, getIndianBanks, getParticulars
 } from '../api/acctRequisitionsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
@@ -39,6 +40,7 @@ const getStatusBadgeVariant = (status) => (status === 'Reviewed' ? 'emerald' : '
 const ACTION_TO_STATUS_LABEL = {
   Approve: 'Approved',
   PartiallyApprove: 'Partially Approved',
+  CreditApprove: 'Credit Approved',
   Hold: 'On Hold',
   Return: 'Returned for Correction',
   Reject: 'Rejected'
@@ -65,6 +67,10 @@ const AcctHoSheetView = () => {
   const [batchErrors, setBatchErrors] = useState({});
   const [submittingDecisions, setSubmittingDecisions] = useState(false);
   const [showRejected, setShowRejected] = useState(false);
+  const [showPendingReview, setShowPendingReview] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [closingReview, setClosingReview] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
 
@@ -156,7 +162,7 @@ const AcctHoSheetView = () => {
       if (Object.keys(nextBatchErrors).length === 0) {
         setError('Stage at least one decision before submitting.');
       }
-      return;
+      return false;
     }
 
     setSubmittingDecisions(true);
@@ -191,11 +197,52 @@ const AcctHoSheetView = () => {
       } else {
         setSuccess(`${results.length} decision(s) applied.`);
       }
+      return failedCount === 0;
     } catch (err) {
       setBatchErrors(nextBatchErrors);
       setError(err.response?.data?.message || 'Failed to submit decisions.');
+      return false;
     } finally {
       setSubmittingDecisions(false);
+    }
+  };
+
+  // Ends the review session early. Any staged-but-unsubmitted decisions are
+  // persisted first — a decision only staged in local state and never sent
+  // would otherwise get silently swept into 'Pending Review' by the RPC
+  // below, since it only sees DB state, not this component's local state.
+  // If one of those staged decisions fails to apply (e.g. insufficient bank
+  // balance), handleSubmitDecisions surfaces it via batchErrors/error state
+  // but doesn't throw — so its own return value (false on any failure) is
+  // what stops the close here, rather than letting a failed decision get
+  // silently swept into Pending Review alongside genuinely-untouched items.
+  const handleCloseReview = async () => {
+    setError('');
+    setSuccess('');
+    setClosingReview(true);
+    try {
+      if (stagedCount > 0) {
+        const allApplied = await handleSubmitDecisions(false);
+        if (!allApplied) {
+          setClosingReview(false);
+          return;
+        }
+      }
+      await closeSheetReview(id);
+      setShowCloseConfirm(false);
+      setPremiumSuccess({
+        title: 'Review Closed',
+        message: 'Remaining undecided items have moved to the pending queue for a future sheet.',
+        details: [
+          { label: 'Req. No.', value: sheetDetail.sheet_number },
+          { label: 'New Status', value: 'Reviewed', pill: true }
+        ]
+      });
+      invalidateSheet();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to close review.');
+    } finally {
+      setClosingReview(false);
     }
   };
 
@@ -230,18 +277,22 @@ const AcctHoSheetView = () => {
   // — nothing further to stage, so it's folded into "Already Decided" below
   // alongside Approved/Partially Approved, not the actionable table.
   const actionableItems = items.filter(i => i.requisition_status === 'Pending HO Review');
-  const otherItems = items.filter(i => !['Pending HO Review', 'Rejected'].includes(i.requisition_status));
+  // Pending Review items were swept aside by Close Review, not decided —
+  // they get their own section below, not "Already Decided" (037/041).
+  const otherItems = items.filter(i => !['Pending HO Review', 'Rejected', 'Pending Review'].includes(i.requisition_status));
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
+  const pendingReviewItems = items.filter(i => i.requisition_status === 'Pending Review');
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
 
-  const handleExportCsv = () => {
-    const csv = buildSheetCsv(sheetDetail, items);
+  const handleExportCsv = (status) => {
+    const exportItems = status === 'All' ? items : items.filter(i => i.requisition_status === status);
+    const csv = buildSheetCsv(sheetDetail, exportItems);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.download = `${sheetDetail.sheet_number}${status === 'All' ? '' : `-${status.replace(/\s+/g, '-')}`}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
@@ -321,7 +372,7 @@ const AcctHoSheetView = () => {
             View Bank Balances
           </Button>
           {items.length > 0 && (
-            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+            <Button variant="glass" size="sm" onClick={() => setShowExportModal(true)}>
               Export to CSV
             </Button>
           )}
@@ -340,6 +391,14 @@ const AcctHoSheetView = () => {
               >
                 Submit Decisions
               </Button>
+              <Button
+                variant="glass"
+                size="sm"
+                onClick={() => setShowCloseConfirm(true)}
+                title="Close this review now — any undecided items move to the pending queue"
+              >
+                Close Review
+              </Button>
             </>
           )}
         </div>
@@ -348,7 +407,7 @@ const AcctHoSheetView = () => {
       {bankBalances.length > 0 && (
         <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02]">
           <div className="flex flex-wrap gap-4">
-            {bankBalances.map((bank) => (
+            {bankBalances.filter(b => !b.is_virtual).map((bank) => (
               <BankBalanceBanner
                 key={bank.bank_name}
                 bankBalance={bank}
@@ -360,7 +419,7 @@ const AcctHoSheetView = () => {
         </div>
       )}
 
-      {actionableItems.length === 0 && otherItems.length === 0 && rejectedItems.length === 0 ? (
+      {actionableItems.length === 0 && otherItems.length === 0 && rejectedItems.length === 0 && pendingReviewItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet.</p>
       ) : (
         <>
@@ -388,6 +447,20 @@ const AcctHoSheetView = () => {
               {showRejected && renderTable(rejectedItems, { decided: true })}
             </div>
           )}
+
+          {pendingReviewItems.length > 0 && (
+            <div className="flex flex-col gap-2 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowPendingReview((v) => !v)}
+                className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-widest text-slate-500 hover:text-slate-300 transition-colors w-fit"
+              >
+                <span className={`transition-transform ${showPendingReview ? 'rotate-90' : ''}`}>▸</span>
+                {pendingReviewItems.length} Swept to Pending Queue {pendingReviewItems.length === 1 ? 'item' : 'items'} (click to {showPendingReview ? 'hide' : 'view'})
+              </button>
+              {showPendingReview && renderTable(pendingReviewItems, { decided: true })}
+            </div>
+          )}
         </>
       )}
 
@@ -399,6 +472,33 @@ const AcctHoSheetView = () => {
         title={premiumSuccess?.title}
         message={premiumSuccess?.message}
         details={premiumSuccess?.details || []}
+      />
+
+      <Modal
+        isOpen={showCloseConfirm}
+        onClose={() => setShowCloseConfirm(false)}
+        size="md"
+        title="Close Review?"
+        footer={
+          <div className="flex justify-end gap-3 w-full">
+            <Button variant="glass" size="sm" onClick={() => setShowCloseConfirm(false)}>Cancel</Button>
+            <Button variant="amber" size="sm" onClick={handleCloseReview} loading={closingReview}>
+              Close Review
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-300 mb-2">
+          {actionableItems.length - stagedCount} item(s) will still be undecided. They'll move to the
+          pending queue — Accounts can bring them into a new sheet later, but they can no longer be
+          decided on this one.
+        </p>
+      </Modal>
+
+      <ExportCsvStatusModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportCsv}
       />
     </>
   );

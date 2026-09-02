@@ -15,10 +15,12 @@ const STATUS_VARIANTS = {
   'Partially Approved': 'emerald',
   'On Hold': 'orange',
   'Returned for Correction': 'red',
-  Rejected: 'red'
+  Rejected: 'red',
+  'Pending Review': 'indigo',
+  'Credit Approved': 'blue'
 };
 
-const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT'].map(v => ({ value: v, label: v }));
+const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].map(v => ({ value: v, label: v }));
 
 // Backend sets ho_actioned_at (not the generic updated_at) at the moment a row
 // transitions into Hold (act_acct_line_item_non_approve_transact) — the precise

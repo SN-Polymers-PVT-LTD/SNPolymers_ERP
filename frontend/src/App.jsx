@@ -55,6 +55,8 @@ const AcctImportEligibleItems = React.lazy(() => import('./pages/AcctImportEligi
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
 const AcctRequisitionLogs = React.lazy(() => import('./pages/AcctRequisitionLogs'));
 const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
+const AcctCreditLedger = React.lazy(() => import('./pages/AcctCreditLedger'));
+const AcctRequisitionDetails = React.lazy(() => import('./pages/AcctRequisitionDetails'));
 
 
 
@@ -135,6 +137,7 @@ function App() {
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['accounts', 'ho', 'admin']} />}>
                   <Route path="/acct-requisitions/bank-balances" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBankBalances /></React.Suspense>} />
+                  <Route path="/acct-requisitions/credit-ledger" element={<React.Suspense fallback={<AppChunkLoader />}><AcctCreditLedger /></React.Suspense>} />
                   <Route path="/acct-requisitions/logs" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionLogs /></React.Suspense>} />
                 </Route>
 
@@ -142,6 +145,7 @@ function App() {
                 <Route element={<ProtectedRoute allowedRoles={['accounts', 'admin']} />}>
                   <Route path="/acct-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitions /></React.Suspense>} />
                   <Route path="/acct-requisitions/sheets/:id" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionSheetView /></React.Suspense>} />
+                  <Route path="/acct-requisitions/details" element={<React.Suspense fallback={<AppChunkLoader />}><AcctRequisitionDetails /></React.Suspense>} />
                   <Route path="/acct-requisitions/sub-titles" element={<React.Suspense fallback={<AppChunkLoader />}><AcctSubTitles /></React.Suspense>} />
                   <Route path="/acct-requisitions/particulars" element={<React.Suspense fallback={<AppChunkLoader />}><AcctParticulars /></React.Suspense>} />
                   <Route path="/acct-requisitions/beneficiary-master" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBeneficiaryMaster /></React.Suspense>} />

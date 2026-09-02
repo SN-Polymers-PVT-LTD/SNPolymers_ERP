@@ -111,6 +111,36 @@ describe('acct_requisition_sheets.sheet_status — auto-synced from line items',
     expect(reHold.error?.code).toBe('STA01');
   });
 
+  test('a sheet full of Pending Review + decided items still reaches Reviewed (041)', async () => {
+    const { data: sheet } = await supabase.from('acct_requisition_sheets').insert([{
+      sheet_number: `SYNC-F-${ctx.id}`, sheet_status: 'Submitted',
+      created_by: ctx.accountsMobile, submitted_by: ctx.accountsMobile, submitted_at: new Date().toISOString()
+    }]).select().single();
+    ctx.sheetIds.push(sheet.id);
+
+    const { data: items } = await supabase.from('acct_requisition_line_items').insert([
+      { sheet_id: sheet.id, created_by: ctx.accountsMobile, particulars: 'F1', req_amount: 100, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName, requisition_status: 'Pending HO Review' },
+      { sheet_id: sheet.id, created_by: ctx.accountsMobile, particulars: 'F2', req_amount: 100, payment_mode: 'NEFT', debit_bank_ac_type: ctx.bankName, requisition_status: 'Pending HO Review' }
+    ]).select();
+    ctx.itemIds.push(...items.map(i => i.id));
+
+    // Decide one, leave the other still Pending HO Review.
+    await supabase.rpc('approve_acct_line_item_transact', {
+      p_line_item_id: items[0].id, p_ho_process: 'Approved', p_ho_pass_amount: null, p_actioned_by: ctx.ho1Mobile, p_ho_remarks: null
+    });
+    expect(await getSheetStatus(sheet.id)).toBe('Submitted');
+
+    const { data: closed, error: closeErr } = await supabase.rpc('close_acct_sheet_review_transact', {
+      p_sheet_id: sheet.id, p_closed_by: ctx.ho1Mobile
+    });
+    expect(closeErr).toBeNull();
+    expect(closed.sheet_status).toBe('Reviewed');
+    expect(await getSheetStatus(sheet.id)).toBe('Reviewed');
+
+    const { data: sweptItem } = await supabase.from('acct_requisition_line_items').select('requisition_status').eq('id', items[1].id).single();
+    expect(sweptItem.requisition_status).toBe('Pending Review');
+  });
+
   test('the batch RPC path also flips Submitted -> Reviewed on the last item', async () => {
     const { data: sheet } = await supabase.from('acct_requisition_sheets').insert([{
       sheet_number: `SYNC-C-${ctx.id}`, sheet_status: 'Submitted',

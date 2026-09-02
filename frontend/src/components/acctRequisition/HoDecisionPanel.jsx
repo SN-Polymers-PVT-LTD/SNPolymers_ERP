@@ -1,9 +1,19 @@
 import React from 'react';
 import { Select, FormattedCurrencyInput, TextArea, Badge } from '../ui';
 
-const ACTION_OPTIONS = [
+const ACTION_OPTIONS_CASH = [
   { value: 'Approve', label: 'Approve' },
   { value: 'PartiallyApprove', label: 'Partially Approve' },
+  { value: 'Hold', label: 'Hold' },
+  { value: 'Return', label: 'Return for Correction' },
+  { value: 'Reject', label: 'Reject' }
+];
+
+// A Credit-type item (debit_bank_ac_type === 'Credit') can never be Approved
+// or Partially Approved — the backend hard-rejects that with VAL09
+// (042_credit_purchases_and_ledger.sql). Offer Credit Approved instead.
+const ACTION_OPTIONS_CREDIT = [
+  { value: 'CreditApprove', label: 'Credit Approved' },
   { value: 'Hold', label: 'Hold' },
   { value: 'Return', label: 'Return for Correction' },
   { value: 'Reject', label: 'Reject' }
@@ -31,6 +41,7 @@ const HoDecisionPanel = ({ item, decision, onDecisionChange, disabled, error }) 
   const hoRemarks = decision?.ho_remarks ?? '';
   const needsPassAmount = action === 'PartiallyApprove';
   const needsRemarks = ['Hold', 'Return', 'Reject'].includes(action);
+  const actionOptions = item.debit_bank_ac_type === 'Credit' ? ACTION_OPTIONS_CREDIT : ACTION_OPTIONS_CASH;
 
   const setField = (field, value) => onDecisionChange(item.id, { ...decision, action, ho_pass_amount: hoPassAmount, ho_remarks: hoRemarks, [field]: value });
 
@@ -47,7 +58,7 @@ const HoDecisionPanel = ({ item, decision, onDecisionChange, disabled, error }) 
         value={action}
         disabled={disabled}
         onChange={(e) => setField('action', e.target.value)}
-        options={[{ value: '', label: 'Select a decision...' }, ...ACTION_OPTIONS]}
+        options={[{ value: '', label: 'Select a decision...' }, ...actionOptions]}
       />
 
       {needsPassAmount && (

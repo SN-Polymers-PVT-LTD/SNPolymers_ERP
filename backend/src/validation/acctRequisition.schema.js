@@ -84,8 +84,8 @@ const accountsLineItemBody = z.object({
   // '') since chk_arli_payment_mode only allows NULL or a real enum value.
   payment_mode:           z.string().trim().optional().nullable()
                             .transform(val => (val === '' ? null : val))
-                            .refine(val => val == null || ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT'].includes(val), {
-                              message: 'payment_mode must be one of Cheque, Bulk NEFT, RTGS, NEFT.'
+                            .refine(val => val == null || ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].includes(val), {
+                              message: 'payment_mode must be one of Cheque, Bulk NEFT, RTGS, NEFT, Credit.'
                             }),
   cheque_no:              z.string().trim().optional().nullable(),
   cheque_date:            z.string().trim().optional().nullable(),
@@ -105,7 +105,7 @@ const updateLineItemSchema = {
 // either way: ho_pass_amount required for PartiallyApprove, ho_remarks
 // required for Hold/Return/Reject.
 const acctLineItemActionFields = {
-  action:         z.enum(['Approve', 'PartiallyApprove', 'Hold', 'Return', 'Reject']),
+  action:         z.enum(['Approve', 'PartiallyApprove', 'CreditApprove', 'Hold', 'Return', 'Reject']),
   ho_pass_amount: z.coerce.number().positive().optional().nullable(),
   ho_remarks:     z.string().trim().optional().nullable(),
 };
@@ -147,6 +147,23 @@ const importLineItemSchema = {
 
 const dismissLineItemSchema = {
   params: z.object({ itemId: uuidSchema })
+};
+
+const importCreditInstallmentSchema = {
+  params: z.object({ ledgerId: uuidSchema }),
+  body: z.object({ target_sheet_id: uuidSchema })
+};
+
+const adjustCreditLedgerBalanceSchema = {
+  params: z.object({ ledgerId: uuidSchema }),
+  body: z.object({
+    new_remaining_balance: z.coerce.number({
+      required_error: 'new_remaining_balance is required.',
+      invalid_type_error: 'new_remaining_balance must be a number.'
+    }).nonnegative('new_remaining_balance cannot be negative.'),
+    remarks: z.string({ required_error: 'remarks are required to adjust a credit ledger balance.' })
+      .trim().min(1, 'remarks are required to adjust a credit ledger balance.')
+  })
 };
 
 const upsertBankBalanceSchema = {
@@ -214,5 +231,7 @@ module.exports = {
   upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
+  importCreditInstallmentSchema,
+  adjustCreditLedgerBalanceSchema,
   refreshIndianBanksCache
 };

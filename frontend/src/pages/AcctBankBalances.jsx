@@ -51,7 +51,7 @@ const AcctBankBalances = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-              {bankBalances.map((b) => (
+              {bankBalances.filter(b => !b.is_virtual).map((b) => (
                 <BankCard key={b.bank_name} bank={b} readOnly={!canEdit} />
               ))}
             </div>

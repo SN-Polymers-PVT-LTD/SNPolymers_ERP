@@ -1,13 +1,14 @@
 const express = require('express');
 const {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty, addLineItem, updateLineItem,
-  deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, resubmitLineItem,
+  deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft,
-  getRequisitionLogs
+  getRequisitionLogs,
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -19,7 +20,9 @@ const {
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
-  exportNeftSchema
+  exportNeftSchema,
+  importCreditInstallmentSchema,
+  adjustCreditLedgerBalanceSchema
 } = require('../validation/acctRequisition.schema');
 
 const router = express.Router();
@@ -55,10 +58,15 @@ router.patch('/sheets/:sheetId/items/:itemId', requireRole(accountsRoles), valid
 router.delete('/sheets/:sheetId/items/:itemId', requireRole(accountsRoles), deleteLineItem);
 router.patch('/items/:itemId/action', requireRole(hoRoles), validateRequest(actOnLineItemSchema), actOnLineItem);
 router.post('/sheets/:sheetId/items/batch-action', requireRole(hoRoles), validateRequest(actOnLineItemsBatchSchema), actOnLineItemsBatch);
+router.post('/sheets/:sheetId/close-review', requireRole(hoRoles), closeSheetReview);
 router.post('/items/:itemId/resubmit', requireRole(accountsRoles), validateRequest(resubmitLineItemSchema), resubmitLineItem);
 
 router.get('/import-eligible-items', requireRole(accountsRoles), getImportEligibleItems);
 router.post('/import-eligible-items/:itemId/import', requireRole(accountsRoles), validateRequest(importLineItemSchema), importLineItem);
 router.post('/import-eligible-items/:itemId/dismiss', requireRole(accountsRoles), validateRequest(dismissLineItemSchema), dismissImportEligibleItem);
+
+router.get('/credit-ledger', requireRole(readerRoles), getCreditLedger);
+router.post('/credit-ledger/:ledgerId/import', requireRole(accountsRoles), validateRequest(importCreditInstallmentSchema), importCreditInstallment);
+router.patch('/credit-ledger/:ledgerId/adjust', requireRole(hoRoles), validateRequest(adjustCreditLedgerBalanceSchema), adjustCreditLedgerBalance);
 
 module.exports = router;
