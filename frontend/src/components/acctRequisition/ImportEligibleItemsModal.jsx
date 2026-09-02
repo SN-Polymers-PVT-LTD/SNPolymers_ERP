@@ -1,9 +1,16 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Modal, Button, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../ui';
-import { getImportEligibleItems, importLineItem, dismissImportEligibleItem } from '../../api/acctRequisitionsApi';
+import { Modal, Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell } from '../ui';
+import { getImportEligibleItems, importLineItem, dismissImportEligibleItem, getAccountSubTitles } from '../../api/acctRequisitionsApi';
 
 const STATUS_VARIANTS = { 'On Hold': 'orange', Rejected: 'red', 'Pending Review': 'indigo' };
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'On Hold', label: 'On Hold' },
+  { value: 'Rejected', label: 'Rejected' },
+  { value: 'Pending Review', label: 'Pending Review' }
+];
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
@@ -16,27 +23,62 @@ const formatCurrency = (val) =>
  * item, or dismiss it from the list for good. The source item is never
  * touched by either action — only its imported/dismissed bookkeeping
  * columns change.
+ *
+ * Filters (status, account sub-title, date range) narrow the same
+ * getImportEligibleItems endpoint the standalone AcctImportEligibleItems.jsx
+ * page already uses — this modal just adds account sub-title and date range
+ * on top of that page's existing particulars/status filters.
  */
 const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }) => {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [actingItemId, setActingItemId] = useState(null);
+  const [statusFilter, setStatusFilter] = useState('');
+  const [accountSubTitle, setAccountSubTitle] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
-  const { data: eligibleItems = [], isLoading } = useQuery({
-    queryKey: ['acctImportEligibleItems'],
-    queryFn: async () => (await getImportEligibleItems({ limit: 100 })).data?.items || [],
+  const hasFilters = statusFilter || accountSubTitle || dateFrom || dateTo;
+  const filters = { statusFilter, accountSubTitle, dateFrom, dateTo };
+  const queryKey = ['acctImportEligibleItems', filters];
+
+  const { data: subTitlesData } = useQuery({
+    queryKey: ['acctSubTitlesForFilter'],
+    queryFn: async () => (await getAccountSubTitles()).data?.accountSubTitles ?? [],
+    staleTime: 60 * 1000,
     enabled: isOpen
   });
+  const subTitleOptions = (subTitlesData || []).filter(t => t.is_active).map(t => ({ value: t.title, label: t.title }));
+
+  const { data: eligibleItems = [], isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => (await getImportEligibleItems({
+      limit: 100,
+      status: statusFilter || undefined,
+      account_sub_title: accountSubTitle || undefined,
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined
+    })).data?.items || [],
+    enabled: isOpen
+  });
+
+  const resetFilters = () => {
+    setStatusFilter('');
+    setAccountSubTitle('');
+    setDateFrom('');
+    setDateTo('');
+  };
 
   // Optimistic remove: both actions take an item out of THIS eligible list
   // for good (imported = used up, dismissed = hidden), so there's nothing to
   // reconcile on success — just drop it from the cache immediately instead
   // of waiting on a round trip + refetch. On failure, put the snapshot back
   // and surface the error, same rollback shape as handleAddItem's optimistic
-  // add in AcctRequisitionSheetView.
+  // add in AcctRequisitionSheetView. Must target the same filter-parametrized
+  // queryKey the list is currently rendered from.
   const removeItemOptimistically = (itemId) => {
-    const previous = queryClient.getQueryData(['acctImportEligibleItems']);
-    queryClient.setQueryData(['acctImportEligibleItems'], (old) => (old || []).filter((i) => i.id !== itemId));
+    const previous = queryClient.getQueryData(queryKey);
+    queryClient.setQueryData(queryKey, (old) => (old || []).filter((i) => i.id !== itemId));
     return previous;
   };
 
@@ -48,7 +90,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
       await importLineItem(itemId, targetSheetId);
       onImported?.();
     } catch (err) {
-      queryClient.setQueryData(['acctImportEligibleItems'], previous);
+      queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to import line item.');
     } finally {
       setActingItemId(null);
@@ -62,7 +104,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
     try {
       await dismissImportEligibleItem(itemId);
     } catch (err) {
-      queryClient.setQueryData(['acctImportEligibleItems'], previous);
+      queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to dismiss line item.');
     } finally {
       setActingItemId(null);
@@ -77,11 +119,42 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
         </div>
       )}
 
+      <div className="mb-4 p-3 rounded-2xl bg-white/[0.02] border border-white/5 flex flex-col sm:flex-row flex-wrap items-end gap-3">
+        <div className="w-full sm:w-40">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Status</span>
+          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} options={STATUS_OPTIONS} size="sm" />
+        </div>
+        <div className="w-full sm:w-44">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Account Sub-title</span>
+          <Select
+            value={accountSubTitle}
+            onChange={(e) => setAccountSubTitle(e.target.value)}
+            options={[{ value: '', label: 'All sub-titles' }, ...subTitleOptions]}
+            size="sm"
+          />
+        </div>
+        <div className="w-full sm:w-36">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">From</span>
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} size="sm" />
+        </div>
+        <div className="w-full sm:w-36">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">To</span>
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} size="sm" />
+        </div>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={resetFilters}>
+            Reset Filters
+          </Button>
+        )}
+      </div>
+
       {isLoading ? (
         <p className="text-xs text-slate-500 text-center p-8">Loading…</p>
       ) : eligibleItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-8">
-          No On Hold, Rejected, or Pending Review items are available to import.
+          {hasFilters
+            ? 'No On Hold, Rejected, or Pending Review items match these filters.'
+            : 'No On Hold, Rejected, or Pending Review items are available to import.'}
         </p>
       ) : (
         <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">

@@ -17,7 +17,7 @@ const STATUS_VARIANTS = {
   'Returned for Correction': 'red',
   Rejected: 'red',
   'Pending Review': 'indigo',
-  'Credit Approved': 'indigo'
+  'Credit Approved': 'blue'
 };
 
 const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].map(v => ({ value: v, label: v }));

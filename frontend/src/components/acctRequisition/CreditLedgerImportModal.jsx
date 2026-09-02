@@ -8,8 +8,12 @@ const formatCurrency = (val) =>
 
 /**
  * Lists every Open credit purchase (credit_ledger, 042_credit_purchases_and_ledger.sql)
- * and lets Accounts pull one into the current (Open) sheet as a new,
- * mostly-blank installment line item (import_credit_installment_transact).
+ * and lets Accounts pull one into the current (Open) sheet as a new
+ * installment line item, prefilled with the dealer and the original
+ * purchase's Particulars/Account Sub-title (import_credit_installment_transact,
+ * 043_credit_installment_copies_particulars.sql) — only amount, debit bank,
+ * and payment mode are left for Accounts to fill in, since those vary per
+ * installment.
  *
  * Unlike ImportEligibleItemsModal's Hold/Reject import, this is repeatable —
  * the source credit_ledger row is untouched by an import, so it stays in

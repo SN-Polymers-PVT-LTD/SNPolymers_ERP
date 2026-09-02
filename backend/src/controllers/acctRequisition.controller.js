@@ -15,6 +15,14 @@ const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
+// Every requisition_status a line item can carry — used to whitelist the
+// getLineItems status filter, same "check against the known enum before
+// .eq()" convention as getSheets' sheet_status and IMPORT_ELIGIBLE_STATUSES.
+const LINE_ITEM_STATUSES = [
+  'Pending HO Review', 'Approved', 'Partially Approved', 'On Hold',
+  'Returned for Correction', 'Rejected', 'Pending Review', 'Credit Approved'
+];
+
 /**
  * Maps the custom ERRCODEs raised by the acct_requisition_* RPCs
  * (021_create_accounts_ho_approval.sql) to an HTTP status. Same inline-mapping
@@ -271,6 +279,10 @@ async function getLineItems(req, res) {
 
     if (query.debit_bank_ac_type) {
       dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
+    }
+
+    if (query.requisition_status && LINE_ITEM_STATUSES.includes(query.requisition_status)) {
+      dbQuery = dbQuery.eq('requisition_status', query.requisition_status);
     }
 
     if (query.date_from) {
@@ -1774,10 +1786,11 @@ async function getCreditLedger(req, res) {
 /**
  * POST /acct-requisitions/credit-ledger/:ledgerId/import
  * body: { target_sheet_id }
- * Creates a new, mostly-blank line item on the target Open sheet, prefilled
- * only with the dealer's identity (import_credit_installment_transact, 042)
- * — Accounts fills in the actual installment amount, a real debit bank, and
- * payment mode afterward like any normal new row. Unlike importLineItem
+ * Creates a new line item on the target Open sheet, prefilled with the
+ * dealer's identity plus the original purchase's Particulars/Account
+ * Sub-title (import_credit_installment_transact, 042 + 043) — Accounts
+ * fills in only the actual installment amount, a real debit bank, and
+ * payment mode, which vary per installment. Unlike importLineItem
  * (Hold/Reject/Pending Review), the source credit_ledger row is untouched by
  * this call — it stays importable again next time, until its own balance is
  * driven to zero by a later approval.

@@ -8,6 +8,7 @@ import LineItemRow from '../components/acctRequisition/LineItemRow';
 import HoDecisionPanel from '../components/acctRequisition/HoDecisionPanel';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
+import ExportCsvStatusModal from '../components/acctRequisition/ExportCsvStatusModal';
 
 import {
   getSheetById, actOnLineItemsBatch, closeSheetReview, getBankBalances, getIndianBanks, getParticulars
@@ -69,6 +70,7 @@ const AcctHoSheetView = () => {
   const [showPendingReview, setShowPendingReview] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [closingReview, setClosingReview] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
 
@@ -284,12 +286,13 @@ const AcctHoSheetView = () => {
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
 
-  const handleExportCsv = () => {
-    const csv = buildSheetCsv(sheetDetail, items);
+  const handleExportCsv = (status) => {
+    const exportItems = status === 'All' ? items : items.filter(i => i.requisition_status === status);
+    const csv = buildSheetCsv(sheetDetail, exportItems);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.download = `${sheetDetail.sheet_number}${status === 'All' ? '' : `-${status.replace(/\s+/g, '-')}`}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
@@ -369,7 +372,7 @@ const AcctHoSheetView = () => {
             View Bank Balances
           </Button>
           {items.length > 0 && (
-            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+            <Button variant="glass" size="sm" onClick={() => setShowExportModal(true)}>
               Export to CSV
             </Button>
           )}
@@ -491,6 +494,12 @@ const AcctHoSheetView = () => {
           decided on this one.
         </p>
       </Modal>
+
+      <ExportCsvStatusModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportCsv}
+      />
     </>
   );
 };

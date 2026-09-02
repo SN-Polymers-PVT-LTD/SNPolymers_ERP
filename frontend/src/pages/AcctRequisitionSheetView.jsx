@@ -9,6 +9,7 @@ import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 import ImportEligibleItemsModal from '../components/acctRequisition/ImportEligibleItemsModal';
 import CreditLedgerImportModal from '../components/acctRequisition/CreditLedgerImportModal';
+import ExportCsvStatusModal from '../components/acctRequisition/ExportCsvStatusModal';
 
 import {
   getSheetById, submitSheet,
@@ -51,6 +52,7 @@ const AcctRequisitionSheetView = () => {
   const [showRejected, setShowRejected] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showCreditImportModal, setShowCreditImportModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const saveFnsRef = useRef({});
 
   const registerSave = useCallback((itemId, fn) => {
@@ -391,12 +393,13 @@ const AcctRequisitionSheetView = () => {
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
 
-  const handleExportCsv = () => {
-    const csv = buildSheetCsv(sheetDetail, items);
+  const handleExportCsv = (status) => {
+    const exportItems = status === 'All' ? items : items.filter(i => i.requisition_status === status);
+    const csv = buildSheetCsv(sheetDetail, exportItems);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.download = `${sheetDetail.sheet_number}${status === 'All' ? '' : `-${status.replace(/\s+/g, '-')}`}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
@@ -600,7 +603,7 @@ const AcctRequisitionSheetView = () => {
             <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
           )}
           {items.length > 0 && (
-            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+            <Button variant="glass" size="sm" onClick={() => setShowExportModal(true)}>
               Export to CSV
             </Button>
           )}
@@ -630,6 +633,12 @@ const AcctRequisitionSheetView = () => {
           invalidateSheet();
           setSuccess('Installment line item created.');
         }}
+      />
+
+      <ExportCsvStatusModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportCsv}
       />
 
       <SuccessPopup isOpen={!!success} onClose={() => setSuccess('')} title="Saved" description={success} />

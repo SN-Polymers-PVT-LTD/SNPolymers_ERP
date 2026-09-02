@@ -195,10 +195,10 @@ describe('Credit Purchases & the Credit Ledger', () => {
 
   // ── 6, 7 & 8. installment import — repeatable, prefilled, gated on Open ──
 
-  test('import_credit_installment_transact creates a mostly-blank installment, and is repeatable', async () => {
+  test('import_credit_installment_transact creates an installment prefilled from the purchase, and is repeatable', async () => {
     const sheet = await makeSubmittedSheet('A6');
     const purchase = await insertItem(sheet.id, {
-      particulars: 'Repeatable purchase', req_amount: 15000,
+      particulars: 'Repeatable purchase', account_sub_title_text: 'Cement', req_amount: 15000,
       payment_mode: 'Credit', debit_bank_ac_type: 'Credit', ...dealer(6)
     });
     await supabase.rpc('credit_approve_acct_line_item_transact', {
@@ -214,6 +214,11 @@ describe('Credit Purchases & the Credit Ledger', () => {
     ctx.itemIds.push(installmentOne.id);
     expect(installmentOne.credit_ledger_id).toBe(ledger.id);
     expect(installmentOne.beneficiary_name).toBe(dealer(6).beneficiary_name);
+    // Particulars/Account Sub-title are copied from the original purchase
+    // (043_credit_installment_copies_particulars.sql) — only amount, debit
+    // bank, and payment mode are left blank since those vary per installment.
+    expect(installmentOne.particulars).toBe('Repeatable purchase');
+    expect(installmentOne.account_sub_title_text).toBe('Cement');
     expect(installmentOne.req_amount).toBeNull();
     expect(installmentOne.debit_bank_ac_type).toBeNull();
     expect(installmentOne.payment_mode).toBeNull();

@@ -4,7 +4,6 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSheets, createSheet, deleteSheetIfEmpty } from '../api/acctRequisitionsApi';
-import RequisitionDetailsPanel from '../components/acctRequisition/RequisitionDetailsPanel';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -48,7 +47,6 @@ const AcctRequisitions = () => {
   const [success, setSuccess] = useState('');
   const [creating, setCreating] = useState(false);
   const [discardingId, setDiscardingId] = useState(null);
-  const [activeView, setActiveView] = useState('Sheets');
 
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
@@ -171,7 +169,7 @@ const AcctRequisitions = () => {
             Manage Bank Balances
           </Button>
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/import-eligible-items')}>
-            Held / Rejected Items
+            Import List
           </Button>
           <Button onClick={handleCreateSheet} loading={creating}>New Sheet</Button>
         </div>
@@ -211,28 +209,27 @@ const AcctRequisitions = () => {
         </div>
       </div>
 
-      {/* View Toggle */}
+      {/* View Toggle — "Sheets" is this page; "Requisition Details" now
+          navigates to its own route (/acct-requisitions/details) instead of
+          swapping local state, so it's a real, linkable/back-button-able
+          page rather than a hidden tab. */}
       <div className="flex items-center gap-2 mb-6 shrink-0">
-        {['Sheets', 'Requisition Details'].map((view) => (
-          <button
-            key={view}
-            type="button"
-            onClick={() => setActiveView(view)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-              activeView === view
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5'
-            }`}
-          >
-            {view}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+        >
+          Sheets
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/acct-requisitions/details')}
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5"
+        >
+          Requisition Details
+        </button>
       </div>
 
-      {activeView === 'Requisition Details' ? (
-        <RequisitionDetailsPanel sheetDetailBasePath="/acct-requisitions/sheets" />
-      ) : (
-      /* Main Two-Column Workspace */
+      {/* Main Two-Column Workspace */}
       <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden min-h-0">
 
         {/* Left Column: Search & Filters */}
@@ -384,7 +381,6 @@ const AcctRequisitions = () => {
           />
         </div>
       </div>
-      )}
     </>
   );
 };

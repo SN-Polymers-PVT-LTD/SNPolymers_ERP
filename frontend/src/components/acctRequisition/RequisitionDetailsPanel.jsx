@@ -16,6 +16,18 @@ const formatINR = (value) => {
 
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '—');
 
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'Pending HO Review', label: 'Pending HO Review' },
+  { value: 'Approved', label: 'Approved' },
+  { value: 'Partially Approved', label: 'Partially Approved' },
+  { value: 'Credit Approved', label: 'Credit Approved' },
+  { value: 'On Hold', label: 'On Hold' },
+  { value: 'Returned for Correction', label: 'Returned for Correction' },
+  { value: 'Rejected', label: 'Rejected' },
+  { value: 'Pending Review', label: 'Pending Review' }
+];
+
 const getStatusBadgeVariant = (status) => {
   switch (status) {
     case 'Approved':
@@ -27,6 +39,8 @@ const getStatusBadgeVariant = (status) => {
       return 'blue';
     case 'Rejected':
       return 'red';
+    case 'Credit Approved':
+      return 'blue';
     default:
       return 'slate';
   }
@@ -46,19 +60,21 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const [accountSubTitle, setAccountSubTitle] = useState('');
   const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
   const [debitBankAcType, setDebitBankAcType] = useState('');
+  const [requisitionStatus, setRequisitionStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  const filters = { accountSubTitle, beneficiaryAcNo, debitBankAcType, dateFrom, dateTo };
-  const hasFilters = accountSubTitle || beneficiaryAcNo || debitBankAcType || dateFrom || dateTo;
+  const filters = { accountSubTitle, beneficiaryAcNo, debitBankAcType, requisitionStatus, dateFrom, dateTo };
+  const hasFilters = accountSubTitle || beneficiaryAcNo || debitBankAcType || requisitionStatus || dateFrom || dateTo;
 
   const buildParams = () => {
     const params = {};
     if (accountSubTitle) params.account_sub_title = accountSubTitle;
     if (beneficiaryAcNo) params.beneficiary_ac_no = beneficiaryAcNo;
     if (debitBankAcType) params.debit_bank_ac_type = debitBankAcType;
+    if (requisitionStatus) params.requisition_status = requisitionStatus;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     return params;
@@ -98,6 +114,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
     setAccountSubTitle('');
     setBeneficiaryAcNo('');
     setDebitBankAcType('');
+    setRequisitionStatus('');
     setDateFrom('');
     setDateTo('');
     setPage(1);
@@ -152,6 +169,16 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               value={debitBankAcType}
               onChange={(e) => { setDebitBankAcType(e.target.value); setPage(1); }}
               options={[{ value: '', label: 'All accounts' }, ...bankOptions]}
+              size="sm"
+            />
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Status</span>
+            <Select
+              value={requisitionStatus}
+              onChange={(e) => { setRequisitionStatus(e.target.value); setPage(1); }}
+              options={STATUS_OPTIONS}
               size="sm"
             />
           </div>
