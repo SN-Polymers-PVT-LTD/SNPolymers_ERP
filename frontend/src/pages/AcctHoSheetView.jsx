@@ -19,8 +19,8 @@ import { buildSheetCsv } from '../utils/acctSheetCsv';
 // so that column was always empty here, just dead space next to the Status
 // column making the whole area look unbalanced.
 const TABLE_HEADERS = [
-  'Particulars', 'Account Sub-title', 'Beneficiary', 'Debit Bank',
-  'Requested Amount', 'Payment Mode', 'Status', 'Decision'
+  'Particulars', 'Account Sub-title', 'WO. No.', 'Beneficiary', 'Debit Bank',
+  'Requested Amount', 'Payment Mode', 'Remarks', 'Status', 'Decision'
 ];
 
 // "Already Decided" items (Approved / Partially Approved / Returned) have
@@ -28,8 +28,8 @@ const TABLE_HEADERS = [
 // Decision column here was always dead space too. Approved Amount and HO
 // Remarks are actually useful to see at a glance for a sheet that's done.
 const DECIDED_TABLE_HEADERS = [
-  'Particulars', 'Account Sub-title', 'Beneficiary', 'Debit Bank',
-  'Requested Amount', 'Approved Amount', 'Payment Mode', 'Status', 'HO Remarks'
+  'Particulars', 'Account Sub-title', 'WO. No.', 'Beneficiary', 'Debit Bank',
+  'Requested Amount', 'Approved Amount', 'Payment Mode', 'Remarks', 'Status', 'HO Remarks'
 ];
 
 const getStatusBadgeVariant = (status) => (status === 'Reviewed' ? 'emerald' : 'blue');

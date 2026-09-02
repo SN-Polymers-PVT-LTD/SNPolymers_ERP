@@ -17,6 +17,7 @@ import {
   getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks,
   getParticulars, upsertParticular, deleteSheetIfEmpty
 } from '../api/acctRequisitionsApi';
+import { getProjects } from '../api/projectsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
 const ITEMS_PER_PAGE = 20;
@@ -155,6 +156,17 @@ const AcctRequisitionSheetView = () => {
     enabled: isAccountsUser
   });
   const particulars = particularsRaw.filter(p => p.is_active);
+
+  const { data: projectsRaw = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => (await getProjects()).data?.projects ?? [],
+    staleTime: 120 * 1000,
+    enabled: isAccountsUser
+  });
+  // WO. No. dropdown only offers active work orders — Closed/Complete Under
+  // Maintenance ones can't be picked for a new entry (existing line items
+  // that already reference one keep displaying it read-only regardless).
+  const projects = projectsRaw.filter(p => p.status === 'Running');
 
   const handleCreateParticular = async (title) => {
     const res = await upsertParticular({ title });
@@ -452,10 +464,12 @@ const AcctRequisitionSheetView = () => {
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>WO. No.</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
                     <TableCell isHeader>Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Remarks</TableCell>
                     <TableCell isHeader>Status</TableCell>
                     <TableCell isHeader>Actions</TableCell>
                   </TableRow>
@@ -471,6 +485,7 @@ const AcctRequisitionSheetView = () => {
                       indianBanks={indianBanks}
                       onCreateAccountSubTitle={handleCreateAccountSubTitle}
                       particulars={particulars}
+                      projects={projects}
                       onCreateParticular={handleCreateParticular}
                       onSave={handleSaveItem}
                       onResubmit={handleResubmitItem}
@@ -507,11 +522,13 @@ const AcctRequisitionSheetView = () => {
                     <TableRow hover={false}>
                       <TableCell isHeader>Particulars</TableCell>
                       <TableCell isHeader>Account Sub-title</TableCell>
+                      <TableCell isHeader>WO. No.</TableCell>
                       <TableCell isHeader>Beneficiary</TableCell>
                       <TableCell isHeader>Debit Bank</TableCell>
                       <TableCell isHeader align="right">Requested Amount</TableCell>
                       <TableCell isHeader align="right">Approved Amount</TableCell>
                       <TableCell isHeader>Payment Mode</TableCell>
+                      <TableCell isHeader>Remarks</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader>HO Remarks</TableCell>
                     </TableRow>
@@ -555,10 +572,12 @@ const AcctRequisitionSheetView = () => {
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>WO. No.</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
                     <TableCell isHeader align="right">Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Remarks</TableCell>
                     <TableCell isHeader>Status</TableCell>
                   </TableRow>
                 </TableHeader>

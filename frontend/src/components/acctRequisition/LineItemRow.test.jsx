@@ -369,9 +369,10 @@ describe('LineItemRow — showApprovedAmountColumn / showHoRemarksColumn (dedica
         payment_mode: 'NEFT'
       }
     });
-    // Only the Approved Amount cell should be a bare dash — everything else
-    // on this row has a real value.
-    expect(screen.getAllByText('—')).toHaveLength(1);
+    // Approved Amount, WO. No., and Remarks are the only bare-dash cells —
+    // this row has no work_order_no/remarks set and everything else has a
+    // real value.
+    expect(screen.getAllByText('—')).toHaveLength(3);
   });
 
   it('shows the live ho_remarks in its own column when opted in', () => {

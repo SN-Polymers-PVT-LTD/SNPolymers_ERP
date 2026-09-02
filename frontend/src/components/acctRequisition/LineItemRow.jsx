@@ -46,7 +46,9 @@ const emptyDraft = (item) => ({
   req_amount: item.req_amount ?? '',
   payment_mode: item.payment_mode || '',
   cheque_no: item.cheque_no || '',
-  cheque_date: item.cheque_date || ''
+  cheque_date: item.cheque_date || '',
+  work_order_no: item.work_order_no || '',
+  remarks: item.remarks || ''
 });
 
 /**
@@ -76,6 +78,7 @@ const LineItemRow = ({
   accountSubTitles = [],
   indianBanks = [],
   particulars = [],
+  projects = [],
   onSave,
   onResubmit,
   onDelete,
@@ -121,6 +124,13 @@ const LineItemRow = ({
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
   const indianBankOptions = indianBanks.map(b => ({ value: b, label: b }));
   const particularsOptions = particulars.map(p => ({ value: p.id, label: p.title }));
+  // Work Order No. must match an existing projects_master row exactly (real
+  // FK, fk_arli_work_order — 046) — value and label are both the WO number
+  // itself, unlike account-sub-title/particulars which have a separate id.
+  const workOrderOptions = projects.map(p => ({
+    value: p.work_order_no,
+    label: p.site_details ? `${p.work_order_no} — ${p.site_details}` : p.work_order_no
+  }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
@@ -142,6 +152,19 @@ const LineItemRow = ({
   const handleCreateParticularOption = async (title) => {
     const created = await onCreateParticular(title);
     return { value: created.id, label: created.title };
+  };
+
+  // No onCreate here — unlike particulars/account-sub-title, Work Order No.
+  // is a real FK (fk_arli_work_order, 046) and can only ever be one of the
+  // existing projects_master rows, never freely created inline. Typing
+  // filters the dropdown by WO number or site details; only picking an
+  // option (or typing the WO number exactly) sets a savable value.
+  const handleWorkOrderTextChange = (text) => {
+    const match = workOrderOptions.find(o =>
+      o.value.trim().toLowerCase() === text.trim().toLowerCase() ||
+      o.label.trim().toLowerCase() === text.trim().toLowerCase()
+    );
+    setDraft(prev => ({ ...prev, work_order_no: match ? match.value : text }));
   };
 
   // Reads from the refs (not the `draft`/`confirmedBeneficiaryKey` state
@@ -225,6 +248,9 @@ const LineItemRow = ({
           <p className="text-sm font-bold text-slate-100">{item.particulars || '—'}</p>
         </TableCell>
         <TableCell>{item.account_sub_title_text || '—'}</TableCell>
+        <TableCell>
+          <span className="text-xs text-slate-300 font-mono">{item.work_order_no || '—'}</span>
+        </TableCell>
         <TableCell className="min-w-[200px]">
           <div className="flex flex-col gap-1">
             <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
@@ -282,6 +308,13 @@ const LineItemRow = ({
               </p>
             )}
           </div>
+        </TableCell>
+        <TableCell className="min-w-[160px] max-w-[220px]">
+          {item.remarks ? (
+            <span className="text-xs text-slate-400 leading-snug line-clamp-2" title={item.remarks}>{item.remarks}</span>
+          ) : (
+            <span className="text-slate-600">—</span>
+          )}
         </TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
@@ -381,6 +414,18 @@ const LineItemRow = ({
         />
       </TableCell>
 
+      <TableCell className="min-w-[180px]">
+        <SearchableSelect
+          disabled={readOnly}
+          value={draft.work_order_no}
+          onChange={handleWorkOrderTextChange}
+          options={workOrderOptions}
+          onSelect={(opt) => setDraft(prev => ({ ...prev, work_order_no: opt.value }))}
+          placeholder="Search WO. No..."
+          size="sm"
+        />
+      </TableCell>
+
       <TableCell className="min-w-[220px]">
         <div className="flex flex-col gap-1.5">
           <BeneficiaryAcNoSuggestions
@@ -457,6 +502,10 @@ const LineItemRow = ({
           <Input disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No. (optional)" size="sm" />
           <Input disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date (optional)" size="sm" />
         </div>
+      </TableCell>
+
+      <TableCell className="min-w-[160px]">
+        <Input disabled={readOnly} value={draft.remarks} onChange={(e) => setField('remarks', e.target.value)} placeholder="Remarks (optional)" size="sm" />
       </TableCell>
 
       <TableCell className="min-w-[100px]">
