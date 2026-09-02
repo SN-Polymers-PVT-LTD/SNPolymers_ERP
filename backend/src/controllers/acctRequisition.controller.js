@@ -288,6 +288,10 @@ async function getLineItems(req, res) {
       dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
     }
 
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no);
+    }
+
     if (query.requisition_status && LINE_ITEM_STATUSES.includes(query.requisition_status)) {
       dbQuery = dbQuery.eq('requisition_status', query.requisition_status);
     }

@@ -301,8 +301,10 @@ export async function exportRequisitionDetailsToExcel(items) {
     "Beneficiary IFSC": item.beneficiary_ifsc || '',
     "Beneficiary Bank": item.beneficiary_bank_name || '',
     "Debit Bank Account": item.debit_bank_ac_type || '',
+    "WO. No.": item.work_order_no || '',
     "Req. Amount (INR)": item.req_amount || 0,
     "Payment Mode": item.payment_mode || '',
+    "Remarks": item.remarks || '',
     "Requisition Status": item.requisition_status || '',
     "HO Pass Amount (INR)": item.ho_pass_amount || 0,
     "HO Remarks": item.ho_remarks || ''

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Input, Select, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../ui';
 import { getLineItems, getAccountSubTitles, getBankBalances } from '../../api/acctRequisitionsApi';
+import { getProjects } from '../../api/projectsApi';
 import { exportRequisitionDetailsToExcel } from '../../utils/exportHelpers';
 
 const formatINR = (value) => {
@@ -46,8 +47,8 @@ const getStatusBadgeVariant = (status) => {
 
 // Shared "Requisition Details" filter/search view — line items flattened
 // across sheets, filterable by Account Sub-title / Beneficiary A/c No. /
-// Beneficiary Name / Debit Bank Account / Status / date range, with an
-// "export everything matching" to
+// Beneficiary Name / Debit Bank Account / WO. No. / Status / date range,
+// with an "export everything matching" to
 // Excel. Mounted as a tab on both AcctRequisitions.jsx (accounts) and
 // AcctHoQueue.jsx (ho) — role only changes which sheet detail route a row
 // click lands on, since both sides read the same /line-items endpoint.
@@ -60,14 +61,15 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [debitBankAcType, setDebitBankAcType] = useState('');
+  const [workOrderNo, setWorkOrderNo] = useState('');
   const [requisitionStatus, setRequisitionStatus] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
 
-  const filters = { accountSubTitle, beneficiaryAcNo, beneficiaryName, debitBankAcType, requisitionStatus, dateFrom, dateTo };
-  const hasFilters = accountSubTitle || beneficiaryAcNo || beneficiaryName || debitBankAcType || requisitionStatus || dateFrom || dateTo;
+  const filters = { accountSubTitle, beneficiaryAcNo, beneficiaryName, debitBankAcType, workOrderNo, requisitionStatus, dateFrom, dateTo };
+  const hasFilters = accountSubTitle || beneficiaryAcNo || beneficiaryName || debitBankAcType || workOrderNo || requisitionStatus || dateFrom || dateTo;
 
   const buildParams = () => {
     const params = {};
@@ -75,6 +77,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
     if (beneficiaryAcNo) params.beneficiary_ac_no = beneficiaryAcNo;
     if (beneficiaryName) params.beneficiary_name = beneficiaryName;
     if (debitBankAcType) params.debit_bank_ac_type = debitBankAcType;
+    if (workOrderNo) params.work_order_no = workOrderNo;
     if (requisitionStatus) params.requisition_status = requisitionStatus;
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
@@ -93,8 +96,15 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
     staleTime: 60 * 1000
   });
 
+  const { data: projectsData } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => (await getProjects()).data?.projects ?? [],
+    staleTime: 120 * 1000
+  });
+
   const subTitleOptions = (subTitlesData || []).filter(t => t.is_active).map(t => ({ value: t.title, label: t.title }));
   const bankOptions = (bankBalancesData || []).map(b => ({ value: b.bank_name, label: b.bank_name }));
+  const workOrderOptions = (projectsData || []).map(p => ({ value: p.work_order_no, label: p.work_order_no }));
 
   const { data, isLoading: loading, error: queryError } = useQuery({
     queryKey: ['acctLineItems', { page, ...filters }],
@@ -116,6 +126,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
     setBeneficiaryAcNo('');
     setBeneficiaryName('');
     setDebitBankAcType('');
+    setWorkOrderNo('');
     setRequisitionStatus('');
     setDateFrom('');
     setDateTo('');
@@ -187,6 +198,16 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
           </div>
 
           <div className="pt-4 border-t border-white/5">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">WO. No.</span>
+            <Select
+              value={workOrderNo}
+              onChange={(e) => { setWorkOrderNo(e.target.value); setPage(1); }}
+              options={[{ value: '', label: 'All work orders' }, ...workOrderOptions]}
+              size="sm"
+            />
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
             <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Status</span>
             <Select
               value={requisitionStatus}
@@ -245,7 +266,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
 
         <div className="flex-grow overflow-y-auto no-scrollbar min-h-0 pr-1 mb-4 z-10">
           {loading ? (
-            <SkeletonTable rows={8} cols={7} />
+            <SkeletonTable rows={8} cols={9} />
           ) : items.length === 0 ? (
             <div className="text-center py-20 text-slate-500 text-xs uppercase font-extrabold tracking-widest border border-dashed border-white/5 rounded-2xl">
               No matching requisition details found.
@@ -260,6 +281,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                     <TableCell isHeader>Beneficiary Name</TableCell>
                     <TableCell isHeader>Beneficiary A/c No.</TableCell>
                     <TableCell isHeader>Debit Bank Account</TableCell>
+                    <TableCell isHeader>WO. No.</TableCell>
                     <TableCell isHeader align="right">Req. Amount</TableCell>
                     <TableCell isHeader align="right">Approved Amount</TableCell>
                     <TableCell isHeader>Status</TableCell>
@@ -282,6 +304,9 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
                       </TableCell>
                       <TableCell>
                         <span className="text-xs text-slate-400">{item.debit_bank_ac_type || '—'}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-slate-300 font-mono">{item.work_order_no || '—'}</span>
                       </TableCell>
                       <TableCell align="right">
                         <span className="text-sm font-black text-slate-200 font-mono">{formatINR(item.req_amount)}</span>

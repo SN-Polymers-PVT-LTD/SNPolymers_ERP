@@ -89,6 +89,13 @@ const accountsLineItemBody = z.object({
                             }),
   cheque_no:              z.string().trim().optional().nullable(),
   cheque_date:            z.string().trim().optional().nullable(),
+  // Work Order No. <select> autosaves '' until chosen, same convention as
+  // debit_bank_ac_type — transformed to null (chk on the FK column allows
+  // NULL; '' is not a valid projects_master.work_order_no and would fail
+  // the FK instead of just being "not yet chosen").
+  work_order_no:          z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
+  remarks:                z.string().trim().optional().nullable(),
 });
 
 const addLineItemSchema = {
