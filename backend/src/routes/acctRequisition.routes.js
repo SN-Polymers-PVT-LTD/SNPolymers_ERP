@@ -8,7 +8,7 @@ const {
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft,
   getRequisitionLogs,
-  getCreditLedger, importCreditInstallment
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -21,7 +21,8 @@ const {
   upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
-  importCreditInstallmentSchema
+  importCreditInstallmentSchema,
+  adjustCreditLedgerBalanceSchema
 } = require('../validation/acctRequisition.schema');
 
 const router = express.Router();
@@ -66,5 +67,6 @@ router.post('/import-eligible-items/:itemId/dismiss', requireRole(accountsRoles)
 
 router.get('/credit-ledger', requireRole(readerRoles), getCreditLedger);
 router.post('/credit-ledger/:ledgerId/import', requireRole(accountsRoles), validateRequest(importCreditInstallmentSchema), importCreditInstallment);
+router.patch('/credit-ledger/:ledgerId/adjust', requireRole(hoRoles), validateRequest(adjustCreditLedgerBalanceSchema), adjustCreditLedgerBalance);
 
 module.exports = router;

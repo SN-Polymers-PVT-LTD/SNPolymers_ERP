@@ -154,6 +154,18 @@ const importCreditInstallmentSchema = {
   body: z.object({ target_sheet_id: uuidSchema })
 };
 
+const adjustCreditLedgerBalanceSchema = {
+  params: z.object({ ledgerId: uuidSchema }),
+  body: z.object({
+    new_remaining_balance: z.coerce.number({
+      required_error: 'new_remaining_balance is required.',
+      invalid_type_error: 'new_remaining_balance must be a number.'
+    }).nonnegative('new_remaining_balance cannot be negative.'),
+    remarks: z.string({ required_error: 'remarks are required to adjust a credit ledger balance.' })
+      .trim().min(1, 'remarks are required to adjust a credit ledger balance.')
+  })
+};
+
 const upsertBankBalanceSchema = {
   body: z.object({
     bank_name:         z.string().trim().min(1, 'bank_name is required.'),
@@ -220,5 +232,6 @@ module.exports = {
   upsertIndianBankSchema,
   exportNeftSchema,
   importCreditInstallmentSchema,
+  adjustCreditLedgerBalanceSchema,
   refreshIndianBanksCache
 };

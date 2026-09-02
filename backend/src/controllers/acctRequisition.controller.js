@@ -38,6 +38,7 @@ function mapAcctRpcError(rpcErr) {
     case 'STA07':
     case 'STA08':
     case 'STA09':
+    case 'STA10':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
@@ -48,6 +49,8 @@ function mapAcctRpcError(rpcErr) {
     case 'VAL07':
     case 'VAL09':
     case 'VAL10':
+    case 'VAL11':
+    case 'VAL12':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -275,6 +278,10 @@ async function getLineItems(req, res) {
 
     if (query.beneficiary_ac_no) {
       dbQuery = dbQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+    }
+
+    if (query.beneficiary_name) {
+      dbQuery = dbQuery.ilike('beneficiary_name', `%${query.beneficiary_name}%`);
     }
 
     if (query.debit_bank_ac_type) {
@@ -1819,6 +1826,41 @@ async function importCreditInstallment(req, res) {
   }
 }
 
+/**
+ * PATCH /acct-requisitions/credit-ledger/:ledgerId/adjust
+ * body: { new_remaining_balance, remarks }
+ * HO-only manual correction of an Open credit ledger entry's remaining
+ * balance (adjust_credit_ledger_balance_transact, 044) — e.g. reconciling
+ * against what the dealer/subcontractor actually reports. paid_total is
+ * recomputed to keep paid_total + remaining_balance = opening_balance, and
+ * the entry flips to Settled if adjusted down to exactly zero. Remarks are
+ * required and audited (audit_log, HO_ADJUSTED_CREDIT_BALANCE).
+ */
+async function adjustCreditLedgerBalance(req, res) {
+  const { ledgerId } = req.params;
+  const { new_remaining_balance, remarks } = req.body;
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('adjust_credit_ledger_balance_transact', {
+      p_ledger_id: ledgerId,
+      p_new_remaining_balance: new_remaining_balance,
+      p_remarks: remarks.trim(),
+      p_actioned_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(200).json({ success: true, entry: data, message: 'Credit ledger balance adjusted.' });
+  } catch (error) {
+    console.error(`adjustCreditLedgerBalance failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to adjust credit ledger balance.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
@@ -1831,5 +1873,5 @@ module.exports = {
   getIndianBanks, upsertIndianBank,
   exportBulkNeft,
   getRequisitionLogs,
-  getCreditLedger, importCreditInstallment
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
 };
