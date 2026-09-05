@@ -17,6 +17,22 @@ export const getRequisitionById = (id) =>
 export const getMainHeadCapacity = (work_order_no, material_main_head) =>
   authApi.get('/requisitions/capacity', { params: { work_order_no, material_main_head } });
 
+/** Fetch Subcontractor Ledger capacity metrics */
+export const getSubcontractorCapacity = (work_order_no, material_sub_head, material_details) =>
+  authApi.get('/requisitions/subcontractor-capacity', { params: { work_order_no, material_sub_head, material_details } });
+
+/** Browse Subcontractor Ledger balances (optionally filtered by work order / search text) */
+export const getSubcontractorLedger = (params = {}) =>
+  authApi.get('/requisitions/subcontractor-ledger', { params });
+
+/** Fetch the transaction trail for one subcontractor balance */
+export const getSubcontractorLedgerEntries = (work_order_no, material_sub_head, material_details) =>
+  authApi.get('/requisitions/subcontractor-ledger/entries', { params: { work_order_no, material_sub_head, material_details } });
+
+/** Fetch every Requisition raised against a Sub Contractor, across all work orders (filterable) */
+export const getSubcontractorRequisitions = (params = {}) =>
+  authApi.get('/requisitions/subcontractor-ledger/requisitions', { params });
+
 /** Create a new requisition */
 export const createRequisition = (data) =>
   authApi.post('/requisitions', data);

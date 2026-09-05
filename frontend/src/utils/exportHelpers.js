@@ -282,6 +282,36 @@ export async function exportArchiveToZip(estimate, items, quotations) {
   link.click();
 }
 
+export async function exportSubcontractorRequisitionsToExcel(requisitions) {
+  if (!requisitions || requisitions.length === 0) {
+    alert('No requisitions to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = requisitions.map((r, index) => ({
+    "Sl. No.": index + 1,
+    "Subcontractor": r.material_details || '',
+    "Sub Head": r.material_sub_head || '',
+    "Work Order No.": r.work_order_no || '',
+    "Requisition No.": r.requisition_no || '',
+    "Requisition Amount (INR)": r.requisition_amount || 0,
+    "Approved Amount (INR)": r.approved_amount || 0,
+    "Status": r.requisition_status || '',
+    "Requested By": r.requester_name || r.requester_user_id || '',
+    "Approved By": r.approved_name || r.approved_user_id || '',
+    "Created": r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
+    "Approved On": r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Subcontractor Requisitions");
+
+  XLSX.writeFile(workbook, `Subcontractor_Requisitions_${new Date().toISOString().split('T')[0]}.xlsx`);
+}
+
 export async function exportRequisitionDetailsToExcel(items) {
   if (!items || items.length === 0) {
     alert('No requisition details to export.');

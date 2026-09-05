@@ -13,7 +13,8 @@ import {
   uploadGstBillPdf,
   deleteRequisitionPdf,
   deleteGstBillPdf,
-  getMainHeadCapacity
+  getMainHeadCapacity,
+  getSubcontractorCapacity
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { getZonalBalances } from '../api/zoBalancesApi';
@@ -130,6 +131,10 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
     { label: 'Estimate No.', value: requisition.estimate_no, mono: true },
     { label: 'Estimate Amount', value: formatCurrency(requisition.estimate_amount) },
     { label: 'Material Head', value: requisition.material_main_head },
+    ...(requisition.material_main_head === 'Sub Contractor' ? [
+      { label: 'Sub Head', value: requisition.material_sub_head },
+      { label: 'Subcontractor', value: requisition.material_details }
+    ] : []),
     { label: 'Requisition Amount', value: formatCurrency(requisition.requisition_amount), accent: 'text-amber-400 font-bold' },
     { label: 'State', value: requisition.state },
     { label: 'District', value: requisition.district },
@@ -427,6 +432,12 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Material Head</p>
             <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.material_main_head}</p>
           </div>
+          {requisition.material_main_head === 'Sub Contractor' && (
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Subcontractor</p>
+              <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.material_sub_head} — {requisition.material_details}</p>
+            </div>
+          )}
           <div className="col-span-2 border-t border-white/5 pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-[11px] text-slate-400 font-semibold">
             <span>Approver: {approverName}</span>
             <span>Date: {systemDateStr}</span>
@@ -571,6 +582,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   // Step 3 state fields
   const [requisitionNo, setRequisitionNo] = useState('');
   const [materialHead, setMaterialHead] = useState('');
+  const [materialSubHead, setMaterialSubHead] = useState('');
+  const [materialDetails, setMaterialDetails] = useState('');
   const [reqAmount, setReqAmount] = useState('');
   const [gstBill, setGstBill] = useState('No');
   const [bankDetails, setBankDetails] = useState('');
@@ -596,12 +609,16 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [loadingMainHeads, setLoadingMainHeads] = useState(false);
   const [capacityMetrics, setCapacityMetrics] = useState(null);
   const [loadingCapacity, setLoadingCapacity] = useState(false);
+  const [subContractorItems, setSubContractorItems] = useState([]);
+  const [subcontractorCapacityMetrics, setSubcontractorCapacityMetrics] = useState(null);
+  const [loadingSubcontractorCapacity, setLoadingSubcontractorCapacity] = useState(false);
 
   useEffect(() => {
     if (!selectedWO) {
       Promise.resolve().then(() => {
         setAllowedMainHeads([]);
         setCapacityMetrics(null);
+        setSubContractorItems([]);
       });
       return;
     }
@@ -610,6 +627,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       Promise.resolve().then(() => {
         setAllowedMainHeads([]);
         setCapacityMetrics(null);
+        setSubContractorItems([]);
       });
       return;
     }
@@ -622,6 +640,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           if (res.data?.items) {
             const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
             setAllowedMainHeads(distinctHeads);
+            const scItems = res.data.items.filter(item => item.material_main_head === 'Sub Contractor');
+            setSubContractorItems(scItems);
           }
         })
         .catch(err => {
@@ -661,6 +681,31 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         });
     });
   }, [selectedWO, materialHead]);
+
+  useEffect(() => {
+    if (materialHead !== 'Sub Contractor' || !selectedWO || !materialSubHead || !materialDetails) {
+      setSubcontractorCapacityMetrics(null);
+      return;
+    }
+    setLoadingSubcontractorCapacity(true);
+    getSubcontractorCapacity(selectedWO, materialSubHead, materialDetails)
+      .then(res => {
+        if (res.data) {
+          setSubcontractorCapacityMetrics({
+            estimatedTotal: Number(res.data.estimatedTotal),
+            paidTotal: Number(res.data.paidTotal),
+            availableBalance: Number(res.data.availableBalance)
+          });
+        }
+      })
+      .catch(err => console.error('Failed to load Subcontractor Ledger capacity:', err))
+      .finally(() => setLoadingSubcontractorCapacity(false));
+  }, [materialHead, selectedWO, materialSubHead, materialDetails]);
+
+  const subHeadOptions = Array.from(new Set(subContractorItems.map(i => i.material_sub_head).filter(Boolean)));
+  const materialDetailsOptions = Array.from(new Set(
+    subContractorItems.filter(i => i.material_sub_head === materialSubHead).map(i => i.material_details).filter(Boolean)
+  ));
 
   // Auto-lookup project geographical and estimate data during render
   const projectMetadata = (() => {
@@ -890,6 +935,16 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError(`Requisition Amount exceeds the Remaining Main Head Capacity (₹${capacityMetrics.remainingCapacity.toLocaleString('en-IN')}) for '${materialHead}'.`);
       return;
     }
+    if (materialHead === 'Sub Contractor') {
+      if (!materialSubHead || !materialDetails) {
+        setError('Please select a Sub Head and Subcontractor.');
+        return;
+      }
+      if (subcontractorCapacityMetrics && Number(reqAmount) > subcontractorCapacityMetrics.availableBalance) {
+        setError(`Requisition Amount exceeds the Remaining Subcontractor Ledger Balance (₹${subcontractorCapacityMetrics.availableBalance.toLocaleString('en-IN')}) for '${materialDetails}'.`);
+        return;
+      }
+    }
     if (gstBill === 'Yes' && !gstPdfUrl) {
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
@@ -905,6 +960,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         work_order_no: selectedWO.trim(),
         requisition_no: requisitionNo.trim(),
         material_main_head: materialHead.trim(),
+        material_sub_head: materialHead === 'Sub Contractor' ? materialSubHead.trim() : undefined,
+        material_details: materialHead === 'Sub Contractor' ? materialDetails.trim() : undefined,
         requisition_pdf_url: requisitionPdfUrl.trim(),
         original_filename: requisitionPdf?.name || null,
         requisition_amount: Number(reqAmount),
@@ -1095,7 +1152,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           <Select
             label="Material Main Head"
             value={materialHead}
-            onChange={(e) => setMaterialHead(e.target.value)}
+            onChange={(e) => {
+              setMaterialHead(e.target.value);
+              setMaterialSubHead('');
+              setMaterialDetails('');
+            }}
             required
             disabled={submitting}
           >
@@ -1108,6 +1169,36 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               </option>
             ))}
           </Select>
+
+          {materialHead === 'Sub Contractor' && (
+            <>
+              <Select
+                label="Sub Head (Work Package)"
+                value={materialSubHead}
+                onChange={(e) => { setMaterialSubHead(e.target.value); setMaterialDetails(''); }}
+                required
+                disabled={submitting}
+              >
+                <option value="">-- Select Sub Head --</option>
+                {subHeadOptions.map((sh) => (
+                  <option key={sh} value={sh}>{sh}</option>
+                ))}
+              </Select>
+
+              <Select
+                label="Subcontractor"
+                value={materialDetails}
+                onChange={(e) => setMaterialDetails(e.target.value)}
+                required
+                disabled={submitting || !materialSubHead}
+              >
+                <option value="">-- Select Subcontractor --</option>
+                {materialDetailsOptions.map((md) => (
+                  <option key={md} value={md}>{md}</option>
+                ))}
+              </Select>
+            </>
+          )}
 
           {/* Requisition PDF Upload */}
           <div className="p-4 border border-white/5 rounded-2xl bg-white/[0.01] space-y-2">
@@ -1192,6 +1283,32 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 </div>
               ) : (
                 <p className="text-[9px] text-red-400">Failed to load capacity details.</p>
+              )}
+            </div>
+          )}
+
+          {/* Subcontractor Ledger Balance Display */}
+          {materialHead === 'Sub Contractor' && materialSubHead && materialDetails && (
+            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
+              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
+                Subcontractor Ledger Balance ({materialDetails})
+              </p>
+              {loadingSubcontractorCapacity ? (
+                <div className="flex items-center gap-2 py-2">
+                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Loading Balance…</span>
+                </div>
+              ) : subcontractorCapacityMetrics ? (
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="text-slate-400">Estimated Total:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.estimatedTotal)}</div>
+                  <div className="text-slate-400">Paid So Far:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.paidTotal)}</div>
+                  <div className="text-slate-400">Remaining Balance:</div>
+                  <div className="text-emerald-400 font-mono font-bold text-right">{formatCurrency(subcontractorCapacityMetrics.availableBalance)}</div>
+                </div>
+              ) : (
+                <p className="text-[9px] text-red-400">Failed to load balance details.</p>
               )}
             </div>
           )}

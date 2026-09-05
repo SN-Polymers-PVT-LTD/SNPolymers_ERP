@@ -59,6 +59,15 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/subcontractor-ledger',
+        label: 'Subcontractor Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
     }
     if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -506,7 +515,7 @@ const Sidebar = () => {
 
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
@@ -556,6 +565,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/subcontractor-ledger',
+        label: 'Subcontractor Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
           </svg>
         )
       });

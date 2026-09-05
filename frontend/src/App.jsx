@@ -28,6 +28,7 @@ const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
 const Requisitions = React.lazy(() => import('./pages/Requisitions'));
+const SubcontractorLedger = React.lazy(() => import('./pages/SubcontractorLedger'));
 const DailyProgress = React.lazy(() => import('./pages/DailyProgress'));
 const RAFinalBill = React.lazy(() => import('./pages/RAFinalBill'));
 const UserMappings = React.lazy(() => import('./pages/UserMappings'));
@@ -126,6 +127,7 @@ function App() {
                 {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
                   <Route path="/requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><Requisitions /></React.Suspense>} />
+                  <Route path="/subcontractor-ledger" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractorLedger /></React.Suspense>} />
                   <Route path="/daily-progress" element={<React.Suspense fallback={<AppChunkLoader />}><DailyProgress /></React.Suspense>} />
                 </Route>
 
