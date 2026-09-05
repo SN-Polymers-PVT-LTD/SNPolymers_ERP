@@ -1,7 +1,7 @@
 'use strict';
 
 const { supabase } = require('../db/supabase');
-const { computeMainHeadCapacity } = require('../services/mainHeadCapacity.service');
+const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
 const validate = require('../validation/validate');
 const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema } = require('../validation/requisition.schema');
 
@@ -36,6 +36,8 @@ async function createRequisition(req, res) {
     work_order_no,
     requisition_no,
     material_main_head,
+    material_sub_head,
+    material_details,
     requisition_pdf_url,
     original_filename,
     requisition_amount,
@@ -153,6 +155,25 @@ async function createRequisition(req, res) {
       });
     }
 
+    if (material_main_head.trim() === 'Sub Contractor') {
+      const { data: scExists, error: scErr } = await supabase
+        .from('material_master')
+        .select('id')
+        .eq('Material_Main_Head', 'Sub Contractor')
+        .eq('Material_Sub_Head', material_sub_head?.trim())
+        .eq('Material_Details', material_details?.trim())
+        .limit(1)
+        .maybeSingle();
+      if (scErr) throw scErr;
+      if (!scExists) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({
+          success: false,
+          message: `Subcontractor '${material_details}' under '${material_sub_head}' does not exist in Material Master.`
+        });
+      }
+    }
+
     // 5. Call the transactional RPC create_requisition_secure to insert atomically with lock and budget check
     const { data: newReq, error: rpcError } = await supabase.rpc('create_requisition_secure', {
       p_requester_user_id: req.user.mobile_number,
@@ -166,6 +187,8 @@ async function createRequisition(req, res) {
       p_site_details: project.site_details,
       p_requisition_no: requisition_no.trim(),
       p_material_main_head: material_main_head.trim(),
+      p_material_sub_head: material_sub_head?.trim() || null,
+      p_material_details: material_details?.trim() || null,
       p_requisition_pdf_url: requisition_pdf_url.trim(),
       p_original_filename: original_filename?.trim() || null,
       p_requisition_amount: Number(requisition_amount),
@@ -191,6 +214,19 @@ async function createRequisition(req, res) {
         return res.status(422).json({
           success: false,
           message: `Requisition amount exceeds the remaining Main Head capacity for '${material_main_head.trim()}'. Main Head Estimate: ₹${capacity.mainHeadEstimate.toLocaleString('en-IN')}. Cumulative ZO-Approved: ₹${capacity.cumulativeApproved.toLocaleString('en-IN')}. Remaining Capacity: ₹${capacity.remainingCapacity.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
+        });
+      }
+      if (rpcError.code === 'BUD03' || rpcError.message?.includes('Subcontractor Ledger balance')) {
+        const capacity = await computeSubcontractorCapacity(work_order_no.trim(), material_sub_head.trim(), material_details.trim());
+        return res.status(422).json({
+          success: false,
+          message: `Requisition amount exceeds the remaining Subcontractor Ledger balance for '${material_details.trim()}' (${material_sub_head.trim()}). Estimated Total: ₹${capacity.estimatedTotal.toLocaleString('en-IN')}. Paid So Far: ₹${capacity.paidTotal.toLocaleString('en-IN')}. Remaining Balance: ₹${capacity.availableBalance.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
+        });
+      }
+      if (rpcError.code === 'VAL01' || rpcError.message?.includes('material_sub_head and material_details are required')) {
+        return res.status(400).json({
+          success: false,
+          message: 'material_sub_head and material_details are required for a Sub Contractor requisition.'
         });
       }
       if (rpcError.code === 'PR001' || rpcError.message?.includes('Closed')) {
@@ -556,6 +592,9 @@ async function actOnRequisition(req, res) {
         if (rpcErr.code === 'BUD02' || rpcErr.message?.includes('exceeds the remaining Main Head capacity')) {
           return res.status(422).json({ success: false, message: rpcErr.message });
         }
+        if (rpcErr.code === 'BUD04' || rpcErr.message?.includes('exceeds the remaining Subcontractor Ledger balance')) {
+          return res.status(422).json({ success: false, message: rpcErr.message });
+        }
         throw rpcErr;
       }
       updated = approvedReq;
@@ -692,11 +731,209 @@ async function getMainHeadCapacity(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-capacity
+ * Fetches current Estimated Total, Paid So Far, and Remaining Balance for a
+ * (work_order_no, material_sub_head, material_details) Subcontractor Ledger
+ * entry, read straight from subcontractor_balances (a persisted cache, not
+ * a live SUM — unlike computeMainHeadCapacity, this balance must survive an
+ * estimate reopen, during which there is briefly no 'Final Approved'
+ * estimate row for the work order to sum from).
+ */
+async function getSubcontractorCapacity(req, res) {
+  const { work_order_no, material_sub_head, material_details } = req.query;
+
+  if (!work_order_no || !material_sub_head || !material_details) {
+    return res.status(400).json({
+      success: false,
+      message: 'work_order_no, material_sub_head, and material_details query parameters are required.'
+    });
+  }
+
+  try {
+    const capacity = await computeSubcontractorCapacity(work_order_no, material_sub_head, material_details);
+    return res.status(200).json({ success: true, ...capacity });
+  } catch (error) {
+    console.error(`getSubcontractorCapacity failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger capacity.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger
+ * Browse view over subcontractor_balances (047_subcontractor_ledger.sql) —
+ * one row per (work_order_no, material_sub_head, material_details), i.e.
+ * per subcontractor-on-a-work-order. Optional work_order_no filter and a
+ * free-text search over sub head / subcontractor name. Enriched with each
+ * work order's department/site_details for display, the same shape
+ * getCreditLedger uses for its beneficiary/source enrichment.
+ */
+async function getSubcontractorLedger(req, res) {
+  try {
+    const query = req.query || {};
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('subcontractor_balances')
+      .select('*', { count: 'exact' });
+
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
+    }
+
+    dbQuery = dbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data: balances, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const workOrderNos = [...new Set((balances || []).map(b => b.work_order_no))];
+    let projectMap = {};
+    if (workOrderNos.length > 0) {
+      const { data: projects } = await supabase
+        .from('projects_master')
+        .select('work_order_no, department, site_details')
+        .in('work_order_no', workOrderNos);
+      projectMap = (projects || []).reduce((acc, p) => { acc[p.work_order_no] = p; return acc; }, {});
+    }
+
+    let enriched = (balances || []).map(b => ({
+      ...b,
+      project: projectMap[b.work_order_no] || null
+    }));
+
+    if (query.search) {
+      const term = query.search.toLowerCase();
+      enriched = enriched.filter(b =>
+        b.material_sub_head?.toLowerCase().includes(term) ||
+        b.material_details?.toLowerCase().includes(term) ||
+        b.work_order_no?.toLowerCase().includes(term)
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      balances: enriched,
+      pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getSubcontractorLedger failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger/entries
+ * The append-only transaction trail (subcontractor_ledger) for one
+ * (work_order_no, material_sub_head, material_details) balance — every
+ * credit (estimate item HO approval) and debit (requisition approval),
+ * newest first, with the actor's display name resolved.
+ */
+async function getSubcontractorLedgerEntries(req, res) {
+  const { work_order_no, material_sub_head, material_details } = req.query;
+
+  if (!work_order_no || !material_sub_head || !material_details) {
+    return res.status(400).json({
+      success: false,
+      message: 'work_order_no, material_sub_head, and material_details query parameters are required.'
+    });
+  }
+
+  try {
+    const { data: entries, error } = await supabase
+      .from('subcontractor_ledger')
+      .select('*')
+      .eq('work_order_no', work_order_no.trim())
+      .eq('material_sub_head', material_sub_head.trim())
+      .eq('material_details', material_details.trim())
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const userMap = await resolveDisplayNames((entries || []).map(e => e.created_by));
+    const enriched = (entries || []).map(e => ({
+      ...e,
+      created_by_name: userMap[e.created_by] || e.created_by
+    }));
+
+    return res.status(200).json({ success: true, entries: enriched });
+  } catch (error) {
+    console.error(`getSubcontractorLedgerEntries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger entries.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger/requisitions
+ * Every Requisition raised against a Sub Contractor, across every work
+ * order — the raw material for "group by subcontractor" reporting, since
+ * subcontractor_balances itself is deliberately scoped per work order (see
+ * 047_subcontractor_ledger.sql's design notes) and can't answer "show me
+ * everything raised against this person." Filterable by work_order_no,
+ * a sub head/subcontractor-name search, and a requisition creation date
+ * range; grouping by (material_sub_head, material_details) is left to the
+ * caller (the browse UI groups client-side; an Excel export just wants the
+ * flat filtered rows).
+ */
+async function getSubcontractorRequisitions(req, res) {
+  try {
+    const query = req.query || {};
+
+    let dbQuery = supabase
+      .from('requisitions')
+      .select('*')
+      .eq('material_main_head', 'Sub Contractor');
+
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
+    }
+    if (query.date_from) {
+      dbQuery = dbQuery.gte('created_at', query.date_from);
+    }
+    if (query.date_to) {
+      dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+    }
+
+    dbQuery = dbQuery.order('material_details', { ascending: true }).order('created_at', { ascending: false });
+
+    const { data: requisitions, error } = await dbQuery;
+    if (error) throw error;
+
+    let filtered = requisitions || [];
+    if (query.search) {
+      const term = query.search.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.material_sub_head?.toLowerCase().includes(term) ||
+        r.material_details?.toLowerCase().includes(term)
+      );
+    }
+
+    const userMap = await resolveDisplayNames(filtered.flatMap(r => [r.requester_user_id, r.approved_user_id]));
+    const enriched = filtered.map(r => ({
+      ...r,
+      requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
+      approved_name: userMap[r.approved_user_id] || r.approved_user_id || null
+    }));
+
+    return res.status(200).json({ success: true, requisitions: enriched });
+  } catch (error) {
+    console.error(`getSubcontractorRequisitions failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor requisitions.' });
+  }
+}
+
 module.exports = {
   createRequisition,
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
   cancelRequisition,
-  getMainHeadCapacity
+  getMainHeadCapacity,
+  getSubcontractorCapacity,
+  getSubcontractorLedger,
+  getSubcontractorLedgerEntries,
+  getSubcontractorRequisitions
 };

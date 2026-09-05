@@ -54,6 +54,36 @@ async function computeMainHeadCapacity(workOrderNo, materialMainHead) {
   };
 }
 
+/**
+ * Subcontractor Ledger capacity for a (work_order_no, material_sub_head,
+ * material_details) triple. Unlike computeMainHeadCapacity, this reads a
+ * persisted running balance (subcontractor_balances) rather than summing
+ * live — the balance must survive an estimate reopen cycle, during which
+ * there's briefly no 'Final Approved' estimate for the work order at all.
+ */
+async function computeSubcontractorCapacity(workOrderNo, materialSubHead, materialDetails) {
+  const { data, error } = await supabase
+    .from('subcontractor_balances')
+    .select('estimated_total, paid_total, available_balance')
+    .eq('work_order_no', workOrderNo.trim())
+    .eq('material_sub_head', materialSubHead.trim())
+    .eq('material_details', materialDetails.trim())
+    .maybeSingle();
+
+  if (error) throw error;
+
+  if (!data) {
+    return { estimatedTotal: 0, paidTotal: 0, availableBalance: 0 };
+  }
+
+  return {
+    estimatedTotal: Number(data.estimated_total),
+    paidTotal: Number(data.paid_total),
+    availableBalance: Number(data.available_balance)
+  };
+}
+
 module.exports = {
-  computeMainHeadCapacity
+  computeMainHeadCapacity,
+  computeSubcontractorCapacity
 };

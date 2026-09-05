@@ -11,6 +11,8 @@ const createRequisitionSchema = {
       .min(1, 'requisition_no (Requisition Number) is required.')
       .regex(/^[A-Za-z0-9_\-.]+$/, 'requisition_no contains invalid characters. Only letters, digits, hyphens, underscores, and dots are allowed.'),
     material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
+    material_sub_head: z.string().trim().optional().nullable(),
+    material_details: z.string().trim().optional().nullable(),
     requisition_pdf_url: z.string({ required_error: 'requisition_pdf_url is required. Upload the PDF first.' }).trim().min(1, 'requisition_pdf_url is required. Upload the PDF first.'),
     original_filename: z.string().optional().nullable(),
     requisition_amount: z.coerce.number({
@@ -26,6 +28,9 @@ const createRequisitionSchema = {
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_url && data.gst_bill_pdf_url.trim() !== ''), {
     message: "gst_bill_pdf_url is required when GST Bill is 'Yes'.",
     path: ['gst_bill_pdf_url']
+  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
+    message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
+    path: ['material_sub_head']
   })
 };
 
