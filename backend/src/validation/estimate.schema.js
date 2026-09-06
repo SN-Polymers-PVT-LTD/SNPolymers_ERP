@@ -8,7 +8,7 @@ const createEstimateSchema = {
   body: z.object({
     work_order_no: z.string({
       required_error: 'work_order_no is required.'
-    }).min(1, 'work_order_no is required.'),
+    }).trim().min(1, 'work_order_no is required.'),
     
     zonal_office_no: z.string().trim().min(1, 'zonal_office_no is required and cannot be blank.').optional(),
     je_remarks: z.string().optional()
@@ -25,9 +25,9 @@ const saveDraftItemsSchema = {
     items: z.array(
       z.object({
         item_id: z.string().regex(uuidRegex, 'Invalid UUID format.').optional(),
-        material_main_head: z.string().min(1, 'Material heads, details, and unit are required.'),
-        material_sub_head: z.string().min(1, 'Material heads, details, and unit are required.'),
-        material_details: z.string().min(1, 'Material heads, details, and unit are required.'),
+        material_main_head: z.string().trim().min(1, 'Material heads, details, and unit are required.'),
+        material_sub_head: z.string().trim().min(1, 'Material heads, details, and unit are required.'),
+        material_details: z.string().trim().min(1, 'Material heads, details, and unit are required.'),
         unit: z.string().min(1, 'Material heads, details, and unit are required.'),
         qty: z.union([z.number(), z.string()])
           .transform((val) => Number(val))

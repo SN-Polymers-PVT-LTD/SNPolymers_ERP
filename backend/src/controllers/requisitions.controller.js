@@ -229,6 +229,13 @@ async function createRequisition(req, res) {
           message: 'material_sub_head and material_details are required for a Sub Contractor requisition.'
         });
       }
+      if (rpcError.code === 'EST02' || rpcError.code === 'EST01') {
+        return res.status(422).json({
+          success: false,
+          code: rpcError.code,
+          message: rpcError.message
+        });
+      }
       if (rpcError.code === 'PR001' || rpcError.message?.includes('Closed')) {
         return res.status(403).json({
           success: false,
@@ -720,7 +727,8 @@ async function getMainHeadCapacity(req, res) {
       success: true,
       mainHeadEstimate: capacity.mainHeadEstimate,
       cumulativeApproved: capacity.cumulativeApproved,
-      remainingCapacity: capacity.remainingCapacity
+      remainingCapacity: capacity.remainingCapacity,
+      estimateLifecycle: capacity.estimateLifecycle
     });
   } catch (error) {
     console.error(`getMainHeadCapacity failed: ${error.message}`);

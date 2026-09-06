@@ -37,6 +37,10 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     return data;
   }
 
+  async function setEstimateStatus(estId, status) {
+    return supabase.from('project_cost_estimates').update({ estimate_status: status }).eq('estimate_id', estId);
+  }
+
   async function approveItem(itemId, actor, stage) {
     return supabase.rpc('submit_row_approvals', {
       p_estimate_id: estimateId,
@@ -84,9 +88,9 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
       });
     if (ledgerErr) throw ledgerErr;
 
-    // Work order 1: Final Approved estimate with a Sub Contractor item (A),
-    // a second Sub Contractor item under a different subcontractor (B), and
-    // a plain Material item (C) — for the non-subcontractor regression check.
+    // Work order 1: Estimate starts Under ZO Review for testing row approvals,
+    // with a Sub Contractor item (A), a second Sub Contractor item (B),
+    // and a plain Material item (C).
     const { data: estData, error: estErr } = await supabase
       .from('project_cost_estimates')
       .insert([{
@@ -96,7 +100,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
         estimate_revision: 0,
         zonal_office_no: 'TEST_ZO_SC',
         estimate_amount: 30000.00,
-        estimate_status: 'Final Approved',
+        estimate_status: 'Under ZO Review',
         created_by: adminMobile,
         last_modified_by: adminMobile
       }])
@@ -142,9 +146,11 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('1. HO approval (with ZO already approved) credits subcontractor_balances and inserts a positive ledger row', async () => {
+    await setEstimateStatus(estimateId, 'Under ZO Review');
     const { error: zoErr } = await approveItem(itemA.item_id, zoMobile, 'ZO');
     expect(zoErr).toBeNull();
 
+    await setEstimateStatus(estimateId, 'Under HO Review');
     const { error: hoErr } = await approveItem(itemA.item_id, hoMobile, 'HO');
     expect(hoErr).toBeNull();
 
@@ -165,6 +171,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('2. ZO-only approval does not touch subcontractor_balances', async () => {
+    await setEstimateStatus(estimateId, 'Under ZO Review');
     const { error } = await approveItem(itemB.item_id, zoMobile, 'ZO');
     expect(error).toBeNull();
 
@@ -173,8 +180,10 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('3. HO approval on a non-Sub-Contractor item never touches subcontractor_balances', async () => {
+    await setEstimateStatus(estimateId, 'Under ZO Review');
     const { error: zoErr } = await approveItem(itemC.item_id, zoMobile, 'ZO');
     expect(zoErr).toBeNull();
+    await setEstimateStatus(estimateId, 'Under HO Review');
     const { error: hoErr } = await approveItem(itemC.item_id, hoMobile, 'HO');
     expect(hoErr).toBeNull();
 
@@ -196,14 +205,19 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     if (insErr) throw insErr;
     itemA2 = inserted;
 
+    await setEstimateStatus(estimateId, 'Under ZO Review');
     const { error: zoErr } = await approveItem(itemA2.item_id, zoMobile, 'ZO');
     expect(zoErr).toBeNull();
+    await setEstimateStatus(estimateId, 'Under HO Review');
     const { error: hoErr } = await approveItem(itemA2.item_id, hoMobile, 'HO');
     expect(hoErr).toBeNull();
 
     const balance = await getBalance(workOrder);
     expect(Number(balance.estimated_total)).toBe(35000);
     expect(Number(balance.available_balance)).toBe(35000);
+
+    // Promote to Final Approved so requisition tests (5-9) succeed
+    await setEstimateStatus(estimateId, 'Final Approved');
   });
 
   test('5. create_requisition_secure rejects with BUD03 when amount exceeds the subcontractor balance', async () => {
@@ -423,7 +437,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
         estimate_revision: 0,
         zonal_office_no: 'TEST_ZO_SC2',
         estimate_amount: 12000.00,
-        estimate_status: 'Final Approved',
+        estimate_status: 'Under ZO Review',
         created_by: adminMobile,
         last_modified_by: adminMobile
       }])
@@ -442,7 +456,9 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     const balanceWo1Before = await getBalance(workOrder);
 
     await supabase.rpc('submit_row_approvals', { p_estimate_id: estimateId2, p_approvals: [{ item_id: item2.item_id, approve_status: 'Approve', remarks: null }], p_stage: 'ZO', p_modified_by: zoMobile });
+    await setEstimateStatus(estimateId2, 'Under HO Review');
     await supabase.rpc('submit_row_approvals', { p_estimate_id: estimateId2, p_approvals: [{ item_id: item2.item_id, approve_status: 'Approve', remarks: null }], p_stage: 'HO', p_modified_by: hoMobile });
+    await setEstimateStatus(estimateId2, 'Final Approved');
 
     const balanceWo2 = await getBalance(workOrder2);
     expect(balanceWo2).not.toBeNull();
@@ -528,6 +544,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     // batch can resend that same Approve decision unchanged alongside a
     // genuinely new item — this must be a no-op for the ledger, not a
     // second credit.
+    await setEstimateStatus(estimateId, 'Under HO Review');
     const balanceBefore = await getBalance(workOrder);
     const { count: ledgerCountBefore } = await supabase
       .from('subcontractor_ledger')
@@ -537,6 +554,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
 
     const { error } = await approveItem(itemA.item_id, hoMobile, 'HO');
     expect(error).toBeNull();
+    await setEstimateStatus(estimateId, 'Final Approved');
 
     const balanceAfter = await getBalance(workOrder);
     expect(Number(balanceAfter.estimated_total)).toBe(Number(balanceBefore.estimated_total));

@@ -1,282 +1,267 @@
-# Subcontractor Ledger Accumulation Logic & Export Inconsistency Report
+# Subcontractor Ledger Audit & Inconsistency Verification Report
 
-**Document Version:** 1.0.0  
+**Document Version:** 2.0.0 (Post-Verification & Codebase Audit)  
 **Date:** September 6, 2026  
-**Auditor:** Antigravity Engineering & QA Pair  
+**Auditors:** Engineering & QA Review Pair  
 **Subsystem:** Subcontractor Ledger, Cost Estimates, Requisitions, and Reporting (`047_subcontractor_ledger.sql`)  
-**Scope:** Database Schema, RPC Functions, Backend Controllers, Frontend Views, Excel Export Utilities  
+**Scope:** Database Schema, RPC Functions, Backend Controllers, State Machine Guards, Frontend Views, Excel Export Utilities  
 
 ---
 
-## Executive Summary
+## Executive Summary & Audit Overview
 
-The Subcontractor Ledger subsystem was introduced to provide project-level tracking of work assigned to external sub-contractors. The system is designed around a dual-table architecture:
-1. `subcontractor_balances`: A state table persisting the running balance per `(work_order_no, material_main_head, material_sub_head, material_details)` tuple, tracking `estimated_total`, `paid_total`, and `available_balance`.
-2. `subcontractor_ledger`: An append-only audit trail logging signed transactions (`ESTIMATE_ITEM_APPROVAL` credits and `REQUISITION_APPROVAL` debits).
-
-An end-to-end technical investigation across the database schema, stored procedures, API controllers, frontend state management, and export helpers revealed **10 distinct data inconsistency gaps and structural vulnerabilities**. These issues lead to silent balance drift, locked projects, premature credits on rejected estimates, missing historical records, and severe data skew during Excel exports under filtered views.
+Following a line-by-line verification against the actual backend controllers, database stored procedures, and state-machine guards, the initial findings have been qualified and calibrated. Rather than an unqualified list of "10 confirmed critical vulnerabilities", this verified report separates:
+1. **P0 Genuine Blockers & Invariant Failures** that threaten ledger correctness in production.
+2. **P1 Accounting & Workflow Invariants** requiring architectural alignment before relying on the ledger for financial reporting.
+3. **P2 Operational & Presentation Improvements** for UI clarity and reconciliation tooling.
+4. **Retracted / Disproven Claims** (specifically regarding requisition cancellation) that do not apply under the existing codebase guards.
 
 ---
 
-## Vulnerability & Inconsistency Matrix
+## Verified Audit & Triage Matrix
 
-| ID | Finding | Severity | Layer | Impact |
+| ID | Finding | Classification | Layer | Verified Production Status |
 |:---|:---|:---:|:---:|:---|
-| **GAP-01** | Historical Data Blindspot (Zero Accumulation for Pre-Migration Estimates) | **CRITICAL** | Database / Migration | Historical projects have 0 balance; Requisitions immediately fail with `BUD03` |
-| **GAP-02** | Premature Credit Accumulation on Rejected/Abandoned Estimates | **HIGH** | Database / RPC | Line-item approval credits balance before overall estimate is approved; credit persists on rejection |
-| **GAP-03** | Approval Sequence Anomaly (Direct HO Approval Bypasses Ledger Credit) | **HIGH** | Database / RPC | Out-of-order approval (HO before ZO) permanently skips ledger credit hook |
-| **GAP-04** | Reopen Estimate Budget Divergence (Main Head vs Subcontractor Balance) | **HIGH** | Backend / Workflow | Reopening deducts main head budget to 0 but leaves subcontractor balances intact; conflicting states |
-| **GAP-05** | Case-Sensitivity & Whitespace Collisions (Silent Subcontractor Forking) | **MEDIUM** | DB / PKEY | Trailing spaces or casing variations create split balance rows and false `BUD03` errors |
-| **GAP-06** | Cancelled Requisitions Leave `paid_total` and `available_balance` Debited | **HIGH** | Backend / RPC | Cancelling an approved requisition fails to refund capacity back to `available_balance` |
-| **GAP-07** | UI Summary Cards Accumulate Cancelled Requisitions | **MEDIUM** | Frontend | Requisition total on UI group headers sums cancelled requisitions, displaying inflated figures |
-| **GAP-08** | Absence of Manual Adjustment / Re-Alignment RPC | **MEDIUM** | Architecture | No administrative correction mechanism exists to resolve unavoidable drift or discrepancies |
-| **GAP-09** | Missing Core Accounting Invariant Constraint | **MEDIUM** | Database Schema | Table checks non-negativity but lacks `CHECK (available_balance = estimated_total - paid_total)` |
-| **GAP-10** | Excel Export Inconsistencies Under Filtered Views | **HIGH** | Frontend / Backend / Export | Timezone boundary shifts, date semantics mismatch, search asymmetry, and inflated sums |
+| **GAP-01** | Historical Data Blindspot (Zero Accumulation for Pre-Migration Estimates) | 🔴 **P0 (Critical Blocker)** | DB / Migration | **Confirmed Real Blocker.** Migration 047 lacks backfill. Active projects fail with `BUD03`. |
+| **GAP-02** | Line-Item Credit vs Terminal Header Rejection Decoupling | 🟠 **P1 (Design Invariant)** | DB / RPC Workflow | **Confirmed.** Line-item credit is by design for top-ups, BUT `submit_ho_review` rejection leaves orphaned ledger credits. |
+| **GAP-03** | Direct RPC Out-of-Order Approval Permanently Skipping Credit | 🔴 **P0 (DB Invariant)** | Database / RPC | **Confirmed at RPC Level.** Express API guards order, but `submit_row_approvals` RPC lacks status guards, allowing out-of-order approval to permanently skip credit. |
+| **GAP-04** | Reopen Lifecycle Capacity Model Alignment (Main Head vs Subcontractor) | 🟠 **P1 (Workflow Invariant)** | Service / Lifecycle | **Confirmed Design Divergence.** `computeMainHeadCapacity` requires `Final Approved` (drops to 0 on reopen), while subcontractor balance persists. Requires Model A vs Model B decision. |
+| **GAP-05** | String Whitespace & Casing Collisions (Silent Subcontractor Forking) | 🟠 **P1 (Data Integrity)** | DB / Boundary | **Confirmed.** Postgres composite PKEY distinguishes casing and spaces. Canonical normalization needed at boundary. |
+| **GAP-06** | Approved Requisition Cancellation Refund | ❌ **RETRACTED / INVALID** | Backend Guard | **Disproven.** Backend explicitly forbids cancelling `Approved` requisitions (`403 Forbidden`). `Pending`/`Hold` items never debited the ledger. |
+| **GAP-07** | UI Group Summary Cards Summing Cancelled Requisitions | 🟡 **P2 (Presentation Bug)** | Frontend | **Confirmed.** Group card headers compute `reduce()` over raw rows without status filtering. Balance is safe, but presentation is misleading. |
+| **GAP-08** | Absence of Administrative Reconciliation / Adjustment RPC | 🟡 **P2 (Operational Tooling)** | Architecture | **Confirmed Gap.** Not an active bug, but a necessary operational capability for edge-case repair. |
+| **GAP-09** | Defense-in-Depth Accounting Invariant (`available = estimated - paid`) | 🟠 **P1 (Hardening)** | DB Schema | **Confirmed Hardening.** Sensible database-level check constraint; does not replace transaction locking. |
+| **GAP-10A** | Export Date Range: UTC vs. IST Timezone Boundary Clipping | 🟠 **P1 (Data Skew)** | Backend / Query | **Confirmed.** Un-offset ISO dates in Postgres evaluate to UTC `00:00:00`, clipping 12:00 AM–5:30 AM IST on start dates and leaking records on end dates. |
+| **GAP-10B** | Export Date Range: Creation Date vs Approval Date Ambiguity | 🟠 **P1 (Semantics)** | Query / API | **Confirmed.** Date filters query `created_at` (draft submission) instead of `payment_date` (ledger debit timestamp). |
+| **GAP-10C** | Search Filter Asymmetry Between Tabs | 🟠 **P1 (UX / Query)** | Backend Controller | **Confirmed.** Balances tab searches `work_order_no`, while Requisitions tab (and export) excludes it. Searching a WO number produces an empty export. |
+| **GAP-10D** | Excel Export: Cancelled Rows Segregation & Column Sums | 🟡 **P2 (Presentation)** | Export Utility | **Confirmed.** Raw export includes cancelled items with full amount. Excel `=SUM()` formulas include cancelled requests unless filtered. |
+| **GAP-10E** | Missing Balance Context & Metadata; No Balances Tab Export | 🟡 **P2 (Feature Gap)** | Frontend / Export | **Confirmed.** Export omits running balance columns, drops filter metadata, and has no export button on the Balances tab. |
 
 ---
 
-## Detailed Findings & Failure Modes
+## Detailed Technical Verification
 
 ---
 
 ### GAP-01: Historical Data Blindspot (Zero Accumulation for Pre-Migration Estimates)
-
+* **Status:** 🔴 **Confirmed P0 Blocker**
 * **Location:** [`backend/src/db/migrations/047_subcontractor_ledger.sql`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql)
-* **Severity:** **CRITICAL**
 
-#### Root Cause Analysis
-Migration `047` creates `subcontractor_balances` and `subcontractor_ledger` along with triggers on `submit_row_approvals` and `approve_requisition_transact`. However, **the migration contains no backfill script** for existing estimates and requisitions.
-
-#### Failure Mode
-For any work order whose Cost Estimate achieved `Final Approved` status prior to migration `047`:
-1. `subcontractor_balances` contains 0 rows for that work order.
-2. When a JE attempts to raise a requisition against this subcontractor, [`create_requisition_secure`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L355-L359) executes:
-   ```sql
-   SELECT available_balance INTO v_sc_available
-   FROM subcontractor_balances
-   WHERE work_order_no = p_work_order_no
-     AND material_main_head = 'Sub Contractor'
-     AND material_sub_head = p_material_sub_head
-     AND material_details = p_material_details;
-
-   IF NOT FOUND THEN
-     RAISE EXCEPTION 'BUD03: No Subcontractor Ledger balance found for Work Order %, Sub Head %, Subcontractor %.',
-       p_work_order_no, p_material_sub_head, p_material_details;
-   END IF;
-   ```
-3. The JE receives an unrecoverable `BUD03` exception, completely blocking project operations.
-4. On the Subcontractor Ledger browse screen, active projects show no balances.
-
-#### Remediation
-Deploy a one-time idempotent backfill migration that aggregates all existing `Final Approved` cost estimate items with `material_main_head = 'Sub Contractor'`, credits `subcontractor_balances`, subtracts any historically approved requisitions, and writes the initial baseline into `subcontractor_ledger`.
-
----
-
-### GAP-02: Premature Credit Accumulation on Rejected or Abandoned Estimates
-
-* **Location:** [`047_subcontractor_ledger.sql:submit_row_approvals`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L85-L168)
-* **Severity:** **HIGH**
-
-#### Root Cause Analysis
-In `submit_row_approvals`, credits to `subcontractor_balances` happen immediately at the individual line-item level when HO marks an item as `Approve`:
+#### Code Verification
+Migration `047` creates `subcontractor_balances` and `subcontractor_ledger` and attaches triggers to `submit_row_approvals` and `approve_requisition_transact`. 
+However, **it contains no DML/backfill queries**.
+In [`create_requisition_secure`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L355-L359):
 ```sql
-IF p_stage = 'HO' AND v_approve_status = 'Approve' AND v_item.zo_office_approve = 'Approve'
-   AND (v_prev_ho_approve IS NULL OR v_prev_ho_approve <> 'Approve') THEN
-  -- Credits subcontractor_balances and inserts into subcontractor_ledger
+SELECT available_balance INTO v_sc_available
+FROM subcontractor_balances
+WHERE work_order_no = p_work_order_no
+  AND material_main_head = 'Sub Contractor'
+  AND material_sub_head = p_material_sub_head
+  AND material_details = p_material_details;
+
+IF NOT FOUND THEN
+  RAISE EXCEPTION 'BUD03: No Subcontractor Ledger balance found for Work Order %, Sub Head %, Subcontractor %.',
+    p_work_order_no, p_material_sub_head, p_material_details;
 END IF;
 ```
-This credit lands **before** the overall estimate header transitions to `Final Approved`.
-
-#### Failure Mode
-1. HO approves line items 1 and 2 for Subcontractor "ABC Plumbing", immediately crediting ₹1,00,000 into `subcontractor_balances`.
-2. HO subsequently rejects the overall estimate, or ZO marks the estimate as rejected/cancelled, or the estimate is abandoned.
-3. The credit remains permanently committed in `subcontractor_balances`.
-4. A JE can now raise and pass a Requisition against this unapproved, rejected estimate line item because `subcontractor_balances` reports an available balance.
+#### Impact
+Any project approved prior to migration `047` has zero rows in `subcontractor_balances`. When JEs attempt to raise a requisition against an existing approved subcontractor, the procedure raises `BUD03`. This is an immediate operational blocker on existing databases.
 
 #### Remediation
-Either:
-- Defer the ledger credit hook until the estimate header transitions to `Final Approved` (recommended), or
-- Implement a compensating reversal transaction in `subcontractor_ledger` whenever an estimate transitions to `Rejected`.
+Execute an idempotent backfill migration aggregating historical `Final Approved` cost estimate items with `material_main_head = 'Sub Contractor'`, populating `subcontractor_balances`, deducting historical approved requisitions, and inserting baseline rows into `subcontractor_ledger`.
 
 ---
 
-### GAP-03: Approval Sequence Anomaly (Direct HO Approval Bypasses Ledger Credit)
+### GAP-02: Approval-State Coupling Invariant (Line-Item Credit vs Terminal Header Rejection)
+* **Status:** 🟠 **P1 (Design Invariant)**
+* **Location:** [`047_subcontractor_ledger.sql:submit_row_approvals`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L189-L209) & [`00_full_schema_dump.sql:submit_ho_review`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/00_full_schema_dump.sql#L1809-L1823)
 
-* **Location:** [`047_subcontractor_ledger.sql:submit_row_approvals`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L125-L165)
-* **Severity:** **HIGH**
+#### Code Verification & Architectural Reframing
+The migration design explicitly intended line-item credits to land during `submit_row_approvals(p_stage => 'HO')` so that estimate reopening top-ups work naturally without custom top-up logic:
+> *"HO approval permanently locks the row... and gating here — rather than on the parent estimate reaching Final Approved — is what makes reopen top-ups work for free"* (`047_subcontractor_ledger.sql:L89-L93`).
 
-#### Root Cause Analysis
-The credit condition in `submit_row_approvals` requires both `p_stage = 'HO'` AND `v_item.zo_office_approve = 'Approve'`:
+However, testing the actual state machine reveals a **reachable decoupling bug**:
+1. In `submit_row_approvals`, HO approves Row 1 (Subcontractor A, ₹1,00,000). The ledger is immediately credited.
+2. In `submit_row_approvals`, HO rejects Row 2 (`ho_office_approve = 'Not Approve'`).
+3. HO calls `submit_ho_review`. Because an item was rejected:
+   ```sql
+   SELECT COUNT(*) INTO v_rejected_count
+   FROM project_cost_estimate_items
+   WHERE estimate_id = p_estimate_id AND ho_office_approve = 'Not Approve';
+
+   IF v_rejected_count > 0 THEN
+     v_target_status := 'Rejected by HO'::estimate_status_enum;
+   ```
+4. `Rejected by HO` is a **terminal rejected status**. The estimate header is rejected and can never be approved.
+5. **The bug:** Row 1's credit of ₹1,00,000 remains permanently committed in `subcontractor_balances`. If the project initiates a new estimate and re-approves Subcontractor A, the balance accumulates twice.
+
+#### Remediation
+Establish an explicit invariant:
+- If an estimate transitions to `Rejected by HO`, `submit_ho_review` must execute compensating debit transactions in `subcontractor_ledger` for any items that were credited during that review cycle; **or**
+- Defer ledger crediting to `submit_ho_review` only when transitioning to `Final Approved`.
+
+---
+
+### GAP-03: Approval Sequence Anomaly (Direct RPC Out-of-Order Execution)
+* **Status:** 🔴 **P0 (Database-Level Invariant)**
+* **Location:** [`047_subcontractor_ledger.sql:submit_row_approvals`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L122-L198)
+
+#### Code Verification
+In the Express API controller ([`estimates.items.controller.js:L311-L323`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/estimates.items.controller.js#L311-L323)), the HTTP layer enforces stage order based on `estimate_status`:
+- `Under ZO Review` -> `p_stage = 'ZO'`
+- `Under HO Review` -> `p_stage = 'HO'`
+
+However, **the database stored procedure itself contains no such check**:
+In `submit_row_approvals`:
 ```sql
-IF p_stage = 'HO' AND v_approve_status = 'Approve' AND v_item.zo_office_approve = 'Approve' THEN ...
+IF p_stage = 'HO' AND v_approve_status = 'Approve' AND v_prev_ho_approve IS DISTINCT FROM 'Approve'::row_approval_enum THEN
+  SELECT * INTO v_item FROM project_cost_estimate_items WHERE item_id = v_item_id;
+
+  IF v_item.material_main_head = 'Sub Contractor' AND v_item.zo_office_approve = 'Approve' THEN
+    -- Crediting logic here
+  END IF;
+END IF;
 ```
-If an HO user approves a row before the ZO has approved it (or while ZO is `Pending`), the condition evaluates to `FALSE`, so no balance row is credited. 
-Crucially, when the ZO user subsequently approves that row via `submit_row_approvals(p_stage => 'ZO')`, **there is no ledger credit block under the `ZO` stage**.
-
-#### Failure Mode
-1. Row approval lands out of order: HO marks `Approve`, ZO later marks `Approve`.
-2. The row has `ho_office_approve = 'Approve'` and `zo_office_approve = 'Approve'`, yet `subcontractor_balances` received **zero credit**.
-3. When the estimate is finalized, the subcontractor's balance remains 0. Requisitions fail with `BUD03` or insufficient balance.
+If `submit_row_approvals` is invoked with `p_stage = 'HO'` while `zo_office_approve` is still `Pending`/`NULL` (via RPC script, admin console, migration, or integration):
+1. `ho_office_approve` is updated to `'Approve'`.
+2. Because `v_item.zo_office_approve = 'Approve'` is false, **no credit is posted**.
+3. Later, when `p_stage = 'ZO'` runs, `zo_office_approve` becomes `'Approve'`. **There is no credit hook under the ZO stage**.
+4. Future calls with `p_stage = 'HO'` skip the credit block because `v_prev_ho_approve` is already `'Approve'`.
+5. The row ends up dual-approved, yet `subcontractor_balances` has **permanently lost the credit**.
 
 #### Remediation
-1. Enforce strict sequential approval: Disallow HO approval in `submit_row_approvals` if `zo_office_approve <> 'Approve'`.
-2. Add a dual check in `submit_row_approvals`: If `p_stage = 'ZO'` and `v_item.ho_office_approve = 'Approve'`, execute the credit hook.
+Enforce the invariant inside the SQL function itself:
+```sql
+IF p_stage = 'HO' AND v_status <> 'Under HO Review'::estimate_status_enum THEN
+  RAISE EXCEPTION 'HO row approvals can only be submitted when estimate is Under HO Review. Current status: %', v_status;
+END IF;
+```
 
 ---
 
-### GAP-04: Reopen Estimate Budget Divergence (Main Head vs Subcontractor Balance)
+### GAP-04: Reopen Lifecycle Capacity Model Alignment (Main Head vs Subcontractor)
+* **Status:** 🟠 **P1 (Workflow Invariant & UX Alignment)**
+* **Location:** [`backend/src/services/mainHeadCapacity.service.js:L13-L20`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/services/mainHeadCapacity.service.js#L13-L20) & [`estimates.workflow.controller.js:reopenEstimate`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/estimates.workflow.controller.js#L827-L845)
 
-* **Location:** [`backend/src/controllers/estimates.workflow.controller.js:reopenEstimate`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/estimates.workflow.controller.js) & [`computeMainHeadCapacity`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js)
-* **Severity:** **HIGH**
+#### Code Verification
+In `mainHeadCapacity.service.js`:
+```javascript
+const { data: estimateData } = await supabase
+  .from('project_cost_estimates')
+  .select('estimate_id')
+  .eq('work_order_no', trimmedWo)
+  .eq('estimate_status', 'Final Approved')
+  .order('estimate_revision', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+```
+When an estimate is reopened:
+1. `reopenEstimate` transitions `estimate_status` from `'Final Approved'` to `'Estimate Reopened'`.
+2. As a result, `computeMainHeadCapacity` finds **no estimate** matching `estimate_status = 'Final Approved'`.
+3. `mainHeadEstimate` evaluates to `0`, and `remainingCapacity` evaluates to `<= 0`.
+4. However, `subcontractor_balances` preserves its allocated capacity (e.g. `available_balance = ₹5,00,000`).
 
-#### Root Cause Analysis
-When an estimate is reopened to add items or adjust figures:
-1. `reopenEstimate` resets `projects_master.main_head_budgets['Sub Contractor']` by deducting the previous estimate's approved amount down to zero or base delta.
-2. However, `subcontractor_balances` preserves its existing balance (because line items are not deleted upon reopen).
-
-#### Failure Mode
-1. A project has an approved Subcontractor line item of ₹5,00,000.
-2. The project estimate is reopened for revision.
-3. A JE creates a requisition against the subcontractor. The subcontractor balance card reports: `Available: ₹5,00,000`.
-4. The JE submits the requisition. The backend throws an error: `BUD01: Exceeds Main Head Capacity for Sub Contractor`.
-5. The UI is in direct contradiction: the Subcontractor capacity card indicates sufficient funds, while the submission fails on the parent category capacity.
-
-#### Remediation
-Maintain consistent capacity definitions: if `reopenEstimate` deducts allocated main head budgets, it must either lock requisition creation across the entire work order during reopen, or maintain existing capacity snapshots until new revisions are submitted.
+#### Design Choice Required
+The system must explicitly choose between two architectural models:
+* **Model A (Strict Freeze during Reopen):** While an estimate is reopened, all requisitions on that work order are frozen. Subcontractor capacity advisory cards should reflect that the project is currently in revision and temporarily locked.
+* **Model B (Continuous Operation on Committed Baseline):** `computeMainHeadCapacity` should read the `last_approved_amount` or the latest approved snapshot, allowing existing approved allocations to be drawn down while revision items are being drafted.
 
 ---
 
-### GAP-05: Case-Sensitivity & Whitespace Collisions (Silent Subcontractor Forking)
+### GAP-05: String Whitespace & Casing Collisions (Silent Subcontractor Forking)
+* **Status:** 🟠 **P1 (Data Integrity)**
+* **Location:** [`047_subcontractor_ledger.sql:subcontractor_balances`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L40-L53)
 
-* **Location:** [`047_subcontractor_ledger.sql:subcontractor_balances`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L49)
-* **Severity:** **MEDIUM**
-
-#### Root Cause Analysis
+#### Code Verification
 The primary key of `subcontractor_balances` is:
 ```sql
 CONSTRAINT "subcontractor_balances_pkey" 
 PRIMARY KEY (work_order_no, material_main_head, material_sub_head, material_details)
 ```
-PostgreSQL string comparisons on `character varying` are case-sensitive and whitespace-sensitive. Neither `submit_row_approvals` nor `create_requisition_secure` enforces string normalization (e.g., `TRIM()`).
-
-#### Failure Mode
-1. Estimate item is entered with a trailing space: `"ABC Enterprises "`.
-2. `subcontractor_balances` creates a row for `("WO-101", "Sub Contractor", "Plumbing", "ABC Enterprises ")`.
-3. The JE enters a requisition selecting `"ABC Enterprises"` (trimmed).
-4. `create_requisition_secure` looks for `("WO-101", "Sub Contractor", "Plumbing", "ABC Enterprises")` and fails with `BUD03: No Subcontractor Ledger balance found`.
-5. If the casing varies (`"abc enterprises"` vs `"ABC Enterprises"`), two separate balance rows are created for the same contractor on the same work order.
+In PostgreSQL, string comparisons distinguish casing and trailing spaces (`'ABC ' <> 'ABC'`).
+Neither `submit_row_approvals` nor `create_requisition_secure` normalizes `material_details` or `material_sub_head`.
+If an estimate entry contains a trailing space, it creates an isolated balance row. A subsequent requisition with clean input fails with `BUD03: No Subcontractor Ledger balance found`.
 
 #### Remediation
-Add `TRIM()` normalization across all RPC functions (`submit_row_approvals`, `create_requisition_secure`, `approve_requisition_transact`) and backend controllers.
+Establish a canonical normalization rule at the boundary:
+- Enforce `TRIM()` and clean whitespace in API validation schemas (Zod).
+- Wrap `TRIM()` around parameters in all stored procedures before query execution.
 
 ---
 
-### GAP-06: Cancelled Requisitions Leave `paid_total` and `available_balance` Debited
+### GAP-06: [RETRACTED / DISPROVEN] Approved Requisition Cancellation Refund
+* **Status:** ❌ **RETRACTED (Codebase Guard Verified)**
+* **Location:** [`backend/src/controllers/requisitions.controller.js:L658-L663`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L658-L663)
 
-* **Location:** [`backend/src/controllers/requisitions.controller.js:cancelRequisition`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js) & [`047_subcontractor_ledger.sql`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql)
-* **Severity:** **HIGH**
-
-#### Root Cause Analysis
-When an approved or submitted requisition is cancelled via `cancelRequisition` or `cancel_requisition_transact`, there is no hook to restore the subcontractor's balance.
-
-#### Failure Mode
-1. Requisition for ₹50,000 against Subcontractor "XYZ" is approved.
-2. `subcontractor_balances.paid_total` increments by ₹50,000 and `available_balance` decrements by ₹50,000.
-3. Due to administrative reasons or vendor change, the requisition is cancelled.
-4. `requisitions.requisition_status` is updated to `'Cancelled'`.
-5. No refund transaction is posted to `subcontractor_ledger`, and `subcontractor_balances.available_balance` remains permanently reduced by ₹50,000.
-6. The funds are permanently leaked and unavailable for future requisitions.
-
-#### Remediation
-Implement a cancellation credit hook in `cancel_requisition_transact`:
-```sql
-UPDATE subcontractor_balances
-SET paid_total = paid_total - v_req.approved_amount,
-    available_balance = available_balance + v_req.approved_amount,
-    updated_at = now()
-WHERE work_order_no = v_req.work_order_no
-  AND material_sub_head = v_req.material_sub_head
-  AND material_details = v_req.material_details;
-
-INSERT INTO subcontractor_ledger (
-  work_order_no, material_sub_head, material_details,
-  transaction_type, reference_type, reference_id, amount, created_by
-) VALUES (
-  v_req.work_order_no, v_req.material_sub_head, v_req.material_details,
-  'REQUISITION_CANCELLATION', 'REQUISITION', v_req.requisition_id, v_req.approved_amount, p_cancelled_by
-);
+#### Code Verification
+The initial hypothesis was that cancelling an approved requisition would fail to refund `paid_total` and `available_balance`.
+However, inspecting `cancelRequisition` in `requisitions.controller.js` proves this failure mode **is not reachable**:
+```javascript
+// Status guard
+if (reqRecord.requisition_status !== 'Pending' && reqRecord.requisition_status !== 'Hold') {
+  return res.status(403).json({
+    success: false,
+    message: `Only Pending or Hold requisitions can be cancelled. Current status: ${reqRecord.requisition_status}`
+  });
+}
 ```
+Furthermore, `approve_requisition_transact` only debits `subcontractor_balances` upon transitioning to `Approved`. Requisitions in `Pending` or `Hold` have **never debited the ledger**.
+Because approved requisitions cannot be cancelled, no refund transaction is required or missing. 
+
+> [!NOTE]
+> This item is formally retracted as a vulnerability. The state machine guard functions as designed.
 
 ---
 
-### GAP-07: UI Summary Cards Accumulate Cancelled Requisitions
-
+### GAP-07: UI Group Summary Cards Summing Cancelled Requisitions
+* **Status:** 🟡 **P2 (Presentation Bug)**
 * **Location:** [`frontend/src/pages/SubcontractorLedger.jsx:L258-L259`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/SubcontractorLedger.jsx#L258-L259)
-* **Severity:** **MEDIUM**
 
-#### Root Cause Analysis
-In `SubcontractorLedger.jsx`, the summary totals displayed in each subcontractor card header are computed as:
+#### Code Verification
+In `SubcontractorLedger.jsx`:
 ```javascript
 const totalRequisitioned = group.rows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
 const totalApproved = group.rows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
 ```
-There is no condition checking `r.requisition_status`.
-
-#### Failure Mode
-1. A subcontractor had 3 requisitions of ₹1,00,000 each: 1 Approved, 2 Cancelled.
-2. The UI header card displays: `Requisitioned: ₹ 3,00,000 | Approved: ₹ 1,00,000`.
-3. Reviewers and accountants are misled into believing ₹3,00,000 of work has been requested, when in reality ₹2,00,000 was cancelled.
+The calculation performs a simple reduction over `group.rows` without checking `r.requisition_status`. If a subcontractor has 1 approved requisition of ₹50,000 and 2 cancelled requisitions of ₹50,000 each, the card header displays `Requisitioned: ₹ 1,50,000`.
+The underlying ledger balances are not affected, but the presentation is misleading.
 
 #### Remediation
-Filter out cancelled and rejected items:
+Filter active rows before reducing:
 ```javascript
 const activeRows = group.rows.filter(r => r.requisition_status !== 'Cancelled' && r.requisition_status !== 'Rejected');
 const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
-const totalApproved = activeRows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
 ```
 
 ---
 
-### GAP-08: Absence of Manual Adjustment / Re-Alignment RPC
+### GAP-08: Administrative Balance Adjustment & Reconciliation Capability
+* **Status:** 🟡 **P2 (Operational Capability)**
+* **Location:** Architecture / Stored Procedures
 
-* **Location:** Database Schema / Architecture
-* **Severity:** **MEDIUM**
-
-#### Root Cause Analysis
-In contrast to the Credit Ledger (`credit_ledger`), which includes `adjust_credit_ledger_balance_transact` (Migration `044`) and an "Adjust Balance" modal for HO/Admin to resolve bank reconciliation or rounding errors, the Subcontractor Ledger has no administrative adjustment mechanism.
-
-#### Failure Mode
-If drift occurs due to historical data omissions, cancelled orders, or manual database corrections, there is no mechanism to re-synchronize `subcontractor_balances` with reality. Any manual SQL edit risks breaking the audit trail.
+#### Analysis
+Migration `044` introduced `adjust_credit_ledger_balance_transact` for the Credit Ledger (`credit_ledger`), providing HO/Admin with a controlled, audited mechanism to resolve discrepancies and bank reconciliation adjustments.
+The Subcontractor Ledger currently lacks an equivalent adjustment RPC. If edge-case drift occurs, administrators have no native tool to re-synchronize the ledger without executing ad-hoc SQL updates.
 
 #### Remediation
-Create an RPC function `adjust_subcontractor_balance_transact` accepting `(p_work_order_no, p_sub_head, p_details, p_new_balance, p_reason, p_modified_by)` that logs an `ADMIN_ADJUSTMENT` audit entry and updates `subcontractor_balances`.
+Implement `adjust_subcontractor_balance_transact(p_work_order_no, p_sub_head, p_details, p_new_balance, p_reason, p_modified_by)` that logs an `ADMIN_ADJUSTMENT` audit entry into `subcontractor_ledger`.
 
 ---
 
-### GAP-09: Missing Core Accounting Invariant Constraint
-
+### GAP-09: Defense-in-Depth Accounting Invariant
+* **Status:** 🟠 **P1 (Hardening)**
 * **Location:** [`047_subcontractor_ledger.sql:subcontractor_balances`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/db/migrations/047_subcontractor_ledger.sql#L51-L52)
-* **Severity:** **MEDIUM**
 
-#### Root Cause Analysis
-The table checks:
+#### Code Verification
+`subcontractor_balances` currently enforces:
 ```sql
 CONSTRAINT "chk_scb_available_nonneg" CHECK (available_balance >= 0),
 CONSTRAINT "chk_scb_paid_nonneg" CHECK (paid_total >= 0)
 ```
-However, it does NOT enforce the core accounting invariant:
+While row locking and transactional RPCs prevent race conditions, adding a database-level CHECK constraint provides defense-in-depth against invalid manual edits or procedural errors:
 ```sql
-CONSTRAINT "chk_scb_balance_identity" CHECK (available_balance = estimated_total - paid_total)
-```
-
-#### Failure Mode
-Because `estimated_total` is modified by `submit_row_approvals` and `paid_total` is modified by `approve_requisition_transact`, any missed row lock, concurrency glitch, or direct table modification can cause `available_balance` to diverge from `estimated_total - paid_total` without the database raising an error.
-
-#### Remediation
-Add the check constraint to `subcontractor_balances`:
-```sql
-ALTER TABLE subcontractor_balances 
-ADD CONSTRAINT chk_scb_balance_identity 
+ALTER TABLE subcontractor_balances
+ADD CONSTRAINT "chk_scb_accounting_identity"
 CHECK (available_balance = estimated_total - paid_total);
 ```
 
@@ -284,104 +269,69 @@ CHECK (available_balance = estimated_total - paid_total);
 
 ### GAP-10: Excel Export Inconsistencies Under Filtered Views
 
-* **Locations:**
-  * Frontend UI: [`frontend/src/pages/SubcontractorLedger.jsx:L40-L98`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/SubcontractorLedger.jsx#L40-L98)
-  * Export Utility: [`frontend/src/utils/exportHelpers.js:L285-L313`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/utils/exportHelpers.js#L285-L313)
-  * Backend Controller: [`backend/src/controllers/requisitions.controller.js:L881-L921`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L881-L921)
-* **Severity:** **HIGH**
+---
 
-#### Detailed Gaps & Failure Modes:
-
-#### A. Timezone Boundary Clipping on Date Range Filters
-* **Mechanism:**
-  In `SubcontractorLedger.jsx`, the `<input type="date">` elements emit bare dates (`YYYY-MM-DD`). In `requisitions.controller.js`:
+#### GAP-10A: Export Date Range: UTC vs. IST Timezone Boundary Clipping
+* **Status:** 🟠 **P1 (Data Skew)**
+* **Location:** [`backend/src/controllers/requisitions.controller.js:L893-L898`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L893-L898)
+* **Verification:**
   ```javascript
-  if (query.date_from) {
-    dbQuery = dbQuery.gte('created_at', query.date_from);
-  }
-  if (query.date_to) {
-    dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
-  }
+  if (query.date_from) dbQuery = dbQuery.gte('created_at', query.date_from);
+  if (query.date_to) dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
   ```
-  In PostgreSQL, querying a `timestamptz` column with an un-offset string treats the value as UTC (`00:00:00+00`).
-* **Failure Mode:**
-  - In India (UTC+05:30), `00:00:00 UTC` is `05:30:00 AM IST`.
-  - Requisitions created between **12:00 AM and 05:30 AM IST on the start date** have UTC timestamps on the preceding day and are **omitted** from the export.
-  - On the end date, `${query.date_to}T23:59:59.999` in UTC translates to `05:29:59.999 AM IST` the **following day**. Requisitions created early next morning are **mistakenly included**.
-  - In the exported Excel spreadsheet, the `"Created"` column displays dates outside the filtered range (e.g. shows `02/09/2026` when `date_to` was `2026-09-01`).
+  In PostgreSQL, querying a `timestamptz` column with an un-offset string treats the value as UTC. In IST (UTC+05:30), UTC `00:00:00` corresponds to `05:30:00 AM IST`.
+  - Requisitions created between **12:00 AM and 05:30 AM IST** on the start date have UTC timestamps on the previous day and are **omitted from the export**.
+  - Requisitions created early in the morning of the day following `date_to` are **mistakenly included**.
+* **Remediation:** Append explicit IST offset (`+05:30`) to boundary parameters:
+  `${query.date_from}T00:00:00+05:30` and `${query.date_to}T23:59:59.999+05:30`.
 
-#### B. Filter Semantic Mismatch (Creation Date vs Approval Date)
-* **Mechanism:**
-  The export file includes two date columns:
-  - `"Created"` (`r.created_at`)
-  - `"Approved On"` (`r.payment_date`)
-  However, the UI date inputs only filter `created_at`.
-* **Failure Mode:**
-  When accounts teams generate an Excel report for a financial period (e.g. Month of August) to audit subcontractor disbursements, the filter selects when the requisition was first typed rather than when it was approved. Requisitions drafted in July but approved in August are missing, while unapproved drafts created in August are included.
+#### GAP-10B: Export Date Range: Creation Date vs Approval Date Ambiguity
+* **Status:** 🟠 **P1 (Semantics)**
+* **Location:** [`exportHelpers.js:L304-L305`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/utils/exportHelpers.js#L304-L305) & [`requisitions.controller.js:L893-L898`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L893-L898)
+* **Verification:**
+  The export outputs both `"Created"` (`created_at`) and `"Approved On"` (`payment_date`). However, the date filters exclusively query `created_at`. When accounts teams filter for a monthly disbursement period, requisitions drafted in the prior month but approved in the filtered month are omitted.
+* **Remediation:** Provide an explicit filter toggle: "Filter by Requisition Date" vs "Filter by Approval Date".
 
-#### C. Search Filter Discrepancy Between Tabs
-* **Mechanism:**
-  - On the **Balances** tab, `getSubcontractorLedger` checks:
-    ```javascript
-    b.material_sub_head?.toLowerCase().includes(term) ||
-    b.material_details?.toLowerCase().includes(term) ||
-    b.work_order_no?.toLowerCase().includes(term)
-    ```
-  - On the **Requisitions** tab (which feeds the Excel export), `getSubcontractorRequisitions` checks only:
-    ```javascript
-    r.material_sub_head?.toLowerCase().includes(term) ||
-    r.material_details?.toLowerCase().includes(term)
-    ```
-* **Failure Mode:**
-  If a user types a work order number into the search box:
-  1. The user sees matching balances on the Balances tab.
-  2. The user switches to the Requisitions tab to export the data.
-  3. The list drops to 0 rows, and the export produces an empty spreadsheet or is disabled.
+#### GAP-10C: Search Filter Asymmetry Between Tabs
+* **Status:** 🟠 **P1 (Query / UX)**
+* **Location:** [`requisitions.controller.js:L808-L815`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L808-L815) vs [`requisitions.controller.js:L906-L912`](file:///home/zenoguy/Desktop/projects/SNPolymers/backend/src/controllers/requisitions.controller.js#L906-L912)
+* **Verification:**
+  - On the **Balances** tab, `search` matches `material_sub_head`, `material_details`, and `work_order_no`.
+  - On the **Requisitions** tab (which feeds the export), `search` matches only `material_sub_head` and `material_details`.
+  If a user types a work order number into the search box, the Balances tab displays results, but switching to the Requisitions tab to export yields 0 results.
+* **Remediation:** Add `r.work_order_no` and `r.requisition_no` matching to `getSubcontractorRequisitions`.
 
-#### D. Cancelled Requisitions Distorting Sums in Export
-* **Mechanism:**
-  `exportSubcontractorRequisitionsToExcel` writes all requisitions directly into the sheet:
-  ```javascript
-  "Requisition Amount (INR)": r.requisition_amount || 0,
-  "Approved Amount (INR)": r.approved_amount || 0,
-  "Status": r.requisition_status || '',
-  ```
-* **Failure Mode:**
-  Unlike the web UI where rows have visual badges (`emerald`, `red`, `amber`), Excel is an unformatted data sheet. When an accountant applies `=SUM(F:F)` to calculate total requisitioned liabilities, cancelled and rejected amounts are added together with active amounts, producing an inflated, incorrect financial total.
+#### GAP-10D: Excel Export: Cancelled Rows Segregation & Column Sums
+* **Status:** 🟡 **P2 (Presentation)**
+* **Location:** [`exportHelpers.js:L299-L301`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/utils/exportHelpers.js#L299-L301)
+* **Verification:**
+  The raw export writes all rows without status segregation. An accountant using `=SUM(F:F)` in Excel inadvertently sums cancelled and rejected amounts into total liabilities. While the status column is present, raw exports should make accounting semantics clearer.
+* **Remediation:** Add status filtering options in the UI, or export cancelled items with 0 effective liability in summary calculations.
 
-#### E. Absence of Ledger Balances & Filter Audit Metadata
-* **Mechanism:**
-  The export outputs a flat list of requisitions without:
-  - The actual running balances (`estimated_total`, `paid_total`, `available_balance`).
-  - Active filter parameters (Work Order No., Search Term, Date Range).
-  - An export option on the primary **Balances** tab.
-* **Failure Mode:**
-  Anyone reviewing the exported spreadsheet cannot verify what filter constraints produced the dataset, nor can they see the remaining balance capacity for the subcontractor on that work order.
+#### GAP-10E: Missing Balance Context & Metadata; No Balances Tab Export
+* **Status:** 🟡 **P2 (Feature Gap)**
+* **Location:** [`SubcontractorLedger.jsx:L188-L192`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/pages/SubcontractorLedger.jsx#L188-L192) & [`exportHelpers.js`](file:///home/zenoguy/Desktop/projects/SNPolymers/frontend/src/utils/exportHelpers.js)
+* **Verification:**
+  The export button only exists on the "Requisitions by Subcontractor" tab. The primary "Balances" tab has no export function. Furthermore, the requisition export omits the subcontractor's current `available_balance` and includes no filter metadata header.
+* **Remediation:** Add an "Export Balances to Excel" button on the Balances tab, and include filter metadata in exported workbooks.
 
 ---
 
-## Actionable Remediation Plan
+## Actionable Remediation Roadmap
 
-### Phase 1: Database Migration (P0 - Immediate)
-1. **Historical Backfill Script:** Aggregate approved estimate items and requisitions to populate `subcontractor_balances` and baseline `subcontractor_ledger` entries.
-2. **String Trimming:** Wrap `TRIM()` around all `material_sub_head` and `material_details` inputs in `submit_row_approvals`, `create_requisition_secure`, and `approve_requisition_transact`.
-3. **Requisition Cancellation Hook:** Add reversal logic in `cancel_requisition_transact` to refund `available_balance` and decrement `paid_total`.
-4. **Accounting Invariant:** Apply `CHECK (available_balance = estimated_total - paid_total)`.
+### 🔴 Phase 1: P0 Critical Blockers (Immediate Deployment)
+1. **Historical Backfill Migration:** Aggregate pre-migration `Final Approved` cost estimate items with `material_main_head = 'Sub Contractor'` and populate `subcontractor_balances`.
+2. **RPC Stage Guard:** Add strict estimate status assertion inside `submit_row_approvals` to prevent out-of-order execution that permanently skips credit.
 
-### Phase 2: Backend API Refinements (P1 - Near-Term)
-1. **Timezone Standardization:** Adjust `date_from` and `date_to` parsing in `getSubcontractorRequisitions` to enforce IST bounds:
-   ```javascript
-   if (query.date_from) {
-     dbQuery = dbQuery.gte('created_at', `${query.date_from}T00:00:00+05:30`);
-   }
-   if (query.date_to) {
-     dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999+05:30`);
-   }
-   ```
-2. **Align Search Fields:** Add `r.work_order_no` and `r.requisition_no` to the search term filtering in `getSubcontractorRequisitions`.
-3. **Approval Status Filter:** Support `?status=` query parameter on `getSubcontractorRequisitions`.
+### 🟠 Phase 2: P1 Accounting & Invariant Hardening (Near-Term)
+1. **Estimate Rejection Decoupling:** In `submit_ho_review`, reverse line-item credits if the estimate transitions to `Rejected by HO`.
+2. **String Boundary Normalization:** Apply canonical `TRIM()` normalization at the schema validation and RPC entry points.
+3. **Reopen Lifecycle Model Decision:** Align `computeMainHeadCapacity` with estimate reopen lifecycle states (Model A vs Model B).
+4. **Timezone Offset Enforcement:** Enforce IST timezone boundaries (`+05:30`) in backend date query filters.
+5. **Search Field Alignment:** Add `work_order_no` and `requisition_no` to `getSubcontractorRequisitions` search filter.
+6. **Accounting Identity Constraint:** Add `CHECK (available_balance = estimated_total - paid_total)` on `subcontractor_balances`.
 
-### Phase 3: Frontend & Export Enhancement (P1 - Near-Term)
-1. **Export Balances Option:** Add an "Export to Excel" button on the **Balances** tab using a new `exportSubcontractorBalancesToExcel` helper.
-2. **Filter Out Cancelled Requisitions in UI:** Update header card totals in `SubcontractorLedger.jsx` to exclude `Cancelled` items.
-3. **Metadata & Status Separation in Export:** Include an audit summary header in the exported Excel workbook displaying the active filters, and separate or flag cancelled requisitions.
+### 🟡 Phase 3: P2 Operational & Presentation Polish (Next Release)
+1. **UI Card Totals:** Exclude `Cancelled` and `Rejected` statuses from group header sums in `SubcontractorLedger.jsx`.
+2. **Balances Tab Export:** Implement `exportSubcontractorBalancesToExcel` on the Balances view.
+3. **Admin Adjustment RPC:** Create `adjust_subcontractor_balance_transact` for audited ledger corrections.
