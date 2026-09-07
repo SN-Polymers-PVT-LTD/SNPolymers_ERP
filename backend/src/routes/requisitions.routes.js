@@ -10,7 +10,9 @@ const {
   getSubcontractorCapacity,
   getSubcontractorLedger,
   getSubcontractorLedgerEntries,
-  getSubcontractorRequisitions
+  getSubcontractorRequisitions,
+  adjustSubcontractorBalance,
+  searchProjectsBeneficiaries
 } = require('../controllers/requisitions.controller');
 const {
   uploadRequisitionPdf,
@@ -24,7 +26,8 @@ const validateRequest = require('../middleware/validateRequest');
 const {
   createRequisitionSchema,
   actOnRequisitionSchema,
-  cancelRequisitionSchema
+  cancelRequisitionSchema,
+  adjustSubcontractorBalanceSchema
 } = require('../validation/requisition.schema');
 
 const router = express.Router();
@@ -42,6 +45,7 @@ const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const requesterRoles = ['je', 'admin'];
 const approverRoles = ['zo', 'ho', 'admin'];
 const uploadRoles = ['je', 'admin'];
+const adjusterRoles = ['ho', 'admin'];
 
 // Read endpoints
 router.get('/', requireRole(readerRoles), getRequisitions);
@@ -50,10 +54,14 @@ router.get('/subcontractor-capacity', requireRole(readerRoles), getSubcontractor
 router.get('/subcontractor-ledger/entries', requireRole(readerRoles), getSubcontractorLedgerEntries);
 router.get('/subcontractor-ledger/requisitions', requireRole(readerRoles), getSubcontractorRequisitions);
 router.get('/subcontractor-ledger', requireRole(readerRoles), getSubcontractorLedger);
+router.get('/beneficiary-suggestions', requireRole(readerRoles), searchProjectsBeneficiaries);
 router.get('/:id', requireRole(readerRoles), getRequisitionById);
 
 // Create endpoint
 router.post('/', requireRole(requesterRoles), validateRequest(createRequisitionSchema), createRequisition);
+
+// Admin balance adjustment endpoint (HO or Admin only)
+router.post('/subcontractor-ledger/adjust', requireRole(adjusterRoles), validateRequest(adjustSubcontractorBalanceSchema), adjustSubcontractorBalance);
 
 // Workflow endpoints
 router.patch('/:id/action', requireRole(approverRoles), validateRequest(actOnRequisitionSchema), actOnRequisition);

@@ -1,10 +1,21 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
-import { useQuery } from '@tanstack/react-query';
-import { Button, Input, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
-import { getSubcontractorLedger, getSubcontractorLedgerEntries, getSubcontractorRequisitions } from '../api/requisitionsApi';
-import { exportSubcontractorRequisitionsToExcel } from '../utils/exportHelpers';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Input, TextArea, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import {
+  getSubcontractorLedger,
+  getSubcontractorLedgerEntries,
+  getSubcontractorRequisitions,
+  adjustSubcontractorBalance
+} from '../api/requisitionsApi';
+import {
+  exportSubcontractorRequisitionsToExcel,
+  exportSubcontractorBalancesToExcel,
+  exportSubcontractorLedgerStatementToExcel,
+  exportAllSubcontractorLedgersToExcel
+} from '../utils/exportHelpers';
+import { isFinanciallyActiveRequisition } from '../utils/requisitionUtils';
 
 const VIEW_TABS = [
   { value: 'balances', label: 'Balances' },
@@ -17,34 +28,40 @@ const formatCurrency = (val) =>
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '—');
 const formatDateTime = (dateStr) => (dateStr ? new Date(dateStr).toLocaleString('en-IN') : '—');
 
+const TX_TYPE_LABELS = {
+  ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item)',
+  ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
+  REQUISITION_APPROVAL: 'Debit (Requisition)',
+  ADMIN_ADJUSTMENT: 'Admin Adjustment'
+};
+
 /**
- * Browse view over the Subcontractor Ledger (047_subcontractor_ledger.sql).
+ * Browse view over the Subcontractor Ledger (047_subcontractor_ledger.sql / 049).
  * Two tabs:
- *  - Balances: one row per (work_order_no, material_sub_head, material_details)
- *    — the running balance, which is deliberately scoped per work order (two
- *    same-named subcontractors on two projects never share a balance).
- *  - Requisitions by Subcontractor: every actual Requisition raised against
- *    a Sub Contractor, across all work orders, grouped client-side by
- *    (material_sub_head, material_details) so you can see everything raised
- *    against one person/firm regardless of which project it was on — a
- *    reporting view, not a balance-tracking one. Filterable by work order
- *    and a requisition creation date range, with an Excel export of the
- *    currently filtered rows.
+ *  - Balances: running balances per (work_order_no, material_sub_head, material_details),
+ *    with export and audited administrative balance adjustments for HO/Admin.
+ *  - Requisitions by Subcontractor: grouped requisition history with creation vs approval
+ *    date filtering, comprehensive subcontractor ledger statements, and Excel exports.
  */
 const SubcontractorLedger = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const canView = ['je', 'zo', 'ho', 'admin'].includes(user?.role);
+  const canAdjust = ['ho', 'admin'].includes(user?.role);
 
   const [viewMode, setViewMode] = useState('balances');
   const [workOrderFilter, setWorkOrderFilter] = useState('');
   const [searchFilter, setSearchFilter] = useState('');
+  const [dateBasis, setDateBasis] = useState('created'); // 'created' | 'approved'
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewingEntry, setViewingEntry] = useState(null);
+  const [adjustingEntry, setAdjustingEntry] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   const hasBalanceFilters = workOrderFilter || searchFilter;
-  const hasRequisitionFilters = workOrderFilter || searchFilter || dateFrom || dateTo;
+  const hasRequisitionFilters = workOrderFilter || searchFilter || dateFrom || dateTo || dateBasis !== 'created';
 
   const { data: balances = [], isLoading: loadingBalances, error: balancesError } = useQuery({
     queryKey: ['subcontractorLedger', workOrderFilter, searchFilter],
@@ -57,10 +74,11 @@ const SubcontractorLedger = () => {
   });
 
   const { data: requisitions = [], isLoading: loadingRequisitions, error: requisitionsError } = useQuery({
-    queryKey: ['subcontractorRequisitions', workOrderFilter, searchFilter, dateFrom, dateTo],
+    queryKey: ['subcontractorRequisitions', workOrderFilter, searchFilter, dateFrom, dateTo, dateBasis],
     queryFn: async () => (await getSubcontractorRequisitions({
       work_order_no: workOrderFilter || undefined,
       search: searchFilter || undefined,
+      date_basis: dateBasis,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined
     })).data?.requisitions || [],
@@ -91,10 +109,85 @@ const SubcontractorLedger = () => {
     setSearchFilter('');
     setDateFrom('');
     setDateTo('');
+    setDateBasis('created');
   };
 
-  const handleExport = () => {
-    exportSubcontractorRequisitionsToExcel(requisitions);
+  const handleExportRequisitions = () => {
+    exportSubcontractorRequisitionsToExcel(requisitions, {
+      workOrderFilter,
+      searchFilter,
+      dateBasis,
+      dateFrom,
+      dateTo
+    });
+  };
+
+  const handleExportBalances = () => {
+    exportSubcontractorBalancesToExcel(balances, {
+      workOrderFilter,
+      searchFilter
+    });
+  };
+
+  const handleExportFullLedger = async () => {
+    try {
+      setIsExporting(true);
+      const res = await getSubcontractorLedgerEntries({
+        work_order_no: workOrderFilter || undefined,
+        search: searchFilter || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined
+      });
+      const entries = res.data?.entries || [];
+
+      let currentBalances = balances;
+      if (currentBalances.length === 0) {
+        const balRes = await getSubcontractorLedger({
+          work_order_no: workOrderFilter || undefined,
+          search: searchFilter || undefined
+        });
+        currentBalances = balRes.data?.balances || [];
+      }
+
+      await exportAllSubcontractorLedgersToExcel(entries, currentBalances, requisitions, {
+        workOrderFilter,
+        searchFilter,
+        dateBasis,
+        dateFrom,
+        dateTo
+      });
+    } catch (err) {
+      console.error('Export full ledger failed:', err);
+      alert('Failed to export full ledger: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSubcontractorLedger = async (group) => {
+    try {
+      setIsExporting(true);
+      const workOrder = workOrderFilter || group.rows[0]?.work_order_no;
+      const res = await getSubcontractorLedgerEntries({
+        work_order_no: workOrder || undefined,
+        material_sub_head: group.material_sub_head,
+        material_details: group.material_details
+      });
+      const entries = res.data?.entries || [];
+
+      await exportSubcontractorLedgerStatementToExcel({
+        subcontractor: group.material_details,
+        subHead: group.material_sub_head,
+        workOrder: workOrder || 'All',
+        requisitions: group.rows,
+        entries
+      });
+    } catch (err) {
+      console.error('Export subcontractor ledger failed:', err);
+      alert('Failed to export subcontractor ledger: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (!canView) {
@@ -162,14 +255,26 @@ const SubcontractorLedger = () => {
           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Search</span>
           <Input
             type="text"
-            placeholder="Sub head or subcontractor..."
+            placeholder="Sub head, name, WO or Req..."
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
             size="sm"
           />
         </div>
+
         {viewMode === 'requisitions' && (
           <>
+            <div className="w-full sm:w-36">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Date Basis</span>
+              <select
+                value={dateBasis}
+                onChange={(e) => setDateBasis(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+              >
+                <option value="created" className="bg-slate-900 text-slate-200">Creation Date</option>
+                <option value="approved" className="bg-slate-900 text-slate-200">Approval Date</option>
+              </select>
+            </div>
             <div className="w-full sm:w-36">
               <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">From</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} size="sm" />
@@ -180,15 +285,43 @@ const SubcontractorLedger = () => {
             </div>
           </>
         )}
+
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={resetFilters}>
             Reset Filters
           </Button>
         )}
-        {viewMode === 'requisitions' && (
-          <Button variant="glass" size="sm" onClick={handleExport} disabled={requisitions.length === 0} className="ml-auto">
-            Export to Excel
+
+        {viewMode === 'balances' ? (
+          <Button
+            variant="glass"
+            size="sm"
+            onClick={handleExportBalances}
+            disabled={balances.length === 0}
+            className="ml-auto"
+          >
+            Export Balances to Excel
           </Button>
+        ) : (
+          <div className="flex items-center gap-2 ml-auto">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleExportFullLedger}
+              disabled={requisitions.length === 0 || isExporting}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20"
+            >
+              {isExporting ? 'Exporting…' : 'Export Full Ledger to Excel'}
+            </Button>
+            <Button
+              variant="glass"
+              size="sm"
+              onClick={handleExportRequisitions}
+              disabled={requisitions.length === 0}
+            >
+              Export Requisitions to Excel
+            </Button>
+          </div>
         )}
       </div>
 
@@ -238,9 +371,16 @@ const SubcontractorLedger = () => {
                       <span className="font-bold text-emerald-400">{formatCurrency(b.available_balance)}</span>
                     </TableCell>
                     <TableCell>
-                      <Button variant="glass" size="sm" onClick={() => setViewingEntry(b)}>
-                        View Ledger
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button variant="glass" size="sm" onClick={() => setViewingEntry(b)}>
+                          View Ledger
+                        </Button>
+                        {canAdjust && (
+                          <Button variant="ghost" size="sm" onClick={() => setAdjustingEntry(b)}>
+                            Adjust
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -255,18 +395,50 @@ const SubcontractorLedger = () => {
       ) : (
         <div className="space-y-5">
           {groupedRequisitions.map((group) => {
-            const totalRequisitioned = group.rows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
-            const totalApproved = group.rows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+            // GAP-07: Use authoritative predicate to filter active requisitions for liabilities
+            const activeRows = group.rows.filter((r) => isFinanciallyActiveRequisition(r.requisition_status));
+            const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
+            const totalApproved = activeRows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+            const inactiveCount = group.rows.length - activeRows.length;
+
             return (
               <div key={`${group.material_sub_head}|||${group.material_details}`} className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-5 py-3.5 bg-white/[0.02] border-b border-white/5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 bg-white/[0.02] border-b border-white/5">
                   <div>
                     <span className="text-sm font-bold text-slate-200">{group.material_details}</span>
                     <span className="text-xs text-slate-500 ml-2">· {group.material_sub_head}</span>
+                    {inactiveCount > 0 && (
+                      <span className="text-[10px] text-slate-500 ml-2 italic">({inactiveCount} cancelled / rejected excluded)</span>
+                    )}
                   </div>
-                  <div className="flex gap-4 text-[11px]">
-                    <span className="text-slate-400">Requisitioned: <span className="text-slate-200 font-mono font-bold">{formatCurrency(totalRequisitioned)}</span></span>
-                    <span className="text-slate-400">Approved: <span className="text-emerald-400 font-mono font-bold">{formatCurrency(totalApproved)}</span></span>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex gap-4 text-[11px]">
+                      <span className="text-slate-400">Active Requested: <span className="text-slate-200 font-mono font-bold">{formatCurrency(totalRequisitioned)}</span></span>
+                      <span className="text-slate-400">Active Approved: <span className="text-emerald-400 font-mono font-bold">{formatCurrency(totalApproved)}</span></span>
+                    </div>
+                    <div className="flex items-center gap-2 pl-3 border-l border-white/10">
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        onClick={() => setViewingEntry({
+                          work_order_no: group.rows[0]?.work_order_no || workOrderFilter || '',
+                          material_sub_head: group.material_sub_head,
+                          material_details: group.material_details
+                        })}
+                        className="text-[11px] h-7 px-2.5"
+                      >
+                        View Ledger
+                      </Button>
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        onClick={() => handleExportSubcontractorLedger(group)}
+                        disabled={isExporting}
+                        className="text-[11px] h-7 px-2.5 text-indigo-300 hover:text-indigo-200 border-indigo-500/20"
+                      >
+                        Export Ledger
+                      </Button>
+                    </div>
                   </div>
                 </div>
                 <Table containerClassName="min-w-[900px]">
@@ -278,7 +450,8 @@ const SubcontractorLedger = () => {
                       <TableCell isHeader align="right">Approved</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader>Requested By</TableCell>
-                      <TableCell isHeader>Date</TableCell>
+                      <TableCell isHeader>Creation Date</TableCell>
+                      <TableCell isHeader>Approved On</TableCell>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -307,6 +480,9 @@ const SubcontractorLedger = () => {
                         <TableCell>
                           <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
                         </TableCell>
+                        <TableCell>
+                          <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -321,6 +497,15 @@ const SubcontractorLedger = () => {
         entry={viewingEntry}
         onClose={() => setViewingEntry(null)}
       />
+
+      <AdjustBalanceModal
+        entry={adjustingEntry}
+        onClose={() => setAdjustingEntry(null)}
+        onSuccess={() => {
+          setAdjustingEntry(null);
+          queryClient.invalidateQueries({ queryKey: ['subcontractorLedger'] });
+        }}
+      />
     </>
   );
 };
@@ -334,14 +519,39 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
     enabled: !!entry
   });
 
+  const handleExportModalLedger = () => {
+    if (!entry) return;
+    exportSubcontractorLedgerStatementToExcel({
+      subcontractor: entry.material_details,
+      subHead: entry.material_sub_head,
+      workOrder: entry.work_order_no,
+      balance: entry,
+      entries
+    });
+  };
+
   return (
     <Modal
       isOpen={!!entry}
       onClose={onClose}
       title="Subcontractor Ledger — Transaction Trail"
       subtitle={entry ? `${entry.material_details} · ${entry.material_sub_head} · ${entry.work_order_no}` : ''}
-      size="lg"
+      size="xl"
     >
+      <div className="flex justify-between items-center mb-4">
+        <span className="text-xs text-slate-400">
+          Chronological dual-entry transaction trail with running balances.
+        </span>
+        <Button
+          variant="glass"
+          size="sm"
+          onClick={handleExportModalLedger}
+          disabled={entries.length === 0}
+          className="text-xs font-bold text-indigo-300 border-indigo-500/20"
+        >
+          Export Statement to Excel
+        </Button>
+      </div>
       {isLoading ? (
         <div className="py-8 text-center text-xs text-slate-500">Loading…</div>
       ) : entries.length === 0 ? (
@@ -350,40 +560,213 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
         </div>
       ) : (
         <div className="rounded-2xl border border-white/5 overflow-hidden">
-          <Table containerClassName="min-w-[600px]">
+          <Table containerClassName="min-w-[850px]">
             <TableHeader>
               <TableRow hover={false}>
                 <TableCell isHeader>Date</TableCell>
                 <TableCell isHeader>Type</TableCell>
-                <TableCell isHeader align="right">Amount</TableCell>
+                <TableCell isHeader>Doc / Ref No.</TableCell>
+                <TableCell isHeader>Description / Remarks</TableCell>
+                <TableCell isHeader align="right">Credit (+)</TableCell>
+                <TableCell isHeader align="right">Debit (-)</TableCell>
+                <TableCell isHeader align="right">Running Balance</TableCell>
                 <TableCell isHeader>By</TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((e) => (
-                <TableRow key={e.ledger_id}>
-                  <TableCell>
-                    <span className="text-slate-400 text-xs">{formatDateTime(e.created_at)}</span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      {e.transaction_type === 'ESTIMATE_ITEM_APPROVAL' ? 'Credit (Estimate Item)' : 'Debit (Requisition)'}
-                    </span>
-                  </TableCell>
-                  <TableCell align="right">
-                    <span className={`font-mono font-bold ${Number(e.amount) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {Number(e.amount) >= 0 ? '+' : ''}{formatCurrency(e.amount)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-slate-400 text-xs">{e.created_by_name}</span>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {entries.map((e) => {
+                const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
+                const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
+
+                return (
+                  <TableRow key={e.ledger_id}>
+                    <TableCell>
+                      <span className="text-slate-400 text-xs whitespace-nowrap">{formatDateTime(e.created_at)}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        {TX_TYPE_LABELS[e.transaction_type] || e.transaction_type}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {e.requisition_no ? (
+                        <span className="font-mono text-indigo-300 text-xs font-bold">Req: {e.requisition_no}</span>
+                      ) : e.reference_doc_no ? (
+                        <span className="font-mono text-slate-400 text-xs">{e.reference_doc_no}</span>
+                      ) : (
+                        <span className="text-slate-500 text-xs">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-slate-300 text-xs truncate max-w-[180px] inline-block" title={e.remarks || e.item_description || ''}>
+                        {e.remarks || e.item_description || '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell align="right">
+                      {credit > 0 ? (
+                        <span className="font-mono font-bold text-emerald-400">+{formatCurrency(credit)}</span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      {debit > 0 ? (
+                        <span className="font-mono font-bold text-red-400">-{formatCurrency(debit)}</span>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell align="right">
+                      <span className="font-mono font-bold text-slate-200">
+                        {e.running_balance != null ? formatCurrency(e.running_balance) : '—'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-slate-400 text-xs whitespace-nowrap">{e.created_by_name}</span>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
       )}
+    </Modal>
+  );
+};
+
+const AdjustBalanceModal = ({ entry, onClose, onSuccess }) => {
+  const [amount, setAmount] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  if (!entry) return null;
+
+  const currentEst = Number(entry.estimated_total || 0);
+  const currentPaid = Number(entry.paid_total || 0);
+  const currentAvail = Number(entry.available_balance || 0);
+
+  const delta = Number(amount) || 0;
+  const newEst = currentEst + delta;
+  const newAvail = newEst - currentPaid;
+
+  const isFloorViolated = delta !== 0 && newEst < currentPaid;
+  const isValid = delta !== 0 && !isFloorViolated && remarks.trim().length >= 5;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValid || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setErrorMsg('');
+
+    try {
+      await adjustSubcontractorBalance({
+        adjustment_id: crypto.randomUUID(),
+        work_order_no: entry.work_order_no,
+        material_sub_head: entry.material_sub_head,
+        material_details: entry.material_details,
+        adjustment_amount: delta,
+        remarks: remarks.trim()
+      });
+      onSuccess();
+    } catch (err) {
+      setErrorMsg(err.response?.data?.message || err.message || 'Adjustment failed');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={!!entry}
+      onClose={onClose}
+      title="Adjust Subcontractor Balance"
+      subtitle={`${entry.material_details} · ${entry.material_sub_head} · ${entry.work_order_no}`}
+      size="md"
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {errorMsg && (
+          <div className="p-3 bg-red-950/20 border border-red-900/30 rounded-xl text-xs text-red-300 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+            {errorMsg}
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 p-3 bg-white/[0.02] border border-white/5 rounded-2xl text-center">
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Estimated</span>
+            <span className="text-xs font-mono font-bold text-slate-300">{formatCurrency(currentEst)}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Paid So Far</span>
+            <span className="text-xs font-mono font-bold text-slate-400">{formatCurrency(currentPaid)}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Available</span>
+            <span className="text-xs font-mono font-bold text-emerald-400">{formatCurrency(currentAvail)}</span>
+          </div>
+        </div>
+
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+            Adjustment Amount (INR)
+          </label>
+          <Input
+            type="number"
+            step="0.01"
+            placeholder="e.g. 5000 or -5000"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={isSubmitting}
+            required
+          />
+          <span className="text-[10px] text-slate-500 block mt-1">
+            Enter positive amount to increase allocation, or negative to reduce allocation.
+          </span>
+        </div>
+
+        {delta !== 0 && (
+          <div className={`p-3 rounded-xl border text-xs ${
+            isFloorViolated
+              ? 'bg-red-950/20 border-red-900/30 text-red-300'
+              : 'bg-indigo-950/20 border-indigo-900/30 text-indigo-300'
+          }`}>
+            {isFloorViolated ? (
+              <span>⚠️ Cannot reduce estimated total below already paid disbursements ({formatCurrency(currentPaid)}).</span>
+            ) : (
+              <div className="flex justify-between items-center text-[11px] font-mono">
+                <span>New Estimated: {formatCurrency(newEst)}</span>
+                <span>New Available: {formatCurrency(newAvail)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+            Reason / Remarks (Mandatory)
+          </label>
+          <TextArea
+            placeholder="Detailed reason for the adjustment (min 5 characters)..."
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            rows={3}
+            disabled={isSubmitting}
+            required
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" size="sm" type="button" onClick={onClose} disabled={isSubmitting}>
+            Cancel
+          </Button>
+          <Button variant="primary" size="sm" type="submit" disabled={!isValid || isSubmitting}>
+            {isSubmitting ? 'Adjusting…' : 'Confirm Adjustment'}
+          </Button>
+        </div>
+      </form>
     </Modal>
   );
 };

@@ -18,6 +18,11 @@ import {
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { getZonalBalances } from '../api/zoBalancesApi';
+import { getFundRequests } from '../api/fundRequests';
+import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
+import INDIAN_BANKS from '../constants/indianBanks';
+import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
+import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -141,6 +146,12 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
     { label: 'Zone / Area', value: requisition.area_code },
     { label: 'Department', value: requisition.department },
     { label: 'Site Details', value: requisition.site_details },
+    ...(requisition.beneficiary_ac_no || requisition.beneficiary_name ? [
+      { label: 'Beneficiary Name', value: requisition.beneficiary_name || '—' },
+      { label: 'Beneficiary A/C No.', value: requisition.beneficiary_ac_no || '—', mono: true },
+      { label: 'Beneficiary IFSC', value: requisition.beneficiary_ifsc || '—', mono: true },
+      { label: 'Beneficiary Bank', value: requisition.beneficiary_bank_name || '—' }
+    ] : []),
     { label: 'Bank Details', value: requisition.bank_details },
     { label: 'Expenditure Remarks', value: requisition.expen_head_remarks || '—' },
     { label: 'Created By', value: requisition.requester_name || requisition.requester_user_id, mono: true },
@@ -587,6 +598,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [reqAmount, setReqAmount] = useState('');
   const [gstBill, setGstBill] = useState('No');
   const [bankDetails, setBankDetails] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
+  const [beneficiaryIfsc, setBeneficiaryIfsc] = useState('');
+  const [beneficiaryBankName, setBeneficiaryBankName] = useState('');
+  const [beneficiaryId, setBeneficiaryId] = useState(null);
   const [remarks, setRemarks] = useState('');
 
   // Upload state
@@ -949,9 +965,18 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
     }
-    if (!bankDetails.trim()) {
-      setError('Bank details are required.');
-      return;
+    
+    let finalBankDetails = bankDetails.trim();
+    if (!finalBankDetails && (beneficiaryAcNo.trim() || beneficiaryName.trim())) {
+      finalBankDetails = [
+        beneficiaryName.trim(),
+        beneficiaryAcNo.trim() ? `A/C: ${beneficiaryAcNo.trim()}` : null,
+        beneficiaryIfsc.trim() ? `IFSC: ${beneficiaryIfsc.trim()}` : null,
+        beneficiaryBankName.trim() ? `Bank: ${beneficiaryBankName.trim()}` : null
+      ].filter(Boolean).join(' | ');
+    }
+    if (!finalBankDetails) {
+      finalBankDetails = '—';
     }
 
     setSubmitting(true);
@@ -967,7 +992,12 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         requisition_amount: Number(reqAmount),
         gst_bill: gstBill,
         gst_bill_pdf_url: gstBill === 'Yes' ? gstPdfUrl.trim() : null,
-        bank_details: bankDetails.trim(),
+        bank_details: finalBankDetails,
+        beneficiary_id: beneficiaryId || undefined,
+        beneficiary_name: beneficiaryName.trim() || undefined,
+        beneficiary_ac_no: beneficiaryAcNo.trim() || undefined,
+        beneficiary_ifsc: beneficiaryIfsc.trim().toUpperCase() || undefined,
+        beneficiary_bank_name: beneficiaryBankName.trim() || undefined,
         expen_head_remarks: remarks.trim() || null
       };
       await onSave(payload);
@@ -1188,7 +1218,13 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               <Select
                 label="Subcontractor"
                 value={materialDetails}
-                onChange={(e) => setMaterialDetails(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setMaterialDetails(val);
+                  if (val && !beneficiaryName) {
+                    setBeneficiaryName(val);
+                  }
+                }}
                 required
                 disabled={submitting || !materialSubHead}
               >
@@ -1396,13 +1432,76 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             </div>
           )}
 
+          {/* Beneficiary & Payee Banking Details Card */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                Beneficiary Banking Details (Optional)
+              </span>
+              <span className="text-[9px] text-slate-500 italic">
+                Auto-saved to Projects Beneficiary Master
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input
+                label="Beneficiary Name"
+                value={beneficiaryName}
+                onChange={(e) => setBeneficiaryName(e.target.value)}
+                placeholder="Enter payee / subcontractor name…"
+                disabled={submitting}
+                size="sm"
+              />
+
+              <ProjectBeneficiarySuggestions
+                label="Account No."
+                value={beneficiaryAcNo}
+                onChange={(e) => {
+                  setBeneficiaryAcNo(e.target.value.replace(/\D/g, ''));
+                  setBeneficiaryId(null);
+                }}
+                onSelect={(b) => {
+                  setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                  setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                  setBeneficiaryName(b.beneficiary_name || '');
+                  setBeneficiaryBankName(b.beneficiary_bank_name || '');
+                  setBeneficiaryId(b.id || null);
+                }}
+                placeholder="Enter bank account no…"
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Input
+                label="IFSC Code"
+                value={beneficiaryIfsc}
+                onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().trim())}
+                placeholder="e.g. SBIN0001234"
+                maxLength={11}
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Select
+                label="Beneficiary Bank Name"
+                value={beneficiaryBankName}
+                onChange={(e) => setBeneficiaryBankName(e.target.value)}
+                disabled={submitting}
+              >
+                <option value="">-- Select Bank (Optional) --</option>
+                {INDIAN_BANKS.map((b) => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
           <TextArea
-            label="Bank Details"
+            label="Additional Bank Notes / Free-Text (Optional)"
             value={bankDetails}
             onChange={(e) => setBankDetails(e.target.value)}
-            placeholder="Enter payee bank name, branch, account number, and IFSC code…"
+            placeholder="Optional additional branch notes or raw details…"
             rows={2}
-            required
             disabled={submitting}
           />
 
@@ -1436,6 +1535,8 @@ const Requisitions = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null); // { id, no }
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // M6b Approver tab and action states
   const [currentTab, setCurrentTab] = useState(user?.role === 'je' ? 'all' : 'pending');
@@ -1971,6 +2072,19 @@ const Requisitions = () => {
                   </div>
 
                   <Button
+                    onClick={() => setShowExportModal(true)}
+                    title="Export Expenditure Sheet"
+                    variant="glass"
+                    size="sm"
+                    className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
+                  >
+                    <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export Expenditure Sheet
+                  </Button>
+
+                  <Button
                     variant="glass"
                     size="sm"
                     onClick={() => queryClient.invalidateQueries({ queryKey: ['requisitions'] })}
@@ -2220,6 +2334,35 @@ const Requisitions = () => {
           requisition={actionTargetReq}
           onClose={() => setActionTargetReq(null)}
           onSave={handleAct}
+        />
+      )}
+
+      {/* Export Expenditure Sheet Modal */}
+      {showExportModal && (
+        <ExportExpenditureModal
+          projects={projects}
+          onClose={() => setShowExportModal(false)}
+          loading={isExporting}
+          onConfirm={async ({ dateRange, workOrderFilter }) => {
+            setIsExporting(true);
+            try {
+              const frRes = await getFundRequests().catch(() => ({ data: { fundRequests: [] } }));
+              const allFundRequests = frRes.data?.fundRequests || [];
+              const allRequisitions = requisitionsData || [];
+              await exportCombinedExpenditureSheet({
+                fundRequests: allFundRequests,
+                requisitions: allRequisitions,
+                metadata: { workOrderFilter: workOrderFilter || 'All' },
+                dateRange
+              });
+              setShowExportModal(false);
+            } catch (err) {
+              console.error('Export expenditure failed:', err);
+              alert('Failed to export expenditure sheet: ' + (err.message || 'Unknown error'));
+            } finally {
+              setIsExporting(false);
+            }
+          }}
         />
       )}
 
