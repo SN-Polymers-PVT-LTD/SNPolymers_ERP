@@ -578,7 +578,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const filteredProjects = useMemo(() => {
     return projects.map(p => {
       const projectEstimates = estimates.filter(e => e.work_order_no === p.work_order_no);
-      const latestEst = projectEstimates.sort((a, b) => (b.estimate_revision || 0) - (a.estimate_revision || 0))[0] || null;
+      const latestEst = projectEstimates.sort((a, b) => {
+        const revDiff = (Number(b.estimate_revision) || 0) - (Number(a.estimate_revision) || 0);
+        if (revDiff !== 0) return revDiff;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      })[0] || null;
       return {
         ...p,
         approvedEst: latestEst?.estimate_status === 'Final Approved' ? latestEst : null,
@@ -660,8 +664,16 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setEstimateLifecycle(null);
       return;
     }
-    const approvedEst = estimates.find(e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved');
-    if (!approvedEst) {
+
+    // Resolve latest estimate for selected WO regardless of whether it's Final Approved
+    const projEstimates = estimates.filter(e => e.work_order_no === selectedWO);
+    const latestEst = projEstimates.sort((a, b) => {
+      const revDiff = (Number(b.estimate_revision) || 0) - (Number(a.estimate_revision) || 0);
+      if (revDiff !== 0) return revDiff;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    })[0] || null;
+
+    if (!latestEst) {
       setAllowedMainHeads([]);
       setCapacityMetrics(null);
       setSubContractorItems([]);
@@ -669,10 +681,40 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       return;
     }
 
+    // Establish lifecycle state directly from latest estimate
+    const REOPENED_STATUSES = [
+      'Estimate Reopened',
+      'Under ZO Review',
+      'Under HO Review',
+      'ZO Revision Requested',
+      'HO Revision Requested'
+    ];
+    const isReopened = REOPENED_STATUSES.includes(latestEst.estimate_status);
+    const isBlocked = isReopened || latestEst.estimate_status !== 'Final Approved';
+
+    const lifecycle = {
+      status: latestEst.estimate_status || null,
+      isReopened,
+      requisitionsBlocked: isBlocked,
+      blockReason: isBlocked
+        ? `Estimate is currently undergoing revision (${latestEst.estimate_status}). New requisitions are paused until final approval.`
+        : null
+    };
+
+    setEstimateLifecycle(lifecycle);
+
+    // Latest estimate is NOT Final Approved: retain lifecycle, show warning & disable submit
+    if (latestEst.estimate_status !== 'Final Approved') {
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      setSubContractorItems([]);
+      return;
+    }
+
+    // Latest IS Final Approved: load estimate items + capacity normally
     setLoadingMainHeads(true);
     setCapacityMetrics(null);
-    setEstimateLifecycle(null);
-    getEstimateById(approvedEst.estimate_id)
+    getEstimateById(latestEst.estimate_id)
       .then(res => {
         if (!isCurrent) return;
         if (res.data?.items) {
@@ -701,7 +743,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     let isCurrent = true;
     if (!selectedWO || !materialHead) {
       setCapacityMetrics(null);
-      setEstimateLifecycle(null);
       return;
     }
 
@@ -716,7 +757,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             remainingCapacity: Number(res.data.remainingCapacity),
             estimateLifecycle: res.data.estimateLifecycle || null
           });
-          setEstimateLifecycle(res.data.estimateLifecycle || null);
+          if (res.data.estimateLifecycle) {
+            setEstimateLifecycle(res.data.estimateLifecycle);
+          }
         }
       })
       .catch(err => {
@@ -1100,17 +1143,12 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 setError('Please select a Work Order.');
                 return;
               }
-              if (isSelectedWoUnderRevision) {
-                setError(`Requisitions for ${selectedWO} are paused: estimate is currently undergoing revision (${selectedProject?.latestEst?.estimate_status}).`);
-                return;
-              }
               setError('');
               setStep(3);
             }}
-            disabled={!selectedWO || isSelectedWoUnderRevision}
-            title={isSelectedWoUnderRevision ? `Requisitions paused: estimate is in '${selectedProject?.latestEst?.estimate_status}' status` : ''}
+            disabled={!selectedWO}
           >
-            {isSelectedWoUnderRevision ? 'Requisitions Paused' : 'Next Step →'}
+            Next Step &rarr;
           </Button>
         </>
       );
@@ -1293,10 +1331,12 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               setMaterialDetails('');
             }}
             required
-            disabled={submitting}
+            disabled={submitting || isLifecycleBlocked}
           >
             <option value="">
-              {loadingMainHeads ? '-- Loading Material Heads... --' : '-- Select Material Head --'}
+              {isLifecycleBlocked
+                ? `-- Requisitions Paused: Estimate Under Revision (${estimateLifecycle?.status || 'In Revision'}) --`
+                : (loadingMainHeads ? '-- Loading Material Heads... --' : '-- Select Material Head --')}
             </option>
             {allowedMainHeads.map((head) => (
               <option key={head} value={head}>
