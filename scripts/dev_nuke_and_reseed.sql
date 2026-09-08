@@ -10,6 +10,7 @@ TRUNCATE TABLE
   -- Accounts HO Requisitions & Banking
   acct_requisition_line_items,
   acct_requisition_sheets,
+  credit_ledger,
   account_sub_title_master,
   beneficiary_master,
   bank_balance_master,
@@ -24,8 +25,13 @@ TRUNCATE TABLE
   project_cost_estimates,
   estimate_revision_log,
 
+  -- Subcontractor Ledger & Balances
+  subcontractor_ledger,
+  subcontractor_balances,
+
   -- Field Operations & Billing
   requisitions,
+  projects_beneficiary_master,
   ra_final_bills,
   daily_progress_reports,
   fund_requests,
