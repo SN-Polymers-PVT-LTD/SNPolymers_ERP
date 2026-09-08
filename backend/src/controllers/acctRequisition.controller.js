@@ -9,6 +9,7 @@ const {
   upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
+  refreshIndianBanksCache
 } = require('../validation/acctRequisition.schema');
 const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
 const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
@@ -1585,6 +1586,11 @@ async function upsertParticular(req, res) {
  */
 async function getIndianBanks(req, res) {
   try {
+    if (req.query.active_only === 'true') {
+      const activeBanks = await getActiveIndianBanks();
+      return res.status(200).json({ success: true, indianBanks: activeBanks });
+    }
+
     const { data, error } = await supabase
       .from('indian_bank_master')
       .select('*')

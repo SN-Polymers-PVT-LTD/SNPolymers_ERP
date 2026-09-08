@@ -161,6 +161,11 @@ const SubcontractorLedger = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  // Reset page to 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [workOrderFilter, dateFrom, dateTo, dateBasis]);
+
   const hasBalanceFilters = workOrderFilter || debouncedSearch;
   const hasRequisitionFilters = workOrderFilter || debouncedSearch || dateFrom || dateTo || dateBasis !== 'created';
 
@@ -230,30 +235,44 @@ const SubcontractorLedger = () => {
     });
   };
 
+  /**
+   * Reusable batch-fetcher that loops through all pages and enforces a hard
+   * failure if the retrieved row count does not strictly match the server-filtered total.
+   */
+  const fetchAllBalancesWithCountInvariant = async (filters) => {
+    const allBalances = [];
+    let fetchPage = 1;
+    let totalPages_ = 1;
+    let serverFilteredTotal = 0;
+    do {
+      const res = await getSubcontractorLedger({
+        page: fetchPage,
+        limit: 100,
+        work_order_no: filters.workOrder || undefined,
+        search: filters.search || undefined
+      });
+      const batch = res.data?.balances || [];
+      allBalances.push(...batch);
+      totalPages_ = res.data?.pagination?.totalPages || 1;
+      serverFilteredTotal = res.data?.pagination?.total || 0;
+      fetchPage += 1;
+    } while (fetchPage <= totalPages_);
+
+    if (serverFilteredTotal > 0 && allBalances.length !== serverFilteredTotal) {
+      throw new Error(
+        `Export data integrity check failed: retrieved ${allBalances.length} rows but expected ${serverFilteredTotal}. Export aborted to prevent partial data download.`
+      );
+    }
+    return allBalances;
+  };
+
   const handleExportBalances = async () => {
     try {
       setIsExporting(true);
-      const allBalances = [];
-      let fetchPage = 1;
-      let totalPages_ = 1;
-      let serverFilteredTotal = 0;
-      do {
-        const res = await getSubcontractorLedger({
-          page: fetchPage,
-          limit: 100,
-          work_order_no: workOrderFilter || undefined,
-          search: debouncedSearch || undefined
-        });
-        const batch = res.data?.balances || [];
-        allBalances.push(...batch);
-        totalPages_ = res.data?.pagination?.totalPages || 1;
-        serverFilteredTotal = res.data?.pagination?.total || 0;
-        fetchPage += 1;
-      } while (fetchPage <= totalPages_);
-
-      if (serverFilteredTotal > 0 && allBalances.length !== serverFilteredTotal) {
-        console.warn(`Export row count mismatch: exported ${allBalances.length}, expected ${serverFilteredTotal}`);
-      }
+      const allBalances = await fetchAllBalancesWithCountInvariant({
+        workOrder: workOrderFilter,
+        search: debouncedSearch
+      });
 
       exportSubcontractorBalancesToExcel(allBalances, {
         workOrderFilter,
@@ -278,21 +297,11 @@ const SubcontractorLedger = () => {
       });
       const entries = res.data?.entries || [];
 
-      // Collect all balances matching current filters across pages
-      const allBalances = [];
-      let fetchPage = 1;
-      let totalPages_ = 1;
-      do {
-        const balRes = await getSubcontractorLedger({
-          page: fetchPage,
-          limit: 100,
-          work_order_no: workOrderFilter || undefined,
-          search: debouncedSearch || undefined
-        });
-        allBalances.push(...(balRes.data?.balances || []));
-        totalPages_ = balRes.data?.pagination?.totalPages || 1;
-        fetchPage += 1;
-      } while (fetchPage <= totalPages_);
+      // Collect all balances matching current filters across pages with count invariant check
+      const allBalances = await fetchAllBalancesWithCountInvariant({
+        workOrder: workOrderFilter,
+        search: debouncedSearch
+      });
 
       await exportAllSubcontractorLedgersToExcel(entries, allBalances, requisitions, {
         workOrderFilter,

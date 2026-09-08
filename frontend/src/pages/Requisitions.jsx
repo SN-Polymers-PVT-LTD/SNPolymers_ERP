@@ -574,14 +574,23 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
 const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitions }) => {
   const { user } = useAuth();
 
-  // Filter projects (work orders) to only those that have a 'Final Approved' estimate
-  const filteredProjects = projects.map(p => {
-    const approvedEst = estimates.find(e => e.work_order_no === p.work_order_no && e.estimate_status === 'Final Approved');
-    return {
-      ...p,
-      approvedEst
-    };
-  }).filter(p => p.approvedEst);
+  // Map projects to their latest estimate (whether Final Approved or under revision)
+  const filteredProjects = useMemo(() => {
+    return projects.map(p => {
+      const projectEstimates = estimates.filter(e => e.work_order_no === p.work_order_no);
+      const latestEst = projectEstimates.sort((a, b) => (b.estimate_revision || 0) - (a.estimate_revision || 0))[0] || null;
+      return {
+        ...p,
+        approvedEst: latestEst?.estimate_status === 'Final Approved' ? latestEst : null,
+        latestEst
+      };
+    }).filter(p => p.latestEst);
+  }, [projects, estimates]);
+
+  const selectedProject = filteredProjects.find(p => p.work_order_no === selectedWO);
+  const isSelectedWoUnderRevision = Boolean(
+    selectedProject?.latestEst && selectedProject.latestEst.estimate_status !== 'Final Approved'
+  );
   
   // Step 1 read-only values
   const systemDateStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' });
@@ -772,14 +781,14 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     if (!selectedWO) return null;
     const proj = projects.find(p => p.work_order_no === selectedWO);
     if (!proj) return null;
-    // Find approved estimate
-    const projEstimates = estimates.filter(
-      e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved'
-    );
-    const approvedEstimate = projEstimates[0]; // Get latest update
-    const estimateAmount = approvedEstimate ? Number(approvedEstimate.estimate_amount) : null;
+    const projEstimates = estimates.filter(e => e.work_order_no === selectedWO);
+    const approvedEstimate = projEstimates.find(e => e.estimate_status === 'Final Approved');
+    const latestEstimate = projEstimates.sort((a, b) => (b.estimate_revision || 0) - (a.estimate_revision || 0))[0];
+    const estimateAmount = approvedEstimate ? Number(approvedEstimate.estimate_amount) : (latestEstimate ? Number(latestEstimate.estimate_amount) : null);
     return {
       ...proj,
+      estimate_no: latestEstimate?.estimate_no || approvedEstimate?.estimate_no || '—',
+      estimate_status: latestEstimate?.estimate_status || approvedEstimate?.estimate_status || null,
       estimateAmount
     };
   })();
@@ -1091,12 +1100,17 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 setError('Please select a Work Order.');
                 return;
               }
+              if (isSelectedWoUnderRevision) {
+                setError(`Requisitions for ${selectedWO} are paused: estimate is currently undergoing revision (${selectedProject?.latestEst?.estimate_status}).`);
+                return;
+              }
               setError('');
               setStep(3);
             }}
-            disabled={!selectedWO}
+            disabled={!selectedWO || isSelectedWoUnderRevision}
+            title={isSelectedWoUnderRevision ? `Requisitions paused: estimate is in '${selectedProject?.latestEst?.estimate_status}' status` : ''}
           >
-            Next Step &rarr;
+            {isSelectedWoUnderRevision ? 'Requisitions Paused' : 'Next Step →'}
           </Button>
         </>
       );
@@ -1175,12 +1189,34 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             required
           >
             <option value="">-- Choose Work Order --</option>
-            {filteredProjects.map((p) => (
-              <option key={p.work_order_no} value={p.work_order_no}>
-                {p.work_order_no} ({p.approvedEst.estimate_no})
-              </option>
-            ))}
+            {filteredProjects.map((p) => {
+              const isRevision = p.latestEst && p.latestEst.estimate_status !== 'Final Approved';
+              const estNo = p.latestEst?.estimate_no || p.approvedEst?.estimate_no || 'No Estimate';
+              return (
+                <option key={p.work_order_no} value={p.work_order_no}>
+                  {p.work_order_no} ({estNo}{isRevision ? ` — ⚠️ ${p.latestEst.estimate_status}` : ''})
+                </option>
+              );
+            })}
           </Select>
+
+          {isSelectedWoUnderRevision && (
+            <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl text-xs text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/50 animate-fadeIn">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30">
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 block">
+                  Estimate Under Revision — Requisitions Blocked
+                </span>
+                <p className="font-medium text-amber-200 leading-relaxed">
+                  The cost estimate for work order <span className="font-mono font-bold text-amber-300">{selectedWO}</span> is currently in <span className="font-semibold text-amber-300">'{selectedProject?.latestEst?.estimate_status}'</span> status. Requisition creation is temporarily paused until the estimate receives Final Approval.
+                </p>
+              </div>
+            </div>
+          )}
 
           {projectMetadata && (
             <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-3">
@@ -1660,7 +1696,7 @@ const Requisitions = () => {
   const { data: estimatesData } = useQuery({
     queryKey: ['estimates'],
     queryFn: async () => {
-      const res = await getEstimates({ status: 'Final Approved', limit: 1000 });
+      const res = await getEstimates({ limit: 1000 });
       return res.data?.estimates ?? [];
     },
     staleTime: 60 * 1000
