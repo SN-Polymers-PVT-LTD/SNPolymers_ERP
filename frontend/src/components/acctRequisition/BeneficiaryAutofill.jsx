@@ -64,15 +64,16 @@ const BeneficiaryAutofill = ({ accountNumber, ifsc, onAutofill, currentName, cur
 
   if (!match) return null;
 
+  const matchedBankName = match.beneficiary_bank?.bank_name || match.beneficiary_bank_name || '';
   const alreadyFilledIn =
     (currentName || '').trim().toLowerCase() === (match.beneficiary_name || '').trim().toLowerCase() &&
-    (currentBankName || '').trim().toLowerCase() === (match.beneficiary_bank_name || '').trim().toLowerCase();
+    (currentBankName || '').trim().toLowerCase() === matchedBankName.trim().toLowerCase();
   if (alreadyFilledIn) return null;
 
   return (
     <div className="flex items-center gap-3 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-xs">
       <span className="text-emerald-300">
-        Found beneficiary: <span className="font-bold">{match.beneficiary_name}</span> ({match.beneficiary_bank_name})
+        Found beneficiary: <span className="font-bold">{match.beneficiary_name}</span> ({matchedBankName})
       </span>
       <button
         type="button"

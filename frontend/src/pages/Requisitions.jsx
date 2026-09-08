@@ -14,13 +14,13 @@ import {
   deleteRequisitionPdf,
   deleteGstBillPdf,
   getMainHeadCapacity,
-  getSubcontractorCapacity
+  getSubcontractorCapacity,
+  getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getFundRequests } from '../api/fundRequests';
 import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
-import INDIAN_BANKS from '../constants/indianBanks';
 import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
 import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
@@ -150,7 +150,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       { label: 'Beneficiary Name', value: requisition.beneficiary_name || '—' },
       { label: 'Beneficiary A/C No.', value: requisition.beneficiary_ac_no || '—', mono: true },
       { label: 'Beneficiary IFSC', value: requisition.beneficiary_ifsc || '—', mono: true },
-      { label: 'Beneficiary Bank', value: requisition.beneficiary_bank_name || '—' }
+      { label: 'Beneficiary Bank', value: requisition.beneficiary_bank?.bank_name || requisition.beneficiary_bank_name || '—' }
     ] : []),
     { label: 'Bank Details', value: requisition.bank_details },
     { label: 'Expenditure Remarks', value: requisition.expen_head_remarks || '—' },
@@ -325,7 +325,8 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
           setCapacityMetrics({
             mainHeadEstimate: Number(capacityRes.data.mainHeadEstimate),
             cumulativeApproved: Number(capacityRes.data.cumulativeApproved),
-            remainingCapacity: Number(capacityRes.data.remainingCapacity)
+            remainingCapacity: Number(capacityRes.data.remainingCapacity),
+            estimateLifecycle: capacityRes.data.estimateLifecycle || null
           });
         }
 
@@ -601,9 +602,19 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [beneficiaryName, setBeneficiaryName] = useState('');
   const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
   const [beneficiaryIfsc, setBeneficiaryIfsc] = useState('');
+  const [beneficiaryBankId, setBeneficiaryBankId] = useState('');
   const [beneficiaryBankName, setBeneficiaryBankName] = useState('');
   const [beneficiaryId, setBeneficiaryId] = useState(null);
   const [remarks, setRemarks] = useState('');
+
+  const { data: indianBanksRaw = [] } = useQuery({
+    queryKey: ['indianBanks'],
+    queryFn: async () => (await getIndianBanks()).data?.indianBanks ?? [],
+  });
+  const indianBanks = useMemo(
+    () => indianBanksRaw.filter(b => b.is_active),
+    [indianBanksRaw]
+  );
 
   // Upload state
   const [requisitionPdf, setRequisitionPdf] = useState(null); // original file
@@ -628,77 +639,94 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [subContractorItems, setSubContractorItems] = useState([]);
   const [subcontractorCapacityMetrics, setSubcontractorCapacityMetrics] = useState(null);
   const [loadingSubcontractorCapacity, setLoadingSubcontractorCapacity] = useState(false);
+  const [estimateLifecycle, setEstimateLifecycle] = useState(null);
+  const isLifecycleBlocked = Boolean(estimateLifecycle?.requisitionsBlocked || estimateLifecycle?.isReopened);
 
   useEffect(() => {
+    let isCurrent = true;
     if (!selectedWO) {
-      Promise.resolve().then(() => {
-        setAllowedMainHeads([]);
-        setCapacityMetrics(null);
-        setSubContractorItems([]);
-      });
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      setSubContractorItems([]);
+      setEstimateLifecycle(null);
       return;
     }
     const approvedEst = estimates.find(e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved');
     if (!approvedEst) {
-      Promise.resolve().then(() => {
-        setAllowedMainHeads([]);
-        setCapacityMetrics(null);
-        setSubContractorItems([]);
-      });
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      setSubContractorItems([]);
+      setEstimateLifecycle(null);
       return;
     }
 
-    Promise.resolve().then(() => {
-      setLoadingMainHeads(true);
-      setCapacityMetrics(null);
-      getEstimateById(approvedEst.estimate_id)
-        .then(res => {
-          if (res.data?.items) {
-            const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
-            setAllowedMainHeads(distinctHeads);
-            const scItems = res.data.items.filter(item => item.material_main_head === 'Sub Contractor');
-            setSubContractorItems(scItems);
-          }
-        })
-        .catch(err => {
-          console.error('Failed to fetch estimate items for main heads:', err);
-        })
-        .finally(() => {
+    setLoadingMainHeads(true);
+    setCapacityMetrics(null);
+    setEstimateLifecycle(null);
+    getEstimateById(approvedEst.estimate_id)
+      .then(res => {
+        if (!isCurrent) return;
+        if (res.data?.items) {
+          const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
+          setAllowedMainHeads(distinctHeads);
+          const scItems = res.data.items.filter(item => item.material_main_head === 'Sub Contractor');
+          setSubContractorItems(scItems);
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to fetch estimate items for main heads:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
           setLoadingMainHeads(false);
-        });
-    });
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [selectedWO, estimates]);
 
   useEffect(() => {
+    let isCurrent = true;
     if (!selectedWO || !materialHead) {
-      Promise.resolve().then(() => {
-        setCapacityMetrics(null);
-      });
+      setCapacityMetrics(null);
+      setEstimateLifecycle(null);
       return;
     }
 
-    Promise.resolve().then(() => {
-      setLoadingCapacity(true);
-      getMainHeadCapacity(selectedWO, materialHead)
-        .then(res => {
-          if (res.data) {
-            setCapacityMetrics({
-              mainHeadEstimate: Number(res.data.mainHeadEstimate),
-              cumulativeApproved: Number(res.data.cumulativeApproved),
-              remainingCapacity: Number(res.data.remainingCapacity)
-            });
-          }
-        })
-        .catch(err => {
-          console.error('Failed to load Main Head capacity metrics:', err);
-        })
-        .finally(() => {
+    setLoadingCapacity(true);
+    getMainHeadCapacity(selectedWO, materialHead)
+      .then(res => {
+        if (!isCurrent) return;
+        if (res.data) {
+          setCapacityMetrics({
+            mainHeadEstimate: Number(res.data.mainHeadEstimate),
+            cumulativeApproved: Number(res.data.cumulativeApproved),
+            remainingCapacity: Number(res.data.remainingCapacity),
+            estimateLifecycle: res.data.estimateLifecycle || null
+          });
+          setEstimateLifecycle(res.data.estimateLifecycle || null);
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to load Main Head capacity metrics:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
           setLoadingCapacity(false);
-        });
-    });
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [selectedWO, materialHead]);
 
   useEffect(() => {
+    let isCurrent = true;
     if (materialHead !== 'Sub Contractor' || !selectedWO || !materialSubHead || !materialDetails) {
       setSubcontractorCapacityMetrics(null);
       return;
@@ -706,16 +734,32 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     setLoadingSubcontractorCapacity(true);
     getSubcontractorCapacity(selectedWO, materialSubHead, materialDetails)
       .then(res => {
+        if (!isCurrent) return;
         if (res.data) {
           setSubcontractorCapacityMetrics({
             estimatedTotal: Number(res.data.estimatedTotal),
             paidTotal: Number(res.data.paidTotal),
-            availableBalance: Number(res.data.availableBalance)
+            availableBalance: Number(res.data.availableBalance),
+            estimateLifecycle: res.data.estimateLifecycle || null
           });
+          if (res.data.estimateLifecycle?.requisitionsBlocked) {
+            setEstimateLifecycle(res.data.estimateLifecycle);
+          }
         }
       })
-      .catch(err => console.error('Failed to load Subcontractor Ledger capacity:', err))
-      .finally(() => setLoadingSubcontractorCapacity(false));
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to load Subcontractor Ledger capacity:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setLoadingSubcontractorCapacity(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [materialHead, selectedWO, materialSubHead, materialDetails]);
 
   const subHeadOptions = Array.from(new Set(subContractorItems.map(i => i.material_sub_head).filter(Boolean)));
@@ -926,6 +970,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     e.preventDefault();
     setError('');
 
+    if (isLifecycleBlocked) {
+      setError(estimateLifecycle?.blockReason || 'Cannot submit requisition: estimate is currently undergoing revision.');
+      return;
+    }
+
     // Fields checks
     if (!selectedWO) {
       setError('Please select a Work Order.');
@@ -997,6 +1046,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         beneficiary_name: beneficiaryName.trim() || undefined,
         beneficiary_ac_no: beneficiaryAcNo.trim() || undefined,
         beneficiary_ifsc: beneficiaryIfsc.trim().toUpperCase() || undefined,
+        beneficiary_bank_id: beneficiaryBankId || undefined,
         beneficiary_bank_name: beneficiaryBankName.trim() || undefined,
         expen_head_remarks: remarks.trim() || null
       };
@@ -1067,9 +1117,10 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           variant="primary"
           size="sm"
           loading={submitting}
-          disabled={submitting || isUploadingReq || isUploadingGst}
+          disabled={submitting || isUploadingReq || isUploadingGst || isLifecycleBlocked}
+          title={isLifecycleBlocked ? (estimateLifecycle?.blockReason || 'Submission paused: estimate under revision') : ''}
         >
-          Save Requisition
+          {isLifecycleBlocked ? 'Submission Paused' : 'Save Requisition'}
         </Button>
       </>
     );
@@ -1168,6 +1219,24 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       {/* ──────── STEP 3: REQUISITION DETAILS & UPLOADS ──────── */}
       {step === 3 && (
         <form id="requisition-creation-form" onSubmit={handleSubmit} className="space-y-4 text-left">
+          {isLifecycleBlocked && (
+            <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl text-xs text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/50 animate-fadeIn">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30">
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 block">
+                  Estimate Under Revision — Requisitions Blocked
+                </span>
+                <p className="font-medium text-amber-200 leading-relaxed">
+                  {estimateLifecycle?.blockReason || `The cost estimate for work order ${selectedWO} is currently undergoing revision (${estimateLifecycle?.status}). New requisitions are paused until final approval.`}
+                </p>
+              </div>
+            </div>
+          )}
+
           <Input
             label="Requisition Number"
             type="text"
@@ -1299,10 +1368,17 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
           {/* Main Head Capacity Display */}
           {materialHead && (
-            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
-                Material Main Head Capacity ({materialHead})
-              </p>
+            <div className={`rounded-2xl border ${isLifecycleBlocked ? 'border-amber-500/30 bg-amber-950/20' : 'border-indigo-500/20 bg-indigo-500/5'} p-4 space-y-2`}>
+              <div className="flex items-center justify-between">
+                <p className={`text-[9px] font-bold uppercase tracking-widest ${isLifecycleBlocked ? 'text-amber-400' : 'text-indigo-400'}`}>
+                  Material Main Head Capacity ({materialHead})
+                </p>
+                {isLifecycleBlocked && (
+                  <Badge variant="amber" className="text-[9px]">
+                    Paused: {estimateLifecycle?.status}
+                  </Badge>
+                )}
+              </div>
               {loadingCapacity ? (
                 <div className="flex items-center gap-2 py-2">
                   <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
@@ -1325,10 +1401,17 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
           {/* Subcontractor Ledger Balance Display */}
           {materialHead === 'Sub Contractor' && materialSubHead && materialDetails && (
-            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
-                Subcontractor Ledger Balance ({materialDetails})
-              </p>
+            <div className={`rounded-2xl border ${isLifecycleBlocked ? 'border-amber-500/30 bg-amber-950/20' : 'border-indigo-500/20 bg-indigo-500/5'} p-4 space-y-2`}>
+              <div className="flex items-center justify-between">
+                <p className={`text-[9px] font-bold uppercase tracking-widest ${isLifecycleBlocked ? 'text-amber-400' : 'text-indigo-400'}`}>
+                  Subcontractor Ledger Balance ({materialDetails})
+                </p>
+                {isLifecycleBlocked && (
+                  <Badge variant="amber" className="text-[9px]">
+                    Paused: {estimateLifecycle?.status}
+                  </Badge>
+                )}
+              </div>
               {loadingSubcontractorCapacity ? (
                 <div className="flex items-center gap-2 py-2">
                   <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
@@ -1464,7 +1547,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                   setBeneficiaryAcNo(b.beneficiary_ac_no || '');
                   setBeneficiaryIfsc(b.beneficiary_ifsc || '');
                   setBeneficiaryName(b.beneficiary_name || '');
-                  setBeneficiaryBankName(b.beneficiary_bank_name || '');
+                  setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                  setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
                   setBeneficiaryId(b.id || null);
                 }}
                 placeholder="Enter bank account no…"
@@ -1483,14 +1567,19 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               />
 
               <Select
-                label="Beneficiary Bank Name"
-                value={beneficiaryBankName}
-                onChange={(e) => setBeneficiaryBankName(e.target.value)}
+                label="Indian Banks"
+                value={beneficiaryBankId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBeneficiaryBankId(id);
+                  const found = indianBanks.find(b => b.id === id);
+                  setBeneficiaryBankName(found ? found.bank_name : '');
+                }}
                 disabled={submitting}
               >
                 <option value="">-- Select Bank (Optional) --</option>
-                {INDIAN_BANKS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
+                {indianBanks.map((b) => (
+                  <option key={b.id} value={b.id}>{b.bank_name}</option>
                 ))}
               </Select>
             </div>

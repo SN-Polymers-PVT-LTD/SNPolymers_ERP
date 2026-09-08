@@ -12,7 +12,8 @@ const {
   getSubcontractorLedgerEntries,
   getSubcontractorRequisitions,
   adjustSubcontractorBalance,
-  searchProjectsBeneficiaries
+  searchProjectsBeneficiaries,
+  getIndianBanks
 } = require('../controllers/requisitions.controller');
 const {
   uploadRequisitionPdf,
@@ -55,6 +56,7 @@ router.get('/subcontractor-ledger/entries', requireRole(readerRoles), getSubcont
 router.get('/subcontractor-ledger/requisitions', requireRole(readerRoles), getSubcontractorRequisitions);
 router.get('/subcontractor-ledger', requireRole(readerRoles), getSubcontractorLedger);
 router.get('/beneficiary-suggestions', requireRole(readerRoles), searchProjectsBeneficiaries);
+router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
 router.get('/:id', requireRole(readerRoles), getRequisitionById);
 
 // Create endpoint

@@ -101,3 +101,8 @@ export const deleteGstBillPdf = (requisitionNo) =>
 /** Live typeahead search for project payment requisition beneficiary suggestions */
 export const searchProjectsBeneficiaries = (prefix, limit = 8) =>
   authApi.get('/requisitions/beneficiary-suggestions', { params: { prefix, limit } });
+
+/** Fetch active Indian banks list */
+export const getIndianBanks = () =>
+  authApi.get('/requisitions/indian-banks');
+

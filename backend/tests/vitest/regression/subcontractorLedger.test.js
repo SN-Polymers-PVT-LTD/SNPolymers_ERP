@@ -567,4 +567,25 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
       .eq('reference_id', itemA.item_id);
     expect(ledgerCountAfter).toBe(ledgerCountBefore);
   });
+
+  test('17. getSubcontractorLedger applies DB-first search and pagination with exact total', async () => {
+    // Search with match on workOrder
+    const reqMatch = { query: { search: workOrder, page: 1, limit: 10 } };
+    const resMatch = mockRes();
+    await getSubcontractorLedger(reqMatch, resMatch);
+    expect(resMatch.statusCode).toBe(200);
+    expect(resMatch.jsonData.success).toBe(true);
+    expect(resMatch.jsonData.balances.length).toBeGreaterThan(0);
+    expect(resMatch.jsonData.pagination.total).toBe(resMatch.jsonData.balances.length);
+    expect(resMatch.jsonData.balances.every(b => b.work_order_no === workOrder)).toBe(true);
+
+    // Search with non-matching term
+    const reqNoMatch = { query: { search: 'NON_EXISTENT_SUBCONTRACTOR_XYZ_999', page: 1, limit: 10 } };
+    const resNoMatch = mockRes();
+    await getSubcontractorLedger(reqNoMatch, resNoMatch);
+    expect(resNoMatch.statusCode).toBe(200);
+    expect(resNoMatch.jsonData.balances.length).toBe(0);
+    expect(resNoMatch.jsonData.pagination.total).toBe(0);
+    expect(resNoMatch.jsonData.pagination.totalPages).toBe(1);
+  });
 });

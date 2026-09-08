@@ -95,7 +95,7 @@ export async function exportBeneficiariesToExcel(beneficiaries) {
     "Account Number": b.account_number || '',
     "IFSC": b.ifsc || '',
     "Beneficiary Name": b.beneficiary_name || '',
-    "Bank": b.beneficiary_bank_name || '',
+    "Bank": b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '',
     "Last Used": b.last_used_at ? new Date(b.last_used_at).toLocaleDateString('en-IN') : '',
     "Created": b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : ''
   }));

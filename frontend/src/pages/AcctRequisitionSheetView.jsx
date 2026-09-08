@@ -141,7 +141,7 @@ const AcctRequisitionSheetView = () => {
     staleTime: 60 * 1000,
     enabled: isAccountsUser
   });
-  const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
+  const indianBanks = indianBanksRaw.filter(b => b.is_active);
 
   const handleCreateAccountSubTitle = async (title) => {
     const res = await upsertAccountSubTitle({ title });

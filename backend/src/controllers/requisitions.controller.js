@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
+const { getActiveIndianBanks, validateActiveIndianBank } = require('../services/indianBanks.service');
 const validate = require('../validation/validate');
 const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema } = require('../validation/requisition.schema');
 
@@ -50,6 +51,7 @@ async function createRequisition(req, res) {
     beneficiary_ac_no,
     beneficiary_ifsc,
     beneficiary_bank_name,
+    beneficiary_bank_id,
     expen_head_remarks
   } = req.body;
 
@@ -86,6 +88,30 @@ async function createRequisition(req, res) {
         success: false,
         message: `A requisition with number ${requisition_no.trim()} already exists.`
       });
+    }
+
+    // 1a. Validate beneficiary_bank_id and resolve bank name snapshot
+    let resolvedBankName = beneficiary_bank_name?.trim() || null;
+    let validatedBankId = beneficiary_bank_id || null;
+
+    if (validatedBankId) {
+      const bankCheck = await validateActiveIndianBank(validatedBankId);
+      if (!bankCheck.valid) {
+        await cleanupUploadedFiles();
+        if (bankCheck.reason === 'NOT_FOUND') {
+          return res.status(422).json({
+            success: false,
+            message: 'Selected bank does not exist.'
+          });
+        }
+        if (bankCheck.reason === 'INACTIVE') {
+          return res.status(422).json({
+            success: false,
+            message: 'Selected bank is currently inactive.'
+          });
+        }
+      }
+      resolvedBankName = bankCheck.bank.bank_name;
     }
 
     // 1b. Verify JE is actively mapped to the work order
@@ -180,14 +206,14 @@ async function createRequisition(req, res) {
       }
     }
 
-    // 4b. Synthesize bank_details if not directly provided
+    // Synthesize bank_details if not directly provided
     let effectiveBankDetails = (bank_details || '').trim();
     if (!effectiveBankDetails && (beneficiary_ac_no || beneficiary_name)) {
       effectiveBankDetails = [
         beneficiary_name?.trim(),
         beneficiary_ac_no?.trim() ? `A/C: ${beneficiary_ac_no.trim()}` : null,
         beneficiary_ifsc?.trim() ? `IFSC: ${beneficiary_ifsc.trim()}` : null,
-        beneficiary_bank_name?.trim() ? `Bank: ${beneficiary_bank_name.trim()}` : null
+        resolvedBankName ? `Bank: ${resolvedBankName}` : null
       ].filter(Boolean).join(' | ');
     }
     if (!effectiveBankDetails) {
@@ -200,7 +226,6 @@ async function createRequisition(req, res) {
       const cleanAcNo = beneficiary_ac_no.trim();
       const cleanIfsc = beneficiary_ifsc.trim().toUpperCase();
       const cleanName = beneficiary_name?.trim() || material_details?.trim() || 'Payee';
-      const cleanBank = beneficiary_bank_name?.trim() || null;
       try {
         const { data: upserted, error: upsertErr } = await supabase
           .from('projects_beneficiary_master')
@@ -208,7 +233,8 @@ async function createRequisition(req, res) {
             beneficiary_ac_no: cleanAcNo,
             beneficiary_ifsc: cleanIfsc,
             beneficiary_name: cleanName,
-            beneficiary_bank_name: cleanBank,
+            beneficiary_bank_id: validatedBankId,
+            beneficiary_bank_name: resolvedBankName,
             last_used_at: new Date().toISOString(),
             created_by: req.user.mobile_number,
             updated_by: req.user.mobile_number,
@@ -253,7 +279,8 @@ async function createRequisition(req, res) {
       p_beneficiary_name: beneficiary_name?.trim() || null,
       p_beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
       p_beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
-      p_beneficiary_bank_name: beneficiary_bank_name?.trim() || null
+      p_beneficiary_bank_name: resolvedBankName,
+      p_beneficiary_bank_id: validatedBankId
     });
 
     if (rpcError) {
@@ -309,6 +336,12 @@ async function createRequisition(req, res) {
 
     if (updateZoErr) throw updateZoErr;
     newReq.zo_user_id = zo_user_id;
+
+    if (validatedBankId) {
+      newReq.beneficiary_bank = { id: validatedBankId, bank_name: resolvedBankName };
+      newReq.beneficiary_bank_id = validatedBankId;
+      newReq.beneficiary_bank_name = resolvedBankName;
+    }
 
     // 6. Calculate remaining amount for response
     const { data: committedRes } = await supabase
@@ -450,6 +483,10 @@ async function getRequisitions(req, res) {
 
         enriched.push({
           ...r,
+          beneficiary_bank: r.beneficiary_bank_id ? {
+            id: r.beneficiary_bank_id,
+            bank_name: r.beneficiary_bank_name
+          } : null,
           requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
           approved_name: userMap[r.approved_user_id] || r.approved_user_id || null,
           cancelled_name: userMap[r.cancelled_by] || r.cancelled_by || null,
@@ -555,6 +592,10 @@ async function getRequisitionById(req, res) {
       success: true,
       requisition: {
         ...requisition,
+        beneficiary_bank: requisition.beneficiary_bank_id ? {
+          id: requisition.beneficiary_bank_id,
+          bank_name: requisition.beneficiary_bank_name
+        } : null,
         requester_name: userMap[requisition.requester_user_id] || requisition.requester_user_id || null,
         approved_name: userMap[requisition.approved_user_id] || requisition.approved_user_id || null,
         cancelled_name: userMap[requisition.cancelled_by] || requisition.cancelled_by || null,
@@ -849,6 +890,13 @@ async function getSubcontractorLedger(req, res) {
       dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
     }
 
+    if (query.search) {
+      const s = query.search.trim().replace(/[,()]/g, ' ').trim();
+      if (s) {
+        dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
+      }
+    }
+
     dbQuery = dbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
 
     const { data: balances, count, error } = await dbQuery;
@@ -864,19 +912,10 @@ async function getSubcontractorLedger(req, res) {
       projectMap = (projects || []).reduce((acc, p) => { acc[p.work_order_no] = p; return acc; }, {});
     }
 
-    let enriched = (balances || []).map(b => ({
+    const enriched = (balances || []).map(b => ({
       ...b,
       project: projectMap[b.work_order_no] || null
     }));
-
-    if (query.search) {
-      const term = query.search.toLowerCase();
-      enriched = enriched.filter(b =>
-        b.material_sub_head?.toLowerCase().includes(term) ||
-        b.material_details?.toLowerCase().includes(term) ||
-        b.work_order_no?.toLowerCase().includes(term)
-      );
-    }
 
     return res.status(200).json({
       success: true,
@@ -1159,7 +1198,7 @@ async function searchProjectsBeneficiaries(req, res) {
   try {
     let query = supabase
       .from('projects_beneficiary_master')
-      .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, last_used_at');
+      .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, last_used_at, indian_bank_master:beneficiary_bank_id (id, bank_name)');
 
     if (/^\d+$/.test(prefix)) {
       query = query.like('beneficiary_ac_no', `${prefix}%`);
@@ -1172,10 +1211,39 @@ async function searchProjectsBeneficiaries(req, res) {
       .limit(limit);
 
     if (error) throw error;
-    return res.status(200).json({ success: true, beneficiaries: data || [] });
+
+    const enriched = (data || []).map(b => ({
+      id: b.id,
+      beneficiary_name: b.beneficiary_name,
+      beneficiary_ac_no: b.beneficiary_ac_no,
+      beneficiary_ifsc: b.beneficiary_ifsc,
+      beneficiary_bank_id: b.beneficiary_bank_id,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name,
+      last_used_at: b.last_used_at
+    }));
+
+    return res.status(200).json({ success: true, beneficiaries: enriched });
   } catch (error) {
     console.error(`searchProjectsBeneficiaries failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to search project beneficiaries.' });
+  }
+}
+
+/**
+ * GET /requisitions/indian-banks
+ * Returns active Indian banks for dropdown population.
+ */
+async function getIndianBanks(req, res) {
+  try {
+    const indianBanks = await getActiveIndianBanks();
+    return res.status(200).json({ success: true, indianBanks });
+  } catch (error) {
+    console.error(`getIndianBanks failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Indian banks.' });
   }
 }
 
@@ -1191,5 +1259,6 @@ module.exports = {
   getSubcontractorLedgerEntries,
   getSubcontractorRequisitions,
   adjustSubcontractorBalance,
-  searchProjectsBeneficiaries
+  searchProjectsBeneficiaries,
+  getIndianBanks
 };

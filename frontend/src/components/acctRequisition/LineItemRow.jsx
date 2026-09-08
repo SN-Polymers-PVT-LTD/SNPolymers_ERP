@@ -41,7 +41,8 @@ const emptyDraft = (item) => ({
   beneficiary_ac_no: item.beneficiary_ac_no || '',
   beneficiary_name: item.beneficiary_name || '',
   beneficiary_ifsc: item.beneficiary_ifsc || '',
-  beneficiary_bank_name: item.beneficiary_bank_name || '',
+  beneficiary_bank_id: item.beneficiary_bank_id || item.beneficiary_bank?.id || null,
+  beneficiary_bank_name: item.beneficiary_bank?.bank_name || item.beneficiary_bank_name || '',
   debit_bank_ac_type: item.debit_bank_ac_type || '',
   req_amount: item.req_amount ?? '',
   payment_mode: item.payment_mode || '',
@@ -122,7 +123,11 @@ const LineItemRow = ({
 
   const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
-  const indianBankOptions = indianBanks.map(b => ({ value: b, label: b }));
+  const indianBankOptions = indianBanks.map(b => (
+    typeof b === 'object' && b !== null
+      ? { value: b.id, label: b.bank_name }
+      : { value: b, label: b }
+  ));
   const particularsOptions = particulars.map(p => ({ value: p.id, label: p.title }));
   // Work Order No. must match an existing projects_master row exactly (real
   // FK, fk_arli_work_order — 046) — value and label are both the WO number
@@ -179,6 +184,8 @@ const LineItemRow = ({
     try {
       const payload = {
         ...currentDraft,
+        beneficiary_bank_id: currentDraft.beneficiary_bank_id || null,
+        beneficiary_bank_name: currentDraft.beneficiary_bank_name?.trim() || null,
         req_amount: currentDraft.req_amount === '' ? null : Number(currentDraft.req_amount),
         payment_mode: currentDraft.payment_mode || null,
         cheque_no: currentDraft.cheque_no || null,
@@ -199,7 +206,7 @@ const LineItemRow = ({
         currentDraft.beneficiary_ac_no?.trim() &&
         currentDraft.beneficiary_ifsc?.trim() &&
         currentDraft.beneficiary_name?.trim() &&
-        currentDraft.beneficiary_bank_name?.trim() &&
+        (currentDraft.beneficiary_bank_id || currentDraft.beneficiary_bank_name?.trim()) &&
         confirmedBeneficiaryKeyRef.current !== currentKey
       ) {
         setConfirmedBeneficiaryKey(currentKey);
@@ -207,7 +214,8 @@ const LineItemRow = ({
           account_number: currentDraft.beneficiary_ac_no.trim(),
           ifsc: currentDraft.beneficiary_ifsc.trim(),
           beneficiary_name: currentDraft.beneficiary_name.trim(),
-          beneficiary_bank_name: currentDraft.beneficiary_bank_name.trim()
+          beneficiary_bank_id: currentDraft.beneficiary_bank_id || undefined,
+          beneficiary_bank_name: currentDraft.beneficiary_bank_name?.trim() || undefined
         }).catch((err) => {
           console.warn('Beneficiary master upsert skipped:', err.response?.data?.message || err.message);
         });
@@ -266,10 +274,10 @@ const LineItemRow = ({
                 {item.beneficiary_ifsc}
               </p>
             )}
-            {item.beneficiary_bank_name && (
+            {(item.beneficiary_bank?.bank_name || item.beneficiary_bank_name) && (
               <p className="text-[10px] text-slate-500">
                 <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Bank</span>
-                {item.beneficiary_bank_name}
+                {item.beneficiary_bank?.bank_name || item.beneficiary_bank_name}
               </p>
             )}
           </div>
@@ -440,7 +448,8 @@ const LineItemRow = ({
                 beneficiary_ac_no: b.account_number,
                 beneficiary_ifsc: b.ifsc,
                 beneficiary_name: b.beneficiary_name,
-                beneficiary_bank_name: b.beneficiary_bank_name
+                beneficiary_bank_id: b.beneficiary_bank_id || b.beneficiary_bank?.id || null,
+                beneficiary_bank_name: b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || ''
               }));
               setConfirmedBeneficiaryKey(beneficiaryKey(b.account_number, b.ifsc));
             }}
@@ -451,8 +460,16 @@ const LineItemRow = ({
           <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
           <Select
             disabled={readOnly}
-            value={draft.beneficiary_bank_name}
-            onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
+            value={draft.beneficiary_bank_id || (indianBanks.find(b => (typeof b === 'object' ? b.bank_name : b) === draft.beneficiary_bank_name)?.id || '')}
+            onChange={(e) => {
+              const selectedVal = e.target.value;
+              const found = indianBanks.find(b => (typeof b === 'object' ? b.id === selectedVal : b === selectedVal));
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_bank_id: selectedVal || null,
+                beneficiary_bank_name: found ? (typeof found === 'object' ? found.bank_name : found) : ''
+              }));
+            }}
             options={[{ value: '', label: 'Select bank...' }, ...indianBankOptions]}
           />
           {editable && (
@@ -465,7 +482,8 @@ const LineItemRow = ({
                 setDraft(prev => ({
                   ...prev,
                   beneficiary_name: b.beneficiary_name,
-                  beneficiary_bank_name: b.beneficiary_bank_name
+                  beneficiary_bank_id: b.beneficiary_bank_id || b.beneficiary_bank?.id || null,
+                  beneficiary_bank_name: b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || ''
                 }));
                 setConfirmedBeneficiaryKey(beneficiaryKey(draft.beneficiary_ac_no, draft.beneficiary_ifsc));
               }}

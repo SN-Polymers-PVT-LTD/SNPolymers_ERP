@@ -29,6 +29,7 @@ const createRequisitionSchema = {
     beneficiary_ac_no: z.string().trim().optional().nullable(),
     beneficiary_ifsc: z.string().trim().optional().nullable(),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
     expen_head_remarks: z.string().optional().nullable()
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_url && data.gst_bill_pdf_url.trim() !== ''), {
     message: "gst_bill_pdf_url is required when GST Bill is 'Yes'.",

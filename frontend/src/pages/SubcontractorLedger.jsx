@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, TextArea, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, Input, TextArea, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
 import {
   getSubcontractorLedger,
   getSubcontractorLedgerEntries,
@@ -36,6 +36,95 @@ const TX_TYPE_LABELS = {
 };
 
 /**
+ * Modal to resolve multi-work-order ambiguity when viewing or exporting a
+ * grouped subcontractor's ledger statement.
+ */
+const MultiWorkOrderModal = ({ group, action, onClose, onSelect }) => {
+  const distinctWOs = useMemo(() => {
+    const wos = [...new Set((group.rows || []).map(r => r.work_order_no).filter(Boolean))];
+    return wos.map(wo => {
+      const rowsForWo = group.rows.filter(r => r.work_order_no === wo);
+      const sample = rowsForWo[0] || {};
+      const totalAmount = rowsForWo.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
+      const approvedAmount = rowsForWo.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+      return {
+        work_order_no: wo,
+        department: sample.department || '—',
+        site_details: sample.site_details || '—',
+        count: rowsForWo.length,
+        totalAmount,
+        approvedAmount
+      };
+    });
+  }, [group]);
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={`${action === 'view' ? 'View' : 'Export'} Ledger — Select Work Order`}
+      size="lg"
+      footer={
+        <div className="flex justify-between items-center w-full">
+          <Button
+            variant="glass"
+            size="sm"
+            onClick={() => onSelect('')}
+            className="text-xs border-indigo-500/30 text-indigo-300 hover:text-indigo-200"
+          >
+            {action === 'view' ? 'View Combined (All Work Orders)' : 'Export Combined (All Work Orders)'}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4 text-left">
+        <p className="text-xs text-slate-400">
+          <span className="font-semibold text-slate-200">{group.material_details}</span> ({group.material_sub_head}) is associated with{' '}
+          <span className="text-amber-400 font-bold">{distinctWOs.length} work orders</span>. Select a specific work order to scope the statement, or view combined:
+        </p>
+
+        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+          {distinctWOs.map((wo) => (
+            <div
+              key={wo.work_order_no}
+              className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/40 hover:bg-white/[0.06] transition flex flex-col sm:flex-row justify-between sm:items-center gap-3"
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-slate-100">{wo.work_order_no}</span>
+                  {wo.department !== '—' && (
+                    <Badge variant="slate" className="text-[10px]">{wo.department}</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Site: <span className="text-slate-300">{wo.site_details}</span>
+                </p>
+                <div className="flex gap-3 text-[11px] text-slate-400 mt-1.5">
+                  <span>Requisitions: <strong className="text-slate-200">{wo.count}</strong></span>
+                  <span>Requested: <strong className="text-slate-200 font-mono">{formatCurrency(wo.totalAmount)}</strong></span>
+                  <span>Approved: <strong className="text-emerald-400 font-mono">{formatCurrency(wo.approvedAmount)}</strong></span>
+                </div>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => onSelect(wo.work_order_no)}
+                className="shrink-0 text-xs"
+              >
+                {action === 'view' ? 'Select & View' : 'Select & Export'}
+              </Button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Modal>
+  );
+};
+
+/**
  * Browse view over the Subcontractor Ledger (047_subcontractor_ledger.sql / 049).
  * Two tabs:
  *  - Balances: running balances per (work_order_no, material_sub_head, material_details),
@@ -52,32 +141,49 @@ const SubcontractorLedger = () => {
 
   const [viewMode, setViewMode] = useState('balances');
   const [workOrderFilter, setWorkOrderFilter] = useState('');
-  const [searchFilter, setSearchFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [dateBasis, setDateBasis] = useState('created'); // 'created' | 'approved'
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [viewingEntry, setViewingEntry] = useState(null);
   const [adjustingEntry, setAdjustingEntry] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [multiWoPicker, setMultiWoPicker] = useState(null); // { group, action: 'view' | 'export' }
 
-  const hasBalanceFilters = workOrderFilter || searchFilter;
-  const hasRequisitionFilters = workOrderFilter || searchFilter || dateFrom || dateTo || dateBasis !== 'created';
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
-  const { data: balances = [], isLoading: loadingBalances, error: balancesError } = useQuery({
-    queryKey: ['subcontractorLedger', workOrderFilter, searchFilter],
+  const hasBalanceFilters = workOrderFilter || debouncedSearch;
+  const hasRequisitionFilters = workOrderFilter || debouncedSearch || dateFrom || dateTo || dateBasis !== 'created';
+
+  const { data: balancesData, isLoading: loadingBalances, error: balancesError } = useQuery({
+    queryKey: ['subcontractorLedger', workOrderFilter, debouncedSearch, page],
     queryFn: async () => (await getSubcontractorLedger({
-      limit: 100,
+      page,
+      limit: pageSize,
       work_order_no: workOrderFilter || undefined,
-      search: searchFilter || undefined
-    })).data?.balances || [],
+      search: debouncedSearch || undefined
+    })).data,
     enabled: canView && viewMode === 'balances'
   });
 
+  const balances = balancesData?.balances || [];
+  const totalBalances = balancesData?.pagination?.total || 0;
+  const totalPages = balancesData?.pagination?.totalPages || 1;
+
   const { data: requisitions = [], isLoading: loadingRequisitions, error: requisitionsError } = useQuery({
-    queryKey: ['subcontractorRequisitions', workOrderFilter, searchFilter, dateFrom, dateTo, dateBasis],
+    queryKey: ['subcontractorRequisitions', workOrderFilter, debouncedSearch, dateFrom, dateTo, dateBasis],
     queryFn: async () => (await getSubcontractorRequisitions({
       work_order_no: workOrderFilter || undefined,
-      search: searchFilter || undefined,
+      search: debouncedSearch || undefined,
       date_basis: dateBasis,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined
@@ -106,27 +212,59 @@ const SubcontractorLedger = () => {
 
   const resetFilters = () => {
     setWorkOrderFilter('');
-    setSearchFilter('');
+    setSearchInput('');
+    setDebouncedSearch('');
     setDateFrom('');
     setDateTo('');
     setDateBasis('created');
+    setPage(1);
   };
 
   const handleExportRequisitions = () => {
     exportSubcontractorRequisitionsToExcel(requisitions, {
       workOrderFilter,
-      searchFilter,
+      searchFilter: debouncedSearch,
       dateBasis,
       dateFrom,
       dateTo
     });
   };
 
-  const handleExportBalances = () => {
-    exportSubcontractorBalancesToExcel(balances, {
-      workOrderFilter,
-      searchFilter
-    });
+  const handleExportBalances = async () => {
+    try {
+      setIsExporting(true);
+      const allBalances = [];
+      let fetchPage = 1;
+      let totalPages_ = 1;
+      let serverFilteredTotal = 0;
+      do {
+        const res = await getSubcontractorLedger({
+          page: fetchPage,
+          limit: 100,
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined
+        });
+        const batch = res.data?.balances || [];
+        allBalances.push(...batch);
+        totalPages_ = res.data?.pagination?.totalPages || 1;
+        serverFilteredTotal = res.data?.pagination?.total || 0;
+        fetchPage += 1;
+      } while (fetchPage <= totalPages_);
+
+      if (serverFilteredTotal > 0 && allBalances.length !== serverFilteredTotal) {
+        console.warn(`Export row count mismatch: exported ${allBalances.length}, expected ${serverFilteredTotal}`);
+      }
+
+      exportSubcontractorBalancesToExcel(allBalances, {
+        workOrderFilter,
+        searchFilter: debouncedSearch
+      });
+    } catch (err) {
+      console.error('Export balances failed:', err);
+      alert('Failed to export balances: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportFullLedger = async () => {
@@ -134,24 +272,31 @@ const SubcontractorLedger = () => {
       setIsExporting(true);
       const res = await getSubcontractorLedgerEntries({
         work_order_no: workOrderFilter || undefined,
-        search: searchFilter || undefined,
+        search: debouncedSearch || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined
       });
       const entries = res.data?.entries || [];
 
-      let currentBalances = balances;
-      if (currentBalances.length === 0) {
+      // Collect all balances matching current filters across pages
+      const allBalances = [];
+      let fetchPage = 1;
+      let totalPages_ = 1;
+      do {
         const balRes = await getSubcontractorLedger({
+          page: fetchPage,
+          limit: 100,
           work_order_no: workOrderFilter || undefined,
-          search: searchFilter || undefined
+          search: debouncedSearch || undefined
         });
-        currentBalances = balRes.data?.balances || [];
-      }
+        allBalances.push(...(balRes.data?.balances || []));
+        totalPages_ = balRes.data?.pagination?.totalPages || 1;
+        fetchPage += 1;
+      } while (fetchPage <= totalPages_);
 
-      await exportAllSubcontractorLedgersToExcel(entries, currentBalances, requisitions, {
+      await exportAllSubcontractorLedgersToExcel(entries, allBalances, requisitions, {
         workOrderFilter,
-        searchFilter,
+        searchFilter: debouncedSearch,
         dateBasis,
         dateFrom,
         dateTo
@@ -164,10 +309,10 @@ const SubcontractorLedger = () => {
     }
   };
 
-  const handleExportSubcontractorLedger = async (group) => {
+  const handleExportSubcontractorLedger = async (group, chosenWorkOrder) => {
     try {
       setIsExporting(true);
-      const workOrder = workOrderFilter || group.rows[0]?.work_order_no;
+      const workOrder = chosenWorkOrder !== undefined ? chosenWorkOrder : (workOrderFilter || group.rows[0]?.work_order_no);
       const res = await getSubcontractorLedgerEntries({
         work_order_no: workOrder || undefined,
         material_sub_head: group.material_sub_head,
@@ -175,11 +320,15 @@ const SubcontractorLedger = () => {
       });
       const entries = res.data?.entries || [];
 
+      const relevantRows = workOrder
+        ? group.rows.filter(r => r.work_order_no === workOrder)
+        : group.rows;
+
       await exportSubcontractorLedgerStatementToExcel({
         subcontractor: group.material_details,
         subHead: group.material_sub_head,
-        workOrder: workOrder || 'All',
-        requisitions: group.rows,
+        workOrder: workOrder || 'All Work Orders',
+        requisitions: relevantRows,
         entries
       });
     } catch (err) {
@@ -187,6 +336,24 @@ const SubcontractorLedger = () => {
       alert('Failed to export subcontractor ledger: ' + (err.response?.data?.message || err.message));
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleGroupAction = (group, action) => {
+    const distinct = [...new Set((group.rows || []).map(r => r.work_order_no).filter(Boolean))];
+    if (distinct.length > 1 && !workOrderFilter) {
+      setMultiWoPicker({ group, action });
+    } else {
+      const wo = workOrderFilter || distinct[0] || '';
+      if (action === 'view') {
+        setViewingEntry({
+          work_order_no: wo,
+          material_sub_head: group.material_sub_head,
+          material_details: group.material_details
+        });
+      } else {
+        handleExportSubcontractorLedger(group, wo);
+      }
     }
   };
 
@@ -256,8 +423,8 @@ const SubcontractorLedger = () => {
           <Input
             type="text"
             placeholder="Sub head, name, WO or Req..."
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             size="sm"
           />
         </div>
@@ -386,6 +553,14 @@ const SubcontractorLedger = () => {
                 ))}
               </TableBody>
             </Table>
+            <Pagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={setPage}
+              maxVisible={5}
+              showLabel={true}
+              totalRecords={totalBalances}
+            />
           </div>
         )
       ) : groupedRequisitions.length === 0 ? (
@@ -420,11 +595,7 @@ const SubcontractorLedger = () => {
                       <Button
                         variant="glass"
                         size="sm"
-                        onClick={() => setViewingEntry({
-                          work_order_no: group.rows[0]?.work_order_no || workOrderFilter || '',
-                          material_sub_head: group.material_sub_head,
-                          material_details: group.material_details
-                        })}
+                        onClick={() => handleGroupAction(group, 'view')}
                         className="text-[11px] h-7 px-2.5"
                       >
                         View Ledger
@@ -432,7 +603,7 @@ const SubcontractorLedger = () => {
                       <Button
                         variant="glass"
                         size="sm"
-                        onClick={() => handleExportSubcontractorLedger(group)}
+                        onClick={() => handleGroupAction(group, 'export')}
                         disabled={isExporting}
                         className="text-[11px] h-7 px-2.5 text-indigo-300 hover:text-indigo-200 border-indigo-500/20"
                       >
@@ -506,6 +677,28 @@ const SubcontractorLedger = () => {
           queryClient.invalidateQueries({ queryKey: ['subcontractorLedger'] });
         }}
       />
+
+      {multiWoPicker && (
+        <MultiWorkOrderModal
+          group={multiWoPicker.group}
+          action={multiWoPicker.action}
+          onClose={() => setMultiWoPicker(null)}
+          onSelect={(selectedWo) => {
+            const group = multiWoPicker.group;
+            const action = multiWoPicker.action;
+            setMultiWoPicker(null);
+            if (action === 'view') {
+              setViewingEntry({
+                work_order_no: selectedWo,
+                material_sub_head: group.material_sub_head,
+                material_details: group.material_details
+              });
+            } else {
+              handleExportSubcontractorLedger(group, selectedWo);
+            }
+          }}
+        />
+      )}
     </>
   );
 };
@@ -514,7 +707,7 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['subcontractorLedgerEntries', entry?.work_order_no, entry?.material_sub_head, entry?.material_details],
     queryFn: async () => (await getSubcontractorLedgerEntries(
-      entry.work_order_no, entry.material_sub_head, entry.material_details
+      entry.work_order_no || undefined, entry.material_sub_head, entry.material_details
     )).data?.entries || [],
     enabled: !!entry
   });

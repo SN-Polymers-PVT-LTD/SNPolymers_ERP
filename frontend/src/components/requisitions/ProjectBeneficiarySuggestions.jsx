@@ -154,7 +154,7 @@ const ProjectBeneficiarySuggestions = ({
               </p>
               <p className="text-[10px] text-slate-400 mt-0.5 truncate">
                 <span className="font-semibold text-slate-300">{b.beneficiary_name}</span>
-                {b.beneficiary_bank_name ? ` • ${b.beneficiary_bank_name}` : ''}
+                {(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name) ? ` • ${b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}` : ''}
                 {b.beneficiary_ifsc ? ` (${b.beneficiary_ifsc})` : ''}
               </p>
             </button>
