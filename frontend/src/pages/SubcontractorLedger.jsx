@@ -859,7 +859,7 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                 <TableCell isHeader>Type</TableCell>
                 <TableCell isHeader>Doc / Ref No.</TableCell>
                 <TableCell isHeader>Description / Remarks</TableCell>
-                <TableCell isHeader align="right">Credit (+)</TableCell>
+                <TableCell isHeader align="right">Estimate Amt (+)</TableCell>
                 <TableCell isHeader align="right">Debit (-)</TableCell>
                 <TableCell isHeader align="right">Running Balance</TableCell>
                 <TableCell isHeader>By</TableCell>

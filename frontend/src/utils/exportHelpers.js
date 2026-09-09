@@ -494,7 +494,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
     "Transaction Type",
     "Doc / Reference No.",
     "Description / Remarks",
-    "Credit (+) (INR)",
+    "Estimate Amt (+) (INR)",
     "Debit (-) (INR)",
     "Running Balance (INR)",
     "Actioned By"
