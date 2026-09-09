@@ -158,6 +158,38 @@ module.exports = {
         {
           "name": "p_created_by",
           "type": "character varying"
+        },
+        {
+          "name": "p_material_sub_head",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_details",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_beneficiary_name",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ifsc",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_bank_name",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_bank_id",
+          "type": "uuid DEFAULT NULL::uuid"
         }
       ],
       "returns": "requisitions"
