@@ -293,7 +293,7 @@ describe('Payment Requisition Capacity & Zonal Balance Gates Suite', () => {
     expect(appErrB.message).toContain('exceeds the remaining Main Head capacity');
   });
 
-  test('Test 4: Zonal Available Balance validation prevents approval when funds are insufficient', async () => {
+  test('Test 4: Zonal Available Balance validation prevents selecting the ZO Balance payment route when funds are insufficient (approval itself no longer checks ZO balance)', async () => {
     // 1. Create Req C on Sand (5,000)
     const { data: dataC, error: errC } = await supabase.rpc('create_requisition_secure', {
       p_requester_user_id: jeMobile,
@@ -325,15 +325,32 @@ describe('Payment Requisition Capacity & Zonal Balance Gates Suite', () => {
     // 2. Set ZO balance low (e.g., 2,000)
     await supabase.from('zo_balances').update({ available_balance: 2000.00 }).eq('zo_user_id', zoMobile);
 
-    // 3. Try to approve Req C for 5,000 -> Should fail due to insufficient ZO balance
+    // 3. Approve Req C for 5,000 -> succeeds even though ZO balance is insufficient,
+    // since approve_requisition_transact no longer touches zo_balances at all
+    // (that moved to select_zo_balance_payment_transact, on demand).
     const { error: appErrC } = await supabase.rpc('approve_requisition_transact', {
       p_requisition_id: reqCId,
       p_approved_amount: 5000.00,
       p_actioned_by: zoMobile,
       p_remarks_approved_authority: 'Approved Req C'
     });
+    expect(appErrC).toBeNull();
 
-    expect(appErrC).toBeDefined();
-    expect(appErrC.message).toContain('Insufficient available Zonal Office balance');
+    // 4. Selecting the ZO Balance payment route now fails due to insufficient balance
+    const { error: routeErrC } = await supabase.rpc('select_zo_balance_payment_transact', {
+      p_requisition_id: reqCId,
+      p_actioned_by: zoMobile
+    });
+
+    expect(routeErrC).toBeDefined();
+    expect(routeErrC.message).toContain('Insufficient available Zonal Office balance');
+
+    // 5. The ZO balance itself must be unchanged - no partial debit occurred
+    const { data: balanceAfter } = await supabase
+      .from('zo_balances')
+      .select('available_balance')
+      .eq('zo_user_id', zoMobile)
+      .maybeSingle();
+    expect(Number(balanceAfter.available_balance)).toBe(2000.00);
   });
 });

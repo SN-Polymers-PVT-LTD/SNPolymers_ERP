@@ -5,7 +5,7 @@ const setupUsers = require('../../helpers/setupUsers');
 const mockRes = require('../../helpers/mockRes');
 
 // Controllers under test
-const { createRequisition, getRequisitions, getRequisitionById, actOnRequisition } = require('../../../src/controllers/requisitions.controller');
+const { createRequisition, getRequisitions, getRequisitionById, actOnRequisition, payFromZoBalance } = require('../../../src/controllers/requisitions.controller');
 const { createFundRequest, getFundRequests, getFundRequestById, actOnFundRequest } = require('../../../src/controllers/fundRequests.controller');
 const { createProgressReport, getProgressReports, getProgressReportById, addAuthorityRemarks } = require('../../../src/controllers/dailyProgress.controller');
 const { getEstimates, getEstimateById } = require('../../../src/controllers/estimates.core.controller');
@@ -216,7 +216,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     reqId = resCreateOk.jsonData.requisition.requisition_id;
   });
 
-  test('M6-TC-02: Requisition approval deducts Zonal Balance cache and logs to ledger', async () => {
+  test('M6-TC-02: Requisition approval + ZO Balance payment route deducts Zonal Balance cache and logs to ledger', async () => {
     if (!reqId) return;
 
     // 1. Approve as ZO 2 -> Should fail with 403 (mismatching ZO user)
@@ -249,6 +249,15 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
       console.log('DEBUG TC-02 Requisition Action failed response:', resApproveOk.jsonData);
     }
     expect(resApproveOk.statusCode).toBe(200);
+
+    // Approval alone no longer moves money - the ZO must explicitly pick the
+    // ZO Balance payment route for the debit/ledger entry to happen.
+    const resPayFromZoBalance = mockRes();
+    await payFromZoBalance({ user: { mobile_number: zo1Mobile, role: 'zo' }, params: { id: reqId } }, resPayFromZoBalance);
+    if (resPayFromZoBalance.statusCode !== 200) {
+      console.log('DEBUG TC-02 payFromZoBalance failed response:', resPayFromZoBalance.jsonData);
+    }
+    expect(resPayFromZoBalance.statusCode).toBe(200);
 
     // Verify balance
     const { data: balanceData } = await supabase

@@ -1,10 +1,12 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
+const setupProject = require('../../helpers/setupProject');
 
 describe('Milestone P6-M1 — RA/Final Bill Database Foundation', () => {
   let suffix;
   let testBillNo;
+  let testWorkOrder;
   let createdBillId = null;
   let mobile = null;
   let project = null;
@@ -12,35 +14,34 @@ describe('Milestone P6-M1 — RA/Final Bill Database Foundation', () => {
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
     testBillNo = `BILL_M1_TEST_${suffix}`;
+    testWorkOrder = `TEST_WO_P6_M1_${suffix}`;
 
-    // Find a valid user and project (work order) to test with
+    // Find a valid user to test with
     const { data: users, error: userError } = await supabase.from('authorised_users').select('mobile_number').limit(1);
     if (userError || !users || !users.length) {
       throw new Error(`Failed to find a user: ${userError ? userError.message : 'Empty'}`);
     }
     mobile = users[0].mobile_number;
 
-    // Find a valid project that has no entries in ra_final_bills to avoid unique constraint issues
-    const { data: bills } = await supabase.from('ra_final_bills').select('work_order_no');
-    const existingWOs = new Set((bills || []).map(b => b.work_order_no));
-
-    const { data: projects, error: projectError } = await supabase.from('projects_master').select('work_order_no, state, district, zone, department, site_details');
-    if (projectError || !projects || !projects.length) {
+    // Create an isolated project for this suite (ra_final_bills rows are permanent
+    // audit records — an RESTRICT FK to projects_master — so this test cannot rely
+    // on borrowing/cleaning up another test file's project row).
+    await setupProject(testWorkOrder, `EST_P6_M1_${suffix}`, 1000000.00, mobile);
+    const { data: projectData, error: projectError } = await supabase
+      .from('projects_master')
+      .select('work_order_no, state, district, zone, department, site_details')
+      .eq('work_order_no', testWorkOrder)
+      .single();
+    if (projectError || !projectData) {
       throw new Error(`Failed to find a project: ${projectError ? projectError.message : 'Empty'}`);
     }
-    
-    project = projects.find(p => !existingWOs.has(p.work_order_no)) || projects[0];
-
-    // Clean up any old test bills for this work order to avoid unique constraint issues
-    await supabase
-      .from('ra_final_bills')
-      .delete()
-      .eq('work_order_no', project.work_order_no);
+    project = projectData;
   });
 
   afterAll(async () => {
-    // Clean up created bill record (since hard delete trigger blocks delete, it remains, but we try a soft cancel/remarks update if needed)
-    // Actually, hard delete is blocked, so we just log a note or let it remain.
+    // ra_final_bills rows created in this suite are permanent (hard delete is
+    // trigger-blocked, see Test 2) and hold a RESTRICT FK to projects_master, so
+    // neither the bill rows nor the project row created above can be cleaned up.
   });
 
   describe('RA/Final Bill Core Operations', () => {

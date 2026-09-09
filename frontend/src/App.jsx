@@ -28,6 +28,8 @@ const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
 const Requisitions = React.lazy(() => import('./pages/Requisitions'));
+const ProjectsBeneficiaryMaster = React.lazy(() => import('./pages/ProjectsBeneficiaryMaster'));
+const SubcontractorLedger = React.lazy(() => import('./pages/SubcontractorLedger'));
 const DailyProgress = React.lazy(() => import('./pages/DailyProgress'));
 const RAFinalBill = React.lazy(() => import('./pages/RAFinalBill'));
 const UserMappings = React.lazy(() => import('./pages/UserMappings'));
@@ -52,6 +54,7 @@ const AcctParticulars = React.lazy(() => import('./pages/AcctParticulars'));
 const AcctBeneficiaryMaster = React.lazy(() => import('./pages/AcctBeneficiaryMaster'));
 const AcctBankBalances = React.lazy(() => import('./pages/AcctBankBalances'));
 const AcctImportEligibleItems = React.lazy(() => import('./pages/AcctImportEligibleItems'));
+const AcctPaymentRequisitions = React.lazy(() => import('./pages/AcctPaymentRequisitions'));
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
 const AcctRequisitionLogs = React.lazy(() => import('./pages/AcctRequisitionLogs'));
 const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
@@ -126,6 +129,8 @@ function App() {
                 {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
                   <Route path="/requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><Requisitions /></React.Suspense>} />
+                  <Route path="/requisitions/beneficiary-master" element={<React.Suspense fallback={<AppChunkLoader />}><ProjectsBeneficiaryMaster /></React.Suspense>} />
+                  <Route path="/subcontractor-ledger" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractorLedger /></React.Suspense>} />
                   <Route path="/daily-progress" element={<React.Suspense fallback={<AppChunkLoader />}><DailyProgress /></React.Suspense>} />
                 </Route>
 
@@ -150,6 +155,7 @@ function App() {
                   <Route path="/acct-requisitions/particulars" element={<React.Suspense fallback={<AppChunkLoader />}><AcctParticulars /></React.Suspense>} />
                   <Route path="/acct-requisitions/beneficiary-master" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBeneficiaryMaster /></React.Suspense>} />
                   <Route path="/acct-requisitions/import-eligible-items" element={<React.Suspense fallback={<AppChunkLoader />}><AcctImportEligibleItems /></React.Suspense>} />
+                  <Route path="/acct-requisitions/payment-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctPaymentRequisitions /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts HO Approval Protected Routes (HO, Admin) */}

@@ -12,6 +12,7 @@ const {
   refreshIndianBanksCache
 } = require('../validation/acctRequisition.schema');
 const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
+const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -380,9 +381,26 @@ async function getSheetById(req, res) {
       .eq('sheet_id', sheetId)
       .order('created_at', { ascending: true });
 
-    if (itemsErr) throw itemsErr;
+    const sourceReqIds = [...new Set((items || []).map(i => i.source_requisition_id).filter(Boolean))];
+    let sourceReqMap = {};
+    if (sourceReqIds.length > 0) {
+      const { data: sourceReqs } = await supabase
+        .from('requisitions')
+        .select('requisition_id, requisition_no, accounts_sent_by, accounts_sent_at')
+        .in('requisition_id', sourceReqIds);
+      sourceReqMap = (sourceReqs || []).reduce((acc, r) => { acc[r.requisition_id] = r; return acc; }, {});
+    }
 
-    return res.status(200).json({ success: true, sheet: { ...sheet, items: items || [] } });
+    const enrichedItems = (items || []).map(item => ({
+      ...item,
+      beneficiary_bank: item.beneficiary_bank_id ? {
+        id: item.beneficiary_bank_id,
+        bank_name: item.beneficiary_bank_name
+      } : null,
+      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null
+    }));
+
+    return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
   } catch (error) {
     console.error(`getSheetById failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheet.' });
@@ -402,6 +420,22 @@ async function addLineItem(req, res) {
   const { sheetId } = req.params;
 
   try {
+    if (req.body.beneficiary_bank_id) {
+      const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
+      if (!bankCheck.valid) {
+        if (bankCheck.reason === 'NOT_FOUND') {
+          return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+        }
+        if (bankCheck.reason === 'INACTIVE') {
+          return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+        }
+      }
+      req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
+    } else if (req.body.beneficiary_bank_id === null || req.body.beneficiary_bank_id === '') {
+      req.body.beneficiary_bank_id = null;
+      req.body.beneficiary_bank_name = null;
+    }
+
     // add_acct_line_item_transact (033_add_line_item_transact_and_neft_beneficiary_check.sql)
     // locks the sheet row FOR UPDATE before checking sheet_status, closing the race where a
     // concurrent submit could flip the sheet to 'Submitted' between a separate SELECT check
@@ -422,7 +456,15 @@ async function addLineItem(req, res) {
       throw rpcErr;
     }
 
-    return res.status(201).json({ success: true, item, message: 'Line item added.' });
+    const enrichedItem = item ? {
+      ...item,
+      beneficiary_bank: item.beneficiary_bank_id ? {
+        id: item.beneficiary_bank_id,
+        bank_name: item.beneficiary_bank_name
+      } : null
+    } : item;
+
+    return res.status(201).json({ success: true, item: enrichedItem, message: 'Line item added.' });
   } catch (error) {
     console.error(`addLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to add line item.' });
@@ -470,6 +512,24 @@ async function updateLineItem(req, res) {
       });
     }
 
+    if ('beneficiary_bank_id' in req.body) {
+      if (req.body.beneficiary_bank_id) {
+        const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
+        if (!bankCheck.valid) {
+          if (bankCheck.reason === 'NOT_FOUND') {
+            return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+          }
+          if (bankCheck.reason === 'INACTIVE') {
+            return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+          }
+        }
+        req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
+      } else {
+        req.body.beneficiary_bank_id = null;
+        req.body.beneficiary_bank_name = null;
+      }
+    }
+
     const { data: updated, error: updateErr } = await supabase
       .from('acct_requisition_line_items')
       .update(req.body)
@@ -479,7 +539,15 @@ async function updateLineItem(req, res) {
 
     if (updateErr) throw updateErr;
 
-    return res.status(200).json({ success: true, item: updated, message: 'Line item updated.' });
+    const enrichedUpdated = updated ? {
+      ...updated,
+      beneficiary_bank: updated.beneficiary_bank_id ? {
+        id: updated.beneficiary_bank_id,
+        bank_name: updated.beneficiary_bank_name
+      } : null
+    } : updated;
+
+    return res.status(200).json({ success: true, item: enrichedUpdated, message: 'Line item updated.' });
   } catch (error) {
     console.error(`updateLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update line item.' });
@@ -511,6 +579,13 @@ async function deleteLineItem(req, res) {
       return res.status(403).json({ success: false, message: 'Line items can only be deleted while the sheet is Open.' });
     }
 
+    const { data: itemToDelete } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id, source_requisition_id')
+      .eq('id', itemId)
+      .eq('sheet_id', sheetId)
+      .maybeSingle();
+
     const { error: deleteErr } = await supabase
       .from('acct_requisition_line_items')
       .delete()
@@ -518,6 +593,18 @@ async function deleteLineItem(req, res) {
       .eq('sheet_id', sheetId);
 
     if (deleteErr) throw deleteErr;
+
+    if (itemToDelete?.source_requisition_id) {
+      await supabase
+        .from('requisitions')
+        .update({
+          accounts_line_item_id: null,
+          accounts_imported_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemToDelete.source_requisition_id)
+        .eq('accounts_line_item_id', itemId);
+    }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
   } catch (error) {
@@ -819,6 +906,25 @@ async function resubmitLineItem(req, res) {
   const { itemId } = req.params;
   const b = req.body;
 
+  let resolvedBankId = b.beneficiary_bank_id ?? null;
+  let resolvedBankName = b.beneficiary_bank_name ?? null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if ('beneficiary_bank_id' in b && (b.beneficiary_bank_id === null || b.beneficiary_bank_id === '')) {
+    resolvedBankId = null;
+    resolvedBankName = null;
+  }
+
   try {
     const { data, error: rpcErr } = await supabase.rpc('resubmit_acct_line_item_transact', {
       p_line_item_id: itemId,
@@ -829,12 +935,13 @@ async function resubmitLineItem(req, res) {
       p_beneficiary_ac_no: b.beneficiary_ac_no ?? null,
       p_beneficiary_name: b.beneficiary_name ?? null,
       p_beneficiary_ifsc: b.beneficiary_ifsc ?? null,
-      p_beneficiary_bank_name: b.beneficiary_bank_name ?? null,
+      p_beneficiary_bank_name: resolvedBankName,
       p_debit_bank_ac_type: b.debit_bank_ac_type ?? null,
       p_req_amount: b.req_amount ?? null,
       p_payment_mode: b.payment_mode ?? null,
       p_cheque_no: b.cheque_no ?? null,
-      p_cheque_date: b.cheque_date ?? null
+      p_cheque_date: b.cheque_date ?? null,
+      p_beneficiary_bank_id: resolvedBankId
     });
 
     if (rpcErr) {
@@ -848,7 +955,16 @@ async function resubmitLineItem(req, res) {
       console.error(`[ACCT ITEM] Telegram notification failed: ${err.message}`);
     });
 
-    return res.status(200).json({ success: true, item: data, message: 'Line item resubmitted.' });
+    const enrichedItem = data ? {
+      ...data,
+      beneficiary_bank: resolvedBankId ? {
+        id: resolvedBankId,
+        bank_name: resolvedBankName
+      } : null,
+      beneficiary_bank_name: resolvedBankName || data.beneficiary_bank_name
+    } : data;
+
+    return res.status(200).json({ success: true, item: enrichedItem, message: 'Line item resubmitted.' });
   } catch (error) {
     console.error(`resubmitLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to resubmit line item.' });
@@ -885,9 +1001,7 @@ async function getImportEligibleItems(req, res) {
       .is('imported_to_sheet_id', null)
       .eq('import_dismissed', false);
 
-    // Narrow to one specific status, still within the eligible set — an
-    // out-of-set value is ignored rather than passed straight into .eq(),
-    // same whitelist convention getSheets uses for sheet_status.
+    // Narrow to one specific status, still within the eligible set
     if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
       dbQuery = dbQuery.eq('requisition_status', query.status);
     }
@@ -917,12 +1031,12 @@ async function getImportEligibleItems(req, res) {
     }
 
     dbQuery = dbQuery.order('created_at', { ascending: false });
-    dbQuery = isExport ? dbQuery.limit(5000) : dbQuery.range(offset, offset + limit - 1);
 
-    const { data: items, count, error } = await dbQuery;
+    // Fetch line items (up to 5000 for export/merging)
+    const { data: items, count: lineItemsCount, error } = await dbQuery.limit(5000);
     if (error) throw error;
 
-    const sheetIds = [...new Set((items || []).map(i => i.sheet_id))];
+    const sheetIds = [...new Set((items || []).map(i => i.sheet_id).filter(Boolean))];
     let sheetMap = {};
 
     if (sheetIds.length > 0) {
@@ -938,20 +1052,90 @@ async function getImportEligibleItems(req, res) {
       }, {});
     }
 
-    const enrichedItems = (items || []).map(item => ({
+    const enrichedLineItems = (items || []).map(item => ({
       ...item,
+      item_type: 'LINE_ITEM',
       sheet_number: sheetMap[item.sheet_id]?.sheet_number || null,
       sheet_status: sheetMap[item.sheet_id]?.sheet_status || null
     }));
 
-    if (isExport) {
-      return res.status(200).json({ success: true, items: enrichedItems });
+    // Payment Requisitions queued for Accounts have requisition_status = 'Pending Review'
+    let reqs = [];
+    let reqsCount = 0;
+    if (!query.status || query.status === 'Pending Review') {
+      let reqQuery = supabase
+        .from('requisitions')
+        .select('*', { count: 'exact' })
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false);
+
+      if (query.particulars) {
+        reqQuery = reqQuery.ilike('expen_head_remarks', `%${query.particulars}%`);
+      }
+      if (query.account_sub_title) {
+        reqQuery = reqQuery.ilike('material_main_head', `%${query.account_sub_title}%`);
+      }
+      if (query.beneficiary_ac_no) {
+        reqQuery = reqQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+      }
+      if (query.date_from) {
+        reqQuery = reqQuery.gte('accounts_sent_at', query.date_from);
+      }
+      if (query.date_to) {
+        reqQuery = reqQuery.lte('accounts_sent_at', `${query.date_to}T23:59:59.999`);
+      }
+
+      // If debit_bank_ac_type filter is present, payment requisitions have no debit bank yet so exclude
+      if (!query.debit_bank_ac_type) {
+        const { data: fetchedReqs, count: rCount, error: reqErr } = await reqQuery.order('accounts_sent_at', { ascending: false }).limit(5000);
+        if (reqErr) throw reqErr;
+        reqs = (fetchedReqs || []).map(r => ({
+          id: r.requisition_id,
+          item_type: 'PAYMENT_REQUISITION',
+          sheet_id: null,
+          sheet_number: r.requisition_no, // User confirmed: "show req number"
+          sheet_status: null,
+          account_sub_title_id: null,
+          account_sub_title_text: r.material_main_head || null,
+          particulars: r.expen_head_remarks || null,
+          beneficiary_ac_no: r.beneficiary_ac_no || null,
+          beneficiary_name: r.beneficiary_name || null,
+          beneficiary_ifsc: r.beneficiary_ifsc || null,
+          beneficiary_bank_name: r.beneficiary_bank_name || null,
+          beneficiary_bank_id: r.beneficiary_bank_id || null,
+          debit_bank_ac_type: null,
+          req_amount: r.approved_amount,
+          payment_mode: null,
+          cheque_no: null,
+          cheque_date: null,
+          requisition_status: 'Pending Review', // User confirmed: "the status label wud be pending review"
+          work_order_no: r.work_order_no,
+          source_requisition_id: r.requisition_id,
+          created_at: r.accounts_sent_at || r.payment_date || r.created_at
+        }));
+        reqsCount = rCount || reqs.length;
+      }
     }
+
+    const allCombined = [...enrichedLineItems, ...reqs].sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+
+    const total = (lineItemsCount || 0) + reqsCount;
+
+    if (isExport) {
+      return res.status(200).json({ success: true, items: allCombined });
+    }
+
+    const pagedItems = allCombined.slice(offset, offset + limit);
 
     return res.status(200).json({
       success: true,
-      items: enrichedItems,
-      pagination: { page, limit, total: count || 0, totalPages: Math.ceil((count || 0) / limit) }
+      items: pagedItems,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
     console.error(`getImportEligibleItems failed: ${error.message}`);
@@ -961,17 +1145,47 @@ async function getImportEligibleItems(req, res) {
 
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/import
- * body: { target_sheet_id }
- * Copies an On Hold/Rejected item into target_sheet_id as a brand-new line
- * item and marks the source as imported (import_acct_line_item_transact,
- * 034_add_line_item_import.sql) — the source row's requisition_status and
- * every other field are left untouched.
+ * body: { target_sheet_id, item_type }
+ * Copies an On Hold/Rejected/Pending Review line item or Payment Requisition into target_sheet_id.
  */
 async function importLineItem(req, res) {
   const { itemId } = req.params;
-  const { target_sheet_id } = req.body;
+  const { target_sheet_id, item_type } = req.body;
 
   try {
+    let isPaymentReq = item_type === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error: rpcErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {
+        p_requisition_id: itemId,
+        p_target_sheet_id: target_sheet_id,
+        p_imported_by: req.user.mobile_number
+      });
+
+      if (rpcErr) {
+        const mapped = mapAcctRpcError(rpcErr);
+        if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+        throw rpcErr;
+      }
+
+      return res.status(201).json({
+        success: true,
+        item: data.line_item,
+        requisition: data.requisition,
+        message: 'Line item imported.'
+      });
+    }
+
     const { data, error: rpcErr } = await supabase.rpc('import_acct_line_item_transact', {
       p_source_item_id: itemId,
       p_target_sheet_id: target_sheet_id,
@@ -994,13 +1208,50 @@ async function importLineItem(req, res) {
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
  * Soft-hides an eligible item from the import list without touching its
- * real data — no hard delete, per this table's append-only guarantee
- * (prevent_acct_sheet_hard_delete, 030_allow_empty_open_sheet_delete.sql).
+ * real data.
  */
 async function dismissImportEligibleItem(req, res) {
   const { itemId } = req.params;
+  const itemType = req.query?.item_type || req.body?.item_type;
 
   try {
+    let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error } = await supabase
+        .from('requisitions')
+        .update({
+          accounts_import_dismissed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        return res.status(409).json({
+          success: false,
+          message: 'Item does not exist, or is already imported or dismissed.'
+        });
+      }
+
+      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+    }
+
     const { data, error } = await supabase
       .from('acct_requisition_line_items')
       .update({
@@ -1195,7 +1446,7 @@ async function getBeneficiaries(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
-    let dbQuery = supabase.from('beneficiary_master').select('*', { count: 'exact' });
+    let dbQuery = supabase.from('beneficiary_master').select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)', { count: 'exact' });
 
     if (query.search) {
       const term = query.search.replace(/[%,]/g, '');
@@ -1207,10 +1458,19 @@ async function getBeneficiaries(req, res) {
       .range(offset, offset + limit - 1);
     if (error) throw error;
 
+    const enriched = (beneficiaries || []).map(b => ({
+      ...b,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
     const total = count || 0;
     return res.status(200).json({
       success: true,
-      beneficiaries: beneficiaries || [],
+      beneficiaries: enriched,
       pagination: {
         page,
         limit,
@@ -1236,14 +1496,23 @@ async function lookupBeneficiary(req, res) {
   try {
     const { data, error } = await supabase
       .from('beneficiary_master')
-      .select('*')
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
       .eq('account_number', account_number)
       .eq('ifsc', ifsc)
       .maybeSingle();
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, beneficiary: data || null });
+    const enriched = data ? {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    } : null;
+
+    return res.status(200).json({ success: true, beneficiary: enriched });
   } catch (error) {
     console.error(`lookupBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to look up beneficiary.' });
@@ -1252,16 +1521,9 @@ async function lookupBeneficiary(req, res) {
 
 /**
  * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...
- * Live typeahead for the line-item entry row's A/C No. field — left-anchored
- * prefix match only (not getBeneficiaries' substring/alphabetical search,
- * which backs the Beneficiary Master management page instead), most
- * recently used first, so the suggestion the user actually wants surfaces
- * near the top instead of getting buried alphabetically by name.
- * idx_beneficiary_master_acno_prefix (038) backs this query.
+ * Live typeahead for the line-item entry row's A/C No. field
  */
 async function searchBeneficiariesByAcNo(req, res) {
-  // Strip LIKE metacharacters (% and _) so a caller can't wildcard-expand
-  // the match — same convention as getBeneficiaries' `search` sanitization.
   const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
   if (prefix.length < 3) {
     return res.status(200).json({ success: true, beneficiaries: [] });
@@ -1269,20 +1531,27 @@ async function searchBeneficiariesByAcNo(req, res) {
   const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
 
   try {
-    // .like(), not .ilike(): idx_beneficiary_master_acno_prefix (038) uses
-    // varchar_pattern_ops, which only accelerates case-sensitive LIKE, not
-    // ILIKE. Account numbers are digits-only (chk/regex-enforced elsewhere),
-    // so a case-sensitive match is exactly as correct and actually uses the
-    // index instead of falling back to a sequential scan on every keystroke.
     const { data, error } = await supabase
       .from('beneficiary_master')
-      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name')
+      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)')
       .like('account_number', `${prefix}%`)
       .order('last_used_at', { ascending: false, nullsFirst: false })
       .limit(limit);
     if (error) throw error;
 
-    return res.status(200).json({ success: true, beneficiaries: data || [] });
+    const enriched = (data || []).map(b => ({
+      account_number: b.account_number,
+      ifsc: b.ifsc,
+      beneficiary_name: b.beneficiary_name,
+      beneficiary_bank_id: b.beneficiary_bank_id,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
+    return res.status(200).json({ success: true, beneficiaries: enriched });
   } catch (error) {
     console.error(`searchBeneficiariesByAcNo failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to search beneficiaries.' });
@@ -1294,7 +1563,33 @@ async function searchBeneficiariesByAcNo(req, res) {
  */
 async function upsertBeneficiary(req, res) {
   if (!validate(req, res, upsertBeneficiarySchema)) return;
-  const { account_number, ifsc, beneficiary_name, beneficiary_bank_name } = req.body;
+  const { account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
+
+  let resolvedBankId = beneficiary_bank_id || null;
+  let resolvedBankName = beneficiary_bank_name?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
 
   try {
     const { data, error } = await supabase
@@ -1304,19 +1599,29 @@ async function upsertBeneficiary(req, res) {
           account_number,
           ifsc,
           beneficiary_name,
-          beneficiary_bank_name,
+          beneficiary_bank_id: resolvedBankId,
+          beneficiary_bank_name: resolvedBankName,
           last_used_at: new Date().toISOString(),
           created_by: req.user.mobile_number,
           updated_by: req.user.mobile_number
         },
         { onConflict: 'account_number,ifsc' }
       )
-      .select()
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
       .single();
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, beneficiary: data, message: 'Beneficiary saved.' });
+    const enriched = {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    };
+
+    return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
   } catch (error) {
     console.error(`upsertBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
@@ -1446,6 +1751,11 @@ async function upsertParticular(req, res) {
  */
 async function getIndianBanks(req, res) {
   try {
+    if (req.query.active_only === 'true') {
+      const activeBanks = await getActiveIndianBanks();
+      return res.status(200).json({ success: true, indianBanks: activeBanks });
+    }
+
     const { data, error } = await supabase
       .from('indian_bank_master')
       .select('*')
@@ -1491,6 +1801,7 @@ async function upsertIndianBank(req, res) {
     // an admin-only write path) and this also correctly drops a bank from
     // validation the moment it's deactivated, which an add-only patch can't.
     await refreshIndianBanksCache();
+    invalidateBankCache();
 
     return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
   } catch (error) {
@@ -1865,6 +2176,70 @@ async function adjustCreditLedgerBalance(req, res) {
   }
 }
 
+/**
+ * GET /acct-requisitions/payment-requisitions
+ * Read-only intake list of Payment Requisitions routed to Accounts (§27-28 of
+ * the routing spec) - a distinct source domain from the Hold/Rejected/Pending
+ * Review import queue (getImportEligibleItems). Model A means the Accounts
+ * line item already exists the moment routing succeeds, so this is browse-only:
+ * no import action, just traceability back to the originating requisition.
+ */
+async function getPaymentRequisitions(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    const { data: reqs, count, error } = await supabase
+      .from('requisitions')
+      .select('requisition_id, requisition_no, work_order_no, material_main_head, expen_head_remarks, beneficiary_name, approved_amount, accounts_line_item_id, accounts_sent_by, accounts_sent_at', { count: 'exact' })
+      .eq('payment_destination', 'ACCOUNTS')
+      .order('accounts_sent_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const lineItemIds = [...new Set((reqs || []).map(r => r.accounts_line_item_id).filter(Boolean))];
+    let sheetByLineItem = {};
+    if (lineItemIds.length > 0) {
+      const { data: lineItems } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, acct_requisition_sheets(id, sheet_number)')
+        .in('id', lineItemIds);
+      sheetByLineItem = (lineItems || []).reduce((acc, li) => {
+        acc[li.id] = li.acct_requisition_sheets || null;
+        return acc;
+      }, {});
+    }
+
+    const sentByIds = [...new Set((reqs || []).map(r => r.accounts_sent_by).filter(Boolean))];
+    let userMap = {};
+    if (sentByIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', sentByIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    const items = (reqs || []).map(r => ({
+      ...r,
+      accounts_sent_by_name: userMap[r.accounts_sent_by] || r.accounts_sent_by || null,
+      sheet: sheetByLineItem[r.accounts_line_item_id] || null
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      items,
+      pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getPaymentRequisitions failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Payment Requisitions.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
@@ -1877,5 +2252,6 @@ module.exports = {
   getIndianBanks, upsertIndianBank,
   exportBulkNeft,
   getRequisitionLogs,
-  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance,
+  getPaymentRequisitions
 };

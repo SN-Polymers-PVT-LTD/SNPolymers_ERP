@@ -1,8 +1,13 @@
 -- Migration 00E: Seed default test materials and base test users
 
+-- Note: +918000000001 is deliberately NOT seeded here as an admin — it is
+-- reused throughout tests/vitest/milestones/*.test.js as a generic 'zo' test
+-- fixture identity (upserted with role 'zo'), which previously collided with
+-- this seed and silently rewrote it away from 'admin' mid-suite, corrupting
+-- attribution of rows (e.g. indian_bank_master) seeded against it below by
+-- migrations 026/051. +918276071523 is the suite's stable, untouched admin.
 INSERT INTO public.authorised_users (mobile_number, role, is_active, display_name)
-VALUES 
-  ('+918000000001', 'admin', true, 'System Admin Test User'),
+VALUES
   ('+918276071523', 'admin', true, 'Test Admin User')
 ON CONFLICT (mobile_number) DO NOTHING;
 

@@ -93,7 +93,7 @@ const AcctHoSheetView = () => {
     staleTime: 60 * 1000,
     enabled: isHoUser
   });
-  const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
+  const indianBanks = indianBanksRaw.filter(b => b.is_active);
 
   const { data: particularsRaw = [] } = useQuery({
     queryKey: ['acctParticulars'],

@@ -13,7 +13,8 @@ const {
 const {
   getRequisitionById,
   createRequisition,
-  actOnRequisition
+  actOnRequisition,
+  payFromZoBalance
 } = require('../../../src/controllers/requisitions.controller');
 const {
   createFundRequest,
@@ -222,7 +223,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
     }
   });
 
-  test('requisition approval debits ZO balance and writes negative ledger entry', async () => {
+  test('requisition approval + ZO Balance payment route debits ZO balance and writes negative ledger entry', async () => {
     const localSuffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedFinancialScenario({
       suffix: `bud5_${localSuffix}`,
@@ -258,6 +259,15 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       });
 
       expect(res.statusCode).toBe(200);
+
+      // Approval alone no longer moves money - the ZO must explicitly pick
+      // the ZO Balance payment route for the debit/ledger entry to happen.
+      const routeRes = mockRes();
+      await payFromZoBalance(
+        { params: { id: req.requisition_id }, user: { role: 'ho', mobile_number: localCtx.hoMobile } },
+        routeRes
+      );
+      expect(routeRes.statusCode).toBe(200);
 
       const balanceAfter = await getZoBalance(localCtx.zoMobile);
       expect(balanceAfter).toBe(balanceBefore - 3000);

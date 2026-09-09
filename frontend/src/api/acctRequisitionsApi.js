@@ -61,14 +61,28 @@ export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${she
 export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/sheets/${sheetId}/items/${itemId}`, data);
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
+// ── Payment Requisitions (Finance intake) ───────────────────────────────
+// Read-only list of Payment Requisitions the ZO has routed to Accounts
+// (payment_destination = 'ACCOUNTS'). A separate source domain from the On
+// Hold/Rejected/Pending Review rollover queue below — the line item already
+// exists the moment routing succeeds (Model A), so this is browse-only.
+export const getPaymentRequisitions = (params) => authApi.get(`${BASE}/payment-requisitions`, { params });
+
 // ── Import On Hold/Rejected/Pending Review items into a new sheet ───────
 // Accumulating, cross-sheet list of On Hold/Rejected/Pending Review items
 // that haven't been imported or dismissed yet (034_add_line_item_import.sql,
 // widened to include Pending Review by 041_close_review_pending_rollover.sql).
 // params supports particulars/status filters alongside the existing ones.
 export const getImportEligibleItems = (params) => authApi.get(`${BASE}/import-eligible-items`, { params });
-export const importLineItem = (itemId, targetSheetId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, { target_sheet_id: targetSheetId });
-export const dismissImportEligibleItem = (itemId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`);
+export const importLineItem = (itemId, targetSheetId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, {
+    target_sheet_id: targetSheetId,
+    item_type: itemType
+  });
+export const dismissImportEligibleItem = (itemId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`, {
+    item_type: itemType
+  });
 
 export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${itemId}/action`, data);
 // One request carrying every staged HO decision for a sheet, instead of one

@@ -165,7 +165,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
               onClick={() => handlePick(b)}
             >
               <p className="text-xs font-bold text-slate-200">{b.account_number}</p>
-              <p className="text-[10px] text-slate-400">{b.beneficiary_name} &middot; {b.beneficiary_bank_name}</p>
+              <p className="text-[10px] text-slate-400">{b.beneficiary_name} &middot; {b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</p>
             </button>
           ))}
         </div>,

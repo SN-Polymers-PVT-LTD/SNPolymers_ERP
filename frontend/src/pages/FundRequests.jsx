@@ -15,9 +15,10 @@ import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModa
 
 // API Clients
 import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest } from '../api/fundRequests';
+import { getRequisitions } from '../api/requisitionsApi';
 import { getProjects } from '../api/projectsApi';
 import { getEstimateSummary } from '../api/estimatesApi';
-import { exportFundRequestsToExcel } from '../utils/exportHelpers';
+import { exportFundRequestsToExcel, exportCombinedExpenditureSheet } from '../utils/exportHelpers';
 import {
   buildSubmittedFrSumByWo,
   computeFundRequestRemaining,
@@ -465,9 +466,24 @@ const FundRequests = () => {
       {showExportModal && (
         <ExportDateRangeModal
           onClose={() => setShowExportModal(false)}
-          onConfirm={(dateRange) => {
+          onConfirm={async (dateRange) => {
             setShowExportModal(false);
-            exportFundRequestsToExcel(filteredRequests, dateRange);
+            if (dateRange?.format === 'combined') {
+              try {
+                const reqRes = await getRequisitions().catch(() => ({ data: [] }));
+                const allRequisitions = Array.isArray(reqRes) ? reqRes : (reqRes?.data?.requisitions || reqRes?.data || []);
+                await exportCombinedExpenditureSheet({
+                  fundRequests: requests || [],
+                  requisitions: allRequisitions,
+                  dateRange: { start: dateRange.start, end: dateRange.end }
+                });
+              } catch (err) {
+                console.error("Failed to export combined expenditure sheet:", err);
+                alert("Failed to export combined expenditure sheet: " + (err.message || 'Unknown error'));
+              }
+            } else {
+              exportFundRequestsToExcel(filteredRequests, dateRange);
+            }
           }}
         />
       )}

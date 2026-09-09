@@ -17,6 +17,34 @@ export const getRequisitionById = (id) =>
 export const getMainHeadCapacity = (work_order_no, material_main_head) =>
   authApi.get('/requisitions/capacity', { params: { work_order_no, material_main_head } });
 
+/** Fetch Subcontractor Ledger capacity metrics */
+export const getSubcontractorCapacity = (work_order_no, material_sub_head, material_details) =>
+  authApi.get('/requisitions/subcontractor-capacity', { params: { work_order_no, material_sub_head, material_details } });
+
+/** Browse Subcontractor Ledger balances (optionally filtered by work order / search text) */
+export const getSubcontractorLedger = (params = {}) =>
+  authApi.get('/requisitions/subcontractor-ledger', { params });
+
+/** Fetch the transaction trail for subcontractor balance(s) (supports object params or positional args) */
+export const getSubcontractorLedgerEntries = (paramsOrWo, material_sub_head, material_details) => {
+  const params = typeof paramsOrWo === 'object' && paramsOrWo !== null
+    ? paramsOrWo
+    : {
+        work_order_no: paramsOrWo || undefined,
+        material_sub_head: material_sub_head || undefined,
+        material_details: material_details || undefined
+      };
+  return authApi.get('/requisitions/subcontractor-ledger/entries', { params });
+};
+
+/** Fetch every Requisition raised against a Sub Contractor, across all work orders (filterable) */
+export const getSubcontractorRequisitions = (params = {}) =>
+  authApi.get('/requisitions/subcontractor-ledger/requisitions', { params });
+
+/** Admin balance adjustment for a subcontractor ledger entry (HO or Admin only) */
+export const adjustSubcontractorBalance = (data) =>
+  authApi.post('/requisitions/subcontractor-ledger/adjust', data);
+
 /** Create a new requisition */
 export const createRequisition = (data) =>
   authApi.post('/requisitions', data);
@@ -27,6 +55,15 @@ export const createRequisition = (data) =>
  */
 export const actOnRequisition = (id, data) =>
   authApi.patch(`/requisitions/${id}/action`, data);
+
+/** Select the ZO Balance payment route for an Approved requisition (ZO or Admin only) */
+export const payFromZoBalance = (id) =>
+  authApi.post(`/requisitions/${id}/pay-from-zo-balance`);
+
+/** Send an Approved requisition to Accounts (ZO or Admin only) — creates an
+ * Accounts line item immediately; response includes { requisition, accounts } */
+export const sendRequisitionToAccounts = (id) =>
+  authApi.post(`/requisitions/${id}/send-to-accounts`);
 
 /** Cancel a Pending requisition */
 export const cancelRequisition = (id) =>
@@ -69,3 +106,24 @@ export const deleteRequisitionPdf = (requisitionNo) =>
  */
 export const deleteGstBillPdf = (requisitionNo) =>
   authApi.delete('/requisitions/upload/gst-bill', { params: { requisition_no: requisitionNo } });
+
+/** Live typeahead search for project payment requisition beneficiary suggestions */
+export const searchProjectsBeneficiaries = (prefix, limit = 8) =>
+  authApi.get('/requisitions/beneficiary-suggestions', { params: { prefix, limit } });
+
+/** Paginated/searchable list backing the Beneficiary Master page */
+export const getProjectsBeneficiaries = (params) =>
+  authApi.get('/requisitions/beneficiary-master', { params });
+
+/** Manual add/edit entry point for the Beneficiary Master page */
+export const upsertProjectsBeneficiary = (data) =>
+  authApi.put('/requisitions/beneficiary-master', data);
+
+/** Add/deactivate an Indian bank (shared indian_bank_master table) */
+export const upsertIndianBank = (data) =>
+  authApi.put('/requisitions/indian-banks', data);
+
+/** Fetch active Indian banks list */
+export const getIndianBanks = () =>
+  authApi.get('/requisitions/indian-banks');
+

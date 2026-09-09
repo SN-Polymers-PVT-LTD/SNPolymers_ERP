@@ -8,7 +8,8 @@ const {
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank, exportBulkNeft,
   getRequisitionLogs,
-  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance,
+  getPaymentRequisitions
 } = require('../controllers/acctRequisition.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -46,6 +47,7 @@ router.get('/beneficiary-master', requireRole(readerRoles), getBeneficiaries);
 router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
 router.put('/indian-banks', requireRole(accountsRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
 router.get('/line-items', requireRole(readerRoles), getLineItems);
+router.get('/payment-requisitions', requireRole(readerRoles), getPaymentRequisitions);
 router.get('/logs', requireRole(readerRoles), getRequisitionLogs);
 router.get('/sheets', requireRole(readerRoles), getSheets);
 router.get('/sheets/:sheetId', requireRole(readerRoles), getSheetById);

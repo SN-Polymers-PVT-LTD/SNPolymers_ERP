@@ -64,6 +64,8 @@ const accountsLineItemBody = z.object({
                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                               message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
                             }),
+  beneficiary_bank_id:    z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
   // Not left as '': the debit bank <select> autosaves '' until chosen, same
   // as payment_mode below, but '' also isn't a valid bank_name — passing it
   // through unstransformed would clear Zod fine and then fail at the DB's
@@ -149,7 +151,10 @@ const resubmitLineItemSchema = {
 
 const importLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
-  body: z.object({ target_sheet_id: uuidSchema })
+  body: z.object({
+    target_sheet_id: uuidSchema,
+    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION']).optional()
+  })
 };
 
 const dismissLineItemSchema = {
@@ -211,10 +216,15 @@ const upsertBeneficiarySchema = {
     ifsc:                  z.string().trim()
                              .regex(ifscRegex, 'ifsc must be 11-char in format AAAA0XXXXXX.'),
     beneficiary_name:      z.string().trim().min(1, 'beneficiary_name is required.'),
-    beneficiary_bank_name: z.string().trim().min(1, 'beneficiary_bank_name is required.')
-                             .refine(val => INDIAN_BANKS_SET.has(val.toUpperCase()), {
+    beneficiary_bank_id:   z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+                             .transform(val => (val === '' ? null : val)),
+    beneficiary_bank_name: z.string().trim().optional().nullable()
+                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                                message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
                              })
+  }).refine(data => data.beneficiary_bank_id || data.beneficiary_bank_name, {
+    message: 'Either beneficiary_bank_id or beneficiary_bank_name is required.',
+    path: ['beneficiary_bank_id']
   })
 };
 

@@ -1,15 +1,21 @@
 -- FOR DEVELOPMENT DB ONLY. DO NOT USE THIS IN PROD.
 --
--- Same nuke script as before, with a reseed step added right after the
--- TRUNCATE (step 1b) — before step 2 deletes users, since step 2 could
--- remove every admin account (if none have telegram_chat_id set), and the
--- reseed needs at least one admin to exist to attribute the seeded row to.
+-- Nuke and reseed script for development/staging environments:
+-- 1.  Truncates all application tables with RESTART IDENTITY CASCADE.
+-- 1b. Reseeds baseline sentinel row that the application assumes always exists
+--     ('Credit' virtual bank in bank_balance_master for credit purchases / 042 & 045).
+--     Ensures an admin user is available and attributed to satisfy FK constraints.
+-- 2.  Cleans up transient test users without a Telegram ID, safely preserving
+--     admin and accounts role users.
+-- 3.  Reset user daily streaks and report timestamps.
+-- 4.  Refreshes all analytics materialized views.
 
 -- 1. Nuke all database tables
 TRUNCATE TABLE
   -- Accounts HO Requisitions & Banking
   acct_requisition_line_items,
   acct_requisition_sheets,
+  credit_ledger,
   account_sub_title_master,
   beneficiary_master,
   bank_balance_master,
@@ -24,8 +30,13 @@ TRUNCATE TABLE
   project_cost_estimates,
   estimate_revision_log,
 
+  -- Subcontractor Ledger & Balances
+  subcontractor_ledger,
+  subcontractor_balances,
+
   -- Field Operations & Billing
   requisitions,
+  projects_beneficiary_master,
   ra_final_bills,
   daily_progress_reports,
   fund_requests,
@@ -45,18 +56,11 @@ TRUNCATE TABLE
   -- Auth & Sessions
   sessions,
   otp_requests
-CASCADE;
+RESTART IDENTITY CASCADE;
 
 -- 1b. Reseed rows the app assumes always exist, that TRUNCATE just wiped.
---     Must run before step 2 — see note above. Prefer an admin who HAS a
---     telegram_chat_id set: bank_balance_master.created_by/updated_by are
---     FK'd to authorised_users ON DELETE RESTRICT, so if the seed picked an
---     admin step 2 is about to delete, step 2's DELETE would hit a FK
---     violation and fail outright (rolling back that whole statement,
---     leaving every other no-telegram user undeleted too). Falls back to
---     any admin if none have telegram configured — in that case step 2
---     will still fail to remove that one admin; that's a pre-existing
---     tension in this script, not something this reseed step introduces.
+--     Must run before step 2. Prefer an admin who HAS a telegram_chat_id set.
+--     If no admin exists, creates/ensures a default admin to satisfy FK constraints.
 DO $$
 DECLARE
   v_seed_user varchar;
@@ -69,20 +73,28 @@ BEGIN
     SELECT mobile_number INTO v_seed_user FROM authorised_users WHERE role = 'admin' LIMIT 1;
   END IF;
 
+  IF v_seed_user IS NULL THEN
+    INSERT INTO public.authorised_users (mobile_number, role, is_active, display_name, telegram_chat_id)
+    VALUES ('919000000003', 'admin', true, 'System Admin Test User', '9988776655')
+    ON CONFLICT (mobile_number) DO UPDATE SET role = 'admin', is_active = true
+    RETURNING mobile_number INTO v_seed_user;
+  END IF;
+
   IF v_seed_user IS NOT NULL THEN
-    -- 'Credit' sentinel in bank_balance_master (042_credit_purchases_and_ledger.sql)
+    -- 'Credit' sentinel in bank_balance_master (042_credit_purchases_and_ledger.sql / 045)
     -- — without this, Debit Bank Type = 'Credit' disappears from the dropdown.
     INSERT INTO bank_balance_master (bank_name, balance_date, available_balance, is_virtual, created_by, updated_by)
     VALUES ('Credit', CURRENT_DATE, 0, true, v_seed_user, v_seed_user)
-    ON CONFLICT (bank_name) DO NOTHING;
+    ON CONFLICT (bank_name) DO UPDATE SET created_by = v_seed_user, updated_by = v_seed_user;
   ELSE
     RAISE NOTICE 'Credit sentinel reseed skipped: no admin user found in authorised_users.';
   END IF;
 END $$;
 
--- 2. Remove users with NULL or empty Telegram ID
+-- 2. Remove transient test users without a Telegram ID, preserving admin and accounts roles
 DELETE FROM public.authorised_users
-WHERE telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '';
+WHERE (telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '')
+  AND role NOT IN ('admin', 'accounts');
 
 -- 3. Reset user daily streaks and last report dates
 UPDATE public.authorised_users

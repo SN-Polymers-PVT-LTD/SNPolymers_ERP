@@ -14,7 +14,7 @@ const {
   actOnFundRequest
 } = require('../../../src/controllers/fundRequests.controller');
 const { createBill } = require('../../../src/controllers/raFinalBill.controller');
-const { actOnRequisition } = require('../../../src/controllers/requisitions.controller');
+const { actOnRequisition, payFromZoBalance } = require('../../../src/controllers/requisitions.controller');
 
 describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
   describe('Fund request approval BUD02', () => {
@@ -205,7 +205,7 @@ describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
   });
 
   describe('Requisition approval BAL01', () => {
-    test('rejects approval when amount exceeds ZO balance', async () => {
+    test('approval succeeds regardless of ZO balance; selecting the ZO Balance payment route is what rejects when amount exceeds it', async () => {
       await requireLocalSupabase();
       const suffix = crypto.randomUUID().substring(0, 8);
       const ctx = await seedCapDivergenceScenario({
@@ -231,15 +231,24 @@ describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
               body: {
                 action: 'Approve',
                 approved_amount: 5000,
-                remarks_approved_authority: 'Should fail BAL01'
+                remarks_approved_authority: 'Approves despite low ZO balance'
               }
             },
             res
           );
         });
 
-        expect(res.statusCode).toBe(422);
-        expect(res.jsonData.message).toMatch(/balance|BAL01/i);
+        // approve_requisition_transact no longer checks zo_balances at all.
+        expect(res.statusCode).toBe(200);
+
+        const routeRes = mockRes();
+        await payFromZoBalance(
+          { params: { id: req.requisition_id }, user: { role: 'ho', mobile_number: ctx.hoMobile } },
+          routeRes
+        );
+
+        expect(routeRes.statusCode).toBe(422);
+        expect(routeRes.jsonData.message).toMatch(/balance|BAL01/i);
       } finally {
         await cleanupFinancialScenario(ctx);
       }
