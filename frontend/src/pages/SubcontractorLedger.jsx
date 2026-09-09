@@ -152,6 +152,7 @@ const SubcontractorLedger = () => {
   const [adjustingEntry, setAdjustingEntry] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [multiWoPicker, setMultiWoPicker] = useState(null); // { group, action: 'view' | 'export' }
+  const [collapsedGroups, setCollapsedGroups] = useState({});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -209,6 +210,34 @@ const SubcontractorLedger = () => {
     }
     return groups;
   }, [requisitions]);
+
+  const toggleGroupCollapse = (key) => {
+    setCollapsedGroups(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const allGroupsCollapsed = useMemo(() => {
+    if (!groupedRequisitions || groupedRequisitions.length === 0) return false;
+    return groupedRequisitions.every(g => {
+      const key = `${g.material_sub_head}|||${g.material_details}`;
+      return Boolean(collapsedGroups[key]);
+    });
+  }, [groupedRequisitions, collapsedGroups]);
+
+  const toggleAllGroups = () => {
+    if (allGroupsCollapsed) {
+      setCollapsedGroups({});
+    } else {
+      const next = {};
+      groupedRequisitions.forEach(g => {
+        const key = `${g.material_sub_head}|||${g.material_details}`;
+        next[key] = true;
+      });
+      setCollapsedGroups(next);
+    }
+  };
 
   const isLoading = viewMode === 'balances' ? loadingBalances : loadingRequisitions;
   const queryError = viewMode === 'balances' ? balancesError : requisitionsError;
@@ -577,8 +606,31 @@ const SubcontractorLedger = () => {
           {hasFilters ? 'No requisitions match these filters.' : 'No Subcontractor requisitions yet.'}
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs text-slate-400 font-medium">
+              Showing <strong className="text-slate-200">{groupedRequisitions.length}</strong> {groupedRequisitions.length === 1 ? 'subcontractor' : 'subcontractors'}
+            </span>
+            <button
+              type="button"
+              onClick={toggleAllGroups}
+              className="text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer select-none"
+            >
+              <svg
+                className={`w-3.5 h-3.5 transform transition-transform duration-200 ${allGroupsCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              <span>{allGroupsCollapsed ? 'Expand All' : 'Collapse All'}</span>
+            </button>
+          </div>
+
           {groupedRequisitions.map((group) => {
+            const groupKey = `${group.material_sub_head}|||${group.material_details}`;
+            const isCollapsed = Boolean(collapsedGroups[groupKey]);
             // GAP-07: Use authoritative predicate to filter active requisitions for liabilities
             const activeRows = group.rows.filter((r) => isFinanciallyActiveRequisition(r.requisition_status));
             const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
@@ -586,14 +638,43 @@ const SubcontractorLedger = () => {
             const inactiveCount = group.rows.length - activeRows.length;
 
             return (
-              <div key={`${group.material_sub_head}|||${group.material_details}`} className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 bg-white/[0.02] border-b border-white/5">
-                  <div>
-                    <span className="text-sm font-bold text-slate-200">{group.material_details}</span>
-                    <span className="text-xs text-slate-500 ml-2">· {group.material_sub_head}</span>
-                    {inactiveCount > 0 && (
-                      <span className="text-[10px] text-slate-500 ml-2 italic">({inactiveCount} cancelled / rejected excluded)</span>
-                    )}
+              <div key={groupKey} className="glass-panel rounded-3xl border border-white/5 overflow-hidden transition-all duration-200">
+                <div
+                  onClick={() => toggleGroupCollapse(groupKey)}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer transition-colors select-none ${
+                    isCollapsed ? '' : 'border-b border-white/5'
+                  }`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleGroupCollapse(groupKey);
+                    }
+                  }}
+                  title={isCollapsed ? 'Click to expand' : 'Click to collapse'}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-white transition-colors shrink-0">
+                      <svg
+                        className={`w-3.5 h-3.5 transform transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-slate-200">{group.material_details}</span>
+                      <span className="text-xs text-slate-500 ml-2">· {group.material_sub_head}</span>
+                      <span className="ml-2.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/5 border border-white/10 text-slate-400">
+                        {group.rows.length} {group.rows.length === 1 ? 'requisition' : 'requisitions'}
+                      </span>
+                      {inactiveCount > 0 && (
+                        <span className="text-[10px] text-slate-500 ml-2 italic">({inactiveCount} cancelled / rejected excluded)</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-4">
                     <div className="flex gap-4 text-[11px]">
@@ -604,7 +685,10 @@ const SubcontractorLedger = () => {
                       <Button
                         variant="glass"
                         size="sm"
-                        onClick={() => handleGroupAction(group, 'view')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGroupAction(group, 'view');
+                        }}
                         className="text-[11px] h-7 px-2.5"
                       >
                         View Ledger
@@ -612,7 +696,10 @@ const SubcontractorLedger = () => {
                       <Button
                         variant="glass"
                         size="sm"
-                        onClick={() => handleGroupAction(group, 'export')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGroupAction(group, 'export');
+                        }}
                         disabled={isExporting}
                         className="text-[11px] h-7 px-2.5 text-indigo-300 hover:text-indigo-200 border-indigo-500/20"
                       >
@@ -621,52 +708,55 @@ const SubcontractorLedger = () => {
                     </div>
                   </div>
                 </div>
-                <Table containerClassName="min-w-[900px]">
-                  <TableHeader>
-                    <TableRow hover={false}>
-                      <TableCell isHeader>Requisition No.</TableCell>
-                      <TableCell isHeader>Work Order</TableCell>
-                      <TableCell isHeader align="right">Requested</TableCell>
-                      <TableCell isHeader align="right">Approved</TableCell>
-                      <TableCell isHeader>Status</TableCell>
-                      <TableCell isHeader>Requested By</TableCell>
-                      <TableCell isHeader>Creation Date</TableCell>
-                      <TableCell isHeader>Approved On</TableCell>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {group.rows.map((r) => (
-                      <TableRow key={r.requisition_id}>
-                        <TableCell>
-                          <span className="font-mono text-slate-300">{r.requisition_no}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-mono text-slate-400 text-xs">{r.work_order_no}</span>
-                        </TableCell>
-                        <TableCell align="right">
-                          <span className="text-slate-300 font-mono">{formatCurrency(r.requisition_amount)}</span>
-                        </TableCell>
-                        <TableCell align="right">
-                          <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={r.requisition_status === 'Approved' ? 'emerald' : r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
-                            {r.requisition_status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-slate-400 text-xs">{r.requester_name}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>
-                        </TableCell>
+
+                {!isCollapsed && (
+                  <Table containerClassName="min-w-[900px]">
+                    <TableHeader>
+                      <TableRow hover={false}>
+                        <TableCell isHeader>Requisition No.</TableCell>
+                        <TableCell isHeader>Work Order</TableCell>
+                        <TableCell isHeader align="right">Requested</TableCell>
+                        <TableCell isHeader align="right">Approved</TableCell>
+                        <TableCell isHeader>Status</TableCell>
+                        <TableCell isHeader>Requested By</TableCell>
+                        <TableCell isHeader>Creation Date</TableCell>
+                        <TableCell isHeader>Approved On</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {group.rows.map((r) => (
+                        <TableRow key={r.requisition_id}>
+                          <TableCell>
+                            <span className="font-mono text-slate-300">{r.requisition_no}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-slate-400 text-xs">{r.work_order_no}</span>
+                          </TableCell>
+                          <TableCell align="right">
+                            <span className="text-slate-300 font-mono">{formatCurrency(r.requisition_amount)}</span>
+                          </TableCell>
+                          <TableCell align="right">
+                            <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={r.requisition_status === 'Approved' ? 'emerald' : r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
+                              {r.requisition_status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400 text-xs">{r.requester_name}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </div>
             );
           })}
