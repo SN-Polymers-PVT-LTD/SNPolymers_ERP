@@ -56,6 +56,15 @@ export const createRequisition = (data) =>
 export const actOnRequisition = (id, data) =>
   authApi.patch(`/requisitions/${id}/action`, data);
 
+/** Select the ZO Balance payment route for an Approved requisition (ZO or Admin only) */
+export const payFromZoBalance = (id) =>
+  authApi.post(`/requisitions/${id}/pay-from-zo-balance`);
+
+/** Send an Approved requisition to Accounts (ZO or Admin only) — creates an
+ * Accounts line item immediately; response includes { requisition, accounts } */
+export const sendRequisitionToAccounts = (id) =>
+  authApi.post(`/requisitions/${id}/send-to-accounts`);
+
 /** Cancel a Pending requisition */
 export const cancelRequisition = (id) =>
   authApi.patch(`/requisitions/${id}/cancel`);

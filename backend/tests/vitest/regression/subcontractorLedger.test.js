@@ -278,7 +278,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(error.code).toBe('VAL01');
   });
 
-  test('7. approve_requisition_transact debits subcontractor_balances and inserts a negative ledger row (zo_balances still debited as before)', async () => {
+  test('7. approve_requisition_transact debits subcontractor_balances and inserts a negative ledger row (zo_balances is no longer touched at approval time)', async () => {
     const { data: reqX, error: reqXErr } = await supabase.rpc('create_requisition_secure', {
       p_requester_user_id: hoMobile,
       p_work_order_no: workOrder,
@@ -329,8 +329,11 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(ledgerRows.length).toBe(1);
     expect(Number(ledgerRows[0].amount)).toBe(-10000);
 
+    // zo_balances is no longer debited at approval time - that now happens
+    // on demand via select_zo_balance_payment_transact, once a payment route
+    // is chosen.
     const zoBalanceAfter = (await supabase.from('zo_balances').select('available_balance').eq('zo_user_id', zoMobile).single()).data.available_balance;
-    expect(Number(zoBalanceAfter)).toBe(Number(zoBalanceBefore) - 10000);
+    expect(Number(zoBalanceAfter)).toBe(Number(zoBalanceBefore));
   });
 
   test('8. approve_requisition_transact rejects with BUD04 over the remaining subcontractor balance, without touching zo_balances or subcontractor_balances', async () => {

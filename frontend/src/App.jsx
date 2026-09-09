@@ -53,6 +53,7 @@ const AcctParticulars = React.lazy(() => import('./pages/AcctParticulars'));
 const AcctBeneficiaryMaster = React.lazy(() => import('./pages/AcctBeneficiaryMaster'));
 const AcctBankBalances = React.lazy(() => import('./pages/AcctBankBalances'));
 const AcctImportEligibleItems = React.lazy(() => import('./pages/AcctImportEligibleItems'));
+const AcctPaymentRequisitions = React.lazy(() => import('./pages/AcctPaymentRequisitions'));
 const AcctHoQueue = React.lazy(() => import('./pages/AcctHoQueue'));
 const AcctRequisitionLogs = React.lazy(() => import('./pages/AcctRequisitionLogs'));
 const AcctHoSheetView = React.lazy(() => import('./pages/AcctHoSheetView'));
@@ -152,6 +153,7 @@ function App() {
                   <Route path="/acct-requisitions/particulars" element={<React.Suspense fallback={<AppChunkLoader />}><AcctParticulars /></React.Suspense>} />
                   <Route path="/acct-requisitions/beneficiary-master" element={<React.Suspense fallback={<AppChunkLoader />}><AcctBeneficiaryMaster /></React.Suspense>} />
                   <Route path="/acct-requisitions/import-eligible-items" element={<React.Suspense fallback={<AppChunkLoader />}><AcctImportEligibleItems /></React.Suspense>} />
+                  <Route path="/acct-requisitions/payment-requisitions" element={<React.Suspense fallback={<AppChunkLoader />}><AcctPaymentRequisitions /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts HO Approval Protected Routes (HO, Admin) */}

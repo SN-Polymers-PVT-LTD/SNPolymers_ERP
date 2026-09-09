@@ -381,12 +381,23 @@ async function getSheetById(req, res) {
       .eq('sheet_id', sheetId)
       .order('created_at', { ascending: true });
 
+    const sourceReqIds = [...new Set((items || []).map(i => i.source_requisition_id).filter(Boolean))];
+    let sourceReqMap = {};
+    if (sourceReqIds.length > 0) {
+      const { data: sourceReqs } = await supabase
+        .from('requisitions')
+        .select('requisition_id, requisition_no, accounts_sent_by, accounts_sent_at')
+        .in('requisition_id', sourceReqIds);
+      sourceReqMap = (sourceReqs || []).reduce((acc, r) => { acc[r.requisition_id] = r; return acc; }, {});
+    }
+
     const enrichedItems = (items || []).map(item => ({
       ...item,
       beneficiary_bank: item.beneficiary_bank_id ? {
         id: item.beneficiary_bank_id,
         bank_name: item.beneficiary_bank_name
-      } : null
+      } : null,
+      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null
     }));
 
     return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
@@ -2011,6 +2022,70 @@ async function adjustCreditLedgerBalance(req, res) {
   }
 }
 
+/**
+ * GET /acct-requisitions/payment-requisitions
+ * Read-only intake list of Payment Requisitions routed to Accounts (§27-28 of
+ * the routing spec) - a distinct source domain from the Hold/Rejected/Pending
+ * Review import queue (getImportEligibleItems). Model A means the Accounts
+ * line item already exists the moment routing succeeds, so this is browse-only:
+ * no import action, just traceability back to the originating requisition.
+ */
+async function getPaymentRequisitions(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    const { data: reqs, count, error } = await supabase
+      .from('requisitions')
+      .select('requisition_id, requisition_no, work_order_no, material_main_head, expen_head_remarks, beneficiary_name, approved_amount, accounts_line_item_id, accounts_sent_by, accounts_sent_at', { count: 'exact' })
+      .eq('payment_destination', 'ACCOUNTS')
+      .order('accounts_sent_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const lineItemIds = [...new Set((reqs || []).map(r => r.accounts_line_item_id).filter(Boolean))];
+    let sheetByLineItem = {};
+    if (lineItemIds.length > 0) {
+      const { data: lineItems } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, acct_requisition_sheets(id, sheet_number)')
+        .in('id', lineItemIds);
+      sheetByLineItem = (lineItems || []).reduce((acc, li) => {
+        acc[li.id] = li.acct_requisition_sheets || null;
+        return acc;
+      }, {});
+    }
+
+    const sentByIds = [...new Set((reqs || []).map(r => r.accounts_sent_by).filter(Boolean))];
+    let userMap = {};
+    if (sentByIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', sentByIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    const items = (reqs || []).map(r => ({
+      ...r,
+      accounts_sent_by_name: userMap[r.accounts_sent_by] || r.accounts_sent_by || null,
+      sheet: sheetByLineItem[r.accounts_line_item_id] || null
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      items,
+      pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getPaymentRequisitions failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Payment Requisitions.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
@@ -2023,5 +2098,6 @@ module.exports = {
   getIndianBanks, upsertIndianBank,
   exportBulkNeft,
   getRequisitionLogs,
-  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance,
+  getPaymentRequisitions
 };

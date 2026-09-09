@@ -1,9 +1,15 @@
 -- FOR DEVELOPMENT DB ONLY. DO NOT USE THIS IN PROD.
 --
--- Same nuke script as before, with a reseed step added right after the
--- TRUNCATE (step 1b) — before step 2 deletes users, since step 2 could
--- remove every admin account (if none have telegram_chat_id set), and the
--- reseed needs at least one admin to exist to attribute the seeded row to.
+-- Nuke and reseed script for development/staging environments:
+-- 1.  Truncates all application tables with RESTART IDENTITY CASCADE.
+-- 1b. Reseeds baseline sentinel rows and canonical master data the application
+--     assumes always exist (Credit virtual bank, canonical Indian banks, and
+--     canonical Account Sub-Titles from 021/052). Ensures an admin user is
+--     available for foreign key attribution.
+-- 2.  Cleans up transient test users without a Telegram ID, safely preserving
+--     admin and accounts role users.
+-- 3.  Resets user daily streaks and report timestamps.
+-- 4.  Refreshes all analytics materialized views.
 
 -- 1. Nuke all database tables
 TRUNCATE TABLE
@@ -51,18 +57,11 @@ TRUNCATE TABLE
   -- Auth & Sessions
   sessions,
   otp_requests
-CASCADE;
+RESTART IDENTITY CASCADE;
 
 -- 1b. Reseed rows the app assumes always exist, that TRUNCATE just wiped.
---     Must run before step 2 — see note above. Prefer an admin who HAS a
---     telegram_chat_id set: bank_balance_master.created_by/updated_by are
---     FK'd to authorised_users ON DELETE RESTRICT, so if the seed picked an
---     admin step 2 is about to delete, step 2's DELETE would hit a FK
---     violation and fail outright (rolling back that whole statement,
---     leaving every other no-telegram user undeleted too). Falls back to
---     any admin if none have telegram configured — in that case step 2
---     will still fail to remove that one admin; that's a pre-existing
---     tension in this script, not something this reseed step introduces.
+--     Must run before step 2. Prefer an admin who HAS a telegram_chat_id set.
+--     If no admin exists at all, creates a default admin to satisfy FK constraints.
 DO $$
 DECLARE
   v_seed_user varchar;
@@ -75,8 +74,15 @@ BEGIN
     SELECT mobile_number INTO v_seed_user FROM authorised_users WHERE role = 'admin' LIMIT 1;
   END IF;
 
+  IF v_seed_user IS NULL THEN
+    INSERT INTO public.authorised_users (mobile_number, role, is_active, display_name)
+    VALUES ('+918000000001', 'admin', true, 'System Admin Test User')
+    ON CONFLICT (mobile_number) DO UPDATE SET role = 'admin', is_active = true
+    RETURNING mobile_number INTO v_seed_user;
+  END IF;
+
   IF v_seed_user IS NOT NULL THEN
-    -- 'Credit' sentinel in bank_balance_master (042_credit_purchases_and_ledger.sql)
+    -- 'Credit' sentinel in bank_balance_master (042_credit_purchases_and_ledger.sql / 045)
     -- — without this, Debit Bank Type = 'Credit' disappears from the dropdown.
     INSERT INTO bank_balance_master (bank_name, balance_date, available_balance, is_virtual, created_by, updated_by)
     VALUES ('Credit', CURRENT_DATE, 0, true, v_seed_user, v_seed_user)
@@ -116,14 +122,138 @@ BEGIN
       ('Jammu & Kashmir Bank', true, v_seed_user),
       ('Nainital Bank', true, v_seed_user)
     ON CONFLICT (bank_name) DO NOTHING;
+
+    -- Canonical Account Sub-Titles in account_sub_title_master (021 / 052)
+    -- Required for Accounts Requisition Sheets and Payment Requisition routing
+    INSERT INTO "public"."account_sub_title_master" (title, is_active, created_by) VALUES
+      ('Accurate Measurement Charges', true, v_seed_user),
+      ('Advertisement Expenses', true, v_seed_user),
+      ('AMC Charges', true, v_seed_user),
+      ('Audit Fees', true, v_seed_user),
+      ('Bank Charges', true, v_seed_user),
+      ('BIS License Fees', true, v_seed_user),
+      ('Bonus - Casual Workers', true, v_seed_user),
+      ('Bonus - Staff', true, v_seed_user),
+      ('Calibration Charges', true, v_seed_user),
+      ('Car Hire Charges', true, v_seed_user),
+      ('Carriage Charges', true, v_seed_user),
+      ('Casual Staff Wages (Project)', true, v_seed_user),
+      ('Commission Paid', true, v_seed_user),
+      ('Compensation Charges', true, v_seed_user),
+      ('Computer Accessories', true, v_seed_user),
+      ('Consultancy Charges', true, v_seed_user),
+      ('Contract Labour Wages', true, v_seed_user),
+      ('Contractor Payment', true, v_seed_user),
+      ('Convenience Charges', true, v_seed_user),
+      ('Courier Charges', true, v_seed_user),
+      ('Daily Wages', true, v_seed_user),
+      ('Discount Allowed', true, v_seed_user),
+      ('Discounting Charges', true, v_seed_user),
+      ('Donation & Subscription', true, v_seed_user),
+      ('Driver Salary', true, v_seed_user),
+      ('Electricity Bill', true, v_seed_user),
+      ('EPF Contribution', true, v_seed_user),
+      ('Equipment Rental', true, v_seed_user),
+      ('Ex-Gratia', true, v_seed_user),
+      ('Extra Wages', true, v_seed_user),
+      ('Factory Labour Wages', true, v_seed_user),
+      ('Factory Staff Wages', true, v_seed_user),
+      ('Flat Maintenance', true, v_seed_user),
+      ('Food & Accommodation', true, v_seed_user),
+      ('Fooding Charges', true, v_seed_user),
+      ('Freight Charges', true, v_seed_user),
+      ('Fuel Expenses', true, v_seed_user),
+      ('General Office Expenses', true, v_seed_user),
+      ('Gift & Greetings', true, v_seed_user),
+      ('Godown Rent', true, v_seed_user),
+      ('GST Paid', true, v_seed_user),
+      ('GST Payment', true, v_seed_user),
+      ('Guest Entertainment Charges', true, v_seed_user),
+      ('Hire Charges', true, v_seed_user),
+      ('Hotel Charges', true, v_seed_user),
+      ('House Rent', true, v_seed_user),
+      ('Housekeeping Charges', true, v_seed_user),
+      ('Inspection Fees', true, v_seed_user),
+      ('Insurance Charges', true, v_seed_user),
+      ('Interest - Bank CC Account', true, v_seed_user),
+      ('Interest - EPF', true, v_seed_user),
+      ('Interest - GST', true, v_seed_user),
+      ('Interest - Term Loan', true, v_seed_user),
+      ('Interest - Vehicle Loan', true, v_seed_user),
+      ('Interest Paid', true, v_seed_user),
+      ('Internet & Telephone Bill', true, v_seed_user),
+      ('Internet Charges', true, v_seed_user),
+      ('Labour Cess', true, v_seed_user),
+      ('Labour Charges', true, v_seed_user),
+      ('Labour Payment', true, v_seed_user),
+      ('Land Tax', true, v_seed_user),
+      ('Late Fee - GST', true, v_seed_user),
+      ('LC Inland Charges', true, v_seed_user),
+      ('Legal Expenses', true, v_seed_user),
+      ('Licence Fees', true, v_seed_user),
+      ('Loading & Unloading Charges', true, v_seed_user),
+      ('Machinery Hire Charges', true, v_seed_user),
+      ('Material Purchase', true, v_seed_user),
+      ('Medical Expenses', true, v_seed_user),
+      ('Medicine Expenses', true, v_seed_user),
+      ('Mess Expenses', true, v_seed_user),
+      ('Miscellaneous Expenses', true, v_seed_user),
+      ('Miscellaneous Purchase', true, v_seed_user),
+      ('NSIC Charges', true, v_seed_user),
+      ('Office Expenses', true, v_seed_user),
+      ('Office Maintenance', true, v_seed_user),
+      ('Office Staff Salary', true, v_seed_user),
+      ('Overtime Wages', true, v_seed_user),
+      ('Packing Charges', true, v_seed_user),
+      ('Parking Fees', true, v_seed_user),
+      ('Penalty - EPF', true, v_seed_user),
+      ('Postage & Stamp', true, v_seed_user),
+      ('Printing & Stationery', true, v_seed_user),
+      ('Production Labour Charges', true, v_seed_user),
+      ('Professional Fees', true, v_seed_user),
+      ('Project Advance', true, v_seed_user),
+      ('Project Expense', true, v_seed_user),
+      ('Rate Difference', true, v_seed_user),
+      ('Repair & Maintenance', true, v_seed_user),
+      ('Road Tax', true, v_seed_user),
+      ('Room Rent', true, v_seed_user),
+      ('Round Off', true, v_seed_user),
+      ('Salary/Wages', true, v_seed_user),
+      ('Sales Promotion', true, v_seed_user),
+      ('Security Deposit', true, v_seed_user),
+      ('Security Service Charges', true, v_seed_user),
+      ('Security Staff Salary', true, v_seed_user),
+      ('Service Charges', true, v_seed_user),
+      ('Site Expenses', true, v_seed_user),
+      ('Software Renewal', true, v_seed_user),
+      ('Staff Fooding Allowance', true, v_seed_user),
+      ('Staff Welfare', true, v_seed_user),
+      ('TDS Payment', true, v_seed_user),
+      ('Telephone Charges', true, v_seed_user),
+      ('Tender Dropping Charges', true, v_seed_user),
+      ('Tender Fees', true, v_seed_user),
+      ('Tender Paper Purchase', true, v_seed_user),
+      ('Testing Charges', true, v_seed_user),
+      ('Toll Tax', true, v_seed_user),
+      ('Trade Licence Fees', true, v_seed_user),
+      ('Transport Charges', true, v_seed_user),
+      ('Travel & Conveyance', true, v_seed_user),
+      ('Travelling & Conveyance', true, v_seed_user),
+      ('Travelling Expenses', true, v_seed_user),
+      ('Vehicle Repair Charges', true, v_seed_user),
+      ('Vendor Payment', true, v_seed_user),
+      ('Wages - Casual Workers', true, v_seed_user),
+      ('Water Bill', true, v_seed_user)
+    ON CONFLICT (title) DO NOTHING;
   ELSE
-    RAISE NOTICE 'Credit and Indian bank sentinel reseed skipped: no admin user found in authorised_users.';
+    RAISE NOTICE 'Sentinel reseed skipped: no admin user found in authorised_users.';
   END IF;
 END $$;
 
--- 2. Remove users with NULL or empty Telegram ID
+-- 2. Remove transient test users without a Telegram ID, preserving admin and accounts roles
 DELETE FROM public.authorised_users
-WHERE telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '';
+WHERE (telegram_chat_id IS NULL OR TRIM(telegram_chat_id) = '')
+  AND role NOT IN ('admin', 'accounts');
 
 -- 3. Reset user daily streaks and last report dates
 UPDATE public.authorised_users

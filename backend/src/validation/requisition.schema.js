@@ -80,6 +80,18 @@ const cancelRequisitionSchema = {
   })
 };
 
+const payFromZoBalanceSchema = {
+  params: z.object({
+    id: uuidSchema
+  })
+};
+
+const sendToAccountsSchema = {
+  params: z.object({
+    id: uuidSchema
+  })
+};
+
 const adjustSubcontractorBalanceSchema = {
   body: z.object({
     adjustment_id: z.string().regex(uuidRegex, 'Invalid UUID format for adjustment_id.').optional(),
@@ -98,5 +110,7 @@ module.exports = {
   createRequisitionSchema,
   actOnRequisitionSchema,
   cancelRequisitionSchema,
-  adjustSubcontractorBalanceSchema
+  adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema,
+  sendToAccountsSchema
 };

@@ -8,6 +8,8 @@ import {
   getRequisitionById,
   createRequisition,
   actOnRequisition,
+  payFromZoBalance,
+  sendRequisitionToAccounts,
   cancelRequisition,
   uploadRequisitionPdf,
   uploadGstBillPdf,
@@ -90,6 +92,9 @@ const CancelConfirmModal = ({ requisitionNo, isCancelling, onConfirm, onClose })
 
 // Detail Modal for viewing requisition metadata and PDF previews
 const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
+  const queryClient = useQueryClient();
+  const [showRouteModal, setShowRouteModal] = useState(false);
+
   const { data: requisition, isLoading: loading, error: queryError } = useQuery({
     queryKey: ['requisition', reqId],
     queryFn: async () => {
@@ -97,6 +102,16 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       return res.data?.requisition;
     }
   });
+
+  const handleChooseRoute = async (id, route) => {
+    if (route === 'ZO_BALANCE') {
+      await payFromZoBalance(id);
+    } else {
+      await sendRequisitionToAccounts(id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['requisition', reqId] });
+    queryClient.invalidateQueries({ queryKey: ['requisitions'] });
+  };
 
   if (loading) {
     return (
@@ -158,6 +173,10 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
     { label: 'Created At', value: formatDate(requisition.created_at) },
   ];
 
+  const canChooseRoute = requisition.requisition_status === 'Approved'
+    && !requisition.payment_destination
+    && ['zo', 'admin'].includes(user?.role);
+
   if (requisition.requisition_status === 'Approved') {
     detailRows.push(
       { label: 'Approved By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
@@ -180,6 +199,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
   }
 
   return (
+    <>
     <Modal
       isOpen={true}
       onClose={onClose}
@@ -197,6 +217,15 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
               Cancel Requisition
             </Button>
           )}
+          {canChooseRoute && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowRouteModal(true)}
+            >
+              Choose Payment Route
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
@@ -210,9 +239,20 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left Side: Metadata */}
         <div className="flex-1 space-y-4 text-left">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Metadata</h3>
-            <StatusBadge status={requisition.requisition_status} />
+            <div className="flex items-center gap-2">
+              <PaymentRouteBadge requisition={requisition} />
+              {requisition.payment_destination === 'ACCOUNTS' && requisition.accounts_sheet && (
+                <a
+                  href={`/acct-requisitions/sheets/${requisition.accounts_sheet.sheet_id}`}
+                  className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  Open Sheet {requisition.accounts_sheet.sheet_number}
+                </a>
+              )}
+              <StatusBadge status={requisition.requisition_status} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3.5 bg-white/[0.01] border border-white/5 p-4 rounded-2xl max-h-[420px] overflow-y-auto no-scrollbar">
@@ -279,6 +319,14 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
         </div>
       </div>
     </Modal>
+    {showRouteModal && (
+      <PaymentRouteModal
+        requisition={requisition}
+        onClose={() => setShowRouteModal(false)}
+        onChooseRoute={handleChooseRoute}
+      />
+    )}
+    </>
   );
 };
 
@@ -360,10 +408,6 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
       }
       if (amt > requisitionAmount) {
         setError('Approved amount cannot exceed requisition amount.');
-        return;
-      }
-      if (zoBalance !== null && amt > zoBalance) {
-        setError(`Approved amount cannot exceed Zonal Office Available Balance (₹${zoBalance.toLocaleString('en-IN')}).`);
         return;
       }
       if (capacityMetrics !== null && amt > capacityMetrics.remainingCapacity) {
@@ -566,6 +610,110 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
           disabled={submitting}
         />
       </form>
+    </Modal>
+  );
+};
+
+// Small badge showing the resolved payment route for an Approved requisition
+const PaymentRouteBadge = ({ requisition }) => {
+  if (requisition.payment_destination === 'ZO_BALANCE') {
+    return <Badge variant="blue" showDot={true}>Paid via ZO Balance</Badge>;
+  }
+  if (requisition.payment_destination === 'ACCOUNTS') {
+    return <Badge variant="indigo" showDot={true}>Sent to Accounts</Badge>;
+  }
+  return null;
+};
+
+// Modal for the ZO to choose how an Approved requisition gets paid:
+// out of the ZO's own balance, or handed to Accounts for central execution.
+const PaymentRouteModal = ({ requisition, onClose, onChooseRoute }) => {
+  const [pendingRoute, setPendingRoute] = useState(null); // 'ZO_BALANCE' | 'ACCOUNTS' while confirming
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await onChooseRoute(requisition.requisition_id, pendingRoute);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to select payment route.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={submitting ? null : onClose}
+      title="Choose Payment Route"
+      subtitle={`Requisition No: ${requisition.requisition_no}`}
+      size="sm"
+      footer={
+        pendingRoute ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setPendingRoute(null)} disabled={submitting}>
+              Back
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleConfirm} loading={submitting}>
+              Confirm
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        )
+      }
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-950/40 border border-red-500/30 rounded-2xl text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 bg-white/[0.01] border border-white/5 p-4 rounded-2xl mb-4 text-left">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Approved Amount</p>
+          <p className="text-xs font-mono font-bold text-emerald-400 mt-0.5">{formatCurrency(requisition.approved_amount)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Beneficiary</p>
+          <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.beneficiary_name || '—'}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Work Order</p>
+          <p className="text-xs font-mono text-slate-300 mt-0.5">{requisition.work_order_no}</p>
+        </div>
+      </div>
+
+      {!pendingRoute && (
+        <div className="space-y-2">
+          <Button variant="primary" className="w-full" onClick={() => setPendingRoute('ZO_BALANCE')}>
+            Pay from ZO Balance
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={() => setPendingRoute('ACCOUNTS')}>
+            Send to Accounts
+          </Button>
+        </div>
+      )}
+
+      {pendingRoute === 'ZO_BALANCE' && (
+        <p className="text-xs text-slate-400 text-left">
+          This will debit <span className="font-mono font-bold text-slate-200">{formatCurrency(requisition.approved_amount)}</span> from
+          your Zonal Office balance. This cannot be switched to Accounts afterward.
+        </p>
+      )}
+
+      {pendingRoute === 'ACCOUNTS' && (
+        <p className="text-xs text-slate-400 text-left">
+          Send this approved requisition to Accounts? Accounts will select the Debit Bank Account, Payment Mode, and
+          Cheque details before it is executed. This cannot be switched to ZO Balance afterward.
+        </p>
+      )}
     </Modal>
   );
 };
@@ -1706,6 +1854,7 @@ const Requisitions = () => {
   // M6b Approver tab and action states
   const [currentTab, setCurrentTab] = useState(user?.role === 'je' ? 'all' : 'pending');
   const [actionTargetReq, setActionTargetReq] = useState(null);
+  const [routeTargetReq, setRouteTargetReq] = useState(null);
 
   // Projects Directory States
   const [activeWO, setActiveWO] = useState(null);
@@ -1824,13 +1973,31 @@ const Requisitions = () => {
   // M6b Approve/Hold action callback
   const handleAct = async (id, actionPayload) => {
     try {
-      await actOnRequisition(id, actionPayload);
+      const res = await actOnRequisition(id, actionPayload);
       setSuccess(`Requisition successfully ${actionPayload.action === 'Approve' ? 'approved' : 'placed on hold'}.`);
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
       queryClient.invalidateQueries({ queryKey: ['requisition', id] });
+      if (actionPayload.action === 'Approve' && res.data?.requisition && !res.data.requisition.payment_destination) {
+        setRouteTargetReq(res.data.requisition);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to act on requisition.');
     }
+  };
+
+  // Payment route selection callback (from the row action or the post-approve prompt).
+  // Errors are surfaced by PaymentRouteModal's own inline banner, not the page banner -
+  // re-thrown here (unlike handleAct) so the modal stays open on failure.
+  const handleChooseRoute = async (id, route) => {
+    if (route === 'ZO_BALANCE') {
+      await payFromZoBalance(id);
+      setSuccess('Requisition will be paid from the Zonal Office balance.');
+    } else {
+      await sendRequisitionToAccounts(id);
+      setSuccess('Requisition sent to Accounts.');
+    }
+    queryClient.invalidateQueries({ queryKey: ['requisitions'] });
+    queryClient.invalidateQueries({ queryKey: ['requisition', id] });
   };
 
   // Cancel requisition confirm callback
@@ -2077,6 +2244,16 @@ const Requisitions = () => {
                                   onClick={() => setActionTargetReq(req)}
                                 >
                                   Take Action
+                                </Button>
+                              )}
+                              {req.requisition_status === 'Approved' && !req.payment_destination && ['zo', 'admin'].includes(user?.role) && (
+                                <Button
+                                  variant="glass"
+                                  size="xs"
+                                  className="text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20"
+                                  onClick={() => setRouteTargetReq(req)}
+                                >
+                                  Choose Payment Route
                                 </Button>
                               )}
                               {canCancel && (
@@ -2430,7 +2607,19 @@ const Requisitions = () => {
                                       Take Action
                                     </Button>
                                   )}
-                                  
+
+                                  {/* Choose Payment Route Button (ZO/Admin for Approved-but-unrouted rows) */}
+                                  {req.requisition_status === 'Approved' && !req.payment_destination && ['zo', 'admin'].includes(user?.role) && (
+                                    <Button
+                                      variant="glass"
+                                      size="xs"
+                                      className="text-slate-950 font-black bg-indigo-400 hover:bg-indigo-300 border border-indigo-300 shadow-md shadow-indigo-500/20"
+                                      onClick={() => setRouteTargetReq(req)}
+                                    >
+                                      Choose Payment Route
+                                    </Button>
+                                  )}
+
                                   {/* Cancel Button */}
                                   {canCancel && (
                                     <Button
@@ -2499,6 +2688,15 @@ const Requisitions = () => {
           requisition={actionTargetReq}
           onClose={() => setActionTargetReq(null)}
           onSave={handleAct}
+        />
+      )}
+
+      {/* Payment Route Modal (triggered right after Approve, or from a row/detail action) */}
+      {routeTargetReq && (
+        <PaymentRouteModal
+          requisition={routeTargetReq}
+          onClose={() => setRouteTargetReq(null)}
+          onChooseRoute={handleChooseRoute}
         />
       )}
 

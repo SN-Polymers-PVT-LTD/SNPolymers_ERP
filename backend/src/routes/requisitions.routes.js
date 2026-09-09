@@ -5,6 +5,8 @@ const {
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
+  payFromZoBalance,
+  sendToAccounts,
   cancelRequisition,
   getMainHeadCapacity,
   getSubcontractorCapacity,
@@ -28,7 +30,9 @@ const {
   createRequisitionSchema,
   actOnRequisitionSchema,
   cancelRequisitionSchema,
-  adjustSubcontractorBalanceSchema
+  adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema,
+  sendToAccountsSchema
 } = require('../validation/requisition.schema');
 
 const router = express.Router();
@@ -45,6 +49,7 @@ router.use(verifyJwt);
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const requesterRoles = ['je', 'admin'];
 const approverRoles = ['zo', 'ho', 'admin'];
+const routingRoles = ['zo', 'admin'];
 const uploadRoles = ['je', 'admin'];
 const adjusterRoles = ['ho', 'admin'];
 
@@ -67,6 +72,8 @@ router.post('/subcontractor-ledger/adjust', requireRole(adjusterRoles), validate
 
 // Workflow endpoints
 router.patch('/:id/action', requireRole(approverRoles), validateRequest(actOnRequisitionSchema), actOnRequisition);
+router.post('/:id/pay-from-zo-balance', requireRole(routingRoles), validateRequest(payFromZoBalanceSchema), payFromZoBalance);
+router.post('/:id/send-to-accounts', requireRole(routingRoles), validateRequest(sendToAccountsSchema), sendToAccounts);
 router.patch('/:id/cancel', requireRole(requesterRoles), validateRequest(cancelRequisitionSchema), cancelRequisition);
 
 // Upload endpoints (JE only)

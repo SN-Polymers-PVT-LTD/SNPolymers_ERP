@@ -77,7 +77,8 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     if (woMapErr) console.error('P4-M3 WO Mapping error:', woMapErr);
     woMappingId = woMapData?.id || null;
 
-    // 1d. Seed ZO balance so approve_requisition_transact can deduct
+    // 1d. Seed ZO balance (harmless even though approve_requisition_transact no
+    // longer debits it - kept for tests in this file that check the row exists)
     await supabase.from('zo_balances').upsert({
       zo_user_id: zoUser.mobile_number,
       available_balance: 100000.00,

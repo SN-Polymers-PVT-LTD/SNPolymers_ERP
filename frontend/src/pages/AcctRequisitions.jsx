@@ -171,6 +171,9 @@ const AcctRequisitions = () => {
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/import-eligible-items')}>
             Import List
           </Button>
+          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/payment-requisitions')}>
+            Payment Requisitions
+          </Button>
           <Button onClick={handleCreateSheet} loading={creating}>New Sheet</Button>
         </div>
       </div>

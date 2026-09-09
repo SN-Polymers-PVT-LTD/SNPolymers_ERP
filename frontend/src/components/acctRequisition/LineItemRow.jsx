@@ -4,6 +4,7 @@ import BeneficiaryAutofill from './BeneficiaryAutofill';
 import BeneficiaryAcNoSuggestions from './BeneficiaryAcNoSuggestions';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
+import SourceRequisitionBadge from './SourceRequisitionBadge';
 import { upsertBeneficiary } from '../../api/acctRequisitionsApi';
 
 const formatCurrency = (val) =>
@@ -348,6 +349,7 @@ const LineItemRow = ({
             )}
             <LastHoActionTag item={item} />
             <ReopenedBadge item={item} />
+            <SourceRequisitionBadge item={item} />
           </div>
         </TableCell>
         {showHoRemarksColumn && (

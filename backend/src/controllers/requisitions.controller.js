@@ -5,7 +5,7 @@ const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
 const { getActiveIndianBanks, validateActiveIndianBank } = require('../services/indianBanks.service');
 const validate = require('../validation/validate');
-const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema } = require('../validation/requisition.schema');
+const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema, payFromZoBalanceSchema, sendToAccountsSchema } = require('../validation/requisition.schema');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -588,6 +588,23 @@ async function getRequisitionById(req, res) {
       remainingEstimateAmount = Number(requisition.estimate_amount) - commAmt;
     }
 
+    // If this requisition was routed to Accounts, resolve the destination sheet
+    // so the frontend can deep-link straight to it.
+    let accountsSheet = null;
+    if (requisition.accounts_line_item_id) {
+      const { data: lineItem } = await supabase
+        .from('acct_requisition_line_items')
+        .select('sheet_id, acct_requisition_sheets(id, sheet_number)')
+        .eq('id', requisition.accounts_line_item_id)
+        .maybeSingle();
+      if (lineItem?.acct_requisition_sheets) {
+        accountsSheet = {
+          sheet_id: lineItem.acct_requisition_sheets.id,
+          sheet_number: lineItem.acct_requisition_sheets.sheet_number
+        };
+      }
+    }
+
     return res.status(200).json({
       success: true,
       requisition: {
@@ -601,7 +618,8 @@ async function getRequisitionById(req, res) {
         cancelled_name: userMap[requisition.cancelled_by] || requisition.cancelled_by || null,
         requisition_pdf_signed_url: signedUrl,
         gst_bill_pdf_signed_url: gstSignedUrl,
-        remainingEstimateAmount
+        remainingEstimateAmount,
+        accounts_sheet: accountsSheet
       }
     });
 
@@ -725,6 +743,137 @@ async function actOnRequisition(req, res) {
       console.error(`actOnRequisition failed: ${error.message}`);
     }
     return res.status(500).json({ success: false, message: 'Failed to process requisition action.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/requisitions/:id/pay-from-zo-balance
+ * Selects the ZO Balance payment route for an Approved requisition - debits
+ * the ZO's zo_balances float and writes a zo_fund_ledger entry (the logic
+ * that used to run unconditionally inside approve_requisition_transact).
+ */
+async function payFromZoBalance(req, res) {
+  if (!validate(req, res, payFromZoBalanceSchema)) return;
+
+  const { id } = req.params;
+
+  try {
+    const { data: reqRecord, error: fetchError } = await supabase
+      .from('requisitions')
+      .select('*')
+      .eq('requisition_id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!reqRecord) {
+      return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    }
+
+    if (req.user.role === 'zo' && reqRecord.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action requisitions within your Zonal Office.' });
+    }
+
+    const { data: updated, error: rpcErr } = await supabase.rpc('select_zo_balance_payment_transact', {
+      p_requisition_id: id,
+      p_actioned_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      if (rpcErr.code === 'BAL01' || rpcErr.message?.includes('Insufficient available Zonal Office balance')) {
+        return res.status(422).json({ success: false, message: 'Insufficient available Zonal Office balance.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'RTE01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'P0002' || rpcErr.message?.includes('not found')) {
+        return res.status(404).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
+    }
+
+    return res.status(200).json({
+      success: true,
+      requisition: updated,
+      message: 'Requisition will be paid from the Zonal Office balance.'
+    });
+
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('payFromZoBalance failed:', error);
+    } else {
+      console.error(`payFromZoBalance failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to select the ZO Balance payment route.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/requisitions/:id/send-to-accounts
+ * Selects the Accounts payment route for an Approved requisition - creates an
+ * Accounts line item (in an Open acct_requisition_sheets row) prefilled from
+ * Finance data. Accounts fills in the debit account, payment mode, and cheque
+ * details afterward through the existing line-item edit flow.
+ */
+async function sendToAccounts(req, res) {
+  if (!validate(req, res, sendToAccountsSchema)) return;
+
+  const { id } = req.params;
+
+  try {
+    const { data: reqRecord, error: fetchError } = await supabase
+      .from('requisitions')
+      .select('*')
+      .eq('requisition_id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!reqRecord) {
+      return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    }
+
+    if (req.user.role === 'zo' && reqRecord.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action requisitions within your Zonal Office.' });
+    }
+
+    const { data, error: rpcErr } = await supabase.rpc('route_requisition_to_accounts_transact', {
+      p_requisition_id: id,
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'RTE01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'P0002' || rpcErr.message?.includes('not found')) {
+        return res.status(404).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
+    }
+
+    return res.status(200).json({
+      success: true,
+      requisition: data.requisition,
+      accounts: {
+        sheet_id: data.sheet.id,
+        sheet_number: data.sheet.sheet_number,
+        line_item_id: data.line_item.id
+      },
+      message: 'Requisition sent to Accounts.'
+    });
+
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('sendToAccounts failed:', error);
+    } else {
+      console.error(`sendToAccounts failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to send the requisition to Accounts.' });
   }
 }
 
@@ -1252,6 +1401,8 @@ module.exports = {
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
+  payFromZoBalance,
+  sendToAccounts,
   cancelRequisition,
   getMainHeadCapacity,
   getSubcontractorCapacity,

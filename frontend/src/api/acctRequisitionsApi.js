@@ -61,6 +61,13 @@ export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${she
 export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/sheets/${sheetId}/items/${itemId}`, data);
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
+// ── Payment Requisitions (Finance intake) ───────────────────────────────
+// Read-only list of Payment Requisitions the ZO has routed to Accounts
+// (payment_destination = 'ACCOUNTS'). A separate source domain from the On
+// Hold/Rejected/Pending Review rollover queue below — the line item already
+// exists the moment routing succeeds (Model A), so this is browse-only.
+export const getPaymentRequisitions = (params) => authApi.get(`${BASE}/payment-requisitions`, { params });
+
 // ── Import On Hold/Rejected/Pending Review items into a new sheet ───────
 // Accumulating, cross-sheet list of On Hold/Rejected/Pending Review items
 // that haven't been imported or dismissed yet (034_add_line_item_import.sql,
