@@ -448,6 +448,7 @@ async function getRequisitions(req, res) {
       requisitions.forEach(r => {
         mobiles.push(r.requester_user_id);
         mobiles.push(r.approved_user_id);
+        mobiles.push(r.zo_user_id);
         mobiles.push(r.cancelled_by);
       });
       const userMap = await resolveDisplayNames(mobiles);
@@ -492,6 +493,7 @@ async function getRequisitions(req, res) {
           } : null,
           requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
           approved_name: userMap[r.approved_user_id] || r.approved_user_id || null,
+          zo_name: userMap[r.zo_user_id] || userMap[r.approved_user_id] || r.zo_user_id || null,
           cancelled_name: userMap[r.cancelled_by] || r.cancelled_by || null,
           remainingEstimateAmount,
           requisition_pdf_signed_url: signedUrl,
@@ -555,6 +557,7 @@ async function getRequisitionById(req, res) {
     const userMap = await resolveDisplayNames([
       requisition.requester_user_id,
       requisition.approved_user_id,
+      requisition.zo_user_id,
       requisition.cancelled_by
     ]);
 
@@ -618,6 +621,7 @@ async function getRequisitionById(req, res) {
         } : null,
         requester_name: userMap[requisition.requester_user_id] || requisition.requester_user_id || null,
         approved_name: userMap[requisition.approved_user_id] || requisition.approved_user_id || null,
+        zo_name: userMap[requisition.zo_user_id] || userMap[requisition.approved_user_id] || requisition.zo_user_id || null,
         cancelled_name: userMap[requisition.cancelled_by] || requisition.cancelled_by || null,
         requisition_pdf_signed_url: signedUrl,
         gst_bill_pdf_signed_url: gstSignedUrl,

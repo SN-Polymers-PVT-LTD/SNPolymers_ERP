@@ -845,20 +845,25 @@ export async function exportCombinedExpenditureSheet({
   }
 
   // Row 1: Empty row
-  const row1 = Array(17).fill('');
+  const row1 = Array(22).fill('');
 
-  // Row 2: Note merged over H2:I2 (col index 7 and 8)
-  const row2 = Array(17).fill('');
-  row2[7] = 'If Material Main Head is “Sub Contractor” \nthe selected 2nd and 3rd dropdown values should be displayed in the 2nd and 3rd fields.';
+  // Row 2: Note merged over M2:N2 (col index 12 and 13 - 2nd Field & 3rd Field)
+  const row2 = Array(22).fill('');
+  row2[12] = 'If Material Main Head is “Sub Contractor” \nthe selected 2nd and 3rd dropdown values should be displayed in the 2nd and 3rd fields.';
 
-  // Row 3: 17 Headers matching Modify_Exp_Sheet_Sep26.xlsx
+  // Row 3: 22 Headers matching modified management specification
   const row3 = [
     'Date',
     'Approved amount of the ZO → HO Fund Request.',
+    'ZO Name',
+    'HO Name',
     'HO Approved Amount',
     'P',
     'Date',
     'JE Requisition No',
+    'JE Name',
+    'ZO Name',
+    'Requisition PDF Name',
     'Material Main Head',
     '2nd Field',
     '3rd Field',
@@ -893,11 +898,16 @@ export async function exportCombinedExpenditureSheet({
     // Left Side: Inflow (ZO -> HO Fund Request)
     const frDate = fr ? formatDateVal(fr.approve_ho_date || fr.zo_date || fr.created_at) : '';
     const frDesc = fr ? (fr.transfer_from_account ? `Received from SNP (${fr.transfer_from_account})` : 'Received from SNP (NEFT)') : '';
+    const frZoName = fr ? (fr.zo_name || fr.zo_user_id || '') : '';
+    const frHoName = fr ? (fr.approve_ho_name || fr.approve_ho_user_id || '') : '';
     const frAmount = fr ? (Number(fr.approve_ho_amount || fr.zo_fr_amount || 0)) : null;
 
     // Right Side: Outflow (Payment Requisition)
     const reqDate = req ? formatDateVal(req.payment_date || req.created_at || req.login_date) : '';
     const reqNo = req ? (req.requisition_no || '') : '';
+    const jeName = req ? (req.requester_name || req.requester_user_id || '') : '';
+    const zoName = req ? (req.approved_name || req.zo_name || req.zo_user_id || '') : '';
+    const reqPdfName = req ? (req.original_filename || (req.requisition_pdf_url ? req.requisition_pdf_url.split('/').pop() : '') || '') : '';
     const mainHead = req ? (req.material_main_head || '') : '';
     const isSubContractor = (mainHead || '').trim() === 'Sub Contractor';
     const secondField = (req && isSubContractor) ? (req.material_sub_head || '') : '';
@@ -914,10 +924,15 @@ export async function exportCombinedExpenditureSheet({
     dataRows.push([
       frDate,
       frDesc,
+      frZoName,
+      frHoName,
       frAmount,
-      '', // Column D (P)
+      '', // Column F (P)
       reqDate,
       reqNo,
+      jeName,
+      zoName,
+      reqPdfName,
       mainHead,
       secondField,
       thirdField,
@@ -935,41 +950,46 @@ export async function exportCombinedExpenditureSheet({
   const aoa = [row1, row2, row3, ...dataRows];
   const worksheet = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Column widths exactly matching Modify_Exp_Sheet_Sep26.xlsx
+  // Column widths matching expanded 22-column specification
   worksheet['!cols'] = [
     { wch: 12 }, // A: Date
-    { wch: 50 }, // B: Approved amount of ZO -> HO Fund Request
-    { wch: 22 }, // C: HO Approved Amount
-    { wch: 13 }, // D: P
-    { wch: 12 }, // E: Date
-    { wch: 18 }, // F: JE Requisition No
-    { wch: 20 }, // G: Material Main Head
-    { wch: 24 }, // H: 2nd Field
-    { wch: 22 }, // I: 3rd Field
-    { wch: 12 }, // J: Remarks
-    { wch: 22 }, // K: ZO Approved Amount
-    { wch: 55 }, // L: Beneficiary Name
-    { wch: 20 }, // M: Account No
-    { wch: 15 }, // N: IFSC Code
-    { wch: 14 }, // O: Bank Name
-    { wch: 16 }, // P: Work_Order
-    { wch: 22 }  // Q: Work Order Details
+    { wch: 45 }, // B: Approved amount of ZO -> HO Fund Request
+    { wch: 22 }, // C: ZO Name
+    { wch: 22 }, // D: HO Name
+    { wch: 22 }, // E: HO Approved Amount
+    { wch: 10 }, // F: P
+    { wch: 12 }, // G: Date
+    { wch: 18 }, // H: JE Requisition No
+    { wch: 22 }, // I: JE Name
+    { wch: 22 }, // J: ZO Name
+    { wch: 28 }, // K: Requisition PDF Name
+    { wch: 20 }, // L: Material Main Head
+    { wch: 24 }, // M: 2nd Field
+    { wch: 22 }, // N: 3rd Field
+    { wch: 16 }, // O: Remarks
+    { wch: 22 }, // P: ZO Approved Amount
+    { wch: 30 }, // Q: Beneficiary Name
+    { wch: 20 }, // R: Account No
+    { wch: 15 }, // S: IFSC Code
+    { wch: 18 }, // T: Bank Name
+    { wch: 16 }, // U: Work_Order
+    { wch: 25 }  // V: Work Order Details
   ];
 
-  // Merge H2:I2 (col index 7 to 8 in 0-indexed coords)
+  // Merge M2:N2 (col index 12 to 13 in 0-indexed coords for 2nd Field & 3rd Field)
   worksheet['!merges'] = [
-    { s: { r: 1, c: 7 }, e: { r: 1, c: 8 } }
+    { s: { r: 1, c: 12 }, e: { r: 1, c: 13 } }
   ];
 
-  // Number formatting for Column C (HO Approved Amount) and Column K (ZO Approved Amount)
+  // Number formatting for Column E (HO Approved Amount) and Column P (ZO Approved Amount)
   for (let r = 3; r < aoa.length; r++) {
-    const cRef = XLSX.utils.encode_cell({ r, c: 2 });
-    if (worksheet[cRef] && typeof worksheet[cRef].v === 'number') {
-      worksheet[cRef].z = '#,##0.00';
+    const eRef = XLSX.utils.encode_cell({ r, c: 4 });
+    if (worksheet[eRef] && typeof worksheet[eRef].v === 'number') {
+      worksheet[eRef].z = '#,##0.00';
     }
-    const kRef = XLSX.utils.encode_cell({ r, c: 10 });
-    if (worksheet[kRef] && typeof worksheet[kRef].v === 'number') {
-      worksheet[kRef].z = '#,##0.00';
+    const pRef = XLSX.utils.encode_cell({ r, c: 15 });
+    if (worksheet[pRef] && typeof worksheet[pRef].v === 'number') {
+      worksheet[pRef].z = '#,##0.00';
     }
   }
 

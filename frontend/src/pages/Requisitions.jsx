@@ -2720,7 +2720,8 @@ const Requisitions = () => {
             try {
               const frRes = await getFundRequests().catch(() => ({ data: { fundRequests: [] } }));
               const allFundRequests = frRes.data?.fundRequests || [];
-              const allRequisitions = requisitionsData || [];
+              const reqRes = await getRequisitions().catch(() => ({ data: { requisitions: [] } }));
+              const allRequisitions = reqRes.data?.requisitions || reqRes.data || requisitionsData || [];
               await exportCombinedExpenditureSheet({
                 fundRequests: allFundRequests,
                 requisitions: allRequisitions,
