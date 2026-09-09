@@ -128,7 +128,7 @@ const ProjectBeneficiarySuggestions = ({
       {showMenu && menuRect && createPortal(
         <div
           ref={menuRef}
-          className="fixed z-50 max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0d131f] shadow-2xl backdrop-blur-md"
+          className="fixed z-[10000] max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0d131f] shadow-2xl backdrop-blur-md"
           style={{
             left: menuRect.left,
             width: menuRect.width,

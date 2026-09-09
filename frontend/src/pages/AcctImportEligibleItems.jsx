@@ -56,13 +56,14 @@ const AcctImportEligibleItems = () => {
   // + refetch, and put it back if the request actually fails. Must target the
   // same filter-parametrized queryKey the list is currently rendered from —
   // a static key here would silently miss whichever filtered view is active.
-  const handleDismiss = async (itemId) => {
+  const handleDismiss = async (item) => {
     setError('');
+    const itemId = item.id;
     setDismissingItemId(itemId);
     const previous = queryClient.getQueryData(queryKey);
     queryClient.setQueryData(queryKey, (old) => (old || []).filter((i) => i.id !== itemId));
     try {
-      await dismissImportEligibleItem(itemId);
+      await dismissImportEligibleItem(itemId, item.item_type);
     } catch (err) {
       queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to dismiss line item.');
@@ -161,13 +162,19 @@ const AcctImportEligibleItems = () => {
                     <span className="text-slate-300">{item.account_sub_title_text || '—'}</span>
                   </TableCell>
                   <TableCell>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/acct-requisitions/sheets/${item.sheet_id}`)}
-                      className="text-amber-500 hover:text-amber-400 font-mono text-xs underline-offset-2 hover:underline"
-                    >
-                      {item.sheet_number || '—'}
-                    </button>
+                    {item.sheet_id ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/acct-requisitions/sheets/${item.sheet_id}`)}
+                        className="text-amber-500 hover:text-amber-400 font-mono text-xs underline-offset-2 hover:underline"
+                      >
+                        {item.sheet_number || '—'}
+                      </button>
+                    ) : (
+                      <span className="text-slate-300 font-mono text-xs">
+                        {item.sheet_number || '—'}
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className="text-slate-400 text-xs">{item.beneficiary_name || '—'}</span>
@@ -188,7 +195,7 @@ const AcctImportEligibleItems = () => {
                       variant="glass"
                       size="sm"
                       loading={dismissingItemId === item.id}
-                      onClick={() => handleDismiss(item.id)}
+                      onClick={() => handleDismiss(item)}
                     >
                       Dismiss
                     </Button>

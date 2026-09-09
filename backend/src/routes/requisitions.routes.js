@@ -15,6 +15,9 @@ const {
   getSubcontractorRequisitions,
   adjustSubcontractorBalance,
   searchProjectsBeneficiaries,
+  getProjectsBeneficiaries,
+  upsertProjectsBeneficiary,
+  upsertIndianBank,
   getIndianBanks
 } = require('../controllers/requisitions.controller');
 const {
@@ -32,7 +35,9 @@ const {
   cancelRequisitionSchema,
   adjustSubcontractorBalanceSchema,
   payFromZoBalanceSchema,
-  sendToAccountsSchema
+  sendToAccountsSchema,
+  upsertProjectsBeneficiarySchema,
+  upsertIndianBankSchema
 } = require('../validation/requisition.schema');
 
 const router = express.Router();
@@ -61,11 +66,16 @@ router.get('/subcontractor-ledger/entries', requireRole(readerRoles), getSubcont
 router.get('/subcontractor-ledger/requisitions', requireRole(readerRoles), getSubcontractorRequisitions);
 router.get('/subcontractor-ledger', requireRole(readerRoles), getSubcontractorLedger);
 router.get('/beneficiary-suggestions', requireRole(readerRoles), searchProjectsBeneficiaries);
+router.get('/beneficiary-master', requireRole(readerRoles), getProjectsBeneficiaries);
 router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
 router.get('/:id', requireRole(readerRoles), getRequisitionById);
 
 // Create endpoint
 router.post('/', requireRole(requesterRoles), validateRequest(createRequisitionSchema), createRequisition);
+
+// Master data endpoints (Beneficiary & Indian Bank)
+router.put('/beneficiary-master', requireRole(readerRoles), validateRequest(upsertProjectsBeneficiarySchema), upsertProjectsBeneficiary);
+router.put('/indian-banks', requireRole(readerRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
 
 // Admin balance adjustment endpoint (HO or Admin only)
 router.post('/subcontractor-ledger/adjust', requireRole(adjusterRoles), validateRequest(adjustSubcontractorBalanceSchema), adjustSubcontractorBalance);

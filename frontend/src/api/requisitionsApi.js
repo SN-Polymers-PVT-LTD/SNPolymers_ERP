@@ -111,6 +111,18 @@ export const deleteGstBillPdf = (requisitionNo) =>
 export const searchProjectsBeneficiaries = (prefix, limit = 8) =>
   authApi.get('/requisitions/beneficiary-suggestions', { params: { prefix, limit } });
 
+/** Paginated/searchable list backing the Beneficiary Master page */
+export const getProjectsBeneficiaries = (params) =>
+  authApi.get('/requisitions/beneficiary-master', { params });
+
+/** Manual add/edit entry point for the Beneficiary Master page */
+export const upsertProjectsBeneficiary = (data) =>
+  authApi.put('/requisitions/beneficiary-master', data);
+
+/** Add/deactivate an Indian bank (shared indian_bank_master table) */
+export const upsertIndianBank = (data) =>
+  authApi.put('/requisitions/indian-banks', data);
+
 /** Fetch active Indian banks list */
 export const getIndianBanks = () =>
   authApi.get('/requisitions/indian-banks');

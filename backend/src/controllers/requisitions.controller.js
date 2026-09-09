@@ -3,9 +3,12 @@
 const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
-const { getActiveIndianBanks, validateActiveIndianBank } = require('../services/indianBanks.service');
+const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 const validate = require('../validation/validate');
-const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema, payFromZoBalanceSchema, sendToAccountsSchema } = require('../validation/requisition.schema');
+const {
+  createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema, sendToAccountsSchema, upsertProjectsBeneficiarySchema, upsertIndianBankSchema
+} = require('../validation/requisition.schema');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -859,11 +862,6 @@ async function sendToAccounts(req, res) {
     return res.status(200).json({
       success: true,
       requisition: data.requisition,
-      accounts: {
-        sheet_id: data.sheet.id,
-        sheet_number: data.sheet.sheet_number,
-        line_item_id: data.line_item.id
-      },
       message: 'Requisition sent to Accounts.'
     });
 
@@ -1334,6 +1332,168 @@ async function adjustSubcontractorBalance(req, res) {
 }
 
 /**
+ * GET /requisitions/beneficiary-master?page=&limit=&search=
+ * Paginated/searchable list backing the Beneficiary Master page, distinct
+ * from searchProjectsBeneficiaries' typeahead below.
+ */
+async function getProjectsBeneficiaries(req, res) {
+  try {
+    const query = req.query || {};
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    let limit = parseInt(query.limit, 10) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('projects_beneficiary_master')
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)', { count: 'exact' });
+
+    if (query.search) {
+      const term = query.search.replace(/[%,]/g, '');
+      dbQuery = dbQuery.or(`beneficiary_ac_no.ilike.%${term}%,beneficiary_name.ilike.%${term}%`);
+    }
+
+    const { data: beneficiaries, count, error } = await dbQuery
+      .order('beneficiary_name', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+
+    const enriched = (beneficiaries || []).map(b => ({
+      ...b,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      beneficiaries: enriched,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
+  } catch (error) {
+    console.error(`getProjectsBeneficiaries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve beneficiaries.' });
+  }
+}
+
+/**
+ * PUT /requisitions/beneficiary-master
+ * Manual add/edit entry point for the Beneficiary Master page, distinct from
+ * the automatic upsert createRequisition performs on submit.
+ */
+async function upsertProjectsBeneficiary(req, res) {
+  if (!validate(req, res, upsertProjectsBeneficiarySchema)) return;
+  const { beneficiary_ac_no, beneficiary_ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
+
+  let resolvedBankId = beneficiary_bank_id || null;
+  let resolvedBankName = beneficiary_bank_name?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('projects_beneficiary_master')
+      .upsert(
+        {
+          beneficiary_ac_no,
+          beneficiary_ifsc: beneficiary_ifsc.toUpperCase(),
+          beneficiary_name,
+          beneficiary_bank_id: resolvedBankId,
+          beneficiary_bank_name: resolvedBankName,
+          last_used_at: new Date().toISOString(),
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'beneficiary_ac_no,beneficiary_ifsc' }
+      )
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
+      .single();
+
+    if (error) throw error;
+
+    const enriched = {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    };
+
+    return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
+  } catch (error) {
+    console.error(`upsertProjectsBeneficiary failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
+  }
+}
+
+/**
+ * PUT /requisitions/indian-banks
+ * Shared indian_bank_master table — same write path as the Accounts module's
+ * equivalent endpoint, exposed here so Financial Twin users can add/deactivate
+ * banks without needing Accounts access.
+ */
+async function upsertIndianBank(req, res) {
+  if (!validate(req, res, upsertIndianBankSchema)) return;
+  const { bank_name, is_active } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('indian_bank_master')
+      .upsert(
+        {
+          bank_name,
+          is_active: is_active !== undefined ? is_active : true,
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'bank_name' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    invalidateBankCache();
+
+    return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
+  } catch (error) {
+    console.error(`upsertIndianBank failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save Indian bank.' });
+  }
+}
+
+/**
  * GET /api/v1/auth/requisitions/beneficiary-suggestions?prefix=...&limit=...
  * Live typeahead for project payment requisition beneficiary account numbers or names.
  */
@@ -1411,5 +1571,8 @@ module.exports = {
   getSubcontractorRequisitions,
   adjustSubcontractorBalance,
   searchProjectsBeneficiaries,
+  getProjectsBeneficiaries,
+  upsertProjectsBeneficiary,
+  upsertIndianBank,
   getIndianBanks
 };

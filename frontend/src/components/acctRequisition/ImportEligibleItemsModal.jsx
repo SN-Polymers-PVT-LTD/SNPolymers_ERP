@@ -82,12 +82,17 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
     return previous;
   };
 
-  const handleImport = async (itemId) => {
+  const handleImport = async (item) => {
     setError('');
+    const itemId = item.id;
     setActingItemId(itemId);
     const previous = removeItemOptimistically(itemId);
     try {
-      await importLineItem(itemId, targetSheetId);
+      if (item.item_type) {
+        await importLineItem(itemId, targetSheetId, item.item_type);
+      } else {
+        await importLineItem(itemId, targetSheetId);
+      }
       onImported?.();
     } catch (err) {
       queryClient.setQueryData(queryKey, previous);
@@ -97,12 +102,17 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
     }
   };
 
-  const handleDismiss = async (itemId) => {
+  const handleDismiss = async (item) => {
     setError('');
+    const itemId = item.id;
     setActingItemId(itemId);
     const previous = removeItemOptimistically(itemId);
     try {
-      await dismissImportEligibleItem(itemId);
+      if (item.item_type) {
+        await dismissImportEligibleItem(itemId, item.item_type);
+      } else {
+        await dismissImportEligibleItem(itemId);
+      }
     } catch (err) {
       queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to dismiss line item.');
@@ -203,7 +213,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
                         variant="amber"
                         size="sm"
                         loading={actingItemId === item.id}
-                        onClick={() => handleImport(item.id)}
+                        onClick={() => handleImport(item)}
                       >
                         Import
                       </Button>
@@ -211,7 +221,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
                         variant="glass"
                         size="sm"
                         loading={actingItemId === item.id}
-                        onClick={() => handleDismiss(item.id)}
+                        onClick={() => handleDismiss(item)}
                       >
                         Dismiss
                       </Button>

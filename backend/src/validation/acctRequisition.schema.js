@@ -151,7 +151,10 @@ const resubmitLineItemSchema = {
 
 const importLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
-  body: z.object({ target_sheet_id: uuidSchema })
+  body: z.object({
+    target_sheet_id: uuidSchema,
+    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION']).optional()
+  })
 };
 
 const dismissLineItemSchema = {

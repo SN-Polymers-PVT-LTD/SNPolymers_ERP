@@ -57,8 +57,7 @@ const AcctPaymentRequisitions = () => {
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Payment Requisitions</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">
-            Approved requisitions the Zonal Office sent to Accounts. Each one already has its Accounts
-            line item — open the sheet to fill in Debit Bank Account, Payment Mode, and Cheque details.
+            Approved requisitions the Zonal Office sent to Accounts. These are saved to the Import List — open any sheet and click &quot;Import Held / Rejected&quot; to import one into a sheet.
           </p>
         </div>
         <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
@@ -126,7 +125,11 @@ const AcctPaymentRequisitions = () => {
                       >
                         View Sheet {r.sheet.sheet_number}
                       </button>
-                    ) : '—'}
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                        In Import Queue
+                      </span>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

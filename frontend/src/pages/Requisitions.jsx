@@ -710,8 +710,8 @@ const PaymentRouteModal = ({ requisition, onClose, onChooseRoute }) => {
 
       {pendingRoute === 'ACCOUNTS' && (
         <p className="text-xs text-slate-400 text-left">
-          Send this approved requisition to Accounts? Accounts will select the Debit Bank Account, Payment Mode, and
-          Cheque details before it is executed. This cannot be switched to ZO Balance afterward.
+          Send this approved requisition to Accounts? It will be saved to the Accounts import list so Accounts can
+          import it into a sheet when processing payments. This cannot be switched to ZO Balance afterward.
         </p>
       )}
     </Modal>
@@ -739,19 +739,19 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     }).filter(p => p.latestEst);
   }, [projects, estimates]);
 
+  // Form State
+  const [step, setStep] = useState(1);
+  const [selectedWO, setSelectedWO] = useState('');
+
   const selectedProject = filteredProjects.find(p => p.work_order_no === selectedWO);
   const isSelectedWoUnderRevision = Boolean(
     selectedProject?.latestEst && selectedProject.latestEst.estimate_status !== 'Final Approved'
   );
-  
+
   // Step 1 read-only values
   const systemDateStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' });
   const username = user?.display_name || user?.mobile_number;
 
-  // Form State
-  const [step, setStep] = useState(1);
-  const [selectedWO, setSelectedWO] = useState('');
-  
   // Step 3 state fields
   const [requisitionNo, setRequisitionNo] = useState('');
   const [materialHead, setMaterialHead] = useState('');
@@ -1214,7 +1214,15 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
     }
-    
+    if (beneficiaryAcNo.trim() && !/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
+      setError('Beneficiary account number must be 9-18 digits.');
+      return;
+    }
+    if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim())) {
+      setError('Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.');
+      return;
+    }
+
     let finalBankDetails = bankDetails.trim();
     if (!finalBankDetails && (beneficiaryAcNo.trim() || beneficiaryName.trim())) {
       finalBankDetails = [
@@ -1751,22 +1759,14 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label="Beneficiary Name"
-                value={beneficiaryName}
-                onChange={(e) => setBeneficiaryName(e.target.value)}
-                placeholder="Enter payee / subcontractor name…"
-                disabled={submitting}
-                size="sm"
-              />
-
               <ProjectBeneficiarySuggestions
                 label="Account No."
                 value={beneficiaryAcNo}
                 onChange={(e) => {
-                  setBeneficiaryAcNo(e.target.value.replace(/\D/g, ''));
+                  setBeneficiaryAcNo(e.target.value.replace(/\D/g, '').slice(0, 18));
                   setBeneficiaryId(null);
                 }}
+                maxLength={18}
                 onSelect={(b) => {
                   setBeneficiaryAcNo(b.beneficiary_ac_no || '');
                   setBeneficiaryIfsc(b.beneficiary_ifsc || '');
@@ -1786,6 +1786,15 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().trim())}
                 placeholder="e.g. SBIN0001234"
                 maxLength={11}
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Input
+                label="Beneficiary Name"
+                value={beneficiaryName}
+                onChange={(e) => setBeneficiaryName(e.target.value)}
+                placeholder="Enter payee / subcontractor name…"
                 disabled={submitting}
                 size="sm"
               />
@@ -1994,7 +2003,7 @@ const Requisitions = () => {
       setSuccess('Requisition will be paid from the Zonal Office balance.');
     } else {
       await sendRequisitionToAccounts(id);
-      setSuccess('Requisition sent to Accounts.');
+      setSuccess('Requisition sent to Accounts (saved to import list).');
     }
     queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     queryClient.invalidateQueries({ queryKey: ['requisition', id] });

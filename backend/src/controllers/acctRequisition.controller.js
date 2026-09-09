@@ -579,6 +579,13 @@ async function deleteLineItem(req, res) {
       return res.status(403).json({ success: false, message: 'Line items can only be deleted while the sheet is Open.' });
     }
 
+    const { data: itemToDelete } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id, source_requisition_id')
+      .eq('id', itemId)
+      .eq('sheet_id', sheetId)
+      .maybeSingle();
+
     const { error: deleteErr } = await supabase
       .from('acct_requisition_line_items')
       .delete()
@@ -586,6 +593,18 @@ async function deleteLineItem(req, res) {
       .eq('sheet_id', sheetId);
 
     if (deleteErr) throw deleteErr;
+
+    if (itemToDelete?.source_requisition_id) {
+      await supabase
+        .from('requisitions')
+        .update({
+          accounts_line_item_id: null,
+          accounts_imported_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemToDelete.source_requisition_id)
+        .eq('accounts_line_item_id', itemId);
+    }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
   } catch (error) {
@@ -982,9 +1001,7 @@ async function getImportEligibleItems(req, res) {
       .is('imported_to_sheet_id', null)
       .eq('import_dismissed', false);
 
-    // Narrow to one specific status, still within the eligible set — an
-    // out-of-set value is ignored rather than passed straight into .eq(),
-    // same whitelist convention getSheets uses for sheet_status.
+    // Narrow to one specific status, still within the eligible set
     if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
       dbQuery = dbQuery.eq('requisition_status', query.status);
     }
@@ -1014,12 +1031,12 @@ async function getImportEligibleItems(req, res) {
     }
 
     dbQuery = dbQuery.order('created_at', { ascending: false });
-    dbQuery = isExport ? dbQuery.limit(5000) : dbQuery.range(offset, offset + limit - 1);
 
-    const { data: items, count, error } = await dbQuery;
+    // Fetch line items (up to 5000 for export/merging)
+    const { data: items, count: lineItemsCount, error } = await dbQuery.limit(5000);
     if (error) throw error;
 
-    const sheetIds = [...new Set((items || []).map(i => i.sheet_id))];
+    const sheetIds = [...new Set((items || []).map(i => i.sheet_id).filter(Boolean))];
     let sheetMap = {};
 
     if (sheetIds.length > 0) {
@@ -1035,20 +1052,90 @@ async function getImportEligibleItems(req, res) {
       }, {});
     }
 
-    const enrichedItems = (items || []).map(item => ({
+    const enrichedLineItems = (items || []).map(item => ({
       ...item,
+      item_type: 'LINE_ITEM',
       sheet_number: sheetMap[item.sheet_id]?.sheet_number || null,
       sheet_status: sheetMap[item.sheet_id]?.sheet_status || null
     }));
 
-    if (isExport) {
-      return res.status(200).json({ success: true, items: enrichedItems });
+    // Payment Requisitions queued for Accounts have requisition_status = 'Pending Review'
+    let reqs = [];
+    let reqsCount = 0;
+    if (!query.status || query.status === 'Pending Review') {
+      let reqQuery = supabase
+        .from('requisitions')
+        .select('*', { count: 'exact' })
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false);
+
+      if (query.particulars) {
+        reqQuery = reqQuery.ilike('expen_head_remarks', `%${query.particulars}%`);
+      }
+      if (query.account_sub_title) {
+        reqQuery = reqQuery.ilike('material_main_head', `%${query.account_sub_title}%`);
+      }
+      if (query.beneficiary_ac_no) {
+        reqQuery = reqQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+      }
+      if (query.date_from) {
+        reqQuery = reqQuery.gte('accounts_sent_at', query.date_from);
+      }
+      if (query.date_to) {
+        reqQuery = reqQuery.lte('accounts_sent_at', `${query.date_to}T23:59:59.999`);
+      }
+
+      // If debit_bank_ac_type filter is present, payment requisitions have no debit bank yet so exclude
+      if (!query.debit_bank_ac_type) {
+        const { data: fetchedReqs, count: rCount, error: reqErr } = await reqQuery.order('accounts_sent_at', { ascending: false }).limit(5000);
+        if (reqErr) throw reqErr;
+        reqs = (fetchedReqs || []).map(r => ({
+          id: r.requisition_id,
+          item_type: 'PAYMENT_REQUISITION',
+          sheet_id: null,
+          sheet_number: r.requisition_no, // User confirmed: "show req number"
+          sheet_status: null,
+          account_sub_title_id: null,
+          account_sub_title_text: r.material_main_head || null,
+          particulars: r.expen_head_remarks || null,
+          beneficiary_ac_no: r.beneficiary_ac_no || null,
+          beneficiary_name: r.beneficiary_name || null,
+          beneficiary_ifsc: r.beneficiary_ifsc || null,
+          beneficiary_bank_name: r.beneficiary_bank_name || null,
+          beneficiary_bank_id: r.beneficiary_bank_id || null,
+          debit_bank_ac_type: null,
+          req_amount: r.approved_amount,
+          payment_mode: null,
+          cheque_no: null,
+          cheque_date: null,
+          requisition_status: 'Pending Review', // User confirmed: "the status label wud be pending review"
+          work_order_no: r.work_order_no,
+          source_requisition_id: r.requisition_id,
+          created_at: r.accounts_sent_at || r.payment_date || r.created_at
+        }));
+        reqsCount = rCount || reqs.length;
+      }
     }
+
+    const allCombined = [...enrichedLineItems, ...reqs].sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+
+    const total = (lineItemsCount || 0) + reqsCount;
+
+    if (isExport) {
+      return res.status(200).json({ success: true, items: allCombined });
+    }
+
+    const pagedItems = allCombined.slice(offset, offset + limit);
 
     return res.status(200).json({
       success: true,
-      items: enrichedItems,
-      pagination: { page, limit, total: count || 0, totalPages: Math.ceil((count || 0) / limit) }
+      items: pagedItems,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
     console.error(`getImportEligibleItems failed: ${error.message}`);
@@ -1058,17 +1145,47 @@ async function getImportEligibleItems(req, res) {
 
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/import
- * body: { target_sheet_id }
- * Copies an On Hold/Rejected item into target_sheet_id as a brand-new line
- * item and marks the source as imported (import_acct_line_item_transact,
- * 034_add_line_item_import.sql) — the source row's requisition_status and
- * every other field are left untouched.
+ * body: { target_sheet_id, item_type }
+ * Copies an On Hold/Rejected/Pending Review line item or Payment Requisition into target_sheet_id.
  */
 async function importLineItem(req, res) {
   const { itemId } = req.params;
-  const { target_sheet_id } = req.body;
+  const { target_sheet_id, item_type } = req.body;
 
   try {
+    let isPaymentReq = item_type === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error: rpcErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {
+        p_requisition_id: itemId,
+        p_target_sheet_id: target_sheet_id,
+        p_imported_by: req.user.mobile_number
+      });
+
+      if (rpcErr) {
+        const mapped = mapAcctRpcError(rpcErr);
+        if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+        throw rpcErr;
+      }
+
+      return res.status(201).json({
+        success: true,
+        item: data.line_item,
+        requisition: data.requisition,
+        message: 'Line item imported.'
+      });
+    }
+
     const { data, error: rpcErr } = await supabase.rpc('import_acct_line_item_transact', {
       p_source_item_id: itemId,
       p_target_sheet_id: target_sheet_id,
@@ -1091,13 +1208,50 @@ async function importLineItem(req, res) {
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
  * Soft-hides an eligible item from the import list without touching its
- * real data — no hard delete, per this table's append-only guarantee
- * (prevent_acct_sheet_hard_delete, 030_allow_empty_open_sheet_delete.sql).
+ * real data.
  */
 async function dismissImportEligibleItem(req, res) {
   const { itemId } = req.params;
+  const itemType = req.query?.item_type || req.body?.item_type;
 
   try {
+    let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error } = await supabase
+        .from('requisitions')
+        .update({
+          accounts_import_dismissed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        return res.status(409).json({
+          success: false,
+          message: 'Item does not exist, or is already imported or dismissed.'
+        });
+      }
+
+      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+    }
+
     const { data, error } = await supabase
       .from('acct_requisition_line_items')
       .update({

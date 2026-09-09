@@ -68,6 +68,15 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+          </svg>
+        )
+      });
     }
     if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -574,6 +583,15 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
           </svg>
         )
       });

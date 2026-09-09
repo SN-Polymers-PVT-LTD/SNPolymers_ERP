@@ -153,46 +153,82 @@ describe('Payment Requisition -> ZO Payment / Accounts Routing', () => {
     expect(req.payment_destination).toBeNull();
   });
 
-  test('route_requisition_to_accounts_transact creates a line item with the correct field mapping and never touches zo_balances', async () => {
+  test('route_requisition_to_accounts_transact saves to import queue without creating a sheet, and manual import creates the line item', async () => {
     const balBefore = (await supabase.from('zo_balances').select('available_balance').eq('zo_user_id', zoMobile).single()).data.available_balance;
 
     // Partial approval: requisition_amount 10,000, approved_amount 6,000 -
     // the Accounts line item must receive the approved amount, not the requested one.
     const reqId = await createApprovedRequisition({ amount: 10000, approvedAmount: 6000, remarks: '  Pipe material  ' });
 
+    // 1. Route to Accounts - does NOT create a sheet or line item
     const { data, error } = await supabase.rpc('route_requisition_to_accounts_transact', {
       p_requisition_id: reqId,
       p_actor: zoMobile
     });
     expect(error).toBeNull();
-    createdItemIds.push(data.line_item.id);
-    createdSheetIds.push(data.sheet.id);
-
-    expect(data.line_item.source_requisition_id).toBe(reqId);
-    expect(Number(data.line_item.req_amount)).toBe(6000);
-    expect(data.line_item.particulars).toBe('Pipe material');
-    expect(data.line_item.account_sub_title_text).toBe('Material');
-    expect(data.line_item.beneficiary_name).toBe('ABC Contractors');
-    expect(data.line_item.beneficiary_ac_no).toBe('1234567890');
-    expect(data.line_item.beneficiary_ifsc).toBe('TEST0001234');
-    expect(data.line_item.work_order_no).toBe(workOrder);
-    expect(data.line_item.debit_bank_ac_type).toBeNull();
-    expect(data.line_item.payment_mode).toBeNull();
-    expect(data.line_item.cheque_no).toBeNull();
-    expect(data.line_item.cheque_date).toBeNull();
-    // requisition_status stays NULL while the sheet is Open, same as any
-    // manually-added line item (021_create_accounts_ho_approval.sql).
-    expect(data.line_item.requisition_status).toBeNull();
-
     expect(data.requisition.payment_destination).toBe('ACCOUNTS');
-    expect(data.requisition.accounts_line_item_id).toBe(data.line_item.id);
+    expect(data.requisition.accounts_line_item_id).toBeNull();
     expect(data.requisition.accounts_sent_by).toBe(zoMobile);
+
+    // Verify no line item exists yet
+    const { data: earlyLineItems } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id')
+      .eq('source_requisition_id', reqId);
+    expect(earlyLineItems.length).toBe(0);
+
+    // 2. Create an Open sheet to import into
+    const { data: newSheet, error: sheetErr } = await supabase
+      .from('acct_requisition_sheets')
+      .insert([{
+        sheet_number: `TEST_SHEET_${crypto.randomUUID().substring(0, 8)}`,
+        sheet_status: 'Open',
+        created_by: adminMobile
+      }])
+      .select()
+      .single();
+    expect(sheetErr).toBeNull();
+    createdSheetIds.push(newSheet.id);
+
+    // 3. Import the requisition into the open sheet
+    const { data: importRes, error: importErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {
+      p_requisition_id: reqId,
+      p_target_sheet_id: newSheet.id,
+      p_imported_by: adminMobile
+    });
+    expect(importErr).toBeNull();
+    createdItemIds.push(importRes.line_item.id);
+
+    expect(importRes.line_item.source_requisition_id).toBe(reqId);
+    expect(Number(importRes.line_item.req_amount)).toBe(6000);
+    expect(importRes.line_item.particulars).toBe('Pipe material');
+    expect(importRes.line_item.account_sub_title_text).toBe('Material');
+    expect(importRes.line_item.beneficiary_name).toBe('ABC Contractors');
+    expect(importRes.line_item.beneficiary_ac_no).toBe('1234567890');
+    expect(importRes.line_item.beneficiary_ifsc).toBe('TEST0001234');
+    expect(importRes.line_item.work_order_no).toBe(workOrder);
+    expect(importRes.line_item.debit_bank_ac_type).toBeNull();
+    expect(importRes.line_item.payment_mode).toBeNull();
+    expect(importRes.line_item.cheque_no).toBeNull();
+    expect(importRes.line_item.cheque_date).toBeNull();
+    expect(importRes.line_item.requisition_status).toBeNull();
+
+    expect(importRes.requisition.accounts_line_item_id).toBe(importRes.line_item.id);
+
+    // Double import is rejected
+    const { error: doubleImportErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {
+      p_requisition_id: reqId,
+      p_target_sheet_id: newSheet.id,
+      p_imported_by: adminMobile
+    });
+    expect(doubleImportErr).toBeDefined();
+    expect(doubleImportErr.code).toBe('STA06');
 
     const balAfter = (await supabase.from('zo_balances').select('available_balance').eq('zo_user_id', zoMobile).single()).data.available_balance;
     expect(Number(balAfter)).toBe(Number(balBefore));
   });
 
-  test('duplicate routing is rejected - sequential and concurrent calls create exactly one line item', async () => {
+  test('duplicate routing is rejected - sequential and concurrent calls update exactly once', async () => {
     const reqId = await createApprovedRequisition({ amount: 4000, approvedAmount: 4000 });
 
     const [first, second] = await Promise.all([
@@ -206,14 +242,6 @@ describe('Payment Requisition -> ZO Payment / Accounts Routing', () => {
     expect(succeeded.length).toBe(1);
     expect(failed.length).toBe(1);
     expect(failed[0].error.code).toBe('RTE01');
-    createdItemIds.push(succeeded[0].data.line_item.id);
-    createdSheetIds.push(succeeded[0].data.sheet.id);
-
-    const { data: lineItems } = await supabase
-      .from('acct_requisition_line_items')
-      .select('id')
-      .eq('source_requisition_id', reqId);
-    expect(lineItems.length).toBe(1);
 
     // A third, purely sequential attempt after the fact also fails deterministically.
     const { error: thirdErr } = await supabase.rpc('route_requisition_to_accounts_transact', {

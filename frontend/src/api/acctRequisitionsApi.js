@@ -74,8 +74,15 @@ export const getPaymentRequisitions = (params) => authApi.get(`${BASE}/payment-r
 // widened to include Pending Review by 041_close_review_pending_rollover.sql).
 // params supports particulars/status filters alongside the existing ones.
 export const getImportEligibleItems = (params) => authApi.get(`${BASE}/import-eligible-items`, { params });
-export const importLineItem = (itemId, targetSheetId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, { target_sheet_id: targetSheetId });
-export const dismissImportEligibleItem = (itemId) => authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`);
+export const importLineItem = (itemId, targetSheetId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, {
+    target_sheet_id: targetSheetId,
+    item_type: itemType
+  });
+export const dismissImportEligibleItem = (itemId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`, {
+    item_type: itemType
+  });
 
 export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${itemId}/action`, data);
 // One request carrying every staged HO decision for a sheet, instead of one

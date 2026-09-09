@@ -4,6 +4,7 @@ const {
   seedAcctRequisitionScenario,
   cleanupAcctRequisitionScenario
 } = require('../../helpers/acctRequisitionFixture');
+const setupProject = require('../../helpers/setupProject');
 const {
   createSheet, addLineItem, submitSheet, actOnLineItem, deleteLineItem, deleteSheetIfEmpty,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem
@@ -102,9 +103,15 @@ describe('Accounts HO Approval — import On Hold/Rejected items into a new shee
 
   beforeAll(async () => {
     ctx = await seedAcctRequisitionScenario();
+    ctx.workOrder = `WO_${ctx.id}`;
+    ctx.estimateNo = `EST_${ctx.id}`;
+    await setupProject(ctx.workOrder, ctx.estimateNo, 100000, ctx.adminMobile);
   });
 
   afterAll(async () => {
+    if (ctx?.workOrder) {
+      await supabase.from('projects_master').delete().eq('work_order_no', ctx.workOrder);
+    }
     await cleanupAcctRequisitionScenario(ctx);
   });
 
@@ -317,5 +324,127 @@ describe('Accounts HO Approval — import On Hold/Rejected items into a new shee
     expect(res.statusCode).toBe(200);
     expect(res.jsonData.deleted).toBe(true);
     expect(res.jsonData.restoredImportCount).toBe(0);
+  });
+
+  test('queued Payment Requisitions appear in getImportEligibleItems with Pending Review status and req number', async () => {
+    const reqNo = `REQ_TEST_${crypto.randomUUID().substring(0, 8)}`;
+    const { data: created, error: createErr } = await supabase.from('requisitions').insert([{
+      requisition_no: reqNo,
+      work_order_no: ctx.workOrder,
+      estimate_no: ctx.estimateNo,
+      state: 'West Bengal',
+      district: 'Kolkata',
+      area_code: 'Kolkata Zone',
+      department: 'PWD',
+      site_details: 'Testing Site',
+      requester_user_id: ctx.accountsMobile,
+      requisition_status: 'Approved',
+      approved_amount: 7500,
+      approved_balance_amount: 0,
+      requisition_amount: 7500,
+      material_main_head: 'Material',
+      requisition_pdf_url: 'requisitions/test.pdf',
+      original_filename: 'test.pdf',
+      gst_bill: 'No',
+      bank_details: 'Bank Details',
+      expen_head_remarks: 'Site electrical cables',
+      beneficiary_name: 'Electro Corp',
+      beneficiary_ac_no: '987654321012',
+      beneficiary_ifsc: 'SBIN0001234',
+      beneficiary_bank_name: 'State Bank of India',
+      payment_destination: 'ACCOUNTS',
+      accounts_line_item_id: null,
+      accounts_sent_at: new Date().toISOString(),
+      accounts_sent_by: ctx.accountsMobile,
+      created_by: ctx.accountsMobile
+    }]).select().single();
+    expect(createErr).toBeNull();
+    const reqId = created.requisition_id;
+
+    try {
+      // 1. Appears in getImportEligibleItems
+      const listRes = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+      const found = listRes.jsonData.items.find(i => i.id === reqId);
+      expect(found).toBeDefined();
+      expect(found.item_type).toBe('PAYMENT_REQUISITION');
+      expect(found.requisition_status).toBe('Pending Review');
+      expect(found.sheet_number).toBe(reqNo);
+      expect(Number(found.req_amount)).toBe(7500);
+      expect(found.particulars).toBe('Site electrical cables');
+      expect(found.beneficiary_name).toBe('Electro Corp');
+
+      // 2. Import into an Open sheet
+      const targetSheetRes = await callCreateSheet(ctx.accountsMobile);
+      const targetSheet = targetSheetRes.jsonData.sheet;
+      ctx.sheetIds.push(targetSheet.id);
+
+      const importRes = await callImportLineItem(reqId, targetSheet.id, ctx.accountsMobile);
+      expect(importRes.statusCode).toBe(201);
+      const createdItem = importRes.jsonData.item;
+      expect(createdItem).toBeDefined();
+      ctx.itemIds.push(createdItem.id);
+      expect(createdItem.sheet_id).toBe(targetSheet.id);
+      expect(Number(createdItem.req_amount)).toBe(7500);
+      expect(createdItem.particulars).toBe('Site electrical cables');
+
+      // Requisition is now linked
+      const { data: updatedReq } = await supabase.from('requisitions').select('*').eq('requisition_id', reqId).single();
+      expect(updatedReq.accounts_line_item_id).toBe(createdItem.id);
+
+      // No longer in import list
+      const afterList = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+      expect(afterList.jsonData.items.find(i => i.id === reqId)).toBeUndefined();
+    } finally {
+      await supabase.from('requisitions').delete().eq('requisition_id', reqId);
+    }
+  });
+
+  test('queued Payment Requisition can be dismissed from the import list', async () => {
+    const reqNo = `REQ_DISM_${crypto.randomUUID().substring(0, 8)}`;
+    const { data: created, error: createErr } = await supabase.from('requisitions').insert([{
+      requisition_no: reqNo,
+      work_order_no: ctx.workOrder,
+      estimate_no: ctx.estimateNo,
+      state: 'West Bengal',
+      district: 'Kolkata',
+      area_code: 'Kolkata Zone',
+      department: 'PWD',
+      site_details: 'Testing Site',
+      requester_user_id: ctx.accountsMobile,
+      requisition_status: 'Approved',
+      approved_amount: 3200,
+      approved_balance_amount: 0,
+      requisition_amount: 3200,
+      material_main_head: 'Material',
+      requisition_pdf_url: 'requisitions/test.pdf',
+      original_filename: 'test.pdf',
+      gst_bill: 'No',
+      bank_details: 'Bank Details',
+      expen_head_remarks: 'Plumbing pipes',
+      beneficiary_name: 'Plumb Corp',
+      beneficiary_ac_no: '112233445566',
+      beneficiary_ifsc: 'HDFC0001234',
+      beneficiary_bank_name: 'HDFC Bank',
+      payment_destination: 'ACCOUNTS',
+      accounts_line_item_id: null,
+      accounts_sent_at: new Date().toISOString(),
+      accounts_sent_by: ctx.accountsMobile,
+      created_by: ctx.accountsMobile
+    }]).select().single();
+    expect(createErr).toBeNull();
+    const reqId = created.requisition_id;
+
+    try {
+      const dismissRes = await callDismissLineItem(reqId, ctx.accountsMobile);
+      expect(dismissRes.statusCode).toBe(200);
+
+      const { data: dismissedReq } = await supabase.from('requisitions').select('*').eq('requisition_id', reqId).single();
+      expect(dismissedReq.accounts_import_dismissed).toBe(true);
+
+      const afterList = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+      expect(afterList.jsonData.items.find(i => i.id === reqId)).toBeUndefined();
+    } finally {
+      await supabase.from('requisitions').delete().eq('requisition_id', reqId);
+    }
   });
 });

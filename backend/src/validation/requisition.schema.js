@@ -2,6 +2,9 @@ const { z } = require('zod');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const uuidSchema = z.string().regex(uuidRegex, 'Invalid requisition ID.');
+const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+// Indian bank account numbers commonly run 9-18 digits, numeric only.
+const accountNumberRegex = /^\d{9,18}$/;
 
 const createRequisitionSchema = {
   body: z.object({
@@ -26,8 +29,16 @@ const createRequisitionSchema = {
     bank_details: z.string().trim().optional().nullable(),
     beneficiary_id: z.string().regex(uuidRegex, 'Invalid beneficiary ID.').optional().nullable(),
     beneficiary_name: z.string().trim().optional().nullable(),
-    beneficiary_ac_no: z.string().trim().optional().nullable(),
-    beneficiary_ifsc: z.string().trim().optional().nullable(),
+    beneficiary_ac_no: z.string().trim().optional().nullable()
+      // Not .regex() directly: empty string must pass through untouched since
+      // the beneficiary block is optional on the requisition form.
+      .refine(val => !val || accountNumberRegex.test(val), {
+        message: 'beneficiary_ac_no must be 9-18 digits.'
+      }),
+    beneficiary_ifsc: z.string().trim().optional().nullable()
+      .refine(val => !val || ifscRegex.test(val), {
+        message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'
+      }),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
     beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
     expen_head_remarks: z.string().optional().nullable()
@@ -37,6 +48,25 @@ const createRequisitionSchema = {
   }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
     message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
     path: ['material_sub_head']
+  })
+};
+
+const upsertProjectsBeneficiarySchema = {
+  body: z.object({
+    beneficiary_ac_no: z.string().trim().min(1, 'beneficiary_ac_no is required.')
+      .regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.'),
+    beneficiary_ifsc: z.string().trim()
+      .regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'),
+    beneficiary_name: z.string().trim().min(1, 'beneficiary_name is required.'),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
+    beneficiary_bank_name: z.string().trim().optional().nullable()
+  })
+};
+
+const upsertIndianBankSchema = {
+  body: z.object({
+    bank_name: z.string().trim().min(1, 'bank_name is required.'),
+    is_active: z.boolean().optional()
   })
 };
 
@@ -112,5 +142,7 @@ module.exports = {
   cancelRequisitionSchema,
   adjustSubcontractorBalanceSchema,
   payFromZoBalanceSchema,
-  sendToAccountsSchema
+  sendToAccountsSchema,
+  upsertProjectsBeneficiarySchema,
+  upsertIndianBankSchema
 };
