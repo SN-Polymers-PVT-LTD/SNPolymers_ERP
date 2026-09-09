@@ -242,8 +242,8 @@ const SubcontractorLedger = () => {
   const fetchAllBalancesWithCountInvariant = async (filters) => {
     const allBalances = [];
     let fetchPage = 1;
-    let totalPages_ = 1;
-    let serverFilteredTotal = 0;
+    let totalPages_;
+    let serverFilteredTotal;
     do {
       const res = await getSubcontractorLedger({
         page: fetchPage,

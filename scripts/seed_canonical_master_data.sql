@@ -1,23 +1,25 @@
--- Re-seeds rows that TRUNCATE wipes but the app assumes always exist.
--- Safe to run any number of times (ON CONFLICT DO UPDATE everywhere).
--- Run this after any dev-DB nuke/truncate script, or whenever the
--- 'Credit' debit bank option or account sub-titles disappear from a dev/staging environment.
+-- ============================================================================
+-- Seed Canonical Master Data (Banks & Account Sub-Titles)
+-- ============================================================================
+-- Seeds baseline lookup data for development/staging environments:
+--   1. 31 Canonical Indian Banks in indian_bank_master (026 / 051)
+--   2. 118 Canonical Account Sub-Titles in account_sub_title_master (021 / 052)
 --
--- FOR DEVELOPMENT/STAGING DB ONLY.
+-- Safe to run multiple times (uses ON CONFLICT DO UPDATE).
+-- Run this if bank or account sub-title dropdowns are empty after a database wipe.
+-- ============================================================================
 
 DO $$
 DECLARE
   v_seed_user varchar;
 BEGIN
-  -- Prefer an admin with telegram_chat_id set — see dev_nuke_and_reseed.sql's
-  -- note on why (bank_balance_master's created_by/updated_by FKs are
-  -- ON DELETE RESTRICT, which can otherwise block a later user-cleanup delete).
-  SELECT mobile_number INTO v_seed_user FROM authorised_users
+  -- Prefer an active admin user with a telegram_chat_id set
+  SELECT mobile_number INTO v_seed_user FROM public.authorised_users
   WHERE role = 'admin' AND telegram_chat_id IS NOT NULL AND TRIM(telegram_chat_id) <> ''
   LIMIT 1;
 
   IF v_seed_user IS NULL THEN
-    SELECT mobile_number INTO v_seed_user FROM authorised_users WHERE role = 'admin' LIMIT 1;
+    SELECT mobile_number INTO v_seed_user FROM public.authorised_users WHERE role = 'admin' LIMIT 1;
   END IF;
 
   IF v_seed_user IS NULL THEN
@@ -28,13 +30,7 @@ BEGIN
   END IF;
 
   IF v_seed_user IS NOT NULL THEN
-    -- 'Credit' sentinel in bank_balance_master — lets the Credit Ledger
-    -- feature's Debit Bank Type = 'Credit' be selected (042_credit_purchases_and_ledger.sql / 045).
-    INSERT INTO bank_balance_master (bank_name, balance_date, available_balance, is_virtual, created_by, updated_by)
-    VALUES ('Credit', CURRENT_DATE, 0, true, v_seed_user, v_seed_user)
-    ON CONFLICT (bank_name) DO UPDATE SET created_by = v_seed_user, updated_by = v_seed_user;
-
-    -- Canonical Indian Banks in indian_bank_master (026 / 051)
+    -- 1. Canonical Indian Banks in indian_bank_master (026 / 051)
     INSERT INTO "public"."indian_bank_master" (bank_name, is_active, created_by) VALUES
       ('State Bank of India', true, v_seed_user),
       ('Punjab National Bank', true, v_seed_user),
@@ -69,7 +65,7 @@ BEGIN
       ('Nainital Bank', true, v_seed_user)
     ON CONFLICT (bank_name) DO UPDATE SET created_by = v_seed_user, is_active = true;
 
-    -- Canonical Account Sub-Titles in account_sub_title_master (021 / 052)
+    -- 2. Canonical Account Sub-Titles in account_sub_title_master (021 / 052)
     -- Required for Accounts Requisition Sheets and Payment Requisition routing
     INSERT INTO "public"."account_sub_title_master" (title, is_active, created_by) VALUES
       ('Accurate Measurement Charges', true, v_seed_user),
@@ -192,6 +188,6 @@ BEGIN
       ('Water Bill', true, v_seed_user)
     ON CONFLICT (title) DO UPDATE SET created_by = v_seed_user, is_active = true;
   ELSE
-    RAISE NOTICE 'Sentinel reseed skipped: no admin user found in authorised_users.';
+    RAISE NOTICE 'Master data reseed skipped: no admin user found in authorised_users.';
   END IF;
 END $$;

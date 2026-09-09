@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Button, Input, Select } from '../ui';
+import { Button, Input } from '../ui';
 
 const ExportExpenditureModal = ({ projects = [], defaultWorkOrder = '', onConfirm, onClose, loading = false }) => {
   const [start, setStart] = useState('');
