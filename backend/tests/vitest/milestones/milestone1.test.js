@@ -276,6 +276,13 @@ describe('Milestone 1 — Database Foundation', () => {
     });
 
     test('Test 8: RPC transactional rollback works for invalid item ID in mixed batch', async () => {
+      const { error: errUpdateStatus } = await supabase
+        .from('project_cost_estimates')
+        .update({ estimate_status: 'Under ZO Review', last_modified_by: testAdminMobile })
+        .eq('estimate_id', testEstimate.estimate_id);
+
+      expect(errUpdateStatus).toBeNull();
+
       const { error } = await supabase.rpc('submit_row_approvals', {
         p_estimate_id: testEstimate.estimate_id,
         p_approvals: [

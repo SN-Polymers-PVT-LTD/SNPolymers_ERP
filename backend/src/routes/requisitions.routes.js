@@ -57,6 +57,7 @@ const approverRoles = ['zo', 'ho', 'admin'];
 const routingRoles = ['zo', 'admin'];
 const uploadRoles = ['je', 'admin'];
 const adjusterRoles = ['ho', 'admin'];
+const adminRoles = ['admin'];
 
 // Read endpoints
 router.get('/', requireRole(readerRoles), getRequisitions);
@@ -75,7 +76,7 @@ router.post('/', requireRole(requesterRoles), validateRequest(createRequisitionS
 
 // Master data endpoints (Beneficiary & Indian Bank)
 router.put('/beneficiary-master', requireRole(readerRoles), validateRequest(upsertProjectsBeneficiarySchema), upsertProjectsBeneficiary);
-router.put('/indian-banks', requireRole(readerRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
+router.put('/indian-banks', requireRole(adminRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
 
 // Admin balance adjustment endpoint (HO or Admin only)
 router.post('/subcontractor-ledger/adjust', requireRole(adjusterRoles), validateRequest(adjustSubcontractorBalanceSchema), adjustSubcontractorBalance);

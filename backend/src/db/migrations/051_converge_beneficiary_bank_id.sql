@@ -632,8 +632,8 @@ BEGIN
     SELECT * INTO v_ledger FROM credit_ledger WHERE id = p_ledger_id FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'Credit ledger row not found.'; END IF;
 
-    IF v_ledger.outstanding_balance <= 0 THEN
-        RAISE EXCEPTION 'This credit purchase is fully settled.' USING ERRCODE = 'LED01';
+    IF v_ledger.remaining_balance <= 0 THEN
+        RAISE EXCEPTION 'This credit purchase is already fully settled.' USING ERRCODE = 'STA09';
     END IF;
 
     IF EXISTS (
@@ -723,21 +723,19 @@ BEGIN
 
     INSERT INTO credit_ledger (
         source_line_item_id,
-        purchase_date,
         beneficiary_id,
-        particulars,
-        total_credit_amount,
-        outstanding_balance,
-        created_by,
-        updated_by
+        opening_balance,
+        paid_total,
+        remaining_balance,
+        ledger_status,
+        created_by
     ) VALUES (
         v_item.id,
-        CURRENT_DATE,
         v_beneficiary_id,
-        v_item.particulars,
         v_item.req_amount,
+        0,
         v_item.req_amount,
-        p_actioned_by,
+        'Open',
         p_actioned_by
     ) RETURNING id INTO v_ledger_id;
 
