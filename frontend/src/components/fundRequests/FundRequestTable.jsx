@@ -24,7 +24,6 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
       <TableBody className="divide-y divide-white/5">
         {requests.map((req) => {
           const isPending = req.request_status === 'Pending';
-          const isHold = req.request_status === 'Hold';
           const isImported = !!req.accounts_line_item_id;
           const canCancel = isPending && isZoOrAdmin && !isImported;
           // Fund Requests are no longer directly approvable here. Accounts

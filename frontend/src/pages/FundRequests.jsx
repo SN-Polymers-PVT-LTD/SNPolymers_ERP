@@ -108,15 +108,11 @@ const FundRequests = () => {
   }, [success]);
 
   const handleCreate = async (formData) => {
-    try {
-      const draftResponse = await createFundRequestDraft(formData);
-      const draftId = draftResponse.data?.fundRequest?.fund_request_id || draftResponse.data?.id;
-      await submitFundRequest(draftId);
-      setSuccess(`Fund request ${formData.zo_fr_no} submitted successfully.`);
-      queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
-    } catch (err) {
-      throw err;
-    }
+    const draftResponse = await createFundRequestDraft(formData);
+    const draftId = draftResponse.data?.fundRequest?.fund_request_id || draftResponse.data?.id;
+    await submitFundRequest(draftId);
+    setSuccess(`Fund request ${formData.zo_fr_no} submitted successfully.`);
+    queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
   };
 
   const handleSaveDraft = async (formData) => {
