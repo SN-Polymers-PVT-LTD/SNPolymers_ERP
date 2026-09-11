@@ -1288,7 +1288,6 @@ async function getSubcontractorRequisitions(req, res) {
     }
 
     if (query.date_from) {
-      console.error('[DEBUG date filter]', { dateCol, date_from: query.date_from, lower: `${query.date_from}T00:00:00+05:30` });
       dbQuery = dbQuery.gte(dateCol, `${query.date_from}T00:00:00+05:30`);
     }
     if (query.date_to) {

@@ -519,7 +519,9 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('14. getSubcontractorRequisitions date_from filter excludes requisitions created before the cutoff', async () => {
-    const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Use two days ahead so converting the instant to a UTC date cannot
+    // accidentally produce the current IST calendar day around midnight.
+    const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const req = { query: { work_order_no: workOrder, date_from: future } };
     const res = mockRes();
     await getSubcontractorRequisitions(req, res);
