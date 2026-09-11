@@ -2,6 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
+const setupAttachment = require('../../helpers/setupAttachment');
 const mockRes = require('../../helpers/mockRes');
 
 // Controllers under test
@@ -156,6 +157,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
 
   afterAll(async () => {
     // Delete in reverse order of dependencies
+    await supabase.from('requisition_attachments').delete().eq('uploaded_by', jeMobile);
     await supabase.from('ra_final_bills').delete().eq('work_order_no', workOrder1);
     await supabase.from('daily_progress_reports').delete().eq('work_order_no', workOrder1);
     await supabase.from('zo_balances').delete().in('zo_user_id', [zo1Mobile, zo2Mobile]);
@@ -173,13 +175,14 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
 
   test('M6-TC-01: Requisition creation gates & zo_user_id population', async () => {
     // 1. Try creating a requisition for Work Order 2 (not assigned to JE) -> Should fail with 403
+    const failAttachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
     const reqCreateFail = {
       user: { mobile_number: jeMobile, role: 'je' },
       body: {
         work_order_no: workOrder2,
         requisition_no: `REQ-M6-Fail-${suffix}`,
         material_main_head: `Material M6-${suffix}`,
-        requisition_pdf_url: 'path/pdf',
+        requisition_pdf_attachment_id: failAttachment.attachmentId,
         original_filename: 'pdf.pdf',
         requisition_amount: 5000.00,
         gst_bill: 'No',
@@ -192,13 +195,14 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     expect(resCreateFail.statusCode).toBe(403);
 
     // 2. Create for Work Order 1 (assigned to JE) -> Should succeed and set zo_user_id = zo1Mobile
+    const okAttachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
     const reqCreateOk = {
       user: { mobile_number: jeMobile, role: 'je' },
       body: {
         work_order_no: workOrder1,
         requisition_no: `REQ-M6-Ok-${suffix}`,
         material_main_head: `Material M6-${suffix}`,
-        requisition_pdf_url: 'path/pdf',
+        requisition_pdf_attachment_id: okAttachment.attachmentId,
         original_filename: 'pdf.pdf',
         requisition_amount: 5000.00,
         gst_bill: 'No',

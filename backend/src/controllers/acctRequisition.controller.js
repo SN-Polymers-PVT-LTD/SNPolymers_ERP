@@ -391,13 +391,24 @@ async function getSheetById(req, res) {
       sourceReqMap = (sourceReqs || []).reduce((acc, r) => { acc[r.requisition_id] = r; return acc; }, {});
     }
 
+    const sourceFrIds = [...new Set((items || []).map(i => i.source_fund_request_id).filter(Boolean))];
+    let sourceFrMap = {};
+    if (sourceFrIds.length > 0) {
+      const { data: sourceFrs } = await supabase
+        .from('fund_requests')
+        .select('fund_request_id, zo_fr_no, zo_user_id, created_at')
+        .in('fund_request_id', sourceFrIds);
+      sourceFrMap = (sourceFrs || []).reduce((acc, f) => { acc[f.fund_request_id] = f; return acc; }, {});
+    }
+
     const enrichedItems = (items || []).map(item => ({
       ...item,
       beneficiary_bank: item.beneficiary_bank_id ? {
         id: item.beneficiary_bank_id,
         bank_name: item.beneficiary_bank_name
       } : null,
-      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null
+      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null,
+      source_fund_request: item.source_fund_request_id ? (sourceFrMap[item.source_fund_request_id] || null) : null
     }));
 
     return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
@@ -581,7 +592,7 @@ async function deleteLineItem(req, res) {
 
     const { data: itemToDelete } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, source_requisition_id')
+      .select('id, source_requisition_id, source_fund_request_id')
       .eq('id', itemId)
       .eq('sheet_id', sheetId)
       .maybeSingle();
@@ -602,8 +613,18 @@ async function deleteLineItem(req, res) {
           accounts_imported_at: null,
           updated_at: new Date().toISOString()
         })
-        .eq('requisition_id', itemToDelete.source_requisition_id)
-        .eq('accounts_line_item_id', itemId);
+        .eq('requisition_id', itemToDelete.source_requisition_id);
+    }
+
+    if (itemToDelete?.source_fund_request_id) {
+      await supabase
+        .from('fund_requests')
+        .update({
+          accounts_line_item_id: null,
+          accounts_imported_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('fund_request_id', itemToDelete.source_fund_request_id);
     }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
@@ -1118,13 +1139,76 @@ async function getImportEligibleItems(req, res) {
       }
     }
 
-    const allCombined = [...enrichedLineItems, ...reqs].sort((a, b) => {
+    // Fund Requests queued for Accounts have requisition_status = 'Pending Review' (or 'On Hold')
+    let fundReqs = [];
+    let fundReqsCount = 0;
+    if (!query.status || query.status === 'Pending Review' || query.status === 'On Hold') {
+      let frQuery = supabase
+        .from('fund_requests')
+        .select('*', { count: 'exact' })
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false);
+
+      if (query.status === 'Pending Review') {
+        frQuery = frQuery.eq('request_status', 'Pending');
+      } else if (query.status === 'On Hold') {
+        frQuery = frQuery.eq('request_status', 'Hold');
+      } else {
+        frQuery = frQuery.in('request_status', ['Pending', 'Hold']);
+      }
+
+      if (query.particulars) {
+        frQuery = frQuery.ilike('zo_remarks', `%${query.particulars}%`);
+      }
+      if (query.beneficiary_ac_no) {
+        frQuery = frQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+      }
+      if (query.date_from) {
+        frQuery = frQuery.gte('created_at', query.date_from);
+      }
+      if (query.date_to) {
+        frQuery = frQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+      }
+
+      // If debit_bank_ac_type filter is present, fund requests have no debit bank yet so exclude
+      if (!query.debit_bank_ac_type && (!query.account_sub_title || 'fund request'.includes(query.account_sub_title.toLowerCase()))) {
+        const { data: fetchedFrs, count: fCount, error: frErr } = await frQuery.order('created_at', { ascending: false }).limit(5000);
+        if (frErr) throw frErr;
+        fundReqs = (fetchedFrs || []).map(f => ({
+          id: f.fund_request_id,
+          item_type: 'FUND_REQUEST',
+          sheet_id: null,
+          sheet_number: f.zo_fr_no,
+          sheet_status: null,
+          account_sub_title_id: null,
+          account_sub_title_text: 'Fund Request',
+          particulars: f.zo_remarks || `Fund Request ${f.zo_fr_no}`,
+          beneficiary_ac_no: f.beneficiary_ac_no || null,
+          beneficiary_name: f.beneficiary_name || null,
+          beneficiary_ifsc: f.beneficiary_ifsc || null,
+          beneficiary_bank_name: f.beneficiary_bank_name || null,
+          beneficiary_bank_id: f.beneficiary_bank_id || null,
+          debit_bank_ac_type: null,
+          req_amount: f.zo_fr_amount,
+          payment_mode: null,
+          cheque_no: null,
+          cheque_date: null,
+          requisition_status: f.request_status === 'Hold' ? 'On Hold' : 'Pending Review',
+          work_order_no: f.work_order_no,
+          source_fund_request_id: f.fund_request_id,
+          created_at: f.created_at
+        }));
+        fundReqsCount = fCount || fundReqs.length;
+      }
+    }
+
+    const allCombined = [...enrichedLineItems, ...reqs, ...fundReqs].sort((a, b) => {
       const timeA = new Date(a.created_at || 0).getTime();
       const timeB = new Date(b.created_at || 0).getTime();
       return timeB - timeA;
     });
 
-    const total = (lineItemsCount || 0) + reqsCount;
+    const total = (lineItemsCount || 0) + reqsCount + fundReqsCount;
 
     if (isExport) {
       return res.status(200).json({ success: true, items: allCombined });
@@ -1146,7 +1230,7 @@ async function getImportEligibleItems(req, res) {
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/import
  * body: { target_sheet_id, item_type }
- * Copies an On Hold/Rejected/Pending Review line item or Payment Requisition into target_sheet_id.
+ * Copies an On Hold/Rejected/Pending Review line item, Payment Requisition, or Fund Request into target_sheet_id.
  */
 async function importLineItem(req, res) {
   const { itemId } = req.params;
@@ -1154,7 +1238,9 @@ async function importLineItem(req, res) {
 
   try {
     let isPaymentReq = item_type === 'PAYMENT_REQUISITION';
-    if (!isPaymentReq) {
+    let isFundReq = item_type === 'FUND_REQUEST';
+
+    if (!isPaymentReq && !isFundReq) {
       const { data: maybeReq } = await supabase
         .from('requisitions')
         .select('requisition_id')
@@ -1162,7 +1248,17 @@ async function importLineItem(req, res) {
         .eq('payment_destination', 'ACCOUNTS')
         .is('accounts_line_item_id', null)
         .maybeSingle();
-      if (maybeReq) isPaymentReq = true;
+      if (maybeReq) {
+        isPaymentReq = true;
+      } else {
+        const { data: maybeFr } = await supabase
+          .from('fund_requests')
+          .select('fund_request_id')
+          .eq('fund_request_id', itemId)
+          .is('accounts_line_item_id', null)
+          .maybeSingle();
+        if (maybeFr) isFundReq = true;
+      }
     }
 
     if (isPaymentReq) {
@@ -1182,6 +1278,27 @@ async function importLineItem(req, res) {
         success: true,
         item: data.line_item,
         requisition: data.requisition,
+        message: 'Line item imported.'
+      });
+    }
+
+    if (isFundReq) {
+      const { data, error: rpcErr } = await supabase.rpc('import_fund_request_to_acct_sheet_transact', {
+        p_fund_request_id: itemId,
+        p_target_sheet_id: target_sheet_id,
+        p_imported_by: req.user.mobile_number
+      });
+
+      if (rpcErr) {
+        const mapped = mapAcctRpcError(rpcErr);
+        if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+        throw rpcErr;
+      }
+
+      return res.status(201).json({
+        success: true,
+        item: data.line_item,
+        fund_request: data.fund_request,
         message: 'Line item imported.'
       });
     }
@@ -1216,7 +1333,9 @@ async function dismissImportEligibleItem(req, res) {
 
   try {
     let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
-    if (!isPaymentReq) {
+    let isFundReq = itemType === 'FUND_REQUEST';
+
+    if (!isPaymentReq && !isFundReq) {
       const { data: maybeReq } = await supabase
         .from('requisitions')
         .select('requisition_id')
@@ -1224,7 +1343,17 @@ async function dismissImportEligibleItem(req, res) {
         .eq('payment_destination', 'ACCOUNTS')
         .is('accounts_line_item_id', null)
         .maybeSingle();
-      if (maybeReq) isPaymentReq = true;
+      if (maybeReq) {
+        isPaymentReq = true;
+      } else {
+        const { data: maybeFr } = await supabase
+          .from('fund_requests')
+          .select('fund_request_id')
+          .eq('fund_request_id', itemId)
+          .is('accounts_line_item_id', null)
+          .maybeSingle();
+        if (maybeFr) isFundReq = true;
+      }
     }
 
     if (isPaymentReq) {
@@ -1236,6 +1365,30 @@ async function dismissImportEligibleItem(req, res) {
         })
         .eq('requisition_id', itemId)
         .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        return res.status(409).json({
+          success: false,
+          message: 'Item does not exist, or is already imported or dismissed.'
+        });
+      }
+
+      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+    }
+
+    if (isFundReq) {
+      const { data, error } = await supabase
+        .from('fund_requests')
+        .update({
+          accounts_import_dismissed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('fund_request_id', itemId)
         .is('accounts_line_item_id', null)
         .eq('accounts_import_dismissed', false)
         .select()

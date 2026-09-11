@@ -10,6 +10,7 @@ const {
   getLedgerRows,
   cleanupFinancialScenario
 } = require('../../helpers/financialFixture');
+const setupAttachment = require('../../helpers/setupAttachment');
 const {
   getRequisitionById,
   createRequisition,
@@ -93,6 +94,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
         requisition_status: 'Cancelled'
       });
 
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: localCtx.jeMobile });
       const res = mockRes();
       await createRequisition(
         {
@@ -101,7 +103,8 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             work_order_no: localCtx.workOrder,
             requisition_no: `REQ_NEW_${localSuffix}`,
             material_main_head: 'Cement',
-            requisition_pdf_url: `fixtures/REQ_NEW_${localSuffix}.pdf`,
+            requisition_pdf_attachment_id: attachment.attachmentId,
+            original_filename: `REQ_NEW_${localSuffix}.pdf`,
             requisition_amount: 9000,
             gst_bill: 'No',
             bank_details: 'Test bank'
@@ -139,6 +142,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
         approved_balance_amount: 0
       });
 
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: localCtx.jeMobile });
       const res = mockRes();
       await createRequisition(
         {
@@ -147,7 +151,8 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             work_order_no: localCtx.workOrder,
             requisition_no: `REQ_OVER_${localSuffix}`,
             material_main_head: 'Cement',
-            requisition_pdf_url: `fixtures/REQ_OVER_${localSuffix}.pdf`,
+            requisition_pdf_attachment_id: attachment.attachmentId,
+            original_filename: `REQ_OVER_${localSuffix}.pdf`,
             requisition_amount: 5001,
             gst_bill: 'No',
             bank_details: 'Test bank'

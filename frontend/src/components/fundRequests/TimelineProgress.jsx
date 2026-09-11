@@ -3,7 +3,7 @@ import React from 'react';
 const TimelineProgress = ({ status }) => {
   const stages = [
     { label: 'Fund Request Created', key: 'created' },
-    { label: 'Pending HO Approval', key: 'pending' },
+    { label: 'Pending Accounts Approval', key: 'pending' },
     { label: 'Approved / Hold', key: 'terminal' }
   ];
 

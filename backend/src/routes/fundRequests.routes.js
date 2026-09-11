@@ -19,9 +19,9 @@ const router = express.Router();
 
 router.use(verifyJwt);
 
-const readerRoles = ['zo', 'ho', 'admin'];
+const readerRoles = ['zo', 'ho', 'accounts', 'admin'];
 const zoRoles = ['zo', 'admin'];
-const hoRoles = ['ho', 'admin'];
+const accountsRoles = ['accounts', 'admin'];
 
 // Read endpoints
 router.get('/', requireRole(readerRoles), getFundRequests);
@@ -30,8 +30,8 @@ router.get('/:id', requireRole(readerRoles), getFundRequestById);
 // Create endpoint
 router.post('/', requireRole(zoRoles), validateRequest(createFundRequestSchema), createFundRequest);
 
-// Workflow transitions
-router.patch('/:id/action', requireRole(hoRoles), validateRequest(actOnFundRequestSchema), actOnFundRequest);
+// Workflow transitions — Accounts approves/holds directly; HO is read-only (no HO approval stage).
+router.patch('/:id/action', requireRole(accountsRoles), validateRequest(actOnFundRequestSchema), actOnFundRequest);
 router.patch('/:id/cancel', requireRole(zoRoles), validateRequest(cancelFundRequestSchema), cancelFundRequest);
 
 module.exports = router;

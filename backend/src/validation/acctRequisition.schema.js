@@ -153,12 +153,15 @@ const importLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
   body: z.object({
     target_sheet_id: uuidSchema,
-    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION']).optional()
+    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION', 'FUND_REQUEST']).optional()
   })
 };
 
 const dismissLineItemSchema = {
-  params: z.object({ itemId: uuidSchema })
+  params: z.object({ itemId: uuidSchema }),
+  body: z.object({
+    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION', 'FUND_REQUEST']).optional()
+  }).optional()
 };
 
 const importCreditInstallmentSchema = {

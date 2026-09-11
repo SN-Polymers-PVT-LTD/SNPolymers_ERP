@@ -576,6 +576,42 @@ module.exports = {
           "udtName": "varchar",
           "nullable": true,
           "default": null
+        },
+        "beneficiary_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ac_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ifsc": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
         }
       }
     },

@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const mockRes = require('../../helpers/mockRes');
+const setupAttachment = require('../../helpers/setupAttachment');
 const {
   seedAcctRequisitionScenario,
   cleanupAcctRequisitionScenario
@@ -128,7 +129,8 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
         work_order_no: 'WO/TEST/001',
         requisition_no: 'REQ-TEST-001',
         material_main_head: 'Labour',
-        requisition_pdf_url: 'https://example.com/test.pdf',
+        requisition_pdf_attachment_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        original_filename: 'test.pdf',
         requisition_amount: 5000,
         gst_bill: 'No',
         bank_details: 'SBI',
@@ -142,7 +144,8 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
         work_order_no: 'WO/TEST/001',
         requisition_no: 'REQ-TEST-001',
         material_main_head: 'Labour',
-        requisition_pdf_url: 'https://example.com/test.pdf',
+        requisition_pdf_attachment_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12',
+        original_filename: 'test.pdf',
         requisition_amount: 5000,
         gst_bill: 'No',
         bank_details: 'SBI',
@@ -175,12 +178,14 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
 
   describe('3. Controller Rejection Contracts (422 Unprocessable Entity)', () => {
     test('createRequisition rejects non-existent bank_id with 422', async () => {
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: ctx.accountsMobile });
       const req = {
         body: {
           work_order_no: 'WO_TEST_001',
           requisition_no: `REQ_${ctx.id.slice(0, 8)}`,
           material_main_head: 'Civil Works',
-          requisition_pdf_url: 'https://example.com/test.pdf',
+          requisition_pdf_attachment_id: attachment.attachmentId,
+          original_filename: 'test.pdf',
           requisition_amount: 1000,
           gst_bill: 'No',
           bank_details: 'Test',
@@ -195,12 +200,14 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
     });
 
     test('createRequisition rejects inactive bank_id with 422', async () => {
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: ctx.accountsMobile });
       const req = {
         body: {
           work_order_no: 'WO_TEST_001',
           requisition_no: `REQ_${ctx.id.slice(0, 8)}`,
           material_main_head: 'Civil Works',
-          requisition_pdf_url: 'https://example.com/test.pdf',
+          requisition_pdf_attachment_id: attachment.attachmentId,
+          original_filename: 'test.pdf',
           requisition_amount: 1000,
           gst_bill: 'No',
           bank_details: 'Test',

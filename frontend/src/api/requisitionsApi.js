@@ -95,17 +95,17 @@ export const uploadGstBillPdf = (file, requisitionNo) => {
   });
 };
 
-/** Delete Requisition PDF
- * @param {string} requisitionNo
+/** Delete a pending (not-yet-submitted) Requisition PDF attachment
+ * @param {string} attachmentId
  */
-export const deleteRequisitionPdf = (requisitionNo) =>
-  authApi.delete('/requisitions/upload/requisition-pdf', { params: { requisition_no: requisitionNo } });
+export const deleteRequisitionPdf = (attachmentId) =>
+  authApi.delete('/requisitions/upload/requisition-pdf', { params: { attachment_id: attachmentId } });
 
-/** Delete GST Bill PDF
- * @param {string} requisitionNo
+/** Delete a pending (not-yet-submitted) GST Bill PDF attachment
+ * @param {string} attachmentId
  */
-export const deleteGstBillPdf = (requisitionNo) =>
-  authApi.delete('/requisitions/upload/gst-bill', { params: { requisition_no: requisitionNo } });
+export const deleteGstBillPdf = (attachmentId) =>
+  authApi.delete('/requisitions/upload/gst-bill', { params: { attachment_id: attachmentId } });
 
 /** Live typeahead search for project payment requisition beneficiary suggestions */
 export const searchProjectsBeneficiaries = (prefix, limit = 8) =>

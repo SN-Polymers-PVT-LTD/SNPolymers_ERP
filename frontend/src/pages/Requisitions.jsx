@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { getProjects } from '../api/projectsApi';
 import { getEstimates, getEstimateById } from '../api/estimatesApi';
@@ -779,16 +779,40 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
   // Upload state
   const [requisitionPdf, setRequisitionPdf] = useState(null); // original file
-  const [requisitionPdfUrl, setRequisitionPdfUrl] = useState(''); // storage path
+  const [requisitionPdfUrl, setRequisitionPdfUrl] = useState(''); // storage path (opaque; used only as an "uploaded?" flag)
+  const [requisitionPdfAttachmentId, setRequisitionPdfAttachmentId] = useState('');
   const [requisitionPdfPreview, setRequisitionPdfPreview] = useState(''); // signed url
   const [isUploadingReq, setIsUploadingReq] = useState(false);
   const [reqUploadProgress, setReqUploadProgress] = useState(0);
 
   const [gstPdf, setGstPdf] = useState(null); // original file
-  const [gstPdfUrl, setGstPdfUrl] = useState(''); // storage path
+  const [gstPdfUrl, setGstPdfUrl] = useState(''); // storage path (opaque; used only as an "uploaded?" flag)
+  const [gstPdfAttachmentId, setGstPdfAttachmentId] = useState('');
   const [gstPdfPreview, setGstPdfPreview] = useState(''); // signed url
   const [isUploadingGst, setIsUploadingGst] = useState(false);
   const [gstUploadProgress, setGstUploadProgress] = useState(0);
+
+  // Safety net: clean up any uploaded-but-unsubmitted PDFs if this modal is torn down
+  // without going through handleCancelOrClose (e.g. the user navigates to another page
+  // in-app instead of clicking the modal's own close control).
+  const requisitionPdfAttachmentIdRef = useRef('');
+  const gstPdfAttachmentIdRef = useRef('');
+  const submittedRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      if (submittedRef.current) return;
+      if (requisitionPdfAttachmentIdRef.current) {
+        deleteRequisitionPdf(requisitionPdfAttachmentIdRef.current).catch((err) => {
+          console.error('Failed to cleanup requisition PDF on unmount:', err);
+        });
+      }
+      if (gstPdfAttachmentIdRef.current) {
+        deleteGstBillPdf(gstPdfAttachmentIdRef.current).catch((err) => {
+          console.error('Failed to cleanup GST PDF on unmount:', err);
+        });
+      }
+    };
+  }, []);
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -988,13 +1012,23 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     ? computeRequisitionAdvisoryRemaining(projectMetadata.estimateAmount, requisitions, selectedWO)
     : null;
 
-  // Reset GST Upload state if toggled to No
-  const handleGstToggle = (val) => {
+  // Reset GST Upload state if toggled to No, cleaning up any already-uploaded file
+  const handleGstToggle = async (val) => {
     setGstBill(val);
     if (val === 'No') {
+      if (gstPdfAttachmentId) {
+        try {
+          await deleteGstBillPdf(gstPdfAttachmentId);
+        } catch (err) {
+          console.error('Failed to delete GST bill PDF on toggle-off:', err);
+        }
+      }
       setGstPdf(null);
       setGstPdfUrl('');
+      setGstPdfAttachmentId('');
       setGstPdfPreview('');
+      setGstUploadProgress(0);
+      gstPdfAttachmentIdRef.current = '';
     }
   };
 
@@ -1050,7 +1084,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setReqUploadProgress(100);
       setRequisitionPdf(file);
       setRequisitionPdfUrl(res.data.storagePath);
+      setRequisitionPdfAttachmentId(res.data.attachmentId);
       setRequisitionPdfPreview(res.data.signedUrl);
+      requisitionPdfAttachmentIdRef.current = res.data.attachmentId;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload Requisition PDF.');
       e.target.value = null;
@@ -1061,17 +1097,19 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
   // Clear PDF handler to reset upload state and unlock requisition number
   const handleClearRequisitionPdf = async () => {
-    if (requisitionPdfUrl) {
+    if (requisitionPdfAttachmentId) {
       try {
-        await deleteRequisitionPdf(requisitionNo);
+        await deleteRequisitionPdf(requisitionPdfAttachmentId);
       } catch (err) {
         console.error('Failed to delete cleared requisition PDF:', err);
       }
     }
     setRequisitionPdf(null);
     setRequisitionPdfUrl('');
+    setRequisitionPdfAttachmentId('');
     setRequisitionPdfPreview('');
     setReqUploadProgress(0);
+    requisitionPdfAttachmentIdRef.current = '';
   };
 
   // Immediate upload handler for GST Bill PDF
@@ -1124,7 +1162,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setGstUploadProgress(100);
       setGstPdf(file);
       setGstPdfUrl(res.data.storagePath);
+      setGstPdfAttachmentId(res.data.attachmentId);
       setGstPdfPreview(res.data.signedUrl);
+      gstPdfAttachmentIdRef.current = res.data.attachmentId;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload GST Bill PDF.');
       e.target.value = null;
@@ -1134,34 +1174,38 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   };
 
   const handleClearGstPdf = async () => {
-    if (gstPdfUrl) {
+    if (gstPdfAttachmentId) {
       try {
-        await deleteGstBillPdf(requisitionNo);
+        await deleteGstBillPdf(gstPdfAttachmentId);
       } catch (err) {
         console.error('Failed to delete cleared GST PDF:', err);
       }
     }
     setGstPdf(null);
     setGstPdfUrl('');
+    setGstPdfAttachmentId('');
     setGstPdfPreview('');
     setGstUploadProgress(0);
+    gstPdfAttachmentIdRef.current = '';
   };
 
   const handleCancelOrClose = async () => {
-    if (requisitionPdfUrl) {
+    if (requisitionPdfAttachmentId) {
       try {
-        await deleteRequisitionPdf(requisitionNo);
+        await deleteRequisitionPdf(requisitionPdfAttachmentId);
       } catch (err) {
         console.error('Failed to cleanup requisition PDF on close:', err);
       }
     }
-    if (gstPdfUrl) {
+    if (gstPdfAttachmentId) {
       try {
-        await deleteGstBillPdf(requisitionNo);
+        await deleteGstBillPdf(gstPdfAttachmentId);
       } catch (err) {
         console.error('Failed to cleanup GST PDF on close:', err);
       }
     }
+    requisitionPdfAttachmentIdRef.current = '';
+    gstPdfAttachmentIdRef.current = '';
     onClose();
   };
 
@@ -1244,11 +1288,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         material_main_head: materialHead.trim(),
         material_sub_head: materialHead === 'Sub Contractor' ? materialSubHead.trim() : undefined,
         material_details: materialHead === 'Sub Contractor' ? materialDetails.trim() : undefined,
-        requisition_pdf_url: requisitionPdfUrl.trim(),
+        requisition_pdf_attachment_id: requisitionPdfAttachmentId,
         original_filename: requisitionPdf?.name || null,
         requisition_amount: Number(reqAmount),
         gst_bill: gstBill,
-        gst_bill_pdf_url: gstBill === 'Yes' ? gstPdfUrl.trim() : null,
+        gst_bill_pdf_attachment_id: gstBill === 'Yes' ? gstPdfAttachmentId : null,
         bank_details: finalBankDetails,
         beneficiary_id: beneficiaryId || undefined,
         beneficiary_name: beneficiaryName.trim() || undefined,
@@ -1259,6 +1303,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         expen_head_remarks: remarks.trim() || null
       };
       await onSave(payload);
+      submittedRef.current = true;
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit requisition.');

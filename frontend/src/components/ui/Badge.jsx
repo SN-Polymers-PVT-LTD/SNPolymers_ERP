@@ -37,6 +37,14 @@ const Badge = ({
       pill: 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400',
       dot: 'bg-indigo-400',
     },
+    purple: {
+      pill: 'bg-purple-500/10 border-purple-500/25 text-purple-400',
+      dot: 'bg-purple-400',
+    },
+    violet: {
+      pill: 'bg-purple-500/10 border-purple-500/25 text-purple-400',
+      dot: 'bg-purple-400',
+    },
   };
 
   // Support aliases used in existing badges

@@ -5,6 +5,7 @@ const { getFinalApprovedEstimateMap, getFundRequestSubmittedTotal, getApprovedEs
 const crypto = require('crypto');
 const validate = require('../validation/validate');
 const { createFundRequestSchema, actOnFundRequestSchema, cancelFundRequestSchema } = require('../validation/fundRequest.schema');
+const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary } = require('../services/beneficiaryMaster.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -42,12 +43,35 @@ async function resolveDisplayNames(mobiles) {
  */
 async function createFundRequest(req, res) {
   if (!validate(req, res, createFundRequestSchema)) return;
-  const { zo_fr_no, work_order_no, zo_fr_amount, requested_amount, zo_remarks, remarks } = req.body;
+  const {
+    zo_fr_no, work_order_no, zo_fr_amount, requested_amount, zo_remarks, remarks,
+    beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id
+  } = req.body;
   const amount = zo_fr_amount !== undefined && zo_fr_amount !== null ? Number(zo_fr_amount) : Number(requested_amount);
   const finalFrNo = (zo_fr_no || `FR-${crypto.randomUUID().substring(0, 8)}`).trim();
   const finalRemarks = (zo_remarks || remarks || '').trim() || null;
 
   try {
+    // Validate beneficiary_bank_id and resolve bank name snapshot
+    let resolvedBankName, validatedBankId;
+    try {
+      ({ validatedBankId, resolvedBankName } = await resolveBeneficiaryBank(beneficiary_bank_id, beneficiary_bank_name));
+    } catch (err) {
+      if (err instanceof BeneficiaryValidationError) {
+        return res.status(err.status).json({ success: false, message: err.message });
+      }
+      throw err;
+    }
+
+    // Upsert into the shared projects_beneficiary_master directory
+    const resolvedBeneficiaryId = await upsertProjectsBeneficiary({
+      acNo: beneficiary_ac_no,
+      ifsc: beneficiary_ifsc,
+      name: beneficiary_name,
+      bankId: validatedBankId,
+      bankName: resolvedBankName,
+      actorMobile: req.user.mobile_number
+    });
     // Unique check
     const { count, error: countError } = await supabase
       .from('fund_requests')
@@ -107,7 +131,13 @@ async function createFundRequest(req, res) {
           zo_fr_amount: amount,
           zo_remarks: finalRemarks,
           created_by: req.user.mobile_number,
-          request_status: 'Pending'
+          request_status: 'Pending',
+          beneficiary_id: resolvedBeneficiaryId,
+          beneficiary_name: beneficiary_name?.trim() || null,
+          beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
+          beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
+          beneficiary_bank_name: resolvedBankName,
+          beneficiary_bank_id: validatedBankId
         }
       ])
       .select()
@@ -120,8 +150,8 @@ async function createFundRequest(req, res) {
       throw insertError;
     }
 
-    const { notifyHoFundRequestSubmitted } = require('../services/telegram.service');
-    notifyHoFundRequestSubmitted(newFr).catch(err => {
+    const { notifyAccountsFundRequestSubmitted } = require('../services/telegram.service');
+    notifyAccountsFundRequestSubmitted(newFr).catch(err => {
       console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
     });
 
@@ -339,6 +369,17 @@ async function actOnFundRequest(req, res) {
       return res.status(403).json({
         success: false,
         message: `Action can only be taken on Pending or Hold requests. Current status: ${fr.request_status}`
+      });
+    }
+
+    // Once Accounts has imported a request, the Accounts Sheet is the sole source of
+    // truth for approval. The sheet approval transaction debits the bank and credits
+    // the ZO balance; allowing this legacy endpoint to approve the same request would
+    // bypass that review and can result in a second balance credit.
+    if (fr.accounts_line_item_id) {
+      return res.status(409).json({
+        success: false,
+        message: 'This fund request is in an Accounts Requisition Sheet and must be actioned through that sheet.'
       });
     }
 

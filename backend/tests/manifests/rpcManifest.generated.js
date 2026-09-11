@@ -190,6 +190,18 @@ module.exports = {
         {
           "name": "p_beneficiary_bank_id",
           "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_zo_user_id",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_requisition_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_gst_bill_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
         }
       ],
       "returns": "requisitions"

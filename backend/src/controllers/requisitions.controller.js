@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
 const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
+const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary } = require('../services/beneficiaryMaster.service');
 const validate = require('../validation/validate');
 const {
   createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
@@ -43,11 +44,11 @@ async function createRequisition(req, res) {
     material_main_head,
     material_sub_head,
     material_details,
-    requisition_pdf_url,
+    requisition_pdf_attachment_id,
+    gst_bill_pdf_attachment_id,
     original_filename,
     requisition_amount,
     gst_bill,
-    gst_bill_pdf_url,
     bank_details,
     beneficiary_id,
     beneficiary_name,
@@ -58,17 +59,31 @@ async function createRequisition(req, res) {
     expen_head_remarks
   } = req.body;
 
+  // Populated once the corresponding attachment is resolved (step 0 below). Only ever
+    // holds attachments this request has actually claimed the right to use — cleanup never
+    // touches storage/rows it hasn't verified ownership of.
+    let resolvedReqPdf = null; // { attachmentId, storagePath, uploadedBy }
+    let resolvedGstPdf = null; // { attachmentId, storagePath, uploadedBy }
+
   const cleanupUploadedFiles = async () => {
     try {
-      if (requisition_pdf_url) {
-        await supabase.storage
-          .from('requisition-pdfs')
-          .remove([requisition_pdf_url]);
+      if (resolvedReqPdf) {
+        await supabase.storage.from('requisition-pdfs').remove([resolvedReqPdf.storagePath]);
+        await supabase
+          .from('requisition_attachments')
+          .delete()
+          .eq('attachment_id', resolvedReqPdf.attachmentId)
+          .eq('uploaded_by', resolvedReqPdf.uploadedBy)
+          .eq('status', 'pending');
       }
-      if (gst_bill === 'Yes' && gst_bill_pdf_url) {
-        await supabase.storage
-          .from('gst-bills')
-          .remove([gst_bill_pdf_url]);
+      if (resolvedGstPdf) {
+        await supabase.storage.from('gst-bills').remove([resolvedGstPdf.storagePath]);
+        await supabase
+          .from('requisition_attachments')
+          .delete()
+          .eq('attachment_id', resolvedGstPdf.attachmentId)
+          .eq('uploaded_by', resolvedGstPdf.uploadedBy)
+          .eq('status', 'pending');
       }
     } catch (err) {
       if (process.env.NODE_ENV !== 'production') {
@@ -77,7 +92,55 @@ async function createRequisition(req, res) {
     }
   };
 
+  let rowCommitted = false;
+
   try {
+    // 0. Resolve & validate the attachment(s) this request claims to use — must exist,
+    //    belong to this user (or admin), still be unclaimed ('pending'), and be the right
+    //    kind. This is what replaces trusting a raw, client-suppliable storage path string.
+    const { data: reqAttachment, error: reqAttErr } = await supabase
+      .from('requisition_attachments')
+      .select('storage_path, kind, uploaded_by, status')
+      .eq('attachment_id', requisition_pdf_attachment_id)
+      .maybeSingle();
+    if (reqAttErr) throw reqAttErr;
+    if (
+      !reqAttachment ||
+      reqAttachment.kind !== 'requisition_pdf' ||
+      reqAttachment.status !== 'pending' ||
+      (reqAttachment.uploaded_by !== req.user.mobile_number && req.user.role !== 'admin')
+    ) {
+      return res.status(400).json({ success: false, message: 'Invalid or already-used requisition PDF attachment. Please re-upload.' });
+    }
+    resolvedReqPdf = {
+      attachmentId: requisition_pdf_attachment_id,
+      storagePath: reqAttachment.storage_path,
+      uploadedBy: reqAttachment.uploaded_by
+    };
+
+    if (gst_bill === 'Yes') {
+      const { data: gstAttachment, error: gstAttErr } = await supabase
+        .from('requisition_attachments')
+        .select('storage_path, kind, uploaded_by, status')
+        .eq('attachment_id', gst_bill_pdf_attachment_id)
+        .maybeSingle();
+      if (gstAttErr) throw gstAttErr;
+      if (
+        !gstAttachment ||
+        gstAttachment.kind !== 'gst_bill' ||
+        gstAttachment.status !== 'pending' ||
+        (gstAttachment.uploaded_by !== req.user.mobile_number && req.user.role !== 'admin')
+      ) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({ success: false, message: 'Invalid or already-used GST bill attachment. Please re-upload.' });
+      }
+      resolvedGstPdf = {
+        attachmentId: gst_bill_pdf_attachment_id,
+        storagePath: gstAttachment.storage_path,
+        uploadedBy: gstAttachment.uploaded_by
+      };
+    }
+
     // 1. Unique check
     const { count, error: countError } = await supabase
       .from('requisitions')
@@ -94,27 +157,15 @@ async function createRequisition(req, res) {
     }
 
     // 1a. Validate beneficiary_bank_id and resolve bank name snapshot
-    let resolvedBankName = beneficiary_bank_name?.trim() || null;
-    let validatedBankId = beneficiary_bank_id || null;
-
-    if (validatedBankId) {
-      const bankCheck = await validateActiveIndianBank(validatedBankId);
-      if (!bankCheck.valid) {
+    let resolvedBankName, validatedBankId;
+    try {
+      ({ validatedBankId, resolvedBankName } = await resolveBeneficiaryBank(beneficiary_bank_id, beneficiary_bank_name));
+    } catch (err) {
+      if (err instanceof BeneficiaryValidationError) {
         await cleanupUploadedFiles();
-        if (bankCheck.reason === 'NOT_FOUND') {
-          return res.status(422).json({
-            success: false,
-            message: 'Selected bank does not exist.'
-          });
-        }
-        if (bankCheck.reason === 'INACTIVE') {
-          return res.status(422).json({
-            success: false,
-            message: 'Selected bank is currently inactive.'
-          });
-        }
+        return res.status(err.status).json({ success: false, message: err.message });
       }
-      resolvedBankName = bankCheck.bank.bank_name;
+      throw err;
     }
 
     // 1b. Verify JE is actively mapped to the work order
@@ -224,35 +275,16 @@ async function createRequisition(req, res) {
     }
 
     // 4c. Upsert into projects_beneficiary_master if account_no and ifsc provided
-    let resolvedBeneficiaryId = beneficiary_id || null;
-    if (beneficiary_ac_no?.trim() && beneficiary_ifsc?.trim()) {
-      const cleanAcNo = beneficiary_ac_no.trim();
-      const cleanIfsc = beneficiary_ifsc.trim().toUpperCase();
-      const cleanName = beneficiary_name?.trim() || material_details?.trim() || 'Payee';
-      try {
-        const { data: upserted, error: upsertErr } = await supabase
-          .from('projects_beneficiary_master')
-          .upsert({
-            beneficiary_ac_no: cleanAcNo,
-            beneficiary_ifsc: cleanIfsc,
-            beneficiary_name: cleanName,
-            beneficiary_bank_id: validatedBankId,
-            beneficiary_bank_name: resolvedBankName,
-            last_used_at: new Date().toISOString(),
-            created_by: req.user.mobile_number,
-            updated_by: req.user.mobile_number,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'beneficiary_ac_no,beneficiary_ifsc' })
-          .select('id')
-          .maybeSingle();
-
-        if (!upsertErr && upserted) {
-          resolvedBeneficiaryId = upserted.id;
-        }
-      } catch (err) {
-        console.warn('projects_beneficiary_master upsert warning:', err.message);
-      }
-    }
+    const upsertedBeneficiaryId = await upsertSharedBeneficiary({
+      acNo: beneficiary_ac_no,
+      ifsc: beneficiary_ifsc,
+      name: beneficiary_name,
+      fallbackName: material_details,
+      bankId: validatedBankId,
+      bankName: resolvedBankName,
+      actorMobile: req.user.mobile_number
+    });
+    const resolvedBeneficiaryId = upsertedBeneficiaryId || beneficiary_id || null;
 
     // 5. Call the transactional RPC create_requisition_secure to insert atomically with lock and budget check
     const { data: newReq, error: rpcError } = await supabase.rpc('create_requisition_secure', {
@@ -269,11 +301,11 @@ async function createRequisition(req, res) {
       p_material_main_head: material_main_head.trim(),
       p_material_sub_head: material_sub_head?.trim() || null,
       p_material_details: material_details?.trim() || null,
-      p_requisition_pdf_url: requisition_pdf_url.trim(),
+      p_requisition_pdf_url: resolvedReqPdf.storagePath,
       p_original_filename: original_filename?.trim() || null,
       p_requisition_amount: Number(requisition_amount),
       p_gst_bill: gst_bill,
-      p_gst_bill_pdf_url: gst_bill === 'Yes' ? gst_bill_pdf_url.trim() : null,
+      p_gst_bill_pdf_url: gst_bill === 'Yes' ? resolvedGstPdf.storagePath : null,
       p_bank_details: effectiveBankDetails,
       p_expen_head_remarks: expen_head_remarks?.trim() || null,
       p_requisition_status: 'Pending',
@@ -283,10 +315,22 @@ async function createRequisition(req, res) {
       p_beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
       p_beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
       p_beneficiary_bank_name: resolvedBankName,
-      p_beneficiary_bank_id: validatedBankId
+      p_beneficiary_bank_id: validatedBankId,
+      p_zo_user_id: zo_user_id,
+      p_requisition_pdf_attachment_id: requisition_pdf_attachment_id,
+      p_gst_bill_pdf_attachment_id: gst_bill === 'Yes' ? gst_bill_pdf_attachment_id : null
     });
 
     if (rpcError) {
+      if (rpcError.code === 'ATT01' || rpcError.message?.includes('attachment is invalid or no longer pending')) {
+        // A concurrent submission may have claimed this attachment after the controller's
+        // initial validation. Never clean it up here: it can now belong to that committed
+        // requisition, and deleting its storage object would break the other record.
+        return res.status(409).json({
+          success: false,
+          message: 'An uploaded attachment was changed or already used. Please re-upload and try again.'
+        });
+      }
       await cleanupUploadedFiles();
       if (rpcError.code === '23505') {
         return res.status(409).json({
@@ -331,14 +375,12 @@ async function createRequisition(req, res) {
       throw rpcError;
     }
 
-    // Set zo_user_id in database
-    const { error: updateZoErr } = await supabase
-      .from('requisitions')
-      .update({ zo_user_id })
-      .eq('requisition_id', newReq.requisition_id);
+    // The row is now durably committed by the RPC — any failure from here on must NOT
+    // trigger cleanupUploadedFiles(), since the requisition already references these files.
+    rowCommitted = true;
 
-    if (updateZoErr) throw updateZoErr;
-    newReq.zo_user_id = zo_user_id;
+    // zo_user_id is now set atomically inside create_requisition_secure (p_zo_user_id
+    // above) — newReq.zo_user_id is already populated from the RPC's RETURNING row.
 
     if (validatedBankId) {
       newReq.beneficiary_bank = { id: validatedBankId, bank_name: resolvedBankName };
@@ -389,7 +431,9 @@ async function createRequisition(req, res) {
     });
 
   } catch (error) {
-    await cleanupUploadedFiles();
+    if (!rowCommitted) {
+      await cleanupUploadedFiles();
+    }
     if (process.env.NODE_ENV !== 'production') {
       console.error('createRequisition failed:', error);
     } else {

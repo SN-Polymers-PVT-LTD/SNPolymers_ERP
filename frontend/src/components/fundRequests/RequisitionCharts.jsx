@@ -33,7 +33,7 @@ const RequisitionCharts = ({ requests, onReviewNowClick, isApprover }) => {
               isApprover ? (
                 <>There are <strong className="text-amber-500">{pendingCount} requests</strong> pending review. Total value awaiting approval is <strong className="text-slate-200">{formatCurrency(pendingSum)}</strong>.</>
               ) : (
-                <>You have <strong className="text-amber-500">{pendingCount} requests</strong> pending review by HO. Total value submitted is <strong className="text-slate-200">{formatCurrency(pendingSum)}</strong>.</>
+                <>You have <strong className="text-amber-500">{pendingCount} requests</strong> pending review by Accounts. Total value submitted is <strong className="text-slate-200">{formatCurrency(pendingSum)}</strong>.</>
               )
             ) : (
               isApprover ? "All requisition items processed. Zero pending queues." : "No pending requests. All submitted requisitions have been processed."
@@ -42,7 +42,7 @@ const RequisitionCharts = ({ requests, onReviewNowClick, isApprover }) => {
         </div>
         <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
           <span className="text-[9px] uppercase tracking-widest font-extrabold text-amber-500/80 bg-amber-950/20 border border-amber-900/30 px-2.5 py-0.5 rounded-lg">
-            {isApprover ? "Critical Path" : "Awaiting HO"}
+            {isApprover ? "Critical Path" : "Awaiting Accounts"}
           </span>
           {pendingCount > 0 && (
             <button

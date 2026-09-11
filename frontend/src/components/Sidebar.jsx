@@ -78,7 +78,7 @@ export const MobileHeader = () => {
         )
       });
     }
-    if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
+    if (['zo', 'staff', 'ho', 'accounts', 'admin'].includes(user?.role)) {
       finItems.push({
         to: '/fund-requests',
         label: 'Fund Requests',
@@ -597,7 +597,7 @@ const Sidebar = () => {
       });
     }
 
-    if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
+    if (['zo', 'staff', 'ho', 'accounts', 'admin'].includes(user?.role)) {
       navItems.push({
         to: '/fund-requests',
         label: 'Fund Requests',

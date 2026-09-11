@@ -8,7 +8,14 @@ const STATUS_CONFIG = {
   Cancelled: { variant: 'slate', label: 'Cancelled' }
 };
 
-const FundRequestStatusBadge = ({ status }) => {
+const FundRequestStatusBadge = ({ status, isImported = false }) => {
+  if (status === 'Pending' && isImported) {
+    return (
+      <Badge variant="indigo" showDot={true}>
+        In Accounts Sheet
+      </Badge>
+    );
+  }
   const s = STATUS_CONFIG[status] ?? STATUS_CONFIG['Pending'];
   return (
     <Badge variant={s.variant} showDot={true}>

@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import TimelineProgress from './TimelineProgress';
 import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
-import { FormattedCurrencyInput } from '../ui';
+import { getIndianBanks } from '../../api/requisitionsApi';
+import { FormattedCurrencyInput, Select } from '../ui';
+import ProjectBeneficiarySuggestions from '../requisitions/ProjectBeneficiarySuggestions';
 import {
   computeHoApproveRemaining,
   computePipelineRemainingAfterApprove
@@ -44,20 +46,28 @@ const RequestDetailPanel = ({
   initialWorkOrder = '',
   onClose,
   onSave,         // ZO submit function
-  onAct,          // HO approve/hold action function
+  onAct,          // Accounts approve/hold action function
   onCancel        // ZO cancel action function
 }) => {
   const isCreate = !request;
   const isPending = request?.request_status === 'Pending';
   const isHold = request?.request_status === 'Hold';
   const isPendingOrHold = isPending || isHold;
-  const isHoOrAdmin = user?.role === 'ho' || user?.role === 'admin';
+  const isApproverRole = user?.role === 'accounts' || user?.role === 'admin';
   const isZoOrAdmin = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
 
   // State values
   const [zoFrNo, setZoFrNo] = useState('');
   const [zoFrAmount, setZoFrAmount] = useState('');
   const [zoRemarks, setZoRemarks] = useState('');
+
+  // Beneficiary banking details (creation mode) — shared projects_beneficiary_master
+  const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
+  const [beneficiaryIfsc, setBeneficiaryIfsc] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryBankId, setBeneficiaryBankId] = useState('');
+  const [beneficiaryBankName, setBeneficiaryBankName] = useState('');
+  const [indianBanks, setIndianBanks] = useState([]);
 
   // Projects and capacity states for creation mode
   const [projects, setProjects] = useState([]);
@@ -112,6 +122,20 @@ const RequestDetailPanel = ({
       setSelectedWorkOrder(initialWorkOrder);
     }
   }, [isCreate, initialWorkOrder]);
+
+  // Load active Indian Banks for the beneficiary bank dropdown in creation mode
+  useEffect(() => {
+    if (isCreate) {
+      getIndianBanks()
+        .then((res) => {
+          const banks = (res.data?.indianBanks || []).filter((b) => b.is_active);
+          setIndianBanks(banks);
+        })
+        .catch((err) => {
+          console.error('Failed to load Indian Banks', err);
+        });
+    }
+  }, [isCreate]);
 
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {
@@ -189,7 +213,7 @@ const RequestDetailPanel = ({
           feed.push({ author, text: request.zo_remarks, type: 'zo' });
         }
         if (request.ho_remarks) {
-          const author = request.approve_ho_name ? `${request.approve_ho_name} (HO)` : 'HO User';
+          const author = request.approve_ho_name ? `${request.approve_ho_name} (Accounts)` : 'Accounts User';
           feed.push({ author, text: request.ho_remarks, type: 'ho' });
         }
         setComments(feed);
@@ -255,7 +279,12 @@ const RequestDetailPanel = ({
         work_order_no: selectedWorkOrder,
         zo_fr_no: zoFrNo.trim(),
         zo_fr_amount: parsedAmount,
-        zo_remarks: zoRemarks.trim() || null
+        zo_remarks: zoRemarks.trim() || null,
+        beneficiary_ac_no: beneficiaryAcNo.trim() || null,
+        beneficiary_ifsc: beneficiaryIfsc.trim() || null,
+        beneficiary_name: beneficiaryName.trim() || null,
+        beneficiary_bank_id: beneficiaryBankId || null,
+        beneficiary_bank_name: beneficiaryBankName.trim() || null
       });
       onClose();
     } catch (err) {
@@ -323,7 +352,7 @@ const RequestDetailPanel = ({
     year: 'numeric'
   });
 
-  const showHoApproveHeadroom = !isCreate && isPendingOrHold && isHoOrAdmin;
+  const showHoApproveHeadroom = !isCreate && isPendingOrHold && isApproverRole;
   const showDualRemaining =
     !isCreate && isPendingOrHold && detailHoApproveRemaining != null && detailRemainingCapacity != null;
   const hoApprovedOnThisFr =
@@ -363,12 +392,13 @@ const RequestDetailPanel = ({
             </h2>
             {!isCreate && (
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
+                request.request_status === 'Pending' && request.accounts_line_item_id ? 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400' :
                 request.request_status === 'Pending' ? 'bg-amber-500/10 border-amber-500/25 text-amber-400' :
                 request.request_status === 'Approved' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' :
                 request.request_status === 'Hold' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
                 'bg-slate-500/10 border-slate-500/25 text-slate-400'
               }`}>
-                {request.request_status}
+                {request.request_status === 'Pending' && request.accounts_line_item_id ? 'In Accounts Sheet' : request.request_status}
               </span>
             )}
           </div>
@@ -386,7 +416,7 @@ const RequestDetailPanel = ({
               <button 
                 onClick={handleCreateSubmit}
                 disabled={actionSubmitting}
-                className="bg-white hover:bg-slate-100 text-slate-950 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition duration-300 shadow-md flex items-center gap-2"
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition flex items-center gap-2"
               >
                 {actionSubmitting ? 'Submitting...' : 'Submit Request'}
               </button>
@@ -394,7 +424,7 @@ const RequestDetailPanel = ({
           )}
           {!isCreate && (
             <>
-              {isPending && isZoOrAdmin && (
+              {isPending && isZoOrAdmin && !request.accounts_line_item_id && (
                 <button
                   onClick={() => onCancel(request.fund_request_id)}
                   disabled={actionSubmitting}
@@ -413,6 +443,15 @@ const RequestDetailPanel = ({
           )}
         </div>
       </div>
+
+      {!isCreate && request.accounts_line_item_id && isPending && (
+        <div className="mb-5 p-4 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl text-xs text-indigo-300 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+            <span>This Fund Request has been imported into an Accounts Requisition Sheet. Final approval, bank debit, and ZO balance credit will occur upon Head Office approval of that sheet.</span>
+          </div>
+        </div>
+      )}
 
       {actionError && (
         <div className="mb-5 p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 flex items-center gap-2">
@@ -537,6 +576,102 @@ const RequestDetailPanel = ({
               </div>
 
             </div>
+
+            {/* Beneficiary Banking Details */}
+            <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                  Beneficiary Banking Details {isCreate ? '(Optional)' : ''}
+                </span>
+                {isCreate && (
+                  <span className="text-[9px] text-slate-500 italic">
+                    Auto-saved to Projects Beneficiary Master
+                  </span>
+                )}
+              </div>
+
+              {isCreate ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ProjectBeneficiarySuggestions
+                    label="Account No."
+                    value={beneficiaryAcNo}
+                    onChange={(e) => setBeneficiaryAcNo(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                    maxLength={18}
+                    onSelect={(b) => {
+                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                      setBeneficiaryName(b.beneficiary_name || '');
+                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                    }}
+                    placeholder="Enter bank account no…"
+                    disabled={actionSubmitting}
+                    size="sm"
+                  />
+
+                  <div>
+                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">IFSC Code</label>
+                    <input
+                      type="text"
+                      value={beneficiaryIfsc}
+                      onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().trim())}
+                      placeholder="e.g. SBIN0001234"
+                      maxLength={11}
+                      disabled={actionSubmitting}
+                      className="w-full glass-input rounded-lg px-3 py-1.5 font-semibold text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Beneficiary Name</label>
+                    <input
+                      type="text"
+                      value={beneficiaryName}
+                      onChange={(e) => setBeneficiaryName(e.target.value)}
+                      placeholder="Enter payee name…"
+                      disabled={actionSubmitting}
+                      className="w-full glass-input rounded-lg px-3 py-1.5 font-semibold text-xs"
+                    />
+                  </div>
+
+                  <Select
+                    label="Indian Banks"
+                    value={beneficiaryBankId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setBeneficiaryBankId(id);
+                      const found = indianBanks.find((b) => b.id === id);
+                      setBeneficiaryBankName(found ? found.bank_name : '');
+                    }}
+                    disabled={actionSubmitting}
+                  >
+                    <option value="">-- Select Bank (Optional) --</option>
+                    {indianBanks.map((b) => (
+                      <option key={b.id} value={b.id}>{b.bank_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Account No.</span>
+                    <span className="font-bold text-slate-300 font-mono">{request.beneficiary_ac_no || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">IFSC Code</span>
+                    <span className="font-bold text-slate-300 font-mono">{request.beneficiary_ifsc || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Beneficiary Name</span>
+                    <span className="font-bold text-slate-300">{request.beneficiary_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Bank</span>
+                    <span className="font-bold text-slate-300">{request.beneficiary_bank_name || '—'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {!isCreate && (
@@ -556,7 +691,7 @@ const RequestDetailPanel = ({
                  </span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">HO Approved (This FR)</span>
+                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Accounts Approved (This FR)</span>
                 {hoApprovedOnThisFr != null ? (
                   <span className="font-bold font-mono text-emerald-400">
                     {loadingContext ? 'Loading...' : formatCurrency(hoApprovedOnThisFr)}
@@ -577,7 +712,7 @@ const RequestDetailPanel = ({
                     </span>
                     {!loadingContext && (
                       <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
-                        {isPendingOrHold ? 'Pending HO approval' : 'Not HO-approved'}
+                        {isPendingOrHold ? 'Pending Accounts approval' : 'Not Accounts-approved'}
                       </span>
                     )}
                   </>
@@ -654,7 +789,15 @@ const RequestDetailPanel = ({
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Approval Information</span>
               
-              {isPendingOrHold && isHoOrAdmin ? (
+              {isPendingOrHold && isApproverRole ? (
+                request.accounts_line_item_id ? (
+                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300">
+                    <p className="font-bold mb-1">Queued in Accounts Requisition Sheet</p>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      This Fund Request was imported into an Accounts Requisition Sheet. Final approval, bank selection, and ZO balance credit will be executed when Head Office approves the Accounts Sheet.
+                    </p>
+                  </div>
+                ) : (
                 <form onSubmit={handleHoActionSubmit} className="space-y-4">
                   <div>
                     <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Action Type</label>
@@ -738,7 +881,7 @@ const RequestDetailPanel = ({
                   )}
 
                   <div>
-                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">HO Remarks</label>
+                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Remarks</label>
                     <textarea
                       value={hoRemarks}
                       onChange={(e) => setHoRemarks(e.target.value)}
@@ -757,11 +900,12 @@ const RequestDetailPanel = ({
                     {actionSubmitting ? 'Saving...' : `Save as ${hoAction}`}
                   </button>
                 </form>
+                )
               ) : (
                 <div className="space-y-3.5 text-xs">
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved By</span>
-                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'HO User' : '—')}</span>
+                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'Accounts User' : '—')}</span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved Amount</span>

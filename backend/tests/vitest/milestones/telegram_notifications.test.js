@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const { supabase } = require('../../../src/db/supabase');
 const {
-  notifyHoFundRequestSubmitted,
+  notifyAccountsFundRequestSubmitted,
   notifyZoFundRequestHeld,
   notifyZoRequisitionSubmitted,
   notifyHoRequisitionSubmitted,
@@ -97,7 +97,7 @@ describe('Telegram Notifications Suite', () => {
     }
   });
 
-  test('Test 1: notifyHoFundRequestSubmitted logs notification trigger', async () => {
+  test('Test 1: notifyAccountsFundRequestSubmitted logs notification trigger', async () => {
     process.env.NODE_ENV = 'development';
 
     const originalLog = console.log;
@@ -117,7 +117,7 @@ describe('Telegram Notifications Suite', () => {
     };
 
     try {
-      await notifyHoFundRequestSubmitted(mockFr);
+      await notifyAccountsFundRequestSubmitted(mockFr);
     } finally {
       console.log = originalLog;
       console.warn = originalWarn;
@@ -128,7 +128,7 @@ describe('Telegram Notifications Suite', () => {
     const hasAttempted = logs.toLowerCase().includes('sent') ||
                          logs.toLowerCase().includes('failed') ||
                          logs.toLowerCase().includes('warning') ||
-                         logs.toLowerCase().includes('no active ho');
+                         logs.toLowerCase().includes('no active accounts');
     expect(hasAttempted).toBe(true);
   });
 
