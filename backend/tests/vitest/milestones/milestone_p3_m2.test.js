@@ -2,6 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createFundRequest,
   getFundRequests,
@@ -24,6 +25,13 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
     testFrNo1 = `TEST_M2_FR_${suffix}_1`;
     testFrNo2 = `TEST_M2_FR_${suffix}_2`;
     testWorkOrder = `TEST_WO_P3M2_${suffix}`;
+
+    await setupUsers([
+      { mobile_number: zoUser.mobile_number, display_name: 'Test ZO User 1', role: 'zo', permissions: {}, is_active: true },
+      { mobile_number: zoUser2.mobile_number, display_name: 'Test ZO User 2', role: 'zo', permissions: {}, is_active: true },
+      { mobile_number: jeUser.mobile_number, display_name: 'Test JE User', role: 'je', permissions: {}, is_active: true },
+      { mobile_number: hoUser.mobile_number, display_name: 'Test HO User', role: 'ho', permissions: {}, is_active: true }
+    ]);
 
     // Insert a project owned by zoUser so the ZO ownership check in createFundRequest passes
     const { error: projErr } = await supabase.from('projects_master').insert({
