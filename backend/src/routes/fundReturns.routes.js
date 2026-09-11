@@ -5,7 +5,8 @@ const {
   rejectReturnRequest,
   modifyReturnRequest,
   hoActionOnReturn,
-  getReturnRequests
+  getReturnRequests,
+  getTargetZOs
 } = require('../controllers/fundReturns.controller');
 const verifyJwt = require('../middleware/verifyJwt');
 const requireRole = require('../middleware/requireRole');
@@ -13,6 +14,12 @@ const requireRole = require('../middleware/requireRole');
 const router = express.Router();
 
 router.use(verifyJwt);
+
+router.get(
+  '/target-zos',
+  requireRole(['admin', 'ho']),
+  getTargetZOs
+);
 
 // Route registration
 router.post(
