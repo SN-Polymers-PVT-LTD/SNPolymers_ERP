@@ -21,7 +21,11 @@ ALTER TABLE public.acct_requisition_line_items
 
 ALTER TABLE public.acct_requisition_line_items
   ADD CONSTRAINT chk_arli_credit_payment_parity CHECK (
-    (payment_mode = 'Credit') IS NOT DISTINCT FROM (debit_bank_ac_type = 'Credit')
+    NOT (
+      (payment_mode = 'Credit' AND COALESCE(debit_bank_ac_type, '') <> 'Credit')
+      OR
+      (debit_bank_ac_type = 'Credit' AND COALESCE(payment_mode, '') <> 'Credit')
+    )
   );
 
 -- The canonical RPC name is retained for the controller and batch dispatcher.

@@ -22,31 +22,6 @@ module.exports = {
       ],
       "returns": "excess_fund_returns"
     },
-    "approve_fund_request_transact": {
-      "args": [
-        {
-          "name": "p_fund_request_id",
-          "type": "uuid"
-        },
-        {
-          "name": "p_approved_amount",
-          "type": "numeric"
-        },
-        {
-          "name": "p_transfer_from_account",
-          "type": "character varying"
-        },
-        {
-          "name": "p_actioned_by",
-          "type": "character varying"
-        },
-        {
-          "name": "p_remarks",
-          "type": "text"
-        }
-      ],
-      "returns": "fund_requests"
-    },
     "approve_requisition_transact": {
       "args": [
         {
@@ -227,6 +202,19 @@ module.exports = {
     "refresh_analytics_views": {
       "args": [],
       "returns": "void"
+    },
+    "submit_fund_request_transact": {
+      "args": [
+        {
+          "name": "p_fund_request_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_submitted_by",
+          "type": "character varying"
+        }
+      ],
+      "returns": "fund_requests"
     }
   }
 };
