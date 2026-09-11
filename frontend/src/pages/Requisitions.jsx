@@ -46,13 +46,32 @@ const StatusBadge = ({ status }) => {
     Hold: { variant: 'orange', label: 'Hold' },
     Cancelled: { variant: 'slate', label: 'Cancelled' },
   };
-  const s = cfg[status] ?? cfg['Pending'];
+  const s = cfg[status] ?? { variant: 'indigo', label: status || 'Pending' };
   return (
     <Badge variant={s.variant} showDot={true}>
       {s.label}
     </Badge>
   );
 };
+
+const PAYMENT_STATUS_LABELS = {
+  AWAITING_PAYMENT_ROUTE: 'Awaiting Payment Route',
+  PENDING_ACCOUNTS_IMPORT: 'Pending Accounts Import',
+  ACCOUNTS_DRAFT: 'Accounts Draft',
+  PENDING_HO_REVIEW: 'Pending HO Review',
+  PENDING_REVIEW: 'Pending Review',
+  ON_HOLD: 'On Hold',
+  RETURNED_FOR_CORRECTION: 'Returned for Correction',
+  REJECTED: 'Rejected',
+  PARTIALLY_PAID: 'Partially Paid',
+  PAID: 'Paid'
+};
+
+const getRequisitionDisplayStatus = (req) => (
+  req.requisition_status === 'Approved' && req.payment_status
+    ? PAYMENT_STATUS_LABELS[req.payment_status] || req.payment_status
+    : req.requisition_status
+);
 
 // Modal for confirming cancellation
 const CancelConfirmModal = ({ requisitionNo, isCancelling, onConfirm, onClose }) => (
@@ -182,16 +201,19 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
 
   if (requisition.requisition_status === 'Approved') {
     detailRows.push(
-      { label: 'Approved By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
-      { label: 'Approved Amount', value: formatCurrency(requisition.approved_amount), accent: 'text-emerald-400 font-bold' },
+      { label: 'ZO Approved By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
+      { label: 'ZO Approved Amount', value: formatCurrency(requisition.approved_amount), accent: 'text-emerald-400 font-bold' },
       { label: 'Approved Balance', value: formatCurrency(requisition.approved_balance_amount) },
+      { label: 'ZO Actioned On', value: formatDate(requisition.zo_actioned_at) },
+      { label: 'Payment Status', value: PAYMENT_STATUS_LABELS[requisition.payment_status] || requisition.payment_status || '—' },
+      { label: 'Paid Amount', value: formatCurrency(requisition.paid_amount) },
       { label: 'Payment Date', value: formatDate(requisition.payment_date) },
       { label: 'Authority Remarks', value: requisition.remarks_approved_authority || '—' }
     );
   } else if (requisition.requisition_status === 'Hold') {
     detailRows.push(
       { label: 'Placed on Hold By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
-      { label: 'Hold Date', value: formatDate(requisition.payment_date) },
+      { label: 'Hold Date', value: formatDate(requisition.zo_actioned_at || requisition.payment_date) },
       { label: 'Hold Remarks', value: requisition.remarks_approved_authority || '—' }
     );
   } else if (requisition.requisition_status === 'Cancelled') {
@@ -254,7 +276,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
                   Open Sheet {requisition.accounts_sheet.sheet_number}
                 </a>
               )}
-              <StatusBadge status={requisition.requisition_status} />
+              <StatusBadge status={getRequisitionDisplayStatus(requisition)} />
             </div>
           </div>
 

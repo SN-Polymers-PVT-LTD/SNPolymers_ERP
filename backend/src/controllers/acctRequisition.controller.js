@@ -508,7 +508,7 @@ async function updateLineItem(req, res) {
 
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, requisition_status, source_fund_request_id')
+      .select('id, sheet_id, requisition_status, source_fund_request_id, source_requisition_id')
       .eq('id', itemId)
       .eq('sheet_id', sheetId)
       .maybeSingle();
@@ -525,11 +525,11 @@ async function updateLineItem(req, res) {
       });
     }
 
-    if (item.source_fund_request_id
+    if ((item.source_fund_request_id || item.source_requisition_id)
       && (req.body.payment_mode === 'Credit' || req.body.debit_bank_ac_type === 'Credit')) {
       return res.status(400).json({
         success: false,
-        message: 'Credit is not available for Fund Request allocations.'
+        message: 'Credit is not available for Fund Request or Payment Requisition rows.'
       });
     }
 
@@ -681,7 +681,7 @@ async function actOnLineItem(req, res) {
   try {
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, requisition_status, debit_bank_ac_type, payment_mode, req_amount')
+      .select('id, requisition_status, debit_bank_ac_type, payment_mode, req_amount, source_fund_request_id, source_requisition_id')
       .eq('id', itemId)
       .maybeSingle();
 
@@ -701,6 +701,13 @@ async function actOnLineItem(req, res) {
       return res.status(400).json({
         success: false,
         message: 'Credit payment rows must use Credit Approved.'
+      });
+    }
+
+    if (action === 'CreditApprove' && (item.source_fund_request_id || item.source_requisition_id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit is not available for Fund Request or Payment Requisition rows.'
       });
     }
 

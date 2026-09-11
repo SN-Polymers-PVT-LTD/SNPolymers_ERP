@@ -130,7 +130,7 @@ describe('LineItemRow — Fund Request rows cannot select Credit', () => {
       ]
     });
 
-    expect(screen.getByText('Credit is not available for Fund Request allocations.')).toBeInTheDocument();
+    expect(screen.getByText('Credit is not available for Fund Request or Payment Requisition rows.')).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Credit' })).not.toBeInTheDocument();
   });
 });

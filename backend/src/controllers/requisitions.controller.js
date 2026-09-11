@@ -1271,8 +1271,8 @@ async function getSubcontractorLedgerEntries(req, res) {
 async function getSubcontractorRequisitions(req, res) {
   try {
     const query = req.query || {};
-    const dateBasis = query.date_basis === 'approved' ? 'approved' : 'created';
-    const dateCol = dateBasis === 'approved' ? 'payment_date' : 'created_at';
+    const dateBasis = ['approved', 'paid'].includes(query.date_basis) ? query.date_basis : 'created';
+    const dateCol = dateBasis === 'approved' ? 'zo_actioned_at' : dateBasis === 'paid' ? 'payment_date' : 'created_at';
 
     let dbQuery = supabase
       .from('requisitions')
@@ -1284,6 +1284,8 @@ async function getSubcontractorRequisitions(req, res) {
     }
 
     if (dateBasis === 'approved') {
+      dbQuery = dbQuery.not('zo_actioned_at', 'is', null);
+    } else if (dateBasis === 'paid') {
       dbQuery = dbQuery.not('payment_date', 'is', null);
     }
 
