@@ -2,6 +2,9 @@ const { z } = require('zod');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const uuidSchema = z.string().regex(uuidRegex, 'Invalid requisition ID.');
+const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+// Indian bank account numbers commonly run 9-18 digits, numeric only.
+const accountNumberRegex = /^\d{9,18}$/;
 
 const createRequisitionSchema = {
   body: z.object({
@@ -11,6 +14,8 @@ const createRequisitionSchema = {
       .min(1, 'requisition_no (Requisition Number) is required.')
       .regex(/^[A-Za-z0-9_\-.]+$/, 'requisition_no contains invalid characters. Only letters, digits, hyphens, underscores, and dots are allowed.'),
     material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
+    material_sub_head: z.string().trim().optional().nullable(),
+    material_details: z.string().trim().optional().nullable(),
     requisition_pdf_url: z.string({ required_error: 'requisition_pdf_url is required. Upload the PDF first.' }).trim().min(1, 'requisition_pdf_url is required. Upload the PDF first.'),
     original_filename: z.string().optional().nullable(),
     requisition_amount: z.coerce.number({
@@ -21,11 +26,47 @@ const createRequisitionSchema = {
       errorMap: () => ({ message: "gst_bill must be 'Yes' or 'No'." })
     }),
     gst_bill_pdf_url: z.string().optional().nullable(),
-    bank_details: z.string({ required_error: 'bank_details is required.' }).trim().min(1, 'bank_details is required.'),
+    bank_details: z.string().trim().optional().nullable(),
+    beneficiary_id: z.string().regex(uuidRegex, 'Invalid beneficiary ID.').optional().nullable(),
+    beneficiary_name: z.string().trim().optional().nullable(),
+    beneficiary_ac_no: z.string().trim().optional().nullable()
+      // Not .regex() directly: empty string must pass through untouched since
+      // the beneficiary block is optional on the requisition form.
+      .refine(val => !val || accountNumberRegex.test(val), {
+        message: 'beneficiary_ac_no must be 9-18 digits.'
+      }),
+    beneficiary_ifsc: z.string().trim().optional().nullable()
+      .refine(val => !val || ifscRegex.test(val), {
+        message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'
+      }),
+    beneficiary_bank_name: z.string().trim().optional().nullable(),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
     expen_head_remarks: z.string().optional().nullable()
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_url && data.gst_bill_pdf_url.trim() !== ''), {
     message: "gst_bill_pdf_url is required when GST Bill is 'Yes'.",
     path: ['gst_bill_pdf_url']
+  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
+    message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
+    path: ['material_sub_head']
+  })
+};
+
+const upsertProjectsBeneficiarySchema = {
+  body: z.object({
+    beneficiary_ac_no: z.string().trim().min(1, 'beneficiary_ac_no is required.')
+      .regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.'),
+    beneficiary_ifsc: z.string().trim()
+      .regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'),
+    beneficiary_name: z.string().trim().min(1, 'beneficiary_name is required.'),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
+    beneficiary_bank_name: z.string().trim().optional().nullable()
+  })
+};
+
+const upsertIndianBankSchema = {
+  body: z.object({
+    bank_name: z.string().trim().min(1, 'bank_name is required.'),
+    is_active: z.boolean().optional()
   })
 };
 
@@ -69,8 +110,39 @@ const cancelRequisitionSchema = {
   })
 };
 
+const payFromZoBalanceSchema = {
+  params: z.object({
+    id: uuidSchema
+  })
+};
+
+const sendToAccountsSchema = {
+  params: z.object({
+    id: uuidSchema
+  })
+};
+
+const adjustSubcontractorBalanceSchema = {
+  body: z.object({
+    adjustment_id: z.string().regex(uuidRegex, 'Invalid UUID format for adjustment_id.').optional(),
+    work_order_no: z.string({ required_error: 'work_order_no is required.' }).trim().min(1, 'work_order_no is required.'),
+    material_sub_head: z.string({ required_error: 'material_sub_head is required.' }).trim().min(1, 'material_sub_head is required.'),
+    material_details: z.string({ required_error: 'material_details is required.' }).trim().min(1, 'material_details is required.'),
+    adjustment_amount: z.coerce.number({
+      required_error: 'adjustment_amount is required.',
+      invalid_type_error: 'adjustment_amount must be a valid number.'
+    }).refine(val => val !== 0, 'adjustment_amount cannot be zero.'),
+    remarks: z.string({ required_error: 'remarks are required.' }).trim().min(5, 'remarks must be at least 5 characters explaining the adjustment.')
+  })
+};
+
 module.exports = {
   createRequisitionSchema,
   actOnRequisitionSchema,
-  cancelRequisitionSchema
+  cancelRequisitionSchema,
+  adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema,
+  sendToAccountsSchema,
+  upsertProjectsBeneficiarySchema,
+  upsertIndianBankSchema
 };

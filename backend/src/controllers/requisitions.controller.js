@@ -1,9 +1,14 @@
 'use strict';
 
+const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
-const { computeMainHeadCapacity } = require('../services/mainHeadCapacity.service');
+const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
+const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 const validate = require('../validation/validate');
-const { createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema } = require('../validation/requisition.schema');
+const {
+  createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema, sendToAccountsSchema, upsertProjectsBeneficiarySchema, upsertIndianBankSchema
+} = require('../validation/requisition.schema');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -36,12 +41,20 @@ async function createRequisition(req, res) {
     work_order_no,
     requisition_no,
     material_main_head,
+    material_sub_head,
+    material_details,
     requisition_pdf_url,
     original_filename,
     requisition_amount,
     gst_bill,
     gst_bill_pdf_url,
     bank_details,
+    beneficiary_id,
+    beneficiary_name,
+    beneficiary_ac_no,
+    beneficiary_ifsc,
+    beneficiary_bank_name,
+    beneficiary_bank_id,
     expen_head_remarks
   } = req.body;
 
@@ -78,6 +91,30 @@ async function createRequisition(req, res) {
         success: false,
         message: `A requisition with number ${requisition_no.trim()} already exists.`
       });
+    }
+
+    // 1a. Validate beneficiary_bank_id and resolve bank name snapshot
+    let resolvedBankName = beneficiary_bank_name?.trim() || null;
+    let validatedBankId = beneficiary_bank_id || null;
+
+    if (validatedBankId) {
+      const bankCheck = await validateActiveIndianBank(validatedBankId);
+      if (!bankCheck.valid) {
+        await cleanupUploadedFiles();
+        if (bankCheck.reason === 'NOT_FOUND') {
+          return res.status(422).json({
+            success: false,
+            message: 'Selected bank does not exist.'
+          });
+        }
+        if (bankCheck.reason === 'INACTIVE') {
+          return res.status(422).json({
+            success: false,
+            message: 'Selected bank is currently inactive.'
+          });
+        }
+      }
+      resolvedBankName = bankCheck.bank.bank_name;
     }
 
     // 1b. Verify JE is actively mapped to the work order
@@ -153,6 +190,70 @@ async function createRequisition(req, res) {
       });
     }
 
+    if (material_main_head.trim() === 'Sub Contractor') {
+      const { data: scExists, error: scErr } = await supabase
+        .from('material_master')
+        .select('id')
+        .eq('Material_Main_Head', 'Sub Contractor')
+        .eq('Material_Sub_Head', material_sub_head?.trim())
+        .eq('Material_Details', material_details?.trim())
+        .limit(1)
+        .maybeSingle();
+      if (scErr) throw scErr;
+      if (!scExists) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({
+          success: false,
+          message: `Subcontractor '${material_details}' under '${material_sub_head}' does not exist in Material Master.`
+        });
+      }
+    }
+
+    // Synthesize bank_details if not directly provided
+    let effectiveBankDetails = (bank_details || '').trim();
+    if (!effectiveBankDetails && (beneficiary_ac_no || beneficiary_name)) {
+      effectiveBankDetails = [
+        beneficiary_name?.trim(),
+        beneficiary_ac_no?.trim() ? `A/C: ${beneficiary_ac_no.trim()}` : null,
+        beneficiary_ifsc?.trim() ? `IFSC: ${beneficiary_ifsc.trim()}` : null,
+        resolvedBankName ? `Bank: ${resolvedBankName}` : null
+      ].filter(Boolean).join(' | ');
+    }
+    if (!effectiveBankDetails) {
+      effectiveBankDetails = '—';
+    }
+
+    // 4c. Upsert into projects_beneficiary_master if account_no and ifsc provided
+    let resolvedBeneficiaryId = beneficiary_id || null;
+    if (beneficiary_ac_no?.trim() && beneficiary_ifsc?.trim()) {
+      const cleanAcNo = beneficiary_ac_no.trim();
+      const cleanIfsc = beneficiary_ifsc.trim().toUpperCase();
+      const cleanName = beneficiary_name?.trim() || material_details?.trim() || 'Payee';
+      try {
+        const { data: upserted, error: upsertErr } = await supabase
+          .from('projects_beneficiary_master')
+          .upsert({
+            beneficiary_ac_no: cleanAcNo,
+            beneficiary_ifsc: cleanIfsc,
+            beneficiary_name: cleanName,
+            beneficiary_bank_id: validatedBankId,
+            beneficiary_bank_name: resolvedBankName,
+            last_used_at: new Date().toISOString(),
+            created_by: req.user.mobile_number,
+            updated_by: req.user.mobile_number,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'beneficiary_ac_no,beneficiary_ifsc' })
+          .select('id')
+          .maybeSingle();
+
+        if (!upsertErr && upserted) {
+          resolvedBeneficiaryId = upserted.id;
+        }
+      } catch (err) {
+        console.warn('projects_beneficiary_master upsert warning:', err.message);
+      }
+    }
+
     // 5. Call the transactional RPC create_requisition_secure to insert atomically with lock and budget check
     const { data: newReq, error: rpcError } = await supabase.rpc('create_requisition_secure', {
       p_requester_user_id: req.user.mobile_number,
@@ -166,15 +267,23 @@ async function createRequisition(req, res) {
       p_site_details: project.site_details,
       p_requisition_no: requisition_no.trim(),
       p_material_main_head: material_main_head.trim(),
+      p_material_sub_head: material_sub_head?.trim() || null,
+      p_material_details: material_details?.trim() || null,
       p_requisition_pdf_url: requisition_pdf_url.trim(),
       p_original_filename: original_filename?.trim() || null,
       p_requisition_amount: Number(requisition_amount),
       p_gst_bill: gst_bill,
       p_gst_bill_pdf_url: gst_bill === 'Yes' ? gst_bill_pdf_url.trim() : null,
-      p_bank_details: bank_details.trim(),
+      p_bank_details: effectiveBankDetails,
       p_expen_head_remarks: expen_head_remarks?.trim() || null,
       p_requisition_status: 'Pending',
-      p_created_by: req.user.mobile_number
+      p_created_by: req.user.mobile_number,
+      p_beneficiary_id: resolvedBeneficiaryId,
+      p_beneficiary_name: beneficiary_name?.trim() || null,
+      p_beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
+      p_beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
+      p_beneficiary_bank_name: resolvedBankName,
+      p_beneficiary_bank_id: validatedBankId
     });
 
     if (rpcError) {
@@ -191,6 +300,26 @@ async function createRequisition(req, res) {
         return res.status(422).json({
           success: false,
           message: `Requisition amount exceeds the remaining Main Head capacity for '${material_main_head.trim()}'. Main Head Estimate: ₹${capacity.mainHeadEstimate.toLocaleString('en-IN')}. Cumulative ZO-Approved: ₹${capacity.cumulativeApproved.toLocaleString('en-IN')}. Remaining Capacity: ₹${capacity.remainingCapacity.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
+        });
+      }
+      if (rpcError.code === 'BUD03' || rpcError.message?.includes('Subcontractor Ledger balance')) {
+        const capacity = await computeSubcontractorCapacity(work_order_no.trim(), material_sub_head.trim(), material_details.trim());
+        return res.status(422).json({
+          success: false,
+          message: `Requisition amount exceeds the remaining Subcontractor Ledger balance for '${material_details.trim()}' (${material_sub_head.trim()}). Estimated Total: ₹${capacity.estimatedTotal.toLocaleString('en-IN')}. Paid So Far: ₹${capacity.paidTotal.toLocaleString('en-IN')}. Remaining Balance: ₹${capacity.availableBalance.toLocaleString('en-IN')}. Your Request: ₹${Number(requisition_amount).toLocaleString('en-IN')}.`
+        });
+      }
+      if (rpcError.code === 'VAL01' || rpcError.message?.includes('material_sub_head and material_details are required')) {
+        return res.status(400).json({
+          success: false,
+          message: 'material_sub_head and material_details are required for a Sub Contractor requisition.'
+        });
+      }
+      if (rpcError.code === 'EST02' || rpcError.code === 'EST01') {
+        return res.status(422).json({
+          success: false,
+          code: rpcError.code,
+          message: rpcError.message
         });
       }
       if (rpcError.code === 'PR001' || rpcError.message?.includes('Closed')) {
@@ -210,6 +339,12 @@ async function createRequisition(req, res) {
 
     if (updateZoErr) throw updateZoErr;
     newReq.zo_user_id = zo_user_id;
+
+    if (validatedBankId) {
+      newReq.beneficiary_bank = { id: validatedBankId, bank_name: resolvedBankName };
+      newReq.beneficiary_bank_id = validatedBankId;
+      newReq.beneficiary_bank_name = resolvedBankName;
+    }
 
     // 6. Calculate remaining amount for response
     const { data: committedRes } = await supabase
@@ -313,6 +448,7 @@ async function getRequisitions(req, res) {
       requisitions.forEach(r => {
         mobiles.push(r.requester_user_id);
         mobiles.push(r.approved_user_id);
+        mobiles.push(r.zo_user_id);
         mobiles.push(r.cancelled_by);
       });
       const userMap = await resolveDisplayNames(mobiles);
@@ -351,8 +487,13 @@ async function getRequisitions(req, res) {
 
         enriched.push({
           ...r,
+          beneficiary_bank: r.beneficiary_bank_id ? {
+            id: r.beneficiary_bank_id,
+            bank_name: r.beneficiary_bank_name
+          } : null,
           requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
           approved_name: userMap[r.approved_user_id] || r.approved_user_id || null,
+          zo_name: userMap[r.zo_user_id] || userMap[r.approved_user_id] || r.zo_user_id || null,
           cancelled_name: userMap[r.cancelled_by] || r.cancelled_by || null,
           remainingEstimateAmount,
           requisition_pdf_signed_url: signedUrl,
@@ -416,6 +557,7 @@ async function getRequisitionById(req, res) {
     const userMap = await resolveDisplayNames([
       requisition.requester_user_id,
       requisition.approved_user_id,
+      requisition.zo_user_id,
       requisition.cancelled_by
     ]);
 
@@ -452,16 +594,39 @@ async function getRequisitionById(req, res) {
       remainingEstimateAmount = Number(requisition.estimate_amount) - commAmt;
     }
 
+    // If this requisition was routed to Accounts, resolve the destination sheet
+    // so the frontend can deep-link straight to it.
+    let accountsSheet = null;
+    if (requisition.accounts_line_item_id) {
+      const { data: lineItem } = await supabase
+        .from('acct_requisition_line_items')
+        .select('sheet_id, acct_requisition_sheets(id, sheet_number)')
+        .eq('id', requisition.accounts_line_item_id)
+        .maybeSingle();
+      if (lineItem?.acct_requisition_sheets) {
+        accountsSheet = {
+          sheet_id: lineItem.acct_requisition_sheets.id,
+          sheet_number: lineItem.acct_requisition_sheets.sheet_number
+        };
+      }
+    }
+
     return res.status(200).json({
       success: true,
       requisition: {
         ...requisition,
+        beneficiary_bank: requisition.beneficiary_bank_id ? {
+          id: requisition.beneficiary_bank_id,
+          bank_name: requisition.beneficiary_bank_name
+        } : null,
         requester_name: userMap[requisition.requester_user_id] || requisition.requester_user_id || null,
         approved_name: userMap[requisition.approved_user_id] || requisition.approved_user_id || null,
+        zo_name: userMap[requisition.zo_user_id] || userMap[requisition.approved_user_id] || requisition.zo_user_id || null,
         cancelled_name: userMap[requisition.cancelled_by] || requisition.cancelled_by || null,
         requisition_pdf_signed_url: signedUrl,
         gst_bill_pdf_signed_url: gstSignedUrl,
-        remainingEstimateAmount
+        remainingEstimateAmount,
+        accounts_sheet: accountsSheet
       }
     });
 
@@ -556,6 +721,9 @@ async function actOnRequisition(req, res) {
         if (rpcErr.code === 'BUD02' || rpcErr.message?.includes('exceeds the remaining Main Head capacity')) {
           return res.status(422).json({ success: false, message: rpcErr.message });
         }
+        if (rpcErr.code === 'BUD04' || rpcErr.message?.includes('exceeds the remaining Subcontractor Ledger balance')) {
+          return res.status(422).json({ success: false, message: rpcErr.message });
+        }
         throw rpcErr;
       }
       updated = approvedReq;
@@ -582,6 +750,132 @@ async function actOnRequisition(req, res) {
       console.error(`actOnRequisition failed: ${error.message}`);
     }
     return res.status(500).json({ success: false, message: 'Failed to process requisition action.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/requisitions/:id/pay-from-zo-balance
+ * Selects the ZO Balance payment route for an Approved requisition - debits
+ * the ZO's zo_balances float and writes a zo_fund_ledger entry (the logic
+ * that used to run unconditionally inside approve_requisition_transact).
+ */
+async function payFromZoBalance(req, res) {
+  if (!validate(req, res, payFromZoBalanceSchema)) return;
+
+  const { id } = req.params;
+
+  try {
+    const { data: reqRecord, error: fetchError } = await supabase
+      .from('requisitions')
+      .select('*')
+      .eq('requisition_id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!reqRecord) {
+      return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    }
+
+    if (req.user.role === 'zo' && reqRecord.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action requisitions within your Zonal Office.' });
+    }
+
+    const { data: updated, error: rpcErr } = await supabase.rpc('select_zo_balance_payment_transact', {
+      p_requisition_id: id,
+      p_actioned_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      if (rpcErr.code === 'BAL01' || rpcErr.message?.includes('Insufficient available Zonal Office balance')) {
+        return res.status(422).json({ success: false, message: 'Insufficient available Zonal Office balance.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'RTE01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'P0002' || rpcErr.message?.includes('not found')) {
+        return res.status(404).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
+    }
+
+    return res.status(200).json({
+      success: true,
+      requisition: updated,
+      message: 'Requisition will be paid from the Zonal Office balance.'
+    });
+
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('payFromZoBalance failed:', error);
+    } else {
+      console.error(`payFromZoBalance failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to select the ZO Balance payment route.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/requisitions/:id/send-to-accounts
+ * Selects the Accounts payment route for an Approved requisition - creates an
+ * Accounts line item (in an Open acct_requisition_sheets row) prefilled from
+ * Finance data. Accounts fills in the debit account, payment mode, and cheque
+ * details afterward through the existing line-item edit flow.
+ */
+async function sendToAccounts(req, res) {
+  if (!validate(req, res, sendToAccountsSchema)) return;
+
+  const { id } = req.params;
+
+  try {
+    const { data: reqRecord, error: fetchError } = await supabase
+      .from('requisitions')
+      .select('*')
+      .eq('requisition_id', id)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+    if (!reqRecord) {
+      return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    }
+
+    if (req.user.role === 'zo' && reqRecord.zo_user_id !== req.user.mobile_number) {
+      return res.status(403).json({ success: false, message: 'Access denied. You can only action requisitions within your Zonal Office.' });
+    }
+
+    const { data, error: rpcErr } = await supabase.rpc('route_requisition_to_accounts_transact', {
+      p_requisition_id: id,
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      if (rpcErr.code === 'STA01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'RTE01') {
+        return res.status(409).json({ success: false, message: rpcErr.message });
+      }
+      if (rpcErr.code === 'P0002' || rpcErr.message?.includes('not found')) {
+        return res.status(404).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
+    }
+
+    return res.status(200).json({
+      success: true,
+      requisition: data.requisition,
+      message: 'Requisition sent to Accounts.'
+    });
+
+  } catch (error) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('sendToAccounts failed:', error);
+    } else {
+      console.error(`sendToAccounts failed: ${error.message}`);
+    }
+    return res.status(500).json({ success: false, message: 'Failed to send the requisition to Accounts.' });
   }
 }
 
@@ -681,7 +975,8 @@ async function getMainHeadCapacity(req, res) {
       success: true,
       mainHeadEstimate: capacity.mainHeadEstimate,
       cumulativeApproved: capacity.cumulativeApproved,
-      remainingCapacity: capacity.remainingCapacity
+      remainingCapacity: capacity.remainingCapacity,
+      estimateLifecycle: capacity.estimateLifecycle
     });
   } catch (error) {
     console.error(`getMainHeadCapacity failed: ${error.message}`);
@@ -692,11 +987,596 @@ async function getMainHeadCapacity(req, res) {
   }
 }
 
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-capacity
+ * Fetches current Estimated Total, Paid So Far, and Remaining Balance for a
+ * (work_order_no, material_sub_head, material_details) Subcontractor Ledger
+ * entry, read straight from subcontractor_balances (a persisted cache, not
+ * a live SUM — unlike computeMainHeadCapacity, this balance must survive an
+ * estimate reopen, during which there is briefly no 'Final Approved'
+ * estimate row for the work order to sum from).
+ */
+async function getSubcontractorCapacity(req, res) {
+  const { work_order_no, material_sub_head, material_details } = req.query;
+
+  if (!work_order_no || !material_sub_head || !material_details) {
+    return res.status(400).json({
+      success: false,
+      message: 'work_order_no, material_sub_head, and material_details query parameters are required.'
+    });
+  }
+
+  try {
+    const capacity = await computeSubcontractorCapacity(work_order_no, material_sub_head, material_details);
+    return res.status(200).json({ success: true, ...capacity });
+  } catch (error) {
+    console.error(`getSubcontractorCapacity failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger capacity.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger
+ * Browse view over subcontractor_balances (047_subcontractor_ledger.sql) —
+ * one row per (work_order_no, material_sub_head, material_details), i.e.
+ * per subcontractor-on-a-work-order. Optional work_order_no filter and a
+ * free-text search over sub head / subcontractor name. Enriched with each
+ * work order's department/site_details for display, the same shape
+ * getCreditLedger uses for its beneficiary/source enrichment.
+ */
+async function getSubcontractorLedger(req, res) {
+  try {
+    const query = req.query || {};
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('subcontractor_balances')
+      .select('*', { count: 'exact' });
+
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
+    }
+
+    if (query.search) {
+      const s = query.search.trim().replace(/[,()]/g, ' ').trim();
+      if (s) {
+        dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
+      }
+    }
+
+    dbQuery = dbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data: balances, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const workOrderNos = [...new Set((balances || []).map(b => b.work_order_no))];
+    let projectMap = {};
+    if (workOrderNos.length > 0) {
+      const { data: projects } = await supabase
+        .from('projects_master')
+        .select('work_order_no, department, site_details')
+        .in('work_order_no', workOrderNos);
+      projectMap = (projects || []).reduce((acc, p) => { acc[p.work_order_no] = p; return acc; }, {});
+    }
+
+    const enriched = (balances || []).map(b => ({
+      ...b,
+      project: projectMap[b.work_order_no] || null
+    }));
+
+    return res.status(200).json({
+      success: true,
+      balances: enriched,
+      pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getSubcontractorLedger failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger/entries
+ * The append-only transaction trail (subcontractor_ledger) — every credit
+ * (estimate item HO approval), debit (requisition approval), and administrative
+ * adjustment, newest first, with actor names, requisition numbers, remarks,
+ * credit/debit breakdown, and chronological running balances.
+ * Supports filtering by work_order_no, material_sub_head, material_details,
+ * search term, and date range.
+ */
+async function getSubcontractorLedgerEntries(req, res) {
+  const { work_order_no, material_sub_head, material_details, search, date_from, date_to } = req.query || {};
+
+  try {
+    let dbQuery = supabase
+      .from('subcontractor_ledger')
+      .select('*');
+
+    if (work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', work_order_no.trim());
+    }
+    if (material_sub_head) {
+      dbQuery = dbQuery.eq('material_sub_head', material_sub_head.trim());
+    }
+    if (material_details) {
+      dbQuery = dbQuery.eq('material_details', material_details.trim());
+    }
+    if (search) {
+      const s = search.trim();
+      dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
+    }
+    if (date_from) {
+      dbQuery = dbQuery.gte('created_at', `${date_from}T00:00:00+05:30`);
+    }
+    if (date_to) {
+      dbQuery = dbQuery.lte('created_at', `${date_to}T23:59:59.999+05:30`);
+    }
+
+    dbQuery = dbQuery.order('created_at', { ascending: false });
+
+    const { data: entries, error } = await dbQuery;
+
+    if (error) throw error;
+
+    const rawEntries = entries || [];
+
+    // 1. Resolve user display names
+    const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
+
+    // 2. Resolve Requisitions details (requisition_no, remarks, amounts)
+    const reqIds = rawEntries
+      .filter(e => e.reference_type === 'REQUISITION' && e.reference_id)
+      .map(e => e.reference_id);
+    let reqMap = {};
+    if (reqIds.length > 0) {
+      const { data: reqRows } = await supabase
+        .from('requisitions')
+        .select('requisition_id, requisition_no, requisition_amount, approved_amount, requisition_status, remarks, remarks_approved_authority')
+        .in('requisition_id', reqIds);
+      reqMap = (reqRows || []).reduce((acc, r) => {
+        acc[r.requisition_id] = r;
+        return acc;
+      }, {});
+    }
+
+    // 3. Resolve Estimate Items details
+    const itemIds = rawEntries
+      .filter(e => e.reference_type === 'ESTIMATE_ITEM' && e.reference_id)
+      .map(e => e.reference_id);
+    let itemMap = {};
+    if (itemIds.length > 0) {
+      const { data: itemRows } = await supabase
+        .from('project_cost_estimate_items')
+        .select('item_id, description, estimate_id')
+        .in('item_id', itemIds);
+      itemMap = (itemRows || []).reduce((acc, it) => {
+        acc[it.item_id] = it;
+        return acc;
+      }, {});
+    }
+
+    // 4. Resolve Admin Adjustments remarks from audit_log
+    const adjIds = rawEntries
+      .filter(e => e.reference_type === 'MANUAL_ADJUSTMENT' && e.reference_id)
+      .map(e => e.reference_id);
+    let adjMap = {};
+    if (adjIds.length > 0) {
+      const { data: auditRows } = await supabase
+        .from('audit_log')
+        .select('new_value')
+        .eq('action', 'ADMIN_ADJUST_SUBCONTRACTOR_BALANCE');
+      adjMap = (auditRows || []).reduce((acc, a) => {
+        if (a.new_value?.adjustment_id) {
+          acc[a.new_value.adjustment_id] = a.new_value.remarks;
+        }
+        return acc;
+      }, {});
+    }
+
+    // 5. Compute chronological running balance per (work_order_no, material_sub_head, material_details)
+    const runningBalances = {};
+    // Chronological order (oldest first)
+    const entriesAsc = [...rawEntries].reverse();
+    for (const e of entriesAsc) {
+      const key = `${e.work_order_no}|||${e.material_sub_head}|||${e.material_details}`;
+      runningBalances[key] = Number(((runningBalances[key] || 0) + Number(e.amount || 0)).toFixed(2));
+      e.running_balance = runningBalances[key];
+      e.credit_amount = Number(e.amount) > 0 ? Number(e.amount) : 0;
+      e.debit_amount = Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0;
+    }
+
+    // 6. Enrich entries (returned newest first)
+    const enriched = rawEntries.map(e => {
+      const reqInfo = reqMap[e.reference_id];
+      const itemInfo = itemMap[e.reference_id];
+      const adjRemarks = adjMap[e.reference_id];
+
+      return {
+        ...e,
+        created_by_name: userMap[e.created_by] || e.created_by,
+        requisition_no: reqInfo?.requisition_no || null,
+        reference_doc_no: reqInfo?.requisition_no || (itemInfo ? `Item: ${e.reference_id.slice(0, 8)}` : e.reference_id ? `${e.reference_type}: ${e.reference_id.slice(0, 8)}` : null),
+        remarks: reqInfo ? (reqInfo.remarks_approved_authority || reqInfo.remarks || null) : (adjRemarks || itemInfo?.description || null),
+        item_description: itemInfo?.description || null
+      };
+    });
+
+    return res.status(200).json({ success: true, entries: enriched });
+  } catch (error) {
+    console.error(`getSubcontractorLedgerEntries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger entries.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/subcontractor-ledger/requisitions
+ * Every Requisition raised against a Sub Contractor, across every work
+ * order — the raw material for "group by subcontractor" reporting, since
+ * subcontractor_balances itself is deliberately scoped per work order (see
+ * 047_subcontractor_ledger.sql's design notes) and can't answer "show me
+ * everything raised against this person." Filterable by work_order_no,
+ * a sub head/subcontractor-name search, and a requisition creation date
+ * range; grouping by (material_sub_head, material_details) is left to the
+ * caller (the browse UI groups client-side; an Excel export just wants the
+ * flat filtered rows).
+ */
+async function getSubcontractorRequisitions(req, res) {
+  try {
+    const query = req.query || {};
+    const dateBasis = query.date_basis === 'approved' ? 'approved' : 'created';
+    const dateCol = dateBasis === 'approved' ? 'payment_date' : 'created_at';
+
+    let dbQuery = supabase
+      .from('requisitions')
+      .select('*')
+      .eq('material_main_head', 'Sub Contractor');
+
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
+    }
+
+    if (dateBasis === 'approved') {
+      dbQuery = dbQuery.not('payment_date', 'is', null);
+    }
+
+    if (query.date_from) {
+      dbQuery = dbQuery.gte(dateCol, `${query.date_from}T00:00:00+05:30`);
+    }
+    if (query.date_to) {
+      dbQuery = dbQuery.lte(dateCol, `${query.date_to}T23:59:59.999+05:30`);
+    }
+
+    dbQuery = dbQuery.order('material_details', { ascending: true }).order('created_at', { ascending: false });
+
+    const { data: requisitions, error } = await dbQuery;
+    if (error) throw error;
+
+    let filtered = requisitions || [];
+    if (query.search) {
+      const term = query.search.toLowerCase();
+      filtered = filtered.filter(r =>
+        r.material_sub_head?.toLowerCase().includes(term) ||
+        r.material_details?.toLowerCase().includes(term) ||
+        r.work_order_no?.toLowerCase().includes(term) ||
+        r.requisition_no?.toLowerCase().includes(term)
+      );
+    }
+
+    const userMap = await resolveDisplayNames(filtered.flatMap(r => [r.requester_user_id, r.approved_user_id]));
+    const enriched = filtered.map(r => ({
+      ...r,
+      requester_name: userMap[r.requester_user_id] || r.requester_user_id || null,
+      approved_name: userMap[r.approved_user_id] || r.approved_user_id || null
+    }));
+
+    return res.status(200).json({ success: true, requisitions: enriched });
+  } catch (error) {
+    console.error(`getSubcontractorRequisitions failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor requisitions.' });
+  }
+}
+
+/**
+ * POST /api/v1/auth/requisitions/subcontractor-ledger/adjust
+ * Admin balance adjustment for a subcontractor ledger entry (HO or Admin only).
+ * Audited and idempotent via adjustment_id.
+ */
+async function adjustSubcontractorBalance(req, res) {
+  const {
+    adjustment_id = crypto.randomUUID(),
+    work_order_no,
+    material_sub_head,
+    material_details,
+    adjustment_amount,
+    remarks
+  } = req.body;
+
+  const actioned_by = req.user?.mobile_number;
+
+  try {
+    const { data: updatedBalance, error } = await supabase.rpc('adjust_subcontractor_balance_transact', {
+      p_adjustment_id: adjustment_id,
+      p_work_order_no: work_order_no.trim(),
+      p_material_sub_head: material_sub_head.trim(),
+      p_material_details: material_details.trim(),
+      p_adjustment_amount: Number(adjustment_amount),
+      p_remarks: remarks.trim(),
+      p_actioned_by: actioned_by
+    });
+
+    if (error) {
+      if (error.code === 'AUTH1' || error.code === 'AUTH2') {
+        return res.status(403).json({ success: false, message: error.message });
+      }
+      if (error.code === 'P0002') {
+        return res.status(404).json({ success: false, message: error.message });
+      }
+      if (error.code === 'BAL01' || error.code === 'BAL02' || error.code === 'VAL09' || error.code === 'VAL10' || error.code === 'VAL11') {
+        return res.status(422).json({ success: false, message: error.message, code: error.code });
+      }
+      throw error;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Subcontractor balance adjusted successfully.',
+      balance: updatedBalance
+    });
+  } catch (error) {
+    console.error(`adjustSubcontractorBalance failed: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to adjust subcontractor balance.'
+    });
+  }
+}
+
+/**
+ * GET /requisitions/beneficiary-master?page=&limit=&search=
+ * Paginated/searchable list backing the Beneficiary Master page, distinct
+ * from searchProjectsBeneficiaries' typeahead below.
+ */
+async function getProjectsBeneficiaries(req, res) {
+  try {
+    const query = req.query || {};
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    let limit = parseInt(query.limit, 10) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('projects_beneficiary_master')
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)', { count: 'exact' });
+
+    if (query.search) {
+      const term = query.search.replace(/[%,]/g, '');
+      dbQuery = dbQuery.or(`beneficiary_ac_no.ilike.%${term}%,beneficiary_name.ilike.%${term}%`);
+    }
+
+    const { data: beneficiaries, count, error } = await dbQuery
+      .order('beneficiary_name', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) throw error;
+
+    const enriched = (beneficiaries || []).map(b => ({
+      ...b,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      beneficiaries: enriched,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
+    });
+  } catch (error) {
+    console.error(`getProjectsBeneficiaries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve beneficiaries.' });
+  }
+}
+
+/**
+ * PUT /requisitions/beneficiary-master
+ * Manual add/edit entry point for the Beneficiary Master page, distinct from
+ * the automatic upsert createRequisition performs on submit.
+ */
+async function upsertProjectsBeneficiary(req, res) {
+  if (!validate(req, res, upsertProjectsBeneficiarySchema)) return;
+  const { beneficiary_ac_no, beneficiary_ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
+
+  let resolvedBankId = beneficiary_bank_id || null;
+  let resolvedBankName = beneficiary_bank_name?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('projects_beneficiary_master')
+      .upsert(
+        {
+          beneficiary_ac_no,
+          beneficiary_ifsc: beneficiary_ifsc.toUpperCase(),
+          beneficiary_name,
+          beneficiary_bank_id: resolvedBankId,
+          beneficiary_bank_name: resolvedBankName,
+          last_used_at: new Date().toISOString(),
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'beneficiary_ac_no,beneficiary_ifsc' }
+      )
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
+      .single();
+
+    if (error) throw error;
+
+    const enriched = {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    };
+
+    return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
+  } catch (error) {
+    console.error(`upsertProjectsBeneficiary failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
+  }
+}
+
+/**
+ * PUT /requisitions/indian-banks
+ * Shared indian_bank_master table — same write path as the Accounts module's
+ * equivalent endpoint, exposed here so Financial Twin users can add/deactivate
+ * banks without needing Accounts access.
+ */
+async function upsertIndianBank(req, res) {
+  if (!validate(req, res, upsertIndianBankSchema)) return;
+  const { bank_name, is_active } = req.body;
+
+  try {
+    const { data, error } = await supabase
+      .from('indian_bank_master')
+      .upsert(
+        {
+          bank_name,
+          is_active: is_active !== undefined ? is_active : true,
+          created_by: req.user.mobile_number,
+          updated_by: req.user.mobile_number
+        },
+        { onConflict: 'bank_name' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    invalidateBankCache();
+
+    return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
+  } catch (error) {
+    console.error(`upsertIndianBank failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save Indian bank.' });
+  }
+}
+
+/**
+ * GET /api/v1/auth/requisitions/beneficiary-suggestions?prefix=...&limit=...
+ * Live typeahead for project payment requisition beneficiary account numbers or names.
+ */
+async function searchProjectsBeneficiaries(req, res) {
+  const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
+  if (prefix.length < 3) {
+    return res.status(200).json({ success: true, beneficiaries: [] });
+  }
+  const limit = Math.min(parseInt(req.query?.limit, 10) || 8, 20);
+
+  try {
+    let query = supabase
+      .from('projects_beneficiary_master')
+      .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, last_used_at, indian_bank_master:beneficiary_bank_id (id, bank_name)');
+
+    if (/^\d+$/.test(prefix)) {
+      query = query.like('beneficiary_ac_no', `${prefix}%`);
+    } else {
+      query = query.ilike('beneficiary_name', `%${prefix}%`);
+    }
+
+    const { data, error } = await query
+      .order('last_used_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    const enriched = (data || []).map(b => ({
+      id: b.id,
+      beneficiary_name: b.beneficiary_name,
+      beneficiary_ac_no: b.beneficiary_ac_no,
+      beneficiary_ifsc: b.beneficiary_ifsc,
+      beneficiary_bank_id: b.beneficiary_bank_id,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name,
+      last_used_at: b.last_used_at
+    }));
+
+    return res.status(200).json({ success: true, beneficiaries: enriched });
+  } catch (error) {
+    console.error(`searchProjectsBeneficiaries failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to search project beneficiaries.' });
+  }
+}
+
+/**
+ * GET /requisitions/indian-banks
+ * Returns active Indian banks for dropdown population.
+ */
+async function getIndianBanks(req, res) {
+  try {
+    const indianBanks = await getActiveIndianBanks();
+    return res.status(200).json({ success: true, indianBanks });
+  } catch (error) {
+    console.error(`getIndianBanks failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Indian banks.' });
+  }
+}
+
 module.exports = {
   createRequisition,
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
+  payFromZoBalance,
+  sendToAccounts,
   cancelRequisition,
-  getMainHeadCapacity
+  getMainHeadCapacity,
+  getSubcontractorCapacity,
+  getSubcontractorLedger,
+  getSubcontractorLedgerEntries,
+  getSubcontractorRequisitions,
+  adjustSubcontractorBalance,
+  searchProjectsBeneficiaries,
+  getProjectsBeneficiaries,
+  upsertProjectsBeneficiary,
+  upsertIndianBank,
+  getIndianBanks
 };

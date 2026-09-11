@@ -59,6 +59,24 @@ export const MobileHeader = () => {
           </svg>
         )
       });
+      finItems.push({
+        to: '/subcontractor-ledger',
+        label: 'Subcontractor Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      finItems.push({
+        to: '/requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+          </svg>
+        )
+      });
     }
     if (['zo', 'staff', 'ho', 'admin'].includes(user?.role)) {
       finItems.push({
@@ -139,6 +157,24 @@ export const MobileHeader = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
+      finItems.push({
+        to: '/acct-requisitions/credit-ledger',
+        label: 'Credit Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      finItems.push({
+        to: '/acct-requisitions/logs',
+        label: 'Requisition Logs',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       });
@@ -488,7 +524,7 @@ const Sidebar = () => {
 
   // 1. Detect active module
   const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
-  const isFinanceModule = ['/requisitions', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
+  const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
   const isAdminModule = currentPath.startsWith('/admin');
@@ -538,6 +574,24 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/subcontractor-ledger',
+        label: 'Subcontractor Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/requisitions/beneficiary-master',
+        label: 'Beneficiary Master',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
           </svg>
         )
       });
@@ -627,6 +681,24 @@ const Sidebar = () => {
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/credit-ledger',
+        label: 'Credit Ledger',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/acct-requisitions/logs',
+        label: 'Requisition Logs',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )
       });

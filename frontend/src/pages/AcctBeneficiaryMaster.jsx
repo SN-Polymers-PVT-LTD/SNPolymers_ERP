@@ -23,7 +23,7 @@ const emptyBeneficiaryForm = () => ({
   account_number: '',
   ifsc: '',
   beneficiary_name: '',
-  beneficiary_bank_name: ''
+  beneficiary_bank_id: ''
 });
 
 const AddBeneficiaryModal = ({ bankOptions, onClose }) => {
@@ -41,7 +41,7 @@ const AddBeneficiaryModal = ({ bankOptions, onClose }) => {
     if (!form.account_number.trim()) return setError('Account number is required.');
     if (!ifscRegex.test(form.ifsc.trim())) return setError('IFSC must be 11-char in format AAAA0XXXXXX.');
     if (!form.beneficiary_name.trim()) return setError('Beneficiary name is required.');
-    if (!form.beneficiary_bank_name) return setError('Beneficiary bank is required.');
+    if (!form.beneficiary_bank_id) return setError('Beneficiary bank is required.');
 
     setSubmitting(true);
     try {
@@ -49,7 +49,7 @@ const AddBeneficiaryModal = ({ bankOptions, onClose }) => {
         account_number: form.account_number.trim(),
         ifsc: form.ifsc.trim().toUpperCase(),
         beneficiary_name: form.beneficiary_name.trim(),
-        beneficiary_bank_name: form.beneficiary_bank_name
+        beneficiary_bank_id: form.beneficiary_bank_id
       });
       queryClient.invalidateQueries({ queryKey: ['acctBeneficiaries'] });
       onClose();
@@ -81,8 +81,8 @@ const AddBeneficiaryModal = ({ bankOptions, onClose }) => {
         <Input label="Beneficiary Name" required value={form.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} />
         <Select
           label="Beneficiary Bank"
-          value={form.beneficiary_bank_name}
-          onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
+          value={form.beneficiary_bank_id}
+          onChange={(e) => setField('beneficiary_bank_id', e.target.value)}
           options={[{ value: '', label: 'Select bank...' }, ...bankOptions]}
         />
         {error && <p className="text-[10px] font-semibold text-red-400">{error}</p>}
@@ -157,7 +157,7 @@ const BeneficiariesTab = () => {
   });
 
   const { data: banks = [] } = useIndianBanks();
-  const bankOptions = banks.filter(b => b.is_active).map(b => ({ value: b.bank_name, label: b.bank_name }));
+  const bankOptions = banks.filter(b => b.is_active).map(b => ({ value: b.id, label: b.bank_name }));
 
   const beneficiaries = data?.beneficiaries || [];
   const totalPages = data?.pagination?.totalPages || 1;
@@ -242,7 +242,7 @@ const BeneficiariesTab = () => {
                   <TableCell className="font-mono">{b.account_number}</TableCell>
                   <TableCell className="font-mono">{b.ifsc}</TableCell>
                   <TableCell className="font-semibold text-slate-200">{b.beneficiary_name}</TableCell>
-                  <TableCell>{b.beneficiary_bank_name}</TableCell>
+                  <TableCell>{b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</TableCell>
                   <TableCell>{b.last_used_at ? new Date(b.last_used_at).toLocaleDateString('en-IN') : '—'}</TableCell>
                 </TableRow>
               ))}

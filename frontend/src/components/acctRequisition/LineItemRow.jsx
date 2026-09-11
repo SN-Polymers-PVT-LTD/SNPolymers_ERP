@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge, TableRow, TableCell } from '../ui';
 import BeneficiaryAutofill from './BeneficiaryAutofill';
+import BeneficiaryAcNoSuggestions from './BeneficiaryAcNoSuggestions';
 import LastHoActionTag from './LastHoActionTag';
 import ReopenedBadge from './ReopenedBadge';
+import SourceRequisitionBadge from './SourceRequisitionBadge';
 import { upsertBeneficiary } from '../../api/acctRequisitionsApi';
 
 const formatCurrency = (val) =>
@@ -14,10 +16,12 @@ const STATUS_VARIANTS = {
   'Partially Approved': 'emerald',
   'On Hold': 'orange',
   'Returned for Correction': 'red',
-  Rejected: 'red'
+  Rejected: 'red',
+  'Pending Review': 'indigo',
+  'Credit Approved': 'blue'
 };
 
-const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT'].map(v => ({ value: v, label: v }));
+const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].map(v => ({ value: v, label: v }));
 
 // Backend sets ho_actioned_at (not the generic updated_at) at the moment a row
 // transitions into Hold (act_acct_line_item_non_approve_transact) — the precise
@@ -38,12 +42,15 @@ const emptyDraft = (item) => ({
   beneficiary_ac_no: item.beneficiary_ac_no || '',
   beneficiary_name: item.beneficiary_name || '',
   beneficiary_ifsc: item.beneficiary_ifsc || '',
-  beneficiary_bank_name: item.beneficiary_bank_name || '',
+  beneficiary_bank_id: item.beneficiary_bank_id || item.beneficiary_bank?.id || null,
+  beneficiary_bank_name: item.beneficiary_bank?.bank_name || item.beneficiary_bank_name || '',
   debit_bank_ac_type: item.debit_bank_ac_type || '',
   req_amount: item.req_amount ?? '',
   payment_mode: item.payment_mode || '',
   cheque_no: item.cheque_no || '',
-  cheque_date: item.cheque_date || ''
+  cheque_date: item.cheque_date || '',
+  work_order_no: item.work_order_no || '',
+  remarks: item.remarks || ''
 });
 
 /**
@@ -54,10 +61,12 @@ const emptyDraft = (item) => ({
  * and use different endpoints — this component only ever calls one of them
  * per render, matching the backend's split.
  *
- * A third mode, viewOnlyFull, covers On Hold (product doc §6: fields are
- * always disabled, never hidden, while a row is Hold or Returned for
- * Correction) — it reuses the same field layout as the editable form but
- * with every field disabled and no submit control.
+ * On Hold is terminal now (037_terminal_hold_and_rejected.sql — no further
+ * HO action, only re-import into a new sheet), so it renders through the
+ * same collapsed read-only row as every other decided status (Approved/
+ * Rejected/etc.) instead of the old full-field "always visible, always
+ * disabled" layout that only made sense while it could still be re-decided
+ * in place.
  *
  * Rendered as a <tr> (this row lives inside the sheet detail page's line
  * items <table>) rather than a <form> — a <form> cannot wrap a <tr>, so
@@ -71,6 +80,7 @@ const LineItemRow = ({
   accountSubTitles = [],
   indianBanks = [],
   particulars = [],
+  projects = [],
   onSave,
   onResubmit,
   onDelete,
@@ -101,7 +111,6 @@ const LineItemRow = ({
   // lookup endpoint and 403s for an HO user.
   const returnedPath = item.requisition_status === 'Returned for Correction' && Boolean(onResubmit);
   const editable = openPath || returnedPath;
-  const viewOnlyFull = !editable && item.requisition_status === 'On Hold';
 
   const [draft, setDraft] = useState(() => emptyDraft(item));
   const [saving, setSaving] = useState(false);
@@ -115,8 +124,19 @@ const LineItemRow = ({
 
   const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
-  const indianBankOptions = indianBanks.map(b => ({ value: b, label: b }));
+  const indianBankOptions = indianBanks.map(b => (
+    typeof b === 'object' && b !== null
+      ? { value: b.id, label: b.bank_name }
+      : { value: b, label: b }
+  ));
   const particularsOptions = particulars.map(p => ({ value: p.id, label: p.title }));
+  // Work Order No. must match an existing projects_master row exactly (real
+  // FK, fk_arli_work_order — 046) — value and label are both the WO number
+  // itself, unlike account-sub-title/particulars which have a separate id.
+  const workOrderOptions = projects.map(p => ({
+    value: p.work_order_no,
+    label: p.site_details ? `${p.work_order_no} — ${p.site_details}` : p.work_order_no
+  }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
 
@@ -140,6 +160,19 @@ const LineItemRow = ({
     return { value: created.id, label: created.title };
   };
 
+  // No onCreate here — unlike particulars/account-sub-title, Work Order No.
+  // is a real FK (fk_arli_work_order, 046) and can only ever be one of the
+  // existing projects_master rows, never freely created inline. Typing
+  // filters the dropdown by WO number or site details; only picking an
+  // option (or typing the WO number exactly) sets a savable value.
+  const handleWorkOrderTextChange = (text) => {
+    const match = workOrderOptions.find(o =>
+      o.value.trim().toLowerCase() === text.trim().toLowerCase() ||
+      o.label.trim().toLowerCase() === text.trim().toLowerCase()
+    );
+    setDraft(prev => ({ ...prev, work_order_no: match ? match.value : text }));
+  };
+
   // Reads from the refs (not the `draft`/`confirmedBeneficiaryKey` state
   // closures) so this same function works both as the row's own Save button
   // handler and as an externally-triggered save (the detail page's
@@ -152,6 +185,8 @@ const LineItemRow = ({
     try {
       const payload = {
         ...currentDraft,
+        beneficiary_bank_id: currentDraft.beneficiary_bank_id || null,
+        beneficiary_bank_name: currentDraft.beneficiary_bank_name?.trim() || null,
         req_amount: currentDraft.req_amount === '' ? null : Number(currentDraft.req_amount),
         payment_mode: currentDraft.payment_mode || null,
         cheque_no: currentDraft.cheque_no || null,
@@ -172,7 +207,7 @@ const LineItemRow = ({
         currentDraft.beneficiary_ac_no?.trim() &&
         currentDraft.beneficiary_ifsc?.trim() &&
         currentDraft.beneficiary_name?.trim() &&
-        currentDraft.beneficiary_bank_name?.trim() &&
+        (currentDraft.beneficiary_bank_id || currentDraft.beneficiary_bank_name?.trim()) &&
         confirmedBeneficiaryKeyRef.current !== currentKey
       ) {
         setConfirmedBeneficiaryKey(currentKey);
@@ -180,7 +215,8 @@ const LineItemRow = ({
           account_number: currentDraft.beneficiary_ac_no.trim(),
           ifsc: currentDraft.beneficiary_ifsc.trim(),
           beneficiary_name: currentDraft.beneficiary_name.trim(),
-          beneficiary_bank_name: currentDraft.beneficiary_bank_name.trim()
+          beneficiary_bank_id: currentDraft.beneficiary_bank_id || undefined,
+          beneficiary_bank_name: currentDraft.beneficiary_bank_name?.trim() || undefined
         }).catch((err) => {
           console.warn('Beneficiary master upsert skipped:', err.response?.data?.message || err.message);
         });
@@ -213,13 +249,17 @@ const LineItemRow = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openPath, item.id, registerSave, pending]);
 
-  if (!editable && !viewOnlyFull) {
+  if (!editable) {
+    const holdDays = daysOnHold(item);
     return (
       <TableRow>
         <TableCell>
           <p className="text-sm font-bold text-slate-100">{item.particulars || '—'}</p>
         </TableCell>
         <TableCell>{item.account_sub_title_text || '—'}</TableCell>
+        <TableCell>
+          <span className="text-xs text-slate-300 font-mono">{item.work_order_no || '—'}</span>
+        </TableCell>
         <TableCell className="min-w-[200px]">
           <div className="flex flex-col gap-1">
             <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
@@ -235,10 +275,10 @@ const LineItemRow = ({
                 {item.beneficiary_ifsc}
               </p>
             )}
-            {item.beneficiary_bank_name && (
+            {(item.beneficiary_bank?.bank_name || item.beneficiary_bank_name) && (
               <p className="text-[10px] text-slate-500">
                 <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Bank</span>
-                {item.beneficiary_bank_name}
+                {item.beneficiary_bank?.bank_name || item.beneficiary_bank_name}
               </p>
             )}
           </div>
@@ -278,26 +318,38 @@ const LineItemRow = ({
             )}
           </div>
         </TableCell>
+        <TableCell className="min-w-[160px] max-w-[220px]">
+          {item.remarks ? (
+            <span className="text-xs text-slate-400 leading-snug line-clamp-2" title={item.remarks}>{item.remarks}</span>
+          ) : (
+            <span className="text-slate-600">—</span>
+          )}
+        </TableCell>
         <TableCell className="min-w-[220px] max-w-[260px]">
           <div className="flex flex-col gap-1.5 items-start">
-            <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>
-              {statusOverride || item.requisition_status || 'Draft'}
-            </Badge>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge variant={STATUS_VARIANTS[statusOverride || item.requisition_status] || 'slate'}>
+                {statusOverride || item.requisition_status || 'Draft'}
+              </Badge>
+              {holdDays != null && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-orange-400">{holdDays}d</span>
+              )}
+            </div>
             {statusOverride && (
               <span className="text-[9px] font-bold uppercase tracking-widest text-amber-500/70">Staged, not yet submitted</span>
             )}
-            {/* Live ho_remarks — same gap as the Return/Hold case: LastHoActionTag
-                below only shows last_ho_remarks, a snapshot from a PRIOR cycle
-                populated by resubmit/reopen. A first-time Rejected item has no
-                prior cycle yet, so without this Accounts never sees HO's reason
-                until/unless the item is later reopened. */}
-            {item.requisition_status === 'Rejected' && item.ho_remarks && (
+            {/* Live ho_remarks — LastHoActionTag below only shows
+                last_ho_remarks, a snapshot from a PRIOR cycle populated by
+                resubmit. A first-time Rejected/On Hold item has no prior
+                cycle yet, so without this Accounts never sees HO's reason. */}
+            {['Rejected', 'On Hold'].includes(item.requisition_status) && item.ho_remarks && (
               <span className="text-[11px] text-slate-400 italic leading-snug line-clamp-2" title={item.ho_remarks}>
                 "{item.ho_remarks}"
               </span>
             )}
             <LastHoActionTag item={item} />
             <ReopenedBadge item={item} />
+            <SourceRequisitionBadge item={item} />
           </div>
         </TableCell>
         {showHoRemarksColumn && (
@@ -326,30 +378,22 @@ const LineItemRow = ({
     );
   }
 
-  const readOnly = !editable || pending; // viewOnlyFull, or a not-yet-reconciled optimistic placeholder
-  const holdDays = viewOnlyFull ? daysOnHold(item) : null;
+  // This branch only ever renders for an editable row now (Open sheet, or
+  // Returned for Correction awaiting resubmit) — every other status
+  // (including On Hold) returns via the collapsed read-only row above.
+  const readOnly = pending; // not-yet-reconciled optimistic placeholder
 
   return (
-    <TableRow className={editable ? 'bg-amber-500/[0.03]' : 'bg-orange-500/[0.03]'}>
+    <TableRow className="bg-amber-500/[0.03]">
       <TableCell className="min-w-[160px]">
         <div className="flex flex-col gap-2">
           {pending && <Badge variant="slate">Creating…</Badge>}
           {returnedPath && <Badge variant="red">Returned for Correction</Badge>}
-          {viewOnlyFull && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Badge variant="orange">On Hold</Badge>
-              {holdDays != null && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-orange-400">
-                  {holdDays}d
-                </span>
-              )}
-            </div>
-          )}
-          {/* Live ho_remarks — the reason HO gave for *this* Return/Hold. Distinct
+          {/* Live ho_remarks — the reason HO gave for this Return. Distinct
               from LastHoActionTag's last_ho_remarks, which only ever shows a PRIOR
               (already-superseded) cycle's remark and stays empty on a first-time
-              Return/Hold, since nothing has been superseded yet. */}
-          {(returnedPath || viewOnlyFull) && item.ho_remarks && (
+              Return, since nothing has been superseded yet. */}
+          {returnedPath && item.ho_remarks && (
             <span className="text-[11px] text-slate-400 italic leading-snug">"{item.ho_remarks}"</span>
           )}
           <SearchableSelect
@@ -380,15 +424,54 @@ const LineItemRow = ({
         />
       </TableCell>
 
+      <TableCell className="min-w-[180px]">
+        <SearchableSelect
+          disabled={readOnly}
+          value={draft.work_order_no}
+          onChange={handleWorkOrderTextChange}
+          options={workOrderOptions}
+          onSelect={(opt) => setDraft(prev => ({ ...prev, work_order_no: opt.value }))}
+          placeholder="Search WO. No..."
+          size="sm"
+        />
+      </TableCell>
+
       <TableCell className="min-w-[220px]">
         <div className="flex flex-col gap-1.5">
-          <Input disabled={readOnly} value={draft.beneficiary_ac_no} maxLength={18} inputMode="numeric" onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))} placeholder="A/C No." size="sm" />
+          <BeneficiaryAcNoSuggestions
+            disabled={readOnly}
+            value={draft.beneficiary_ac_no}
+            maxLength={18}
+            inputMode="numeric"
+            onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))}
+            onSelect={(b) => {
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_ac_no: b.account_number,
+                beneficiary_ifsc: b.ifsc,
+                beneficiary_name: b.beneficiary_name,
+                beneficiary_bank_id: b.beneficiary_bank_id || b.beneficiary_bank?.id || null,
+                beneficiary_bank_name: b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || ''
+              }));
+              setConfirmedBeneficiaryKey(beneficiaryKey(b.account_number, b.ifsc));
+            }}
+            placeholder="A/C No."
+            size="sm"
+          />
           <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase().trim())} placeholder="IFSC" size="sm" />
           <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
           <Select
             disabled={readOnly}
-            value={draft.beneficiary_bank_name}
-            onChange={(e) => setField('beneficiary_bank_name', e.target.value)}
+            value={draft.beneficiary_bank_id || (indianBanks.find(b => (typeof b === 'object' ? b.bank_name : b) === draft.beneficiary_bank_name)?.id || '')}
+            onChange={(e) => {
+              const selectedVal = e.target.value;
+              const found = indianBanks.find(b => (typeof b === 'object' ? b.id === selectedVal : b === selectedVal));
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_bank_id: selectedVal || null,
+                beneficiary_bank_name: found ? (typeof found === 'object' ? found.bank_name : found) : ''
+              }));
+            }}
             options={[{ value: '', label: 'Select bank...' }, ...indianBankOptions]}
           />
           {editable && (
@@ -401,7 +484,8 @@ const LineItemRow = ({
                 setDraft(prev => ({
                   ...prev,
                   beneficiary_name: b.beneficiary_name,
-                  beneficiary_bank_name: b.beneficiary_bank_name
+                  beneficiary_bank_id: b.beneficiary_bank_id || b.beneficiary_bank?.id || null,
+                  beneficiary_bank_name: b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || ''
                 }));
                 setConfirmedBeneficiaryKey(beneficiaryKey(draft.beneficiary_ac_no, draft.beneficiary_ifsc));
               }}
@@ -410,7 +494,7 @@ const LineItemRow = ({
         </div>
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[220px]">
         <Select
           disabled={readOnly}
           value={draft.debit_bank_ac_type}
@@ -419,7 +503,7 @@ const LineItemRow = ({
         />
       </TableCell>
 
-      <TableCell className="min-w-[140px]">
+      <TableCell className="min-w-[90px]">
         <FormattedCurrencyInput
           disabled={readOnly}
           value={draft.req_amount}
@@ -438,6 +522,10 @@ const LineItemRow = ({
           <Input disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No. (optional)" size="sm" />
           <Input disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date (optional)" size="sm" />
         </div>
+      </TableCell>
+
+      <TableCell className="min-w-[160px]">
+        <Input disabled={readOnly} value={draft.remarks} onChange={(e) => setField('remarks', e.target.value)} placeholder="Remarks (optional)" size="sm" />
       </TableCell>
 
       <TableCell className="min-w-[100px]">

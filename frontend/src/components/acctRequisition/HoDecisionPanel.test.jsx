@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import HoDecisionPanel from './HoDecisionPanel';
 
@@ -14,17 +14,15 @@ const pendingItem = { id: 'item-1', requisition_status: 'Pending HO Review' };
 // choose.
 function renderPanel(props = {}) {
   const onDecisionChange = vi.fn();
-  const onReopen = vi.fn();
   render(
     <HoDecisionPanel
       item={pendingItem}
       decision={undefined}
       onDecisionChange={onDecisionChange}
-      onReopen={onReopen}
       {...props}
     />
   );
-  return { onDecisionChange, onReopen };
+  return { onDecisionChange };
 }
 
 describe('HoDecisionPanel — a controlled staging form, not a per-row submitter', () => {
@@ -74,42 +72,17 @@ describe('HoDecisionPanel — a controlled staging form, not a per-row submitter
     renderPanel({ item: { id: 'item-2', requisition_status: 'Approved' } });
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
-});
 
-describe('HoDecisionPanel — Reopen stays an immediate, separate action', () => {
-  const rejectedItem = { id: 'item-3', requisition_status: 'Rejected' };
-
-  it('renders nothing for a Rejected item without reopen permission', () => {
-    const { container } = render(
-      <HoDecisionPanel item={rejectedItem} decision={undefined} onDecisionChange={vi.fn()} onReopen={vi.fn()} canReopen={false} />
-    );
-    expect(container).toBeEmptyDOMElement();
+  // On Hold and Rejected are both terminal on their original sheet
+  // (037_terminal_hold_and_rejected.sql) — re-importing into a new sheet is
+  // the only way forward from either, so neither gets a decision form here.
+  it('does not render a decision form for an On Hold item', () => {
+    renderPanel({ item: { id: 'item-3', requisition_status: 'On Hold' } });
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 
-  it('submits Reopen immediately (not staged/batched) when canReopen is true', async () => {
-    const onReopen = vi.fn().mockResolvedValue({});
-    render(
-      <HoDecisionPanel item={rejectedItem} decision={undefined} onDecisionChange={vi.fn()} onReopen={onReopen} canReopen={true} />
-    );
-
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'New info received' } });
-    fireEvent.click(screen.getByRole('button', { name: /^reopen$/i }));
-
-    await waitFor(() => expect(onReopen).toHaveBeenCalledWith({ reopen_remark: 'New info received' }));
-  });
-
-  it('requires a remark before submitting Reopen', async () => {
-    const onReopen = vi.fn();
-    render(
-      <HoDecisionPanel item={rejectedItem} decision={undefined} onDecisionChange={vi.fn()} onReopen={onReopen} canReopen={true} />
-    );
-
-    // fireEvent.submit on the form directly, not a button click — a click
-    // triggers the textarea's own `required` HTML5 constraint validation in
-    // jsdom first, which blocks the submit event (and this component's own
-    // JS validation) from ever running.
-    fireEvent.submit(screen.getByRole('button', { name: /^reopen$/i }).closest('form'));
-    await waitFor(() => expect(screen.getByText(/reopen_remark is required/i)).toBeInTheDocument());
-    expect(onReopen).not.toHaveBeenCalled();
+  it('does not render a decision form for a Rejected item', () => {
+    renderPanel({ item: { id: 'item-4', requisition_status: 'Rejected' } });
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });

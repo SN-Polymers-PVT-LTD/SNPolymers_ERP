@@ -7,6 +7,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import LineItemRow from '../components/acctRequisition/LineItemRow';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
+import ImportEligibleItemsModal from '../components/acctRequisition/ImportEligibleItemsModal';
+import CreditLedgerImportModal from '../components/acctRequisition/CreditLedgerImportModal';
+import ExportCsvStatusModal from '../components/acctRequisition/ExportCsvStatusModal';
 
 import {
   getSheetById, submitSheet,
@@ -14,6 +17,7 @@ import {
   getBankBalances, getAccountSubTitles, upsertAccountSubTitle, getIndianBanks,
   getParticulars, upsertParticular, deleteSheetIfEmpty
 } from '../api/acctRequisitionsApi';
+import { getProjects } from '../api/projectsApi';
 import { buildSheetCsv } from '../utils/acctSheetCsv';
 
 const ITEMS_PER_PAGE = 20;
@@ -47,6 +51,9 @@ const AcctRequisitionSheetView = () => {
   const [page, setPage] = useState(1);
   const [focusItemId, setFocusItemId] = useState(null);
   const [showRejected, setShowRejected] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showCreditImportModal, setShowCreditImportModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const saveFnsRef = useRef({});
 
   const registerSave = useCallback((itemId, fn) => {
@@ -86,9 +93,29 @@ const AcctRequisitionSheetView = () => {
     return () => {
       const { id: sid, status, itemCount } = emptySheetCleanupRef.current;
       if (status === 'Open' && itemCount === 0) {
-        deleteSheetIfEmpty(sid).catch(() => {});
+        deleteSheetIfEmpty(sid)
+          .then((res) => {
+            if (!res.data?.deleted) return;
+            // Without this, the sheet list page's cached query never learns
+            // this sheet is gone — if it's already mounted (e.g. the user
+            // navigates straight back to it), the deleted sheet keeps
+            // showing as a live row until some unrelated refetch happens,
+            // and clicking its own Discard button then fails confusingly
+            // (the sheet is already gone, not "no longer empty").
+            queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+            // If this sheet had received an imported item that was later
+            // removed again before submit, deleting it restores that
+            // item's eligibility (039_delete_empty_sheet_restores_imports.sql)
+            // — the Held/Rejected list needs to know, or it'll keep
+            // showing stale data missing the just-restored item.
+            if (res.data?.restoredImportCount > 0) {
+              queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
+            }
+          })
+          .catch(() => {});
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const { data: bankBalances = [] } = useQuery({
@@ -114,7 +141,7 @@ const AcctRequisitionSheetView = () => {
     staleTime: 60 * 1000,
     enabled: isAccountsUser
   });
-  const indianBanks = indianBanksRaw.filter(b => b.is_active).map(b => b.bank_name);
+  const indianBanks = indianBanksRaw.filter(b => b.is_active);
 
   const handleCreateAccountSubTitle = async (title) => {
     const res = await upsertAccountSubTitle({ title });
@@ -130,6 +157,17 @@ const AcctRequisitionSheetView = () => {
   });
   const particulars = particularsRaw.filter(p => p.is_active);
 
+  const { data: projectsRaw = [] } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => (await getProjects()).data?.projects ?? [],
+    staleTime: 120 * 1000,
+    enabled: isAccountsUser
+  });
+  // WO. No. dropdown only offers active work orders — Closed/Complete Under
+  // Maintenance ones can't be picked for a new entry (existing line items
+  // that already reference one keep displaying it read-only regardless).
+  const projects = projectsRaw.filter(p => p.status === 'Running');
+
   const handleCreateParticular = async (title) => {
     const res = await upsertParticular({ title });
     queryClient.invalidateQueries({ queryKey: ['acctParticulars'] });
@@ -139,6 +177,18 @@ const AcctRequisitionSheetView = () => {
   const invalidateSheet = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
     queryClient.invalidateQueries({ queryKey: ['acctSheet', id] });
+  };
+
+  // Forces the sheet list to refetch fresh the moment this navigation
+  // actually happens, rather than only relying on the unmount cleanup
+  // effect's own (async, delete-dependent) invalidation below — that one
+  // still fires and invalidates again once an auto-delete actually
+  // completes, but this makes the common case (nothing to clean up, or the
+  // cleanup finishes quickly) show an up-to-date list immediately instead
+  // of whatever was last cached.
+  const handleBackToSheets = () => {
+    queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+    navigate('/acct-requisitions');
   };
 
   // Patches the cached sheet's items in place instead of invalidating +
@@ -304,7 +354,7 @@ const AcctRequisitionSheetView = () => {
         title: 'Sheet Submitted',
         message: 'This sheet has been sent to HO for review.',
         details: [
-          { label: 'Sheet Number', value: sheetDetail.sheet_number },
+          { label: 'Req. No.', value: sheetDetail.sheet_number },
           { label: 'New Status', value: 'Submitted', pill: true }
         ]
       });
@@ -340,26 +390,28 @@ const AcctRequisitionSheetView = () => {
   // just excluded from the main table and tucked into a collapsed section.
   const visibleItems = items.filter(i => i.requisition_status !== 'Rejected');
   const rejectedItems = items.filter(i => i.requisition_status === 'Rejected');
-  // Mirrors the HO review page's split: a "Pending" table for anything that
-  // still needs action (draft, Pending HO Review, On Hold, or Returned for
-  // Correction awaiting resubmission) and a separate, always-visible
-  // "Already Decided" table for Approved/Partially Approved items — which
-  // otherwise sat in the same table with an Actions column that was always
-  // blank for them, no matter what else was on the sheet.
-  const pendingItems = visibleItems.filter(i => !['Approved', 'Partially Approved'].includes(i.requisition_status));
-  const decidedItems = visibleItems.filter(i => ['Approved', 'Partially Approved'].includes(i.requisition_status));
-  const totalPages = Math.max(Math.ceil(pendingItems.length / ITEMS_PER_PAGE), 1);
-  const pagedItems = pendingItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  // Accounts can only ever act on a draft (status null, sheet still Open —
+  // edit/delete) or a Returned-for-Correction item (fix + resubmit). Every
+  // other status — Pending HO Review (nothing to do but wait), On Hold
+  // (terminal, 037_terminal_hold_and_rejected.sql — only re-import moves it
+  // forward), Approved/Partially Approved — has nothing left for Accounts
+  // to do here, so they share one read-only table with no Actions column
+  // instead of an Actions cell that was empty for most of them anyway.
+  const actionableItems = visibleItems.filter(i => i.requisition_status === null || i.requisition_status === 'Returned for Correction');
+  const otherItems = visibleItems.filter(i => i.requisition_status !== null && i.requisition_status !== 'Returned for Correction');
+  const totalPages = Math.max(Math.ceil(actionableItems.length / ITEMS_PER_PAGE), 1);
+  const pagedItems = actionableItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
   const eligibleNeftItems = items
     .filter(i => i.payment_mode === 'Bulk NEFT' && ['Approved', 'Partially Approved'].includes(i.requisition_status))
     .map(i => ({ id: i.id, debit_bank_ac_type: i.debit_bank_ac_type }));
 
-  const handleExportCsv = () => {
-    const csv = buildSheetCsv(sheetDetail, items);
+  const handleExportCsv = (status) => {
+    const exportItems = status === 'All' ? items : items.filter(i => i.requisition_status === status);
+    const csv = buildSheetCsv(sheetDetail, exportItems);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `${sheetDetail.sheet_number}.csv`;
+    link.download = `${sheetDetail.sheet_number}${status === 'All' ? '' : `-${status.replace(/\s+/g, '-')}`}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
   };
@@ -380,7 +432,7 @@ const AcctRequisitionSheetView = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">Add, edit, and submit requisition line items for HO review.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+          <Button variant="glass" size="sm" onClick={handleBackToSheets}>
             ← Back to Sheets
           </Button>
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
@@ -392,30 +444,32 @@ const AcctRequisitionSheetView = () => {
       {bankBalances.length > 0 && (
         <div className="glass-panel p-5 rounded-2xl mb-8 border border-white/10 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02]">
           <div className="flex flex-wrap gap-4">
-            {bankBalances.map((bank) => (
+            {bankBalances.filter(b => !b.is_virtual).map((bank) => (
               <BankBalanceBanner key={bank.bank_name} bankBalance={bank} lineItems={items} />
             ))}
           </div>
         </div>
       )}
 
-      {pendingItems.length === 0 && decidedItems.length === 0 && rejectedItems.length === 0 ? (
+      {actionableItems.length === 0 && otherItems.length === 0 && rejectedItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">No line items on this sheet yet.</p>
-      ) : pendingItems.length === 0 && decidedItems.length === 0 ? (
+      ) : actionableItems.length === 0 && otherItems.length === 0 ? (
         <p className="text-xs text-slate-500 text-center p-12 glass-panel rounded-3xl border border-white/5">All line items on this sheet have been rejected — see below.</p>
       ) : (
         <>
-          {pendingItems.length > 0 && (
+          {actionableItems.length > 0 && (
             <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-              <Table containerClassName="min-w-[1100px]">
+              <Table containerClassName="min-w-[1150px]">
                 <TableHeader>
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>WO. No.</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
-                    <TableCell isHeader align="right">Requested Amount</TableCell>
+                    <TableCell isHeader>Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Remarks</TableCell>
                     <TableCell isHeader>Status</TableCell>
                     <TableCell isHeader>Actions</TableCell>
                   </TableRow>
@@ -431,6 +485,7 @@ const AcctRequisitionSheetView = () => {
                       indianBanks={indianBanks}
                       onCreateAccountSubTitle={handleCreateAccountSubTitle}
                       particulars={particulars}
+                      projects={projects}
                       onCreateParticular={handleCreateParticular}
                       onSave={handleSaveItem}
                       onResubmit={handleResubmitItem}
@@ -451,15 +506,15 @@ const AcctRequisitionSheetView = () => {
                 onPageChange={setPage}
                 maxVisible={5}
                 showLabel={true}
-                totalRecords={pendingItems.length}
+                totalRecords={actionableItems.length}
               />
             </div>
           )}
 
-          {decidedItems.length > 0 && (
+          {otherItems.length > 0 && (
             <div className="flex flex-col gap-2 mt-6">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
-                Already Decided
+                Read-Only
               </span>
               <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
                 <Table containerClassName="min-w-[1100px]">
@@ -467,17 +522,19 @@ const AcctRequisitionSheetView = () => {
                     <TableRow hover={false}>
                       <TableCell isHeader>Particulars</TableCell>
                       <TableCell isHeader>Account Sub-title</TableCell>
+                      <TableCell isHeader>WO. No.</TableCell>
                       <TableCell isHeader>Beneficiary</TableCell>
                       <TableCell isHeader>Debit Bank</TableCell>
                       <TableCell isHeader align="right">Requested Amount</TableCell>
                       <TableCell isHeader align="right">Approved Amount</TableCell>
                       <TableCell isHeader>Payment Mode</TableCell>
+                      <TableCell isHeader>Remarks</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader>HO Remarks</TableCell>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {decidedItems.map(item => (
+                    {otherItems.map(item => (
                       <LineItemRow
                         key={item.id}
                         item={item}
@@ -515,10 +572,12 @@ const AcctRequisitionSheetView = () => {
                   <TableRow hover={false}>
                     <TableCell isHeader>Particulars</TableCell>
                     <TableCell isHeader>Account Sub-title</TableCell>
+                    <TableCell isHeader>WO. No.</TableCell>
                     <TableCell isHeader>Beneficiary</TableCell>
                     <TableCell isHeader>Debit Bank</TableCell>
                     <TableCell isHeader align="right">Requested Amount</TableCell>
                     <TableCell isHeader>Payment Mode</TableCell>
+                    <TableCell isHeader>Remarks</TableCell>
                     <TableCell isHeader>Status</TableCell>
                   </TableRow>
                 </TableHeader>
@@ -546,6 +605,12 @@ const AcctRequisitionSheetView = () => {
               <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
                 + Add Line Item
               </Button>
+              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import Held / Rejected / Pending Review items">
+                Import Held / Rejected
+              </Button>
+              <Button variant="glass" size="sm" onClick={() => setShowCreditImportModal(true)} title="Pull an installment from an open credit purchase">
+                Import from Credit Ledger
+              </Button>
               {items.length > 0 && (
                 <Button variant="glass" size="sm" onClick={handleSaveDraft} loading={savingDraft}>
                   Save Draft
@@ -557,7 +622,7 @@ const AcctRequisitionSheetView = () => {
             <BulkNeftExportButton sheetId={id} items={eligibleNeftItems} />
           )}
           {items.length > 0 && (
-            <Button variant="glass" size="sm" onClick={handleExportCsv}>
+            <Button variant="glass" size="sm" onClick={() => setShowExportModal(true)}>
               Export to CSV
             </Button>
           )}
@@ -568,6 +633,32 @@ const AcctRequisitionSheetView = () => {
           </Button>
         )}
       </div>
+
+      <ImportEligibleItemsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        targetSheetId={id}
+        onImported={() => {
+          invalidateSheet();
+          setSuccess('Line item imported.');
+        }}
+      />
+
+      <CreditLedgerImportModal
+        isOpen={showCreditImportModal}
+        onClose={() => setShowCreditImportModal(false)}
+        targetSheetId={id}
+        onImported={() => {
+          invalidateSheet();
+          setSuccess('Installment line item created.');
+        }}
+      />
+
+      <ExportCsvStatusModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportCsv}
+      />
 
       <SuccessPopup isOpen={!!success} onClose={() => setSuccess('')} title="Saved" description={success} />
       <ErrorPopup isOpen={!!error} onClose={() => setError('')} title="Action Blocked" description={error} />

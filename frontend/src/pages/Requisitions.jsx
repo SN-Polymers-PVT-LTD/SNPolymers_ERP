@@ -8,15 +8,23 @@ import {
   getRequisitionById,
   createRequisition,
   actOnRequisition,
+  payFromZoBalance,
+  sendRequisitionToAccounts,
   cancelRequisition,
   uploadRequisitionPdf,
   uploadGstBillPdf,
   deleteRequisitionPdf,
   deleteGstBillPdf,
-  getMainHeadCapacity
+  getMainHeadCapacity,
+  getSubcontractorCapacity,
+  getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { getZonalBalances } from '../api/zoBalancesApi';
+import { getFundRequests } from '../api/fundRequests';
+import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
+import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
+import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -84,6 +92,9 @@ const CancelConfirmModal = ({ requisitionNo, isCancelling, onConfirm, onClose })
 
 // Detail Modal for viewing requisition metadata and PDF previews
 const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
+  const queryClient = useQueryClient();
+  const [showRouteModal, setShowRouteModal] = useState(false);
+
   const { data: requisition, isLoading: loading, error: queryError } = useQuery({
     queryKey: ['requisition', reqId],
     queryFn: async () => {
@@ -91,6 +102,16 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       return res.data?.requisition;
     }
   });
+
+  const handleChooseRoute = async (id, route) => {
+    if (route === 'ZO_BALANCE') {
+      await payFromZoBalance(id);
+    } else {
+      await sendRequisitionToAccounts(id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['requisition', reqId] });
+    queryClient.invalidateQueries({ queryKey: ['requisitions'] });
+  };
 
   if (loading) {
     return (
@@ -130,17 +151,31 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
     { label: 'Estimate No.', value: requisition.estimate_no, mono: true },
     { label: 'Estimate Amount', value: formatCurrency(requisition.estimate_amount) },
     { label: 'Material Head', value: requisition.material_main_head },
+    ...(requisition.material_main_head === 'Sub Contractor' ? [
+      { label: 'Sub Head', value: requisition.material_sub_head },
+      { label: 'Subcontractor', value: requisition.material_details }
+    ] : []),
     { label: 'Requisition Amount', value: formatCurrency(requisition.requisition_amount), accent: 'text-amber-400 font-bold' },
     { label: 'State', value: requisition.state },
     { label: 'District', value: requisition.district },
     { label: 'Zone / Area', value: requisition.area_code },
     { label: 'Department', value: requisition.department },
     { label: 'Site Details', value: requisition.site_details },
+    ...(requisition.beneficiary_ac_no || requisition.beneficiary_name ? [
+      { label: 'Beneficiary Name', value: requisition.beneficiary_name || '—' },
+      { label: 'Beneficiary A/C No.', value: requisition.beneficiary_ac_no || '—', mono: true },
+      { label: 'Beneficiary IFSC', value: requisition.beneficiary_ifsc || '—', mono: true },
+      { label: 'Beneficiary Bank', value: requisition.beneficiary_bank?.bank_name || requisition.beneficiary_bank_name || '—' }
+    ] : []),
     { label: 'Bank Details', value: requisition.bank_details },
     { label: 'Expenditure Remarks', value: requisition.expen_head_remarks || '—' },
     { label: 'Created By', value: requisition.requester_name || requisition.requester_user_id, mono: true },
     { label: 'Created At', value: formatDate(requisition.created_at) },
   ];
+
+  const canChooseRoute = requisition.requisition_status === 'Approved'
+    && !requisition.payment_destination
+    && ['zo', 'admin'].includes(user?.role);
 
   if (requisition.requisition_status === 'Approved') {
     detailRows.push(
@@ -164,6 +199,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
   }
 
   return (
+    <>
     <Modal
       isOpen={true}
       onClose={onClose}
@@ -181,6 +217,15 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
               Cancel Requisition
             </Button>
           )}
+          {canChooseRoute && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowRouteModal(true)}
+            >
+              Choose Payment Route
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
@@ -194,9 +239,20 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       <div className="flex flex-col md:flex-row gap-6">
         {/* Left Side: Metadata */}
         <div className="flex-1 space-y-4 text-left">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Metadata</h3>
-            <StatusBadge status={requisition.requisition_status} />
+            <div className="flex items-center gap-2">
+              <PaymentRouteBadge requisition={requisition} />
+              {requisition.payment_destination === 'ACCOUNTS' && requisition.accounts_sheet && (
+                <a
+                  href={`/acct-requisitions/sheets/${requisition.accounts_sheet.sheet_id}`}
+                  className="text-[10px] font-bold uppercase tracking-wider text-indigo-400 hover:text-indigo-300 underline"
+                >
+                  Open Sheet {requisition.accounts_sheet.sheet_number}
+                </a>
+              )}
+              <StatusBadge status={requisition.requisition_status} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3.5 bg-white/[0.01] border border-white/5 p-4 rounded-2xl max-h-[420px] overflow-y-auto no-scrollbar">
@@ -263,6 +319,14 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
         </div>
       </div>
     </Modal>
+    {showRouteModal && (
+      <PaymentRouteModal
+        requisition={requisition}
+        onClose={() => setShowRouteModal(false)}
+        onChooseRoute={handleChooseRoute}
+      />
+    )}
+    </>
   );
 };
 
@@ -309,7 +373,8 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
           setCapacityMetrics({
             mainHeadEstimate: Number(capacityRes.data.mainHeadEstimate),
             cumulativeApproved: Number(capacityRes.data.cumulativeApproved),
-            remainingCapacity: Number(capacityRes.data.remainingCapacity)
+            remainingCapacity: Number(capacityRes.data.remainingCapacity),
+            estimateLifecycle: capacityRes.data.estimateLifecycle || null
           });
         }
 
@@ -343,10 +408,6 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
       }
       if (amt > requisitionAmount) {
         setError('Approved amount cannot exceed requisition amount.');
-        return;
-      }
-      if (zoBalance !== null && amt > zoBalance) {
-        setError(`Approved amount cannot exceed Zonal Office Available Balance (₹${zoBalance.toLocaleString('en-IN')}).`);
         return;
       }
       if (capacityMetrics !== null && amt > capacityMetrics.remainingCapacity) {
@@ -427,6 +488,12 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
             <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Material Head</p>
             <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.material_main_head}</p>
           </div>
+          {requisition.material_main_head === 'Sub Contractor' && (
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Subcontractor</p>
+              <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.material_sub_head} — {requisition.material_details}</p>
+            </div>
+          )}
           <div className="col-span-2 border-t border-white/5 pt-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-[11px] text-slate-400 font-semibold">
             <span>Approver: {approverName}</span>
             <span>Date: {systemDateStr}</span>
@@ -547,34 +614,168 @@ const ActionModal = ({ requisition, onClose, onSave }) => {
   );
 };
 
+// Small badge showing the resolved payment route for an Approved requisition
+const PaymentRouteBadge = ({ requisition }) => {
+  if (requisition.payment_destination === 'ZO_BALANCE') {
+    return <Badge variant="blue" showDot={true}>Paid via ZO Balance</Badge>;
+  }
+  if (requisition.payment_destination === 'ACCOUNTS') {
+    return <Badge variant="indigo" showDot={true}>Sent to Accounts</Badge>;
+  }
+  return null;
+};
+
+// Modal for the ZO to choose how an Approved requisition gets paid:
+// out of the ZO's own balance, or handed to Accounts for central execution.
+const PaymentRouteModal = ({ requisition, onClose, onChooseRoute }) => {
+  const [pendingRoute, setPendingRoute] = useState(null); // 'ZO_BALANCE' | 'ACCOUNTS' while confirming
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError('');
+    try {
+      await onChooseRoute(requisition.requisition_id, pendingRoute);
+      onClose();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to select payment route.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={true}
+      onClose={submitting ? null : onClose}
+      title="Choose Payment Route"
+      subtitle={`Requisition No: ${requisition.requisition_no}`}
+      size="sm"
+      footer={
+        pendingRoute ? (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => setPendingRoute(null)} disabled={submitting}>
+              Back
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleConfirm} loading={submitting}>
+              Confirm
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={onClose}>
+            Close
+          </Button>
+        )
+      }
+    >
+      {error && (
+        <div className="mb-4 p-3 bg-red-950/40 border border-red-500/30 rounded-2xl text-xs text-red-300">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3 bg-white/[0.01] border border-white/5 p-4 rounded-2xl mb-4 text-left">
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Approved Amount</p>
+          <p className="text-xs font-mono font-bold text-emerald-400 mt-0.5">{formatCurrency(requisition.approved_amount)}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Beneficiary</p>
+          <p className="text-xs font-semibold text-slate-300 mt-0.5">{requisition.beneficiary_name || '—'}</p>
+        </div>
+        <div>
+          <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">Work Order</p>
+          <p className="text-xs font-mono text-slate-300 mt-0.5">{requisition.work_order_no}</p>
+        </div>
+      </div>
+
+      {!pendingRoute && (
+        <div className="space-y-2">
+          <Button variant="primary" className="w-full" onClick={() => setPendingRoute('ZO_BALANCE')}>
+            Pay from ZO Balance
+          </Button>
+          <Button variant="secondary" className="w-full" onClick={() => setPendingRoute('ACCOUNTS')}>
+            Send to Accounts
+          </Button>
+        </div>
+      )}
+
+      {pendingRoute === 'ZO_BALANCE' && (
+        <p className="text-xs text-slate-400 text-left">
+          This will debit <span className="font-mono font-bold text-slate-200">{formatCurrency(requisition.approved_amount)}</span> from
+          your Zonal Office balance. This cannot be switched to Accounts afterward.
+        </p>
+      )}
+
+      {pendingRoute === 'ACCOUNTS' && (
+        <p className="text-xs text-slate-400 text-left">
+          Send this approved requisition to Accounts? It will be saved to the Accounts import list so Accounts can
+          import it into a sheet when processing payments. This cannot be switched to ZO Balance afterward.
+        </p>
+      )}
+    </Modal>
+  );
+};
+
 // Main Requisition Creation Form Modal
 const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitions }) => {
   const { user } = useAuth();
 
-  // Filter projects (work orders) to only those that have a 'Final Approved' estimate
-  const filteredProjects = projects.map(p => {
-    const approvedEst = estimates.find(e => e.work_order_no === p.work_order_no && e.estimate_status === 'Final Approved');
-    return {
-      ...p,
-      approvedEst
-    };
-  }).filter(p => p.approvedEst);
-  
-  // Step 1 read-only values
-  const systemDateStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' });
-  const username = user?.display_name || user?.mobile_number;
+  // Map projects to their latest estimate (whether Final Approved or under revision)
+  const filteredProjects = useMemo(() => {
+    return projects.map(p => {
+      const projectEstimates = estimates.filter(e => e.work_order_no === p.work_order_no);
+      const latestEst = projectEstimates.sort((a, b) => {
+        const revDiff = (Number(b.estimate_revision) || 0) - (Number(a.estimate_revision) || 0);
+        if (revDiff !== 0) return revDiff;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      })[0] || null;
+      return {
+        ...p,
+        approvedEst: latestEst?.estimate_status === 'Final Approved' ? latestEst : null,
+        latestEst
+      };
+    }).filter(p => p.latestEst);
+  }, [projects, estimates]);
 
   // Form State
   const [step, setStep] = useState(1);
   const [selectedWO, setSelectedWO] = useState('');
-  
+
+  const selectedProject = filteredProjects.find(p => p.work_order_no === selectedWO);
+  const isSelectedWoUnderRevision = Boolean(
+    selectedProject?.latestEst && selectedProject.latestEst.estimate_status !== 'Final Approved'
+  );
+
+  // Step 1 read-only values
+  const systemDateStr = new Date().toLocaleDateString('en-IN', { dateStyle: 'medium' });
+  const username = user?.display_name || user?.mobile_number;
+
   // Step 3 state fields
   const [requisitionNo, setRequisitionNo] = useState('');
   const [materialHead, setMaterialHead] = useState('');
+  const [materialSubHead, setMaterialSubHead] = useState('');
+  const [materialDetails, setMaterialDetails] = useState('');
   const [reqAmount, setReqAmount] = useState('');
   const [gstBill, setGstBill] = useState('No');
   const [bankDetails, setBankDetails] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
+  const [beneficiaryIfsc, setBeneficiaryIfsc] = useState('');
+  const [beneficiaryBankId, setBeneficiaryBankId] = useState('');
+  const [beneficiaryBankName, setBeneficiaryBankName] = useState('');
+  const [beneficiaryId, setBeneficiaryId] = useState(null);
   const [remarks, setRemarks] = useState('');
+
+  const { data: indianBanksRaw = [] } = useQuery({
+    queryKey: ['indianBanks'],
+    queryFn: async () => (await getIndianBanks()).data?.indianBanks ?? [],
+  });
+  const indianBanks = useMemo(
+    () => indianBanksRaw.filter(b => b.is_active),
+    [indianBanksRaw]
+  );
 
   // Upload state
   const [requisitionPdf, setRequisitionPdf] = useState(null); // original file
@@ -596,85 +797,189 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [loadingMainHeads, setLoadingMainHeads] = useState(false);
   const [capacityMetrics, setCapacityMetrics] = useState(null);
   const [loadingCapacity, setLoadingCapacity] = useState(false);
+  const [subContractorItems, setSubContractorItems] = useState([]);
+  const [subcontractorCapacityMetrics, setSubcontractorCapacityMetrics] = useState(null);
+  const [loadingSubcontractorCapacity, setLoadingSubcontractorCapacity] = useState(false);
+  const [estimateLifecycle, setEstimateLifecycle] = useState(null);
+  const isLifecycleBlocked = Boolean(estimateLifecycle?.requisitionsBlocked || estimateLifecycle?.isReopened);
 
   useEffect(() => {
+    let isCurrent = true;
     if (!selectedWO) {
-      Promise.resolve().then(() => {
-        setAllowedMainHeads([]);
-        setCapacityMetrics(null);
-      });
-      return;
-    }
-    const approvedEst = estimates.find(e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved');
-    if (!approvedEst) {
-      Promise.resolve().then(() => {
-        setAllowedMainHeads([]);
-        setCapacityMetrics(null);
-      });
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      setSubContractorItems([]);
+      setEstimateLifecycle(null);
       return;
     }
 
-    Promise.resolve().then(() => {
-      setLoadingMainHeads(true);
+    // Resolve latest estimate for selected WO regardless of whether it's Final Approved
+    const projEstimates = estimates.filter(e => e.work_order_no === selectedWO);
+    const latestEst = projEstimates.sort((a, b) => {
+      const revDiff = (Number(b.estimate_revision) || 0) - (Number(a.estimate_revision) || 0);
+      if (revDiff !== 0) return revDiff;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    })[0] || null;
+
+    if (!latestEst) {
+      setAllowedMainHeads([]);
       setCapacityMetrics(null);
-      getEstimateById(approvedEst.estimate_id)
-        .then(res => {
-          if (res.data?.items) {
-            const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
-            setAllowedMainHeads(distinctHeads);
-          }
-        })
-        .catch(err => {
-          console.error('Failed to fetch estimate items for main heads:', err);
-        })
-        .finally(() => {
+      setSubContractorItems([]);
+      setEstimateLifecycle(null);
+      return;
+    }
+
+    // Establish lifecycle state directly from latest estimate
+    const REOPENED_STATUSES = [
+      'Estimate Reopened',
+      'Under ZO Review',
+      'Under HO Review',
+      'ZO Revision Requested',
+      'HO Revision Requested'
+    ];
+    const isReopened = REOPENED_STATUSES.includes(latestEst.estimate_status);
+    const isBlocked = isReopened || latestEst.estimate_status !== 'Final Approved';
+
+    const lifecycle = {
+      status: latestEst.estimate_status || null,
+      isReopened,
+      requisitionsBlocked: isBlocked,
+      blockReason: isBlocked
+        ? `Estimate is currently undergoing revision (${latestEst.estimate_status}). New requisitions are paused until final approval.`
+        : null
+    };
+
+    setEstimateLifecycle(lifecycle);
+
+    // Latest estimate is NOT Final Approved: retain lifecycle, show warning & disable submit
+    if (latestEst.estimate_status !== 'Final Approved') {
+      setAllowedMainHeads([]);
+      setCapacityMetrics(null);
+      setSubContractorItems([]);
+      return;
+    }
+
+    // Latest IS Final Approved: load estimate items + capacity normally
+    setLoadingMainHeads(true);
+    setCapacityMetrics(null);
+    getEstimateById(latestEst.estimate_id)
+      .then(res => {
+        if (!isCurrent) return;
+        if (res.data?.items) {
+          const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
+          setAllowedMainHeads(distinctHeads);
+          const scItems = res.data.items.filter(item => item.material_main_head === 'Sub Contractor');
+          setSubContractorItems(scItems);
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to fetch estimate items for main heads:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
           setLoadingMainHeads(false);
-        });
-    });
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [selectedWO, estimates]);
 
   useEffect(() => {
+    let isCurrent = true;
     if (!selectedWO || !materialHead) {
-      Promise.resolve().then(() => {
-        setCapacityMetrics(null);
-      });
+      setCapacityMetrics(null);
       return;
     }
 
-    Promise.resolve().then(() => {
-      setLoadingCapacity(true);
-      getMainHeadCapacity(selectedWO, materialHead)
-        .then(res => {
-          if (res.data) {
-            setCapacityMetrics({
-              mainHeadEstimate: Number(res.data.mainHeadEstimate),
-              cumulativeApproved: Number(res.data.cumulativeApproved),
-              remainingCapacity: Number(res.data.remainingCapacity)
-            });
+    setLoadingCapacity(true);
+    getMainHeadCapacity(selectedWO, materialHead)
+      .then(res => {
+        if (!isCurrent) return;
+        if (res.data) {
+          setCapacityMetrics({
+            mainHeadEstimate: Number(res.data.mainHeadEstimate),
+            cumulativeApproved: Number(res.data.cumulativeApproved),
+            remainingCapacity: Number(res.data.remainingCapacity),
+            estimateLifecycle: res.data.estimateLifecycle || null
+          });
+          if (res.data.estimateLifecycle) {
+            setEstimateLifecycle(res.data.estimateLifecycle);
           }
-        })
-        .catch(err => {
-          console.error('Failed to load Main Head capacity metrics:', err);
-        })
-        .finally(() => {
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to load Main Head capacity metrics:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
           setLoadingCapacity(false);
-        });
-    });
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
   }, [selectedWO, materialHead]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    if (materialHead !== 'Sub Contractor' || !selectedWO || !materialSubHead || !materialDetails) {
+      setSubcontractorCapacityMetrics(null);
+      return;
+    }
+    setLoadingSubcontractorCapacity(true);
+    getSubcontractorCapacity(selectedWO, materialSubHead, materialDetails)
+      .then(res => {
+        if (!isCurrent) return;
+        if (res.data) {
+          setSubcontractorCapacityMetrics({
+            estimatedTotal: Number(res.data.estimatedTotal),
+            paidTotal: Number(res.data.paidTotal),
+            availableBalance: Number(res.data.availableBalance),
+            estimateLifecycle: res.data.estimateLifecycle || null
+          });
+          if (res.data.estimateLifecycle?.requisitionsBlocked) {
+            setEstimateLifecycle(res.data.estimateLifecycle);
+          }
+        }
+      })
+      .catch(err => {
+        if (!isCurrent) return;
+        console.error('Failed to load Subcontractor Ledger capacity:', err);
+      })
+      .finally(() => {
+        if (isCurrent) {
+          setLoadingSubcontractorCapacity(false);
+        }
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [materialHead, selectedWO, materialSubHead, materialDetails]);
+
+  const subHeadOptions = Array.from(new Set(subContractorItems.map(i => i.material_sub_head).filter(Boolean)));
+  const materialDetailsOptions = Array.from(new Set(
+    subContractorItems.filter(i => i.material_sub_head === materialSubHead).map(i => i.material_details).filter(Boolean)
+  ));
 
   // Auto-lookup project geographical and estimate data during render
   const projectMetadata = (() => {
     if (!selectedWO) return null;
     const proj = projects.find(p => p.work_order_no === selectedWO);
     if (!proj) return null;
-    // Find approved estimate
-    const projEstimates = estimates.filter(
-      e => e.work_order_no === selectedWO && e.estimate_status === 'Final Approved'
-    );
-    const approvedEstimate = projEstimates[0]; // Get latest update
-    const estimateAmount = approvedEstimate ? Number(approvedEstimate.estimate_amount) : null;
+    const projEstimates = estimates.filter(e => e.work_order_no === selectedWO);
+    const approvedEstimate = projEstimates.find(e => e.estimate_status === 'Final Approved');
+    const latestEstimate = projEstimates.sort((a, b) => (b.estimate_revision || 0) - (a.estimate_revision || 0))[0];
+    const estimateAmount = approvedEstimate ? Number(approvedEstimate.estimate_amount) : (latestEstimate ? Number(latestEstimate.estimate_amount) : null);
     return {
       ...proj,
+      estimate_no: latestEstimate?.estimate_no || approvedEstimate?.estimate_no || '—',
+      estimate_status: latestEstimate?.estimate_status || approvedEstimate?.estimate_status || null,
       estimateAmount
     };
   })();
@@ -865,6 +1170,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     e.preventDefault();
     setError('');
 
+    if (isLifecycleBlocked) {
+      setError(estimateLifecycle?.blockReason || 'Cannot submit requisition: estimate is currently undergoing revision.');
+      return;
+    }
+
     // Fields checks
     if (!selectedWO) {
       setError('Please select a Work Order.');
@@ -890,13 +1200,40 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError(`Requisition Amount exceeds the Remaining Main Head Capacity (₹${capacityMetrics.remainingCapacity.toLocaleString('en-IN')}) for '${materialHead}'.`);
       return;
     }
+    if (materialHead === 'Sub Contractor') {
+      if (!materialSubHead || !materialDetails) {
+        setError('Please select a Sub Head and Subcontractor.');
+        return;
+      }
+      if (subcontractorCapacityMetrics && Number(reqAmount) > subcontractorCapacityMetrics.availableBalance) {
+        setError(`Requisition Amount exceeds the Remaining Subcontractor Ledger Balance (₹${subcontractorCapacityMetrics.availableBalance.toLocaleString('en-IN')}) for '${materialDetails}'.`);
+        return;
+      }
+    }
     if (gstBill === 'Yes' && !gstPdfUrl) {
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
     }
-    if (!bankDetails.trim()) {
-      setError('Bank details are required.');
+    if (beneficiaryAcNo.trim() && !/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
+      setError('Beneficiary account number must be 9-18 digits.');
       return;
+    }
+    if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim())) {
+      setError('Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.');
+      return;
+    }
+
+    let finalBankDetails = bankDetails.trim();
+    if (!finalBankDetails && (beneficiaryAcNo.trim() || beneficiaryName.trim())) {
+      finalBankDetails = [
+        beneficiaryName.trim(),
+        beneficiaryAcNo.trim() ? `A/C: ${beneficiaryAcNo.trim()}` : null,
+        beneficiaryIfsc.trim() ? `IFSC: ${beneficiaryIfsc.trim()}` : null,
+        beneficiaryBankName.trim() ? `Bank: ${beneficiaryBankName.trim()}` : null
+      ].filter(Boolean).join(' | ');
+    }
+    if (!finalBankDetails) {
+      finalBankDetails = '—';
     }
 
     setSubmitting(true);
@@ -905,12 +1242,20 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         work_order_no: selectedWO.trim(),
         requisition_no: requisitionNo.trim(),
         material_main_head: materialHead.trim(),
+        material_sub_head: materialHead === 'Sub Contractor' ? materialSubHead.trim() : undefined,
+        material_details: materialHead === 'Sub Contractor' ? materialDetails.trim() : undefined,
         requisition_pdf_url: requisitionPdfUrl.trim(),
         original_filename: requisitionPdf?.name || null,
         requisition_amount: Number(reqAmount),
         gst_bill: gstBill,
         gst_bill_pdf_url: gstBill === 'Yes' ? gstPdfUrl.trim() : null,
-        bank_details: bankDetails.trim(),
+        bank_details: finalBankDetails,
+        beneficiary_id: beneficiaryId || undefined,
+        beneficiary_name: beneficiaryName.trim() || undefined,
+        beneficiary_ac_no: beneficiaryAcNo.trim() || undefined,
+        beneficiary_ifsc: beneficiaryIfsc.trim().toUpperCase() || undefined,
+        beneficiary_bank_id: beneficiaryBankId || undefined,
+        beneficiary_bank_name: beneficiaryBankName.trim() || undefined,
         expen_head_remarks: remarks.trim() || null
       };
       await onSave(payload);
@@ -980,9 +1325,10 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           variant="primary"
           size="sm"
           loading={submitting}
-          disabled={submitting || isUploadingReq || isUploadingGst}
+          disabled={submitting || isUploadingReq || isUploadingGst || isLifecycleBlocked}
+          title={isLifecycleBlocked ? (estimateLifecycle?.blockReason || 'Submission paused: estimate under revision') : ''}
         >
-          Save Requisition
+          {isLifecycleBlocked ? 'Submission Paused' : 'Save Requisition'}
         </Button>
       </>
     );
@@ -1037,12 +1383,34 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             required
           >
             <option value="">-- Choose Work Order --</option>
-            {filteredProjects.map((p) => (
-              <option key={p.work_order_no} value={p.work_order_no}>
-                {p.work_order_no} ({p.approvedEst.estimate_no})
-              </option>
-            ))}
+            {filteredProjects.map((p) => {
+              const isRevision = p.latestEst && p.latestEst.estimate_status !== 'Final Approved';
+              const estNo = p.latestEst?.estimate_no || p.approvedEst?.estimate_no || 'No Estimate';
+              return (
+                <option key={p.work_order_no} value={p.work_order_no}>
+                  {p.work_order_no} ({estNo}{isRevision ? ` — ⚠️ ${p.latestEst.estimate_status}` : ''})
+                </option>
+              );
+            })}
           </Select>
+
+          {isSelectedWoUnderRevision && (
+            <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl text-xs text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/50 animate-fadeIn">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30">
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 block">
+                  Estimate Under Revision — Requisitions Blocked
+                </span>
+                <p className="font-medium text-amber-200 leading-relaxed">
+                  The cost estimate for work order <span className="font-mono font-bold text-amber-300">{selectedWO}</span> is currently in <span className="font-semibold text-amber-300">'{selectedProject?.latestEst?.estimate_status}'</span> status. Requisition creation is temporarily paused until the estimate receives Final Approval.
+                </p>
+              </div>
+            </div>
+          )}
 
           {projectMetadata && (
             <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-3">
@@ -1081,6 +1449,24 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       {/* ──────── STEP 3: REQUISITION DETAILS & UPLOADS ──────── */}
       {step === 3 && (
         <form id="requisition-creation-form" onSubmit={handleSubmit} className="space-y-4 text-left">
+          {isLifecycleBlocked && (
+            <div className="p-4 bg-amber-950/40 border border-amber-500/40 rounded-2xl text-xs text-amber-200 flex items-start gap-3 shadow-lg shadow-amber-950/50 animate-fadeIn">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5 border border-amber-500/30">
+                <svg className="w-3.5 h-3.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400 block">
+                  Estimate Under Revision — Requisitions Blocked
+                </span>
+                <p className="font-medium text-amber-200 leading-relaxed">
+                  {estimateLifecycle?.blockReason || `The cost estimate for work order ${selectedWO} is currently undergoing revision (${estimateLifecycle?.status}). New requisitions are paused until final approval.`}
+                </p>
+              </div>
+            </div>
+          )}
+
           <Input
             label="Requisition Number"
             type="text"
@@ -1095,12 +1481,18 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           <Select
             label="Material Main Head"
             value={materialHead}
-            onChange={(e) => setMaterialHead(e.target.value)}
+            onChange={(e) => {
+              setMaterialHead(e.target.value);
+              setMaterialSubHead('');
+              setMaterialDetails('');
+            }}
             required
-            disabled={submitting}
+            disabled={submitting || isLifecycleBlocked}
           >
             <option value="">
-              {loadingMainHeads ? '-- Loading Material Heads... --' : '-- Select Material Head --'}
+              {isLifecycleBlocked
+                ? `-- Requisitions Paused: Estimate Under Revision (${estimateLifecycle?.status || 'In Revision'}) --`
+                : (loadingMainHeads ? '-- Loading Material Heads... --' : '-- Select Material Head --')}
             </option>
             {allowedMainHeads.map((head) => (
               <option key={head} value={head}>
@@ -1108,6 +1500,42 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               </option>
             ))}
           </Select>
+
+          {materialHead === 'Sub Contractor' && (
+            <>
+              <Select
+                label="Sub Head (Work Package)"
+                value={materialSubHead}
+                onChange={(e) => { setMaterialSubHead(e.target.value); setMaterialDetails(''); }}
+                required
+                disabled={submitting}
+              >
+                <option value="">-- Select Sub Head --</option>
+                {subHeadOptions.map((sh) => (
+                  <option key={sh} value={sh}>{sh}</option>
+                ))}
+              </Select>
+
+              <Select
+                label="Subcontractor"
+                value={materialDetails}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setMaterialDetails(val);
+                  if (val && !beneficiaryName) {
+                    setBeneficiaryName(val);
+                  }
+                }}
+                required
+                disabled={submitting || !materialSubHead}
+              >
+                <option value="">-- Select Subcontractor --</option>
+                {materialDetailsOptions.map((md) => (
+                  <option key={md} value={md}>{md}</option>
+                ))}
+              </Select>
+            </>
+          )}
 
           {/* Requisition PDF Upload */}
           <div className="p-4 border border-white/5 rounded-2xl bg-white/[0.01] space-y-2">
@@ -1172,10 +1600,17 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
           {/* Main Head Capacity Display */}
           {materialHead && (
-            <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/5 p-4 space-y-2">
-              <p className="text-[9px] font-bold uppercase tracking-widest text-indigo-400">
-                Material Main Head Capacity ({materialHead})
-              </p>
+            <div className={`rounded-2xl border ${isLifecycleBlocked ? 'border-amber-500/30 bg-amber-950/20' : 'border-indigo-500/20 bg-indigo-500/5'} p-4 space-y-2`}>
+              <div className="flex items-center justify-between">
+                <p className={`text-[9px] font-bold uppercase tracking-widest ${isLifecycleBlocked ? 'text-amber-400' : 'text-indigo-400'}`}>
+                  Material Main Head Capacity ({materialHead})
+                </p>
+                {isLifecycleBlocked && (
+                  <Badge variant="amber" className="text-[9px]">
+                    Paused: {estimateLifecycle?.status}
+                  </Badge>
+                )}
+              </div>
               {loadingCapacity ? (
                 <div className="flex items-center gap-2 py-2">
                   <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
@@ -1192,6 +1627,39 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 </div>
               ) : (
                 <p className="text-[9px] text-red-400">Failed to load capacity details.</p>
+              )}
+            </div>
+          )}
+
+          {/* Subcontractor Ledger Balance Display */}
+          {materialHead === 'Sub Contractor' && materialSubHead && materialDetails && (
+            <div className={`rounded-2xl border ${isLifecycleBlocked ? 'border-amber-500/30 bg-amber-950/20' : 'border-indigo-500/20 bg-indigo-500/5'} p-4 space-y-2`}>
+              <div className="flex items-center justify-between">
+                <p className={`text-[9px] font-bold uppercase tracking-widest ${isLifecycleBlocked ? 'text-amber-400' : 'text-indigo-400'}`}>
+                  Subcontractor Ledger Balance ({materialDetails})
+                </p>
+                {isLifecycleBlocked && (
+                  <Badge variant="amber" className="text-[9px]">
+                    Paused: {estimateLifecycle?.status}
+                  </Badge>
+                )}
+              </div>
+              {loadingSubcontractorCapacity ? (
+                <div className="flex items-center gap-2 py-2">
+                  <span className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-indigo-500" />
+                  <span className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Loading Balance…</span>
+                </div>
+              ) : subcontractorCapacityMetrics ? (
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="text-slate-400">Estimated Total:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.estimatedTotal)}</div>
+                  <div className="text-slate-400">Paid So Far:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.paidTotal)}</div>
+                  <div className="text-slate-400">Remaining Balance:</div>
+                  <div className="text-emerald-400 font-mono font-bold text-right">{formatCurrency(subcontractorCapacityMetrics.availableBalance)}</div>
+                </div>
+              ) : (
+                <p className="text-[9px] text-red-400">Failed to load balance details.</p>
               )}
             </div>
           )}
@@ -1279,13 +1747,83 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
             </div>
           )}
 
+          {/* Beneficiary & Payee Banking Details Card */}
+          <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
+              <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                Beneficiary Banking Details (Optional)
+              </span>
+              <span className="text-[9px] text-slate-500 italic">
+                Auto-saved to Projects Beneficiary Master
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <ProjectBeneficiarySuggestions
+                label="Account No."
+                value={beneficiaryAcNo}
+                onChange={(e) => {
+                  setBeneficiaryAcNo(e.target.value.replace(/\D/g, '').slice(0, 18));
+                  setBeneficiaryId(null);
+                }}
+                maxLength={18}
+                onSelect={(b) => {
+                  setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                  setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                  setBeneficiaryName(b.beneficiary_name || '');
+                  setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                  setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                  setBeneficiaryId(b.id || null);
+                }}
+                placeholder="Enter bank account no…"
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Input
+                label="IFSC Code"
+                value={beneficiaryIfsc}
+                onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().trim())}
+                placeholder="e.g. SBIN0001234"
+                maxLength={11}
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Input
+                label="Beneficiary Name"
+                value={beneficiaryName}
+                onChange={(e) => setBeneficiaryName(e.target.value)}
+                placeholder="Enter payee / subcontractor name…"
+                disabled={submitting}
+                size="sm"
+              />
+
+              <Select
+                label="Indian Banks"
+                value={beneficiaryBankId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setBeneficiaryBankId(id);
+                  const found = indianBanks.find(b => b.id === id);
+                  setBeneficiaryBankName(found ? found.bank_name : '');
+                }}
+                disabled={submitting}
+              >
+                <option value="">-- Select Bank (Optional) --</option>
+                {indianBanks.map((b) => (
+                  <option key={b.id} value={b.id}>{b.bank_name}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
           <TextArea
-            label="Bank Details"
+            label="Additional Bank Notes / Free-Text (Optional)"
             value={bankDetails}
             onChange={(e) => setBankDetails(e.target.value)}
-            placeholder="Enter payee bank name, branch, account number, and IFSC code…"
+            placeholder="Optional additional branch notes or raw details…"
             rows={2}
-            required
             disabled={submitting}
           />
 
@@ -1319,10 +1857,13 @@ const Requisitions = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [cancelTarget, setCancelTarget] = useState(null); // { id, no }
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // M6b Approver tab and action states
   const [currentTab, setCurrentTab] = useState(user?.role === 'je' ? 'all' : 'pending');
   const [actionTargetReq, setActionTargetReq] = useState(null);
+  const [routeTargetReq, setRouteTargetReq] = useState(null);
 
   // Projects Directory States
   const [activeWO, setActiveWO] = useState(null);
@@ -1353,7 +1894,7 @@ const Requisitions = () => {
   const { data: estimatesData } = useQuery({
     queryKey: ['estimates'],
     queryFn: async () => {
-      const res = await getEstimates({ status: 'Final Approved', limit: 1000 });
+      const res = await getEstimates({ limit: 1000 });
       return res.data?.estimates ?? [];
     },
     staleTime: 60 * 1000
@@ -1441,13 +1982,31 @@ const Requisitions = () => {
   // M6b Approve/Hold action callback
   const handleAct = async (id, actionPayload) => {
     try {
-      await actOnRequisition(id, actionPayload);
+      const res = await actOnRequisition(id, actionPayload);
       setSuccess(`Requisition successfully ${actionPayload.action === 'Approve' ? 'approved' : 'placed on hold'}.`);
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
       queryClient.invalidateQueries({ queryKey: ['requisition', id] });
+      if (actionPayload.action === 'Approve' && res.data?.requisition && !res.data.requisition.payment_destination) {
+        setRouteTargetReq(res.data.requisition);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to act on requisition.');
     }
+  };
+
+  // Payment route selection callback (from the row action or the post-approve prompt).
+  // Errors are surfaced by PaymentRouteModal's own inline banner, not the page banner -
+  // re-thrown here (unlike handleAct) so the modal stays open on failure.
+  const handleChooseRoute = async (id, route) => {
+    if (route === 'ZO_BALANCE') {
+      await payFromZoBalance(id);
+      setSuccess('Requisition will be paid from the Zonal Office balance.');
+    } else {
+      await sendRequisitionToAccounts(id);
+      setSuccess('Requisition sent to Accounts (saved to import list).');
+    }
+    queryClient.invalidateQueries({ queryKey: ['requisitions'] });
+    queryClient.invalidateQueries({ queryKey: ['requisition', id] });
   };
 
   // Cancel requisition confirm callback
@@ -1696,6 +2255,16 @@ const Requisitions = () => {
                                   Take Action
                                 </Button>
                               )}
+                              {req.requisition_status === 'Approved' && !req.payment_destination && ['zo', 'admin'].includes(user?.role) && (
+                                <Button
+                                  variant="glass"
+                                  size="xs"
+                                  className="text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/20"
+                                  onClick={() => setRouteTargetReq(req)}
+                                >
+                                  Choose Payment Route
+                                </Button>
+                              )}
                               {canCancel && (
                                 <Button
                                   variant="danger"
@@ -1852,6 +2421,19 @@ const Requisitions = () => {
                       <option value={50}>50 / pg</option>
                     </select>
                   </div>
+
+                  <Button
+                    onClick={() => setShowExportModal(true)}
+                    title="Export Expenditure Sheet"
+                    variant="glass"
+                    size="sm"
+                    className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
+                  >
+                    <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export Expenditure Sheet
+                  </Button>
 
                   <Button
                     variant="glass"
@@ -2034,7 +2616,19 @@ const Requisitions = () => {
                                       Take Action
                                     </Button>
                                   )}
-                                  
+
+                                  {/* Choose Payment Route Button (ZO/Admin for Approved-but-unrouted rows) */}
+                                  {req.requisition_status === 'Approved' && !req.payment_destination && ['zo', 'admin'].includes(user?.role) && (
+                                    <Button
+                                      variant="glass"
+                                      size="xs"
+                                      className="text-slate-950 font-black bg-indigo-400 hover:bg-indigo-300 border border-indigo-300 shadow-md shadow-indigo-500/20"
+                                      onClick={() => setRouteTargetReq(req)}
+                                    >
+                                      Choose Payment Route
+                                    </Button>
+                                  )}
+
                                   {/* Cancel Button */}
                                   {canCancel && (
                                     <Button
@@ -2103,6 +2697,45 @@ const Requisitions = () => {
           requisition={actionTargetReq}
           onClose={() => setActionTargetReq(null)}
           onSave={handleAct}
+        />
+      )}
+
+      {/* Payment Route Modal (triggered right after Approve, or from a row/detail action) */}
+      {routeTargetReq && (
+        <PaymentRouteModal
+          requisition={routeTargetReq}
+          onClose={() => setRouteTargetReq(null)}
+          onChooseRoute={handleChooseRoute}
+        />
+      )}
+
+      {/* Export Expenditure Sheet Modal */}
+      {showExportModal && (
+        <ExportExpenditureModal
+          projects={projects}
+          onClose={() => setShowExportModal(false)}
+          loading={isExporting}
+          onConfirm={async ({ dateRange, workOrderFilter }) => {
+            setIsExporting(true);
+            try {
+              const frRes = await getFundRequests().catch(() => ({ data: { fundRequests: [] } }));
+              const allFundRequests = frRes.data?.fundRequests || [];
+              const reqRes = await getRequisitions().catch(() => ({ data: { requisitions: [] } }));
+              const allRequisitions = reqRes.data?.requisitions || reqRes.data || requisitionsData || [];
+              await exportCombinedExpenditureSheet({
+                fundRequests: allFundRequests,
+                requisitions: allRequisitions,
+                metadata: { workOrderFilter: workOrderFilter || 'All' },
+                dateRange
+              });
+              setShowExportModal(false);
+            } catch (err) {
+              console.error('Export expenditure failed:', err);
+              alert('Failed to export expenditure sheet: ' + (err.message || 'Unknown error'));
+            } finally {
+              setIsExporting(false);
+            }
+          }}
         />
       )}
 

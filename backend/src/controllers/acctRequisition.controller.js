@@ -4,7 +4,7 @@ const { supabase } = require('../db/supabase');
 const validate = require('../validation/validate');
 const {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
-  resubmitLineItemSchema, reopenLineItemSchema,
+  resubmitLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
@@ -12,8 +12,17 @@ const {
   refreshIndianBanksCache
 } = require('../validation/acctRequisition.schema');
 const { buildBulkNeftWorkbook } = require('../services/bulkNeftExport.service');
+const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+// Every requisition_status a line item can carry — used to whitelist the
+// getLineItems status filter, same "check against the known enum before
+// .eq()" convention as getSheets' sheet_status and IMPORT_ELIGIBLE_STATUSES.
+const LINE_ITEM_STATUSES = [
+  'Pending HO Review', 'Approved', 'Partially Approved', 'On Hold',
+  'Returned for Correction', 'Rejected', 'Pending Review', 'Credit Approved'
+];
 
 /**
  * Maps the custom ERRCODEs raised by the acct_requisition_* RPCs
@@ -24,14 +33,25 @@ const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-
 function mapAcctRpcError(rpcErr) {
   switch (rpcErr.code) {
     case 'STA01':
-    case 'STA02':
     case 'STA03':
-    case 'STA04':
+    case 'STA05':
+    case 'STA06':
+    case 'STA07':
+    case 'STA08':
+    case 'STA09':
+    case 'STA10':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
     case 'VAL03':
     case 'VAL04':
+    case 'VAL05':
+    case 'VAL06':
+    case 'VAL07':
+    case 'VAL09':
+    case 'VAL10':
+    case 'VAL11':
+    case 'VAL12':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -99,8 +119,17 @@ async function deleteSheetIfEmpty(req, res) {
       .eq('id', sheetId)
       .maybeSingle();
     if (sheetErr) throw sheetErr;
-    if (!sheet || sheet.sheet_status !== 'Open') {
-      return res.status(200).json({ success: true, deleted: false });
+    // Distinct from "still exists but no longer eligible" below —
+    // `alreadyGone: true` lets the caller tell "someone else discarded it
+    // already" (a harmless race, not really a failure) apart from "it's not
+    // empty/Open anymore" (a real reason this specific attempt can't do
+    // anything). The auto-cleanup on leaving a sheet's own detail page and
+    // this manual list-row Discard button can race exactly this way.
+    if (!sheet) {
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: true });
+    }
+    if (sheet.sheet_status !== 'Open') {
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: false });
     }
 
     const { count, error: countErr } = await supabase
@@ -109,16 +138,21 @@ async function deleteSheetIfEmpty(req, res) {
       .eq('sheet_id', sheetId);
     if (countErr) throw countErr;
     if (count > 0) {
-      return res.status(200).json({ success: true, deleted: false });
+      return res.status(200).json({ success: true, deleted: false, alreadyGone: false });
     }
 
-    const { error: deleteErr } = await supabase
-      .from('acct_requisition_sheets')
-      .delete()
-      .eq('id', sheetId);
+    // Restores eligibility on any item imported into this sheet before
+    // deleting it (039_delete_empty_sheet_restores_imports.sql) — this
+    // sheet has 0 current items, but if an imported copy was added and then
+    // removed again before submit, the source item elsewhere still points
+    // imported_to_sheet_id here, which would otherwise block the delete
+    // outright (ON DELETE RESTRICT).
+    const { data: restoredCount, error: deleteErr } = await supabase.rpc('delete_empty_acct_sheet_transact', {
+      p_sheet_id: sheetId
+    });
     if (deleteErr) throw deleteErr;
 
-    return res.status(200).json({ success: true, deleted: true });
+    return res.status(200).json({ success: true, deleted: true, restoredImportCount: restoredCount || 0 });
   } catch (error) {
     console.error(`deleteSheetIfEmpty failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to clean up empty sheet.' });
@@ -228,10 +262,16 @@ async function getLineItems(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
+    // Exclude items that have since been re-imported into a later sheet
+    // (034_add_line_item_import.sql) — imported_to_sheet_id is set on the
+    // source row the moment its copy is created, so the copy (current state)
+    // is what should show here, not both the old On Hold/Rejected source
+    // row and its replacement.
     let dbQuery = supabase
       .from('acct_requisition_line_items')
       .select('*', { count: 'exact' })
-      .not('requisition_status', 'is', null);
+      .not('requisition_status', 'is', null)
+      .is('imported_to_sheet_id', null);
 
     if (query.account_sub_title) {
       dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
@@ -241,8 +281,20 @@ async function getLineItems(req, res) {
       dbQuery = dbQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
     }
 
+    if (query.beneficiary_name) {
+      dbQuery = dbQuery.ilike('beneficiary_name', `%${query.beneficiary_name}%`);
+    }
+
     if (query.debit_bank_ac_type) {
       dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
+    }
+
+    if (query.work_order_no) {
+      dbQuery = dbQuery.eq('work_order_no', query.work_order_no);
+    }
+
+    if (query.requisition_status && LINE_ITEM_STATUSES.includes(query.requisition_status)) {
+      dbQuery = dbQuery.eq('requisition_status', query.requisition_status);
     }
 
     if (query.date_from) {
@@ -329,9 +381,26 @@ async function getSheetById(req, res) {
       .eq('sheet_id', sheetId)
       .order('created_at', { ascending: true });
 
-    if (itemsErr) throw itemsErr;
+    const sourceReqIds = [...new Set((items || []).map(i => i.source_requisition_id).filter(Boolean))];
+    let sourceReqMap = {};
+    if (sourceReqIds.length > 0) {
+      const { data: sourceReqs } = await supabase
+        .from('requisitions')
+        .select('requisition_id, requisition_no, accounts_sent_by, accounts_sent_at')
+        .in('requisition_id', sourceReqIds);
+      sourceReqMap = (sourceReqs || []).reduce((acc, r) => { acc[r.requisition_id] = r; return acc; }, {});
+    }
 
-    return res.status(200).json({ success: true, sheet: { ...sheet, items: items || [] } });
+    const enrichedItems = (items || []).map(item => ({
+      ...item,
+      beneficiary_bank: item.beneficiary_bank_id ? {
+        id: item.beneficiary_bank_id,
+        bank_name: item.beneficiary_bank_name
+      } : null,
+      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null
+    }));
+
+    return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
   } catch (error) {
     console.error(`getSheetById failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheet.' });
@@ -351,27 +420,51 @@ async function addLineItem(req, res) {
   const { sheetId } = req.params;
 
   try {
-    const { data: sheet, error: sheetErr } = await supabase
-      .from('acct_requisition_sheets')
-      .select('id, sheet_status')
-      .eq('id', sheetId)
-      .maybeSingle();
-
-    if (sheetErr) throw sheetErr;
-    if (!sheet) return res.status(404).json({ success: false, message: 'Requisition sheet not found.' });
-    if (sheet.sheet_status !== 'Open') {
-      return res.status(403).json({ success: false, message: 'Line items can only be added while the sheet is Open.' });
+    if (req.body.beneficiary_bank_id) {
+      const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
+      if (!bankCheck.valid) {
+        if (bankCheck.reason === 'NOT_FOUND') {
+          return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+        }
+        if (bankCheck.reason === 'INACTIVE') {
+          return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+        }
+      }
+      req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
+    } else if (req.body.beneficiary_bank_id === null || req.body.beneficiary_bank_id === '') {
+      req.body.beneficiary_bank_id = null;
+      req.body.beneficiary_bank_name = null;
     }
 
-    const { data: item, error: insertErr } = await supabase
-      .from('acct_requisition_line_items')
-      .insert([{ ...req.body, sheet_id: sheetId, created_by: req.user.mobile_number }])
-      .select()
-      .single();
+    // add_acct_line_item_transact (033_add_line_item_transact_and_neft_beneficiary_check.sql)
+    // locks the sheet row FOR UPDATE before checking sheet_status, closing the race where a
+    // concurrent submit could flip the sheet to 'Submitted' between a separate SELECT check
+    // and this INSERT, stranding the new item with requisition_status = NULL.
+    const { data: item, error: rpcErr } = await supabase.rpc('add_acct_line_item_transact', {
+      p_sheet_id: sheetId,
+      p_created_by: req.user.mobile_number,
+      p_item: req.body
+    });
 
-    if (insertErr) throw insertErr;
+    if (rpcErr) {
+      if (rpcErr.message && rpcErr.message.includes('Sheet not found')) {
+        return res.status(404).json({ success: false, message: 'Requisition sheet not found.' });
+      }
+      if (rpcErr.code === 'STA01') {
+        return res.status(403).json({ success: false, message: rpcErr.message });
+      }
+      throw rpcErr;
+    }
 
-    return res.status(201).json({ success: true, item, message: 'Line item added.' });
+    const enrichedItem = item ? {
+      ...item,
+      beneficiary_bank: item.beneficiary_bank_id ? {
+        id: item.beneficiary_bank_id,
+        bank_name: item.beneficiary_bank_name
+      } : null
+    } : item;
+
+    return res.status(201).json({ success: true, item: enrichedItem, message: 'Line item added.' });
   } catch (error) {
     console.error(`addLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to add line item.' });
@@ -419,6 +512,24 @@ async function updateLineItem(req, res) {
       });
     }
 
+    if ('beneficiary_bank_id' in req.body) {
+      if (req.body.beneficiary_bank_id) {
+        const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
+        if (!bankCheck.valid) {
+          if (bankCheck.reason === 'NOT_FOUND') {
+            return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+          }
+          if (bankCheck.reason === 'INACTIVE') {
+            return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+          }
+        }
+        req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
+      } else {
+        req.body.beneficiary_bank_id = null;
+        req.body.beneficiary_bank_name = null;
+      }
+    }
+
     const { data: updated, error: updateErr } = await supabase
       .from('acct_requisition_line_items')
       .update(req.body)
@@ -428,7 +539,15 @@ async function updateLineItem(req, res) {
 
     if (updateErr) throw updateErr;
 
-    return res.status(200).json({ success: true, item: updated, message: 'Line item updated.' });
+    const enrichedUpdated = updated ? {
+      ...updated,
+      beneficiary_bank: updated.beneficiary_bank_id ? {
+        id: updated.beneficiary_bank_id,
+        bank_name: updated.beneficiary_bank_name
+      } : null
+    } : updated;
+
+    return res.status(200).json({ success: true, item: enrichedUpdated, message: 'Line item updated.' });
   } catch (error) {
     console.error(`updateLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update line item.' });
@@ -460,6 +579,13 @@ async function deleteLineItem(req, res) {
       return res.status(403).json({ success: false, message: 'Line items can only be deleted while the sheet is Open.' });
     }
 
+    const { data: itemToDelete } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id, source_requisition_id')
+      .eq('id', itemId)
+      .eq('sheet_id', sheetId)
+      .maybeSingle();
+
     const { error: deleteErr } = await supabase
       .from('acct_requisition_line_items')
       .delete()
@@ -467,6 +593,18 @@ async function deleteLineItem(req, res) {
       .eq('sheet_id', sheetId);
 
     if (deleteErr) throw deleteErr;
+
+    if (itemToDelete?.source_requisition_id) {
+      await supabase
+        .from('requisitions')
+        .update({
+          accounts_line_item_id: null,
+          accounts_imported_at: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemToDelete.source_requisition_id)
+        .eq('accounts_line_item_id', itemId);
+    }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
   } catch (error) {
@@ -524,7 +662,11 @@ async function submitSheet(req, res) {
 
 /**
  * PATCH /acct-requisitions/items/:itemId/action
- * Gate (§4c): fast-path check requisition_status IN ('Pending HO Review','On Hold') before RPC.
+ * Gate (§4c, tightened by 037_terminal_hold_and_rejected.sql): fast-path
+ * check requisition_status = 'Pending HO Review' before RPC. On Hold and
+ * Rejected are terminal on their original sheet — re-import into a new
+ * sheet (import_acct_line_item_transact) is the only way forward from
+ * either, not a repeat action here.
  */
 async function actOnLineItem(req, res) {
   if (!validate(req, res, actOnLineItemSchema)) return;
@@ -541,10 +683,10 @@ async function actOnLineItem(req, res) {
     if (itemErr) throw itemErr;
     if (!item) return res.status(404).json({ success: false, message: 'Line item not found.' });
 
-    if (!['Pending HO Review', 'On Hold'].includes(item.requisition_status)) {
+    if (item.requisition_status !== 'Pending HO Review') {
       return res.status(409).json({
         success: false,
-        message: `HO can only act on Pending HO Review or On Hold items. Current: ${item.requisition_status}`
+        message: `HO can only act on Pending HO Review items. Current: ${item.requisition_status}`
       });
     }
 
@@ -555,6 +697,12 @@ async function actOnLineItem(req, res) {
         p_line_item_id: itemId,
         p_ho_process: action === 'Approve' ? 'Approved' : 'Partially Approved',
         p_ho_pass_amount: ho_pass_amount ?? null,
+        p_actioned_by: req.user.mobile_number,
+        p_ho_remarks: ho_remarks?.trim() || null
+      }));
+    } else if (action === 'CreditApprove') {
+      ({ data, error: rpcErr } = await supabase.rpc('credit_approve_acct_line_item_transact', {
+        p_line_item_id: itemId,
         p_actioned_by: req.user.mobile_number,
         p_ho_remarks: ho_remarks?.trim() || null
       }));
@@ -600,13 +748,15 @@ async function actOnLineItem(req, res) {
     // Returned/Rejected item's particulars/amount/remarks), fired once per
     // review session rather than once per action.
     //
-    // Event 2 — fires once HO has no more Pending HO Review / On Hold items
-    // left on this sheet; a "review session" boundary, not a terminal state.
+    // Event 2 — fires once HO has no more Pending HO Review items left on
+    // this sheet. On Hold is a terminal state now (037_terminal_hold_and_rejected.sql,
+    // no further in-place action possible), not "still needs a decision", so
+    // it no longer holds this boundary open.
     const { count: pendingCount, error: pendingErr } = await supabase
       .from('acct_requisition_line_items')
       .select('id', { count: 'exact', head: true })
       .eq('sheet_id', data.sheet_id)
-      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+      .eq('requisition_status', 'Pending HO Review');
 
     if (!pendingErr && pendingCount === 0) {
       notifyAcctSheetReviewComplete(data.sheet_id).catch(err => {
@@ -696,7 +846,7 @@ async function actOnLineItemsBatch(req, res) {
       .from('acct_requisition_line_items')
       .select('id', { count: 'exact', head: true })
       .eq('sheet_id', sheetId)
-      .in('requisition_status', ['Pending HO Review', 'On Hold']);
+      .eq('requisition_status', 'Pending HO Review');
 
     if (!pendingErr && pendingCount === 0) {
       notifyAcctSheetReviewComplete(sheetId).catch(err => {
@@ -716,12 +866,64 @@ async function actOnLineItemsBatch(req, res) {
 }
 
 /**
+ * POST /acct-requisitions/sheets/:sheetId/close-review
+ * HO ends a review session before every line item has a decision. Every
+ * item still at 'Pending HO Review' on this sheet becomes 'Pending Review'
+ * — a new terminal status that joins the existing On Hold/Rejected
+ * rollover queue (close_acct_sheet_review_transact, 041). Sheet moves to
+ * 'Reviewed' regardless of how many items were actually decided.
+ */
+async function closeSheetReview(req, res) {
+  const { sheetId } = req.params;
+  if (!uuidRegex.test(sheetId)) {
+    return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  }
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('close_acct_sheet_review_transact', {
+      p_sheet_id: sheetId,
+      p_closed_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(200).json({ success: true, sheet: data, message: 'Review closed. Remaining items moved to the pending queue.' });
+  } catch (error) {
+    console.error(`closeSheetReview failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to close sheet review.' });
+  }
+}
+
+/**
  * POST /acct-requisitions/items/:itemId/resubmit
  */
 async function resubmitLineItem(req, res) {
   if (!validate(req, res, resubmitLineItemSchema)) return;
   const { itemId } = req.params;
   const b = req.body;
+
+  let resolvedBankId = b.beneficiary_bank_id ?? null;
+  let resolvedBankName = b.beneficiary_bank_name ?? null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if ('beneficiary_bank_id' in b && (b.beneficiary_bank_id === null || b.beneficiary_bank_id === '')) {
+    resolvedBankId = null;
+    resolvedBankName = null;
+  }
 
   try {
     const { data, error: rpcErr } = await supabase.rpc('resubmit_acct_line_item_transact', {
@@ -733,12 +935,13 @@ async function resubmitLineItem(req, res) {
       p_beneficiary_ac_no: b.beneficiary_ac_no ?? null,
       p_beneficiary_name: b.beneficiary_name ?? null,
       p_beneficiary_ifsc: b.beneficiary_ifsc ?? null,
-      p_beneficiary_bank_name: b.beneficiary_bank_name ?? null,
+      p_beneficiary_bank_name: resolvedBankName,
       p_debit_bank_ac_type: b.debit_bank_ac_type ?? null,
       p_req_amount: b.req_amount ?? null,
       p_payment_mode: b.payment_mode ?? null,
       p_cheque_no: b.cheque_no ?? null,
-      p_cheque_date: b.cheque_date ?? null
+      p_cheque_date: b.cheque_date ?? null,
+      p_beneficiary_bank_id: resolvedBankId
     });
 
     if (rpcErr) {
@@ -752,28 +955,241 @@ async function resubmitLineItem(req, res) {
       console.error(`[ACCT ITEM] Telegram notification failed: ${err.message}`);
     });
 
-    return res.status(200).json({ success: true, item: data, message: 'Line item resubmitted.' });
+    const enrichedItem = data ? {
+      ...data,
+      beneficiary_bank: resolvedBankId ? {
+        id: resolvedBankId,
+        bank_name: resolvedBankName
+      } : null,
+      beneficiary_bank_name: resolvedBankName || data.beneficiary_bank_name
+    } : data;
+
+    return res.status(200).json({ success: true, item: enrichedItem, message: 'Line item resubmitted.' });
   } catch (error) {
     console.error(`resubmitLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to resubmit line item.' });
   }
 }
 
+// On Hold/Rejected/Pending Review — the full set of terminal statuses that
+// accumulate in the import-eligible rollover queue (idx_arli_importable, 041).
+const IMPORT_ELIGIBLE_STATUSES = ['On Hold', 'Rejected', 'Pending Review'];
+
 /**
- * POST /acct-requisitions/items/:itemId/reopen
- * Any ho/admin user may reopen (gated by the route's requireRole(hoRoles) —
- * no separate per-user permission).
+ * GET /acct-requisitions/import-eligible-items
+ * On Hold/Rejected/Pending Review line items across ALL sheets that have not
+ * yet been imported into a later sheet or dismissed — same filter/pagination/
+ * sheet-join shape as getLineItems, narrowed to the importable subset
+ * (034_add_line_item_import.sql's idx_arli_importable backs this query,
+ * widened to include Pending Review by 041_close_review_pending_rollover.sql).
  */
-async function reopenLineItem(req, res) {
-  if (!validate(req, res, reopenLineItemSchema)) return;
+async function getImportEligibleItems(req, res) {
+  try {
+    const query = req.query || {};
+    const isExport = query.export === 'true' || query.export === true;
+
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('acct_requisition_line_items')
+      .select('*', { count: 'exact' })
+      .in('requisition_status', IMPORT_ELIGIBLE_STATUSES)
+      .is('imported_to_sheet_id', null)
+      .eq('import_dismissed', false);
+
+    // Narrow to one specific status, still within the eligible set
+    if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
+      dbQuery = dbQuery.eq('requisition_status', query.status);
+    }
+
+    if (query.particulars) {
+      dbQuery = dbQuery.ilike('particulars', `%${query.particulars}%`);
+    }
+
+    if (query.account_sub_title) {
+      dbQuery = dbQuery.ilike('account_sub_title_text', `%${query.account_sub_title}%`);
+    }
+
+    if (query.beneficiary_ac_no) {
+      dbQuery = dbQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+    }
+
+    if (query.debit_bank_ac_type) {
+      dbQuery = dbQuery.eq('debit_bank_ac_type', query.debit_bank_ac_type);
+    }
+
+    if (query.date_from) {
+      dbQuery = dbQuery.gte('created_at', query.date_from);
+    }
+
+    if (query.date_to) {
+      dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+    }
+
+    dbQuery = dbQuery.order('created_at', { ascending: false });
+
+    // Fetch line items (up to 5000 for export/merging)
+    const { data: items, count: lineItemsCount, error } = await dbQuery.limit(5000);
+    if (error) throw error;
+
+    const sheetIds = [...new Set((items || []).map(i => i.sheet_id).filter(Boolean))];
+    let sheetMap = {};
+
+    if (sheetIds.length > 0) {
+      const { data: sheets, error: sheetsErr } = await supabase
+        .from('acct_requisition_sheets')
+        .select('id, sheet_number, sheet_status')
+        .in('id', sheetIds);
+      if (sheetsErr) throw sheetsErr;
+
+      sheetMap = (sheets || []).reduce((acc, s) => {
+        acc[s.id] = s;
+        return acc;
+      }, {});
+    }
+
+    const enrichedLineItems = (items || []).map(item => ({
+      ...item,
+      item_type: 'LINE_ITEM',
+      sheet_number: sheetMap[item.sheet_id]?.sheet_number || null,
+      sheet_status: sheetMap[item.sheet_id]?.sheet_status || null
+    }));
+
+    // Payment Requisitions queued for Accounts have requisition_status = 'Pending Review'
+    let reqs = [];
+    let reqsCount = 0;
+    if (!query.status || query.status === 'Pending Review') {
+      let reqQuery = supabase
+        .from('requisitions')
+        .select('*', { count: 'exact' })
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false);
+
+      if (query.particulars) {
+        reqQuery = reqQuery.ilike('expen_head_remarks', `%${query.particulars}%`);
+      }
+      if (query.account_sub_title) {
+        reqQuery = reqQuery.ilike('material_main_head', `%${query.account_sub_title}%`);
+      }
+      if (query.beneficiary_ac_no) {
+        reqQuery = reqQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+      }
+      if (query.date_from) {
+        reqQuery = reqQuery.gte('accounts_sent_at', query.date_from);
+      }
+      if (query.date_to) {
+        reqQuery = reqQuery.lte('accounts_sent_at', `${query.date_to}T23:59:59.999`);
+      }
+
+      // If debit_bank_ac_type filter is present, payment requisitions have no debit bank yet so exclude
+      if (!query.debit_bank_ac_type) {
+        const { data: fetchedReqs, count: rCount, error: reqErr } = await reqQuery.order('accounts_sent_at', { ascending: false }).limit(5000);
+        if (reqErr) throw reqErr;
+        reqs = (fetchedReqs || []).map(r => ({
+          id: r.requisition_id,
+          item_type: 'PAYMENT_REQUISITION',
+          sheet_id: null,
+          sheet_number: r.requisition_no, // User confirmed: "show req number"
+          sheet_status: null,
+          account_sub_title_id: null,
+          account_sub_title_text: r.material_main_head || null,
+          particulars: r.expen_head_remarks || null,
+          beneficiary_ac_no: r.beneficiary_ac_no || null,
+          beneficiary_name: r.beneficiary_name || null,
+          beneficiary_ifsc: r.beneficiary_ifsc || null,
+          beneficiary_bank_name: r.beneficiary_bank_name || null,
+          beneficiary_bank_id: r.beneficiary_bank_id || null,
+          debit_bank_ac_type: null,
+          req_amount: r.approved_amount,
+          payment_mode: null,
+          cheque_no: null,
+          cheque_date: null,
+          requisition_status: 'Pending Review', // User confirmed: "the status label wud be pending review"
+          work_order_no: r.work_order_no,
+          source_requisition_id: r.requisition_id,
+          created_at: r.accounts_sent_at || r.payment_date || r.created_at
+        }));
+        reqsCount = rCount || reqs.length;
+      }
+    }
+
+    const allCombined = [...enrichedLineItems, ...reqs].sort((a, b) => {
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+
+    const total = (lineItemsCount || 0) + reqsCount;
+
+    if (isExport) {
+      return res.status(200).json({ success: true, items: allCombined });
+    }
+
+    const pagedItems = allCombined.slice(offset, offset + limit);
+
+    return res.status(200).json({
+      success: true,
+      items: pagedItems,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
+  } catch (error) {
+    console.error(`getImportEligibleItems failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve importable line items.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/import-eligible-items/:itemId/import
+ * body: { target_sheet_id, item_type }
+ * Copies an On Hold/Rejected/Pending Review line item or Payment Requisition into target_sheet_id.
+ */
+async function importLineItem(req, res) {
   const { itemId } = req.params;
-  const { reopen_remark } = req.body;
+  const { target_sheet_id, item_type } = req.body;
 
   try {
-    const { data, error: rpcErr } = await supabase.rpc('reopen_acct_line_item_transact', {
-      p_line_item_id: itemId,
-      p_reopened_by: req.user.mobile_number,
-      p_reopen_remark: reopen_remark
+    let isPaymentReq = item_type === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error: rpcErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {
+        p_requisition_id: itemId,
+        p_target_sheet_id: target_sheet_id,
+        p_imported_by: req.user.mobile_number
+      });
+
+      if (rpcErr) {
+        const mapped = mapAcctRpcError(rpcErr);
+        if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+        throw rpcErr;
+      }
+
+      return res.status(201).json({
+        success: true,
+        item: data.line_item,
+        requisition: data.requisition,
+        message: 'Line item imported.'
+      });
+    }
+
+    const { data, error: rpcErr } = await supabase.rpc('import_acct_line_item_transact', {
+      p_source_item_id: itemId,
+      p_target_sheet_id: target_sheet_id,
+      p_imported_by: req.user.mobile_number
     });
 
     if (rpcErr) {
@@ -782,10 +1198,86 @@ async function reopenLineItem(req, res) {
       throw rpcErr;
     }
 
-    return res.status(200).json({ success: true, item: data, message: 'Line item reopened.' });
+    return res.status(201).json({ success: true, item: data, message: 'Line item imported.' });
   } catch (error) {
-    console.error(`reopenLineItem failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to reopen line item.' });
+    console.error(`importLineItem failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to import line item.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
+ * Soft-hides an eligible item from the import list without touching its
+ * real data.
+ */
+async function dismissImportEligibleItem(req, res) {
+  const { itemId } = req.params;
+  const itemType = req.query?.item_type || req.body?.item_type;
+
+  try {
+    let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
+    if (!isPaymentReq) {
+      const { data: maybeReq } = await supabase
+        .from('requisitions')
+        .select('requisition_id')
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .maybeSingle();
+      if (maybeReq) isPaymentReq = true;
+    }
+
+    if (isPaymentReq) {
+      const { data, error } = await supabase
+        .from('requisitions')
+        .update({
+          accounts_import_dismissed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('requisition_id', itemId)
+        .eq('payment_destination', 'ACCOUNTS')
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        return res.status(409).json({
+          success: false,
+          message: 'Item does not exist, or is already imported or dismissed.'
+        });
+      }
+
+      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+    }
+
+    const { data, error } = await supabase
+      .from('acct_requisition_line_items')
+      .update({
+        import_dismissed: true,
+        import_dismissed_at: new Date().toISOString(),
+        import_dismissed_by: req.user.mobile_number,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', itemId)
+      .is('imported_to_sheet_id', null)
+      .eq('import_dismissed', false)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(409).json({
+        success: false,
+        message: 'Item does not exist, or is already imported or dismissed.'
+      });
+    }
+
+    return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+  } catch (error) {
+    console.error(`dismissImportEligibleItem failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to dismiss line item.' });
   }
 }
 
@@ -954,7 +1446,7 @@ async function getBeneficiaries(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
-    let dbQuery = supabase.from('beneficiary_master').select('*', { count: 'exact' });
+    let dbQuery = supabase.from('beneficiary_master').select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)', { count: 'exact' });
 
     if (query.search) {
       const term = query.search.replace(/[%,]/g, '');
@@ -966,10 +1458,19 @@ async function getBeneficiaries(req, res) {
       .range(offset, offset + limit - 1);
     if (error) throw error;
 
+    const enriched = (beneficiaries || []).map(b => ({
+      ...b,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
     const total = count || 0;
     return res.status(200).json({
       success: true,
-      beneficiaries: beneficiaries || [],
+      beneficiaries: enriched,
       pagination: {
         page,
         limit,
@@ -995,17 +1496,65 @@ async function lookupBeneficiary(req, res) {
   try {
     const { data, error } = await supabase
       .from('beneficiary_master')
-      .select('*')
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
       .eq('account_number', account_number)
       .eq('ifsc', ifsc)
       .maybeSingle();
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, beneficiary: data || null });
+    const enriched = data ? {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    } : null;
+
+    return res.status(200).json({ success: true, beneficiary: enriched });
   } catch (error) {
     console.error(`lookupBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to look up beneficiary.' });
+  }
+}
+
+/**
+ * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...
+ * Live typeahead for the line-item entry row's A/C No. field
+ */
+async function searchBeneficiariesByAcNo(req, res) {
+  const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
+  if (prefix.length < 3) {
+    return res.status(200).json({ success: true, beneficiaries: [] });
+  }
+  const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
+
+  try {
+    const { data, error } = await supabase
+      .from('beneficiary_master')
+      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)')
+      .like('account_number', `${prefix}%`)
+      .order('last_used_at', { ascending: false, nullsFirst: false })
+      .limit(limit);
+    if (error) throw error;
+
+    const enriched = (data || []).map(b => ({
+      account_number: b.account_number,
+      ifsc: b.ifsc,
+      beneficiary_name: b.beneficiary_name,
+      beneficiary_bank_id: b.beneficiary_bank_id,
+      beneficiary_bank: b.indian_bank_master ? {
+        id: b.indian_bank_master.id,
+        bank_name: b.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name
+    }));
+
+    return res.status(200).json({ success: true, beneficiaries: enriched });
+  } catch (error) {
+    console.error(`searchBeneficiariesByAcNo failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to search beneficiaries.' });
   }
 }
 
@@ -1014,7 +1563,33 @@ async function lookupBeneficiary(req, res) {
  */
 async function upsertBeneficiary(req, res) {
   if (!validate(req, res, upsertBeneficiarySchema)) return;
-  const { account_number, ifsc, beneficiary_name, beneficiary_bank_name } = req.body;
+  const { account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
+
+  let resolvedBankId = beneficiary_bank_id || null;
+  let resolvedBankName = beneficiary_bank_name?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
 
   try {
     const { data, error } = await supabase
@@ -1024,19 +1599,29 @@ async function upsertBeneficiary(req, res) {
           account_number,
           ifsc,
           beneficiary_name,
-          beneficiary_bank_name,
+          beneficiary_bank_id: resolvedBankId,
+          beneficiary_bank_name: resolvedBankName,
           last_used_at: new Date().toISOString(),
           created_by: req.user.mobile_number,
           updated_by: req.user.mobile_number
         },
         { onConflict: 'account_number,ifsc' }
       )
-      .select()
+      .select('*, indian_bank_master:beneficiary_bank_id (id, bank_name)')
       .single();
 
     if (error) throw error;
 
-    return res.status(200).json({ success: true, beneficiary: data, message: 'Beneficiary saved.' });
+    const enriched = {
+      ...data,
+      beneficiary_bank: data.indian_bank_master ? {
+        id: data.indian_bank_master.id,
+        bank_name: data.indian_bank_master.bank_name
+      } : null,
+      beneficiary_bank_name: data.indian_bank_master?.bank_name || data.beneficiary_bank_name
+    };
+
+    return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
   } catch (error) {
     console.error(`upsertBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
@@ -1166,6 +1751,11 @@ async function upsertParticular(req, res) {
  */
 async function getIndianBanks(req, res) {
   try {
+    if (req.query.active_only === 'true') {
+      const activeBanks = await getActiveIndianBanks();
+      return res.status(200).json({ success: true, indianBanks: activeBanks });
+    }
+
     const { data, error } = await supabase
       .from('indian_bank_master')
       .select('*')
@@ -1211,6 +1801,7 @@ async function upsertIndianBank(req, res) {
     // an admin-only write path) and this also correctly drops a bank from
     // validation the moment it's deactivated, which an add-only patch can't.
     await refreshIndianBanksCache();
+    invalidateBankCache();
 
     return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
   } catch (error) {
@@ -1327,14 +1918,340 @@ async function exportBulkNeft(req, res) {
   }
 }
 
+/**
+ * GET /acct-requisitions/logs
+ * Paginated status-change history for requisition line items, sourced from
+ * audit_log (module_name = 'Acct Requisition Line Item', written by the
+ * audit_acct_line_item_events trigger in 021_create_accounts_ho_approval.sql).
+ * This is the real history view — getLineItems/"Requisition Details" only
+ * shows current state. Optional ?record_identifier= (line item id) and
+ * ?date_from=/?date_to= filters, same pattern as getBankBalanceLedger.
+ */
+async function getRequisitionLogs(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('audit_log')
+      .select('*', { count: 'exact' })
+      .eq('module_name', 'Acct Requisition Line Item');
+
+    if (req.query.record_identifier) {
+      query = query.eq('record_identifier', req.query.record_identifier);
+    }
+    if (req.query.date_from) {
+      query = query.gte('timestamp', req.query.date_from);
+    }
+    if (req.query.date_to) {
+      query = query.lte('timestamp', `${req.query.date_to}T23:59:59.999`);
+    }
+
+    const { data, error, count } = await query
+      .order('timestamp', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const userIds = [...new Set((data || []).map(log => log.user_id).filter(Boolean))];
+    let userMap = {};
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', userIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    // Enrich with the line item's identifying details (sub-title, beneficiary,
+    // amount, sheet number) so entries are readable without a separate lookup
+    // — line items are never hard-deleted (append-only, enforced by
+    // prevent_acct_sheet_hard_delete in 030), so record_identifier always resolves.
+    const itemIds = [...new Set((data || []).map(log => log.record_identifier).filter(Boolean))];
+    let itemMap = {};
+    if (itemIds.length > 0) {
+      const { data: items } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, account_sub_title_text, beneficiary_ac_no, req_amount')
+        .in('id', itemIds);
+
+      const sheetIds = [...new Set((items || []).map(i => i.sheet_id).filter(Boolean))];
+      let sheetMap = {};
+      if (sheetIds.length > 0) {
+        const { data: sheets } = await supabase
+          .from('acct_requisition_sheets')
+          .select('id, sheet_number')
+          .in('id', sheetIds);
+        (sheets || []).forEach(s => { sheetMap[s.id] = s.sheet_number; });
+      }
+
+      (items || []).forEach(i => {
+        itemMap[i.id] = {
+          account_sub_title_text: i.account_sub_title_text,
+          beneficiary_ac_no: i.beneficiary_ac_no,
+          req_amount: i.req_amount,
+          sheet_number: sheetMap[i.sheet_id] || null
+        };
+      });
+    }
+
+    const entries = (data || []).map(log => ({
+      ...log,
+      user_name: userMap[log.user_id] || log.user_id || 'System',
+      line_item: itemMap[log.record_identifier] || null
+    }));
+
+    return res.status(200).json({
+      success: true,
+      entries,
+      totalCount: count || 0,
+      page,
+      totalPages: Math.ceil((count || 0) / limit)
+    });
+  } catch (error) {
+    console.error(`getRequisitionLogs failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve requisition logs.' });
+  }
+}
+
+// ============================================================================
+// Credit Ledger (042_credit_purchases_and_ledger.sql)
+// ============================================================================
+
+/**
+ * GET /acct-requisitions/credit-ledger
+ * ?status=Open (default) | Settled. Optional beneficiary name/date-range
+ * filters. Open entries are the "importable" list a future installment can
+ * be pulled from; Settled entries are history — same table, just a status
+ * filter, not two separate lists.
+ */
+async function getCreditLedger(req, res) {
+  try {
+    const query = req.query || {};
+    const status = query.status === 'Settled' ? 'Settled' : 'Open';
+    const page = Math.max(parseInt(query.page) || 1, 1);
+    let limit = parseInt(query.limit) || 20;
+    if (limit < 1) limit = 20;
+    limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
+
+    let dbQuery = supabase
+      .from('credit_ledger')
+      .select('*', { count: 'exact' })
+      .eq('ledger_status', status);
+
+    if (query.date_from) dbQuery = dbQuery.gte('created_at', query.date_from);
+    if (query.date_to) dbQuery = dbQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+
+    dbQuery = dbQuery.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+
+    const { data: ledgerRows, count, error } = await dbQuery;
+    if (error) throw error;
+
+    const beneficiaryIds = [...new Set((ledgerRows || []).map(r => r.beneficiary_id))];
+    const sourceItemIds = [...new Set((ledgerRows || []).map(r => r.source_line_item_id))];
+
+    let beneficiaryMap = {};
+    if (beneficiaryIds.length > 0) {
+      const { data: beneficiaries } = await supabase
+        .from('beneficiary_master')
+        .select('id, beneficiary_name, account_number, ifsc, beneficiary_bank_name')
+        .in('id', beneficiaryIds);
+      // Dealer-name filter applied post-fetch rather than a DB-side .ilike on
+      // a joined table — Supabase JS can't filter on a related table's
+      // column in one query without a Postgres view/RPC, and this table is
+      // small enough per page that filtering post-fetch is fine.
+      beneficiaryMap = (beneficiaries || []).reduce((acc, b) => { acc[b.id] = b; return acc; }, {});
+    }
+
+    let sourceItemMap = {};
+    if (sourceItemIds.length > 0) {
+      const { data: sourceItems } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, particulars')
+        .in('id', sourceItemIds);
+      const sheetIds = [...new Set((sourceItems || []).map(i => i.sheet_id))];
+      let sheetMap = {};
+      if (sheetIds.length > 0) {
+        const { data: sheets } = await supabase.from('acct_requisition_sheets').select('id, sheet_number').in('id', sheetIds);
+        sheetMap = (sheets || []).reduce((acc, s) => { acc[s.id] = s.sheet_number; return acc; }, {});
+      }
+      sourceItemMap = (sourceItems || []).reduce((acc, i) => {
+        acc[i.id] = { particulars: i.particulars, sheet_number: sheetMap[i.sheet_id] || null };
+        return acc;
+      }, {});
+    }
+
+    let enrichedRows = (ledgerRows || []).map(row => ({
+      ...row,
+      beneficiary: beneficiaryMap[row.beneficiary_id] || null,
+      source: sourceItemMap[row.source_line_item_id] || null
+    }));
+
+    if (query.dealer) {
+      const term = query.dealer.toLowerCase();
+      enrichedRows = enrichedRows.filter(r => r.beneficiary?.beneficiary_name?.toLowerCase().includes(term));
+    }
+
+    return res.status(200).json({
+      success: true,
+      entries: enrichedRows,
+      pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getCreditLedger failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve credit ledger.' });
+  }
+}
+
+/**
+ * POST /acct-requisitions/credit-ledger/:ledgerId/import
+ * body: { target_sheet_id }
+ * Creates a new line item on the target Open sheet, prefilled with the
+ * dealer's identity plus the original purchase's Particulars/Account
+ * Sub-title (import_credit_installment_transact, 042 + 043) — Accounts
+ * fills in only the actual installment amount, a real debit bank, and
+ * payment mode, which vary per installment. Unlike importLineItem
+ * (Hold/Reject/Pending Review), the source credit_ledger row is untouched by
+ * this call — it stays importable again next time, until its own balance is
+ * driven to zero by a later approval.
+ */
+async function importCreditInstallment(req, res) {
+  const { ledgerId } = req.params;
+  const { target_sheet_id } = req.body;
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('import_credit_installment_transact', {
+      p_ledger_id: ledgerId,
+      p_target_sheet_id: target_sheet_id,
+      p_imported_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(201).json({ success: true, item: data, message: 'Installment line item created.' });
+  } catch (error) {
+    console.error(`importCreditInstallment failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to import credit installment.' });
+  }
+}
+
+/**
+ * PATCH /acct-requisitions/credit-ledger/:ledgerId/adjust
+ * body: { new_remaining_balance, remarks }
+ * HO-only manual correction of an Open credit ledger entry's remaining
+ * balance (adjust_credit_ledger_balance_transact, 044) — e.g. reconciling
+ * against what the dealer/subcontractor actually reports. paid_total is
+ * recomputed to keep paid_total + remaining_balance = opening_balance, and
+ * the entry flips to Settled if adjusted down to exactly zero. Remarks are
+ * required and audited (audit_log, HO_ADJUSTED_CREDIT_BALANCE).
+ */
+async function adjustCreditLedgerBalance(req, res) {
+  const { ledgerId } = req.params;
+  const { new_remaining_balance, remarks } = req.body;
+
+  try {
+    const { data, error: rpcErr } = await supabase.rpc('adjust_credit_ledger_balance_transact', {
+      p_ledger_id: ledgerId,
+      p_new_remaining_balance: new_remaining_balance,
+      p_remarks: remarks.trim(),
+      p_actioned_by: req.user.mobile_number
+    });
+
+    if (rpcErr) {
+      const mapped = mapAcctRpcError(rpcErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw rpcErr;
+    }
+
+    return res.status(200).json({ success: true, entry: data, message: 'Credit ledger balance adjusted.' });
+  } catch (error) {
+    console.error(`adjustCreditLedgerBalance failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to adjust credit ledger balance.' });
+  }
+}
+
+/**
+ * GET /acct-requisitions/payment-requisitions
+ * Read-only intake list of Payment Requisitions routed to Accounts (§27-28 of
+ * the routing spec) - a distinct source domain from the Hold/Rejected/Pending
+ * Review import queue (getImportEligibleItems). Model A means the Accounts
+ * line item already exists the moment routing succeeds, so this is browse-only:
+ * no import action, just traceability back to the originating requisition.
+ */
+async function getPaymentRequisitions(req, res) {
+  try {
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)));
+    const offset = (page - 1) * limit;
+
+    const { data: reqs, count, error } = await supabase
+      .from('requisitions')
+      .select('requisition_id, requisition_no, work_order_no, material_main_head, expen_head_remarks, beneficiary_name, approved_amount, accounts_line_item_id, accounts_sent_by, accounts_sent_at', { count: 'exact' })
+      .eq('payment_destination', 'ACCOUNTS')
+      .order('accounts_sent_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    const lineItemIds = [...new Set((reqs || []).map(r => r.accounts_line_item_id).filter(Boolean))];
+    let sheetByLineItem = {};
+    if (lineItemIds.length > 0) {
+      const { data: lineItems } = await supabase
+        .from('acct_requisition_line_items')
+        .select('id, sheet_id, acct_requisition_sheets(id, sheet_number)')
+        .in('id', lineItemIds);
+      sheetByLineItem = (lineItems || []).reduce((acc, li) => {
+        acc[li.id] = li.acct_requisition_sheets || null;
+        return acc;
+      }, {});
+    }
+
+    const sentByIds = [...new Set((reqs || []).map(r => r.accounts_sent_by).filter(Boolean))];
+    let userMap = {};
+    if (sentByIds.length > 0) {
+      const { data: users } = await supabase
+        .from('authorised_users')
+        .select('mobile_number, display_name')
+        .in('mobile_number', sentByIds);
+      (users || []).forEach(u => { userMap[u.mobile_number] = u.display_name; });
+    }
+
+    const items = (reqs || []).map(r => ({
+      ...r,
+      accounts_sent_by_name: userMap[r.accounts_sent_by] || r.accounts_sent_by || null,
+      sheet: sheetByLineItem[r.accounts_line_item_id] || null
+    }));
+
+    const total = count || 0;
+    return res.status(200).json({
+      success: true,
+      items,
+      pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) }
+    });
+  } catch (error) {
+    console.error(`getPaymentRequisitions failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve Payment Requisitions.' });
+  }
+}
+
 module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
-  actOnLineItem, actOnLineItemsBatch, resubmitLineItem, reopenLineItem,
+  actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
-  lookupBeneficiary, upsertBeneficiary, getBeneficiaries,
+  lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
   getIndianBanks, upsertIndianBank,
-  exportBulkNeft
+  exportBulkNeft,
+  getRequisitionLogs,
+  getCreditLedger, importCreditInstallment, adjustCreditLedgerBalance,
+  getPaymentRequisitions
 };

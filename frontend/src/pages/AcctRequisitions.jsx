@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSheets, createSheet } from '../api/acctRequisitionsApi';
-import RequisitionDetailsPanel from '../components/acctRequisition/RequisitionDetailsPanel';
+import { getSheets, createSheet, deleteSheetIfEmpty } from '../api/acctRequisitionsApi';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -45,8 +44,9 @@ const AcctRequisitions = () => {
   const [dateTo, setDateTo] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeView, setActiveView] = useState('Sheets');
+  const [discardingId, setDiscardingId] = useState(null);
 
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
@@ -92,6 +92,55 @@ const AcctRequisitions = () => {
     }
   };
 
+  // Lets Accounts discard a still-Open, zero-item sheet directly from the
+  // list, instead of the only prior path — open its detail page, then leave,
+  // which fires the same deleteSheetIfEmpty as a side effect of unmounting.
+  // Without this, a sheet created by accident (e.g. a double-clicked "New
+  // Sheet") and never opened just sits here forever with its number
+  // permanently burned (030_allow_empty_open_sheet_delete.sql) and no way to
+  // clear it from this view.
+  const handleDiscardSheet = async (e, sheet) => {
+    e.stopPropagation();
+    setError('');
+    setSuccess('');
+    setDiscardingId(sheet.id);
+    try {
+      const res = await deleteSheetIfEmpty(sheet.id);
+      queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
+
+      if (!res.data?.deleted) {
+        if (res.data?.alreadyGone) {
+          // Not really a failure — this sheet was already auto-discarded
+          // elsewhere (e.g. its own detail page was opened and left empty)
+          // before this stale list row's Discard button was clicked. The
+          // invalidation above removes it from the list either way.
+          setSuccess('This sheet was already discarded.');
+        } else {
+          // The list row was stale — someone else added an item or
+          // submitted this sheet since it was last fetched. Nothing was
+          // discarded; the invalidation above will refetch its current state.
+          setError('This sheet is no longer empty — it couldn\'t be discarded. Refreshing the list.');
+        }
+        return;
+      }
+
+      // A restored count means an item that was imported into this sheet
+      // (then removed again before submit) is back in the Held/Rejected
+      // eligible list (039_delete_empty_sheet_restores_imports.sql).
+      const restoredCount = res.data?.restoredImportCount || 0;
+      if (restoredCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
+        setSuccess(`Sheet discarded. ${restoredCount} item(s) restored to the Held/Rejected eligible list.`);
+      } else {
+        setSuccess('Sheet discarded.');
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to discard sheet.');
+    } finally {
+      setDiscardingId(null);
+    }
+  };
+
   const resetFilters = () => {
     setSearchQuery('');
     setDateFrom('');
@@ -119,6 +168,12 @@ const AcctRequisitions = () => {
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
             Manage Bank Balances
           </Button>
+          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/import-eligible-items')}>
+            Import List
+          </Button>
+          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/payment-requisitions')}>
+            Payment Requisitions
+          </Button>
           <Button onClick={handleCreateSheet} loading={creating}>New Sheet</Button>
         </div>
       </div>
@@ -127,6 +182,13 @@ const AcctRequisitions = () => {
         <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5 shrink-0">
           <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
           {displayError}
+        </div>
+      )}
+
+      {success && (
+        <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl text-xs text-emerald-300 mb-6 flex items-center gap-2.5 shrink-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+          {success}
         </div>
       )}
 
@@ -150,38 +212,37 @@ const AcctRequisitions = () => {
         </div>
       </div>
 
-      {/* View Toggle */}
+      {/* View Toggle — "Sheets" is this page; "Requisition Details" now
+          navigates to its own route (/acct-requisitions/details) instead of
+          swapping local state, so it's a real, linkable/back-button-able
+          page rather than a hidden tab. */}
       <div className="flex items-center gap-2 mb-6 shrink-0">
-        {['Sheets', 'Requisition Details'].map((view) => (
-          <button
-            key={view}
-            type="button"
-            onClick={() => setActiveView(view)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-              activeView === view
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5'
-            }`}
-          >
-            {view}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+        >
+          Sheets
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/acct-requisitions/details')}
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5"
+        >
+          Requisition Details
+        </button>
       </div>
 
-      {activeView === 'Requisition Details' ? (
-        <RequisitionDetailsPanel sheetDetailBasePath="/acct-requisitions/sheets" />
-      ) : (
-      /* Main Two-Column Workspace */
+      {/* Main Two-Column Workspace */}
       <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden min-h-0">
 
         {/* Left Column: Search & Filters */}
         <div className="w-full md:w-64 flex flex-col gap-4 shrink-0">
           <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col gap-5">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Sheet Number</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Req. No.</span>
               <Input
                 type="text"
-                placeholder="Enter sheet number..."
+                placeholder="Enter req. no..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 size="sm"
@@ -257,7 +318,7 @@ const AcctRequisitions = () => {
                 <Table containerClassName="min-w-[720px]">
                   <TableHeader>
                     <TableRow hover={false}>
-                      <TableCell isHeader>Sheet Number</TableCell>
+                      <TableCell isHeader>Req. No.</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader align="right">Items</TableCell>
                       <TableCell isHeader>Date</TableCell>
@@ -286,11 +347,23 @@ const AcctRequisitions = () => {
                           <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
                         </TableCell>
                         <TableCell align="right">
-                          <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">
-                            <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </span>
+                          <div className="flex items-center justify-end gap-2">
+                            {sheet.sheet_status === 'Open' && sheet.item_count === 0 && (
+                              <Button
+                                variant="glass"
+                                size="sm"
+                                loading={discardingId === sheet.id}
+                                onClick={(e) => handleDiscardSheet(e, sheet)}
+                              >
+                                Discard
+                              </Button>
+                            )}
+                            <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">
+                              <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -311,7 +384,6 @@ const AcctRequisitions = () => {
           />
         </div>
       </div>
-      )}
     </>
   );
 };

@@ -5,8 +5,20 @@ const {
   getRequisitions,
   getRequisitionById,
   actOnRequisition,
+  payFromZoBalance,
+  sendToAccounts,
   cancelRequisition,
-  getMainHeadCapacity
+  getMainHeadCapacity,
+  getSubcontractorCapacity,
+  getSubcontractorLedger,
+  getSubcontractorLedgerEntries,
+  getSubcontractorRequisitions,
+  adjustSubcontractorBalance,
+  searchProjectsBeneficiaries,
+  getProjectsBeneficiaries,
+  upsertProjectsBeneficiary,
+  upsertIndianBank,
+  getIndianBanks
 } = require('../controllers/requisitions.controller');
 const {
   uploadRequisitionPdf,
@@ -20,7 +32,12 @@ const validateRequest = require('../middleware/validateRequest');
 const {
   createRequisitionSchema,
   actOnRequisitionSchema,
-  cancelRequisitionSchema
+  cancelRequisitionSchema,
+  adjustSubcontractorBalanceSchema,
+  payFromZoBalanceSchema,
+  sendToAccountsSchema,
+  upsertProjectsBeneficiarySchema,
+  upsertIndianBankSchema
 } = require('../validation/requisition.schema');
 
 const router = express.Router();
@@ -37,18 +54,37 @@ router.use(verifyJwt);
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const requesterRoles = ['je', 'admin'];
 const approverRoles = ['zo', 'ho', 'admin'];
+const routingRoles = ['zo', 'admin'];
 const uploadRoles = ['je', 'admin'];
+const adjusterRoles = ['ho', 'admin'];
+const adminRoles = ['admin'];
 
 // Read endpoints
 router.get('/', requireRole(readerRoles), getRequisitions);
 router.get('/capacity', requireRole(readerRoles), getMainHeadCapacity);
+router.get('/subcontractor-capacity', requireRole(readerRoles), getSubcontractorCapacity);
+router.get('/subcontractor-ledger/entries', requireRole(readerRoles), getSubcontractorLedgerEntries);
+router.get('/subcontractor-ledger/requisitions', requireRole(readerRoles), getSubcontractorRequisitions);
+router.get('/subcontractor-ledger', requireRole(readerRoles), getSubcontractorLedger);
+router.get('/beneficiary-suggestions', requireRole(readerRoles), searchProjectsBeneficiaries);
+router.get('/beneficiary-master', requireRole(readerRoles), getProjectsBeneficiaries);
+router.get('/indian-banks', requireRole(readerRoles), getIndianBanks);
 router.get('/:id', requireRole(readerRoles), getRequisitionById);
 
 // Create endpoint
 router.post('/', requireRole(requesterRoles), validateRequest(createRequisitionSchema), createRequisition);
 
+// Master data endpoints (Beneficiary & Indian Bank)
+router.put('/beneficiary-master', requireRole(readerRoles), validateRequest(upsertProjectsBeneficiarySchema), upsertProjectsBeneficiary);
+router.put('/indian-banks', requireRole(adminRoles), validateRequest(upsertIndianBankSchema), upsertIndianBank);
+
+// Admin balance adjustment endpoint (HO or Admin only)
+router.post('/subcontractor-ledger/adjust', requireRole(adjusterRoles), validateRequest(adjustSubcontractorBalanceSchema), adjustSubcontractorBalance);
+
 // Workflow endpoints
 router.patch('/:id/action', requireRole(approverRoles), validateRequest(actOnRequisitionSchema), actOnRequisition);
+router.post('/:id/pay-from-zo-balance', requireRole(routingRoles), validateRequest(payFromZoBalanceSchema), payFromZoBalance);
+router.post('/:id/send-to-accounts', requireRole(routingRoles), validateRequest(sendToAccountsSchema), sendToAccounts);
 router.patch('/:id/cancel', requireRole(requesterRoles), validateRequest(cancelRequisitionSchema), cancelRequisition);
 
 // Upload endpoints (JE only)

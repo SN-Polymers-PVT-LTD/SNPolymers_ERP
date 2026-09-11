@@ -4,7 +4,6 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { getSheets } from '../api/acctRequisitionsApi';
-import RequisitionDetailsPanel from '../components/acctRequisition/RequisitionDetailsPanel';
 
 const STATUS_TABS = [
   { value: 'Submitted', label: 'Pending Review', emptyText: 'No submitted sheets pending review.' },
@@ -36,7 +35,6 @@ const AcctHoQueue = () => {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
-  const [activeView, setActiveView] = useState('Sheets');
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
   const handleStatusChange = (value) => {
@@ -54,8 +52,8 @@ const AcctHoQueue = () => {
   // A sheet moves from Submitted to Reviewed automatically once every item
   // on it has a decision (migration 028) — at which point it drops out of
   // the default queue view above. Without this tab there'd be nowhere an HO
-  // user could find that sheet again to reopen a decided item on it (the
-  // Accounts sheet list with the same filter is role-gated away from HO).
+  // user could find that sheet again to look back at (the Accounts sheet
+  // list with the same filter is role-gated away from HO).
   //
   // getSheets defaults to page 1 / limit 20 server-side — omitting `page`
   // here used to silently cap this queue at the newest 20 sheets with no
@@ -93,7 +91,7 @@ const AcctHoQueue = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">
             {statusFilter === 'Submitted'
               ? 'Submitted requisition sheets awaiting your review.'
-              : 'Sheets you have fully reviewed — reopen an item here if it needs another look.'}
+              : 'Sheets you have fully reviewed — held or rejected items can be brought back via Import on a new sheet.'}
           </p>
         </div>
         <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>
@@ -112,36 +110,35 @@ const AcctHoQueue = () => {
         </div>
       </div>
 
-      {/* View Toggle */}
+      {/* View Toggle — "Sheets" is this page; "Requisition Details" now
+          navigates to its own route (/acct-requisitions/ho-queue/details)
+          instead of swapping local state, matching AcctRequisitions.jsx's
+          (Accounts side) equivalent toggle. */}
       <div className="flex items-center gap-2 mb-6 shrink-0">
-        {['Sheets', 'Requisition Details'].map((view) => (
-          <button
-            key={view}
-            type="button"
-            onClick={() => setActiveView(view)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 ${
-              activeView === view
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5'
-            }`}
-          >
-            {view}
-          </button>
-        ))}
+        <button
+          type="button"
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20"
+        >
+          Sheets
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/acct-requisitions/ho-queue/details')}
+          className="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-white/5"
+        >
+          Requisition Details
+        </button>
       </div>
 
-      {activeView === 'Requisition Details' ? (
-        <RequisitionDetailsPanel sheetDetailBasePath="/acct-requisitions/ho-queue/sheets" />
-      ) : (
       <div className="flex flex-col md:flex-row gap-6 flex-grow overflow-hidden min-h-0">
         {/* Left Column: Search & Filters */}
         <div className="w-full md:w-64 flex flex-col gap-4 shrink-0">
           <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col gap-5">
             <div>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Sheet Number</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-2">Search Req. No.</span>
               <Input
                 type="text"
-                placeholder="Enter sheet number..."
+                placeholder="Enter req. no..."
                 value={searchQuery}
                 onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                 size="sm"
@@ -215,7 +212,7 @@ const AcctHoQueue = () => {
                 <Table containerClassName="min-w-[640px]">
                   <TableHeader>
                     <TableRow hover={false}>
-                      <TableCell isHeader>Sheet Number</TableCell>
+                      <TableCell isHeader>Req. No.</TableCell>
                       <TableCell isHeader>Status</TableCell>
                       <TableCell isHeader align="right">Items</TableCell>
                       <TableCell isHeader>Submitted</TableCell>
@@ -269,7 +266,6 @@ const AcctHoQueue = () => {
           )}
         </div>
       </div>
-      )}
     </>
   );
 };

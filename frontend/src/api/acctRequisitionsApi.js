@@ -17,6 +17,8 @@ export const upsertParticular = (data) => authApi.put(`${BASE}/particulars`, dat
 
 // ── Beneficiary ──────────────────────────────────────────────────────────
 export const lookupBeneficiary = (params) => authApi.get(`${BASE}/beneficiary`, { params });
+export const searchBeneficiariesByAcNo = (prefix, limit = 8) =>
+  authApi.get(`${BASE}/beneficiary-suggestions`, { params: { prefix, limit } });
 export const upsertBeneficiary = (data) => authApi.put(`${BASE}/beneficiary`, data);
 export const getBeneficiaries = (params) => authApi.get(`${BASE}/beneficiary-master`, { params });
 
@@ -31,6 +33,9 @@ export const getSheets = (params) => authApi.get(`${BASE}/sheets`, { params });
 // date range) — pass { export: true } to fetch all matching rows (no page
 // window, capped server-side at 5000) for the Excel export button.
 export const getLineItems = (params) => authApi.get(`${BASE}/line-items`, { params });
+// Full status-change history (audit_log) for requisition line items — the
+// actual audit trail, distinct from getLineItems' current-state-only view.
+export const getRequisitionLogs = (params) => authApi.get(`${BASE}/logs`, { params });
 export const getSheetById = (id) => authApi.get(`${BASE}/sheets/${id}`);
 export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 // Best-effort cleanup — deletes the sheet only if it's still Open with zero
@@ -38,6 +43,10 @@ export const createSheet = (data) => authApi.post(`${BASE}/sheets`, data);
 // sheet so its number isn't permanently burned for nothing.
 export const deleteSheetIfEmpty = (id) => authApi.delete(`${BASE}/sheets/${id}`);
 export const submitSheet = (id) => authApi.post(`${BASE}/sheets/${id}/submit`);
+// Ends a review session before every line item has a decision — remaining
+// Pending HO Review items become Pending Review, joining the On
+// Hold/Rejected rollover queue (close_acct_sheet_review_transact, 041).
+export const closeSheetReview = (id) => authApi.post(`${BASE}/sheets/${id}/close-review`);
 
 // exportBulkNeft: returns the real 'Bulk Sheet 1'-format .xlsx as bytes, not
 // JSON — responseType: 'blob' is required so axios doesn't try to JSON-parse
@@ -52,9 +61,44 @@ export const addLineItem = (sheetId, data) => authApi.post(`${BASE}/sheets/${she
 export const updateLineItem = (sheetId, itemId, data) => authApi.patch(`${BASE}/sheets/${sheetId}/items/${itemId}`, data);
 export const deleteLineItem = (sheetId, itemId) => authApi.delete(`${BASE}/sheets/${sheetId}/items/${itemId}`);
 
+// ── Payment Requisitions (Finance intake) ───────────────────────────────
+// Read-only list of Payment Requisitions the ZO has routed to Accounts
+// (payment_destination = 'ACCOUNTS'). A separate source domain from the On
+// Hold/Rejected/Pending Review rollover queue below — the line item already
+// exists the moment routing succeeds (Model A), so this is browse-only.
+export const getPaymentRequisitions = (params) => authApi.get(`${BASE}/payment-requisitions`, { params });
+
+// ── Import On Hold/Rejected/Pending Review items into a new sheet ───────
+// Accumulating, cross-sheet list of On Hold/Rejected/Pending Review items
+// that haven't been imported or dismissed yet (034_add_line_item_import.sql,
+// widened to include Pending Review by 041_close_review_pending_rollover.sql).
+// params supports particulars/status filters alongside the existing ones.
+export const getImportEligibleItems = (params) => authApi.get(`${BASE}/import-eligible-items`, { params });
+export const importLineItem = (itemId, targetSheetId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/import`, {
+    target_sheet_id: targetSheetId,
+    item_type: itemType
+  });
+export const dismissImportEligibleItem = (itemId, itemType) =>
+  authApi.post(`${BASE}/import-eligible-items/${itemId}/dismiss`, {
+    item_type: itemType
+  });
+
 export const actOnLineItem = (itemId, data) => authApi.patch(`${BASE}/items/${itemId}/action`, data);
 // One request carrying every staged HO decision for a sheet, instead of one
 // PATCH per line item — actions: [{ line_item_id, action, ho_pass_amount?, ho_remarks? }]
 export const actOnLineItemsBatch = (sheetId, actions) => authApi.post(`${BASE}/sheets/${sheetId}/items/batch-action`, { actions });
 export const resubmitLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/resubmit`, data);
-export const reopenLineItem = (itemId, data) => authApi.post(`${BASE}/items/${itemId}/reopen`, data);
+
+// ── Credit Ledger ────────────────────────────────────────────────────────
+// Credit purchases approved via 'Credit Approved' land here as one row per
+// purchase. ?status=Open (default) is the repeatable-import list; ?status=
+// Settled is history — same table, not two separate endpoints
+// (042_credit_purchases_and_ledger.sql).
+export const getCreditLedger = (params) => authApi.get(`${BASE}/credit-ledger`, { params });
+export const importCreditInstallment = (ledgerId, targetSheetId) =>
+  authApi.post(`${BASE}/credit-ledger/${ledgerId}/import`, { target_sheet_id: targetSheetId });
+// HO-only manual correction of an Open entry's remaining balance, with
+// required remarks (adjust_credit_ledger_balance_transact, 044).
+export const adjustCreditLedgerBalance = (ledgerId, newRemainingBalance, remarks) =>
+  authApi.patch(`${BASE}/credit-ledger/${ledgerId}/adjust`, { new_remaining_balance: newRemainingBalance, remarks });

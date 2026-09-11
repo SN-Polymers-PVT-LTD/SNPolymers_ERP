@@ -374,6 +374,90 @@ module.exports = {
           "udtName": "varchar",
           "nullable": true,
           "default": null
+        },
+        "material_sub_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "material_details": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ac_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ifsc": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "payment_destination": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_line_item_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_sent_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_sent_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_import_dismissed": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": true,
+          "default": "false"
+        },
+        "accounts_imported_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
         }
       }
     },

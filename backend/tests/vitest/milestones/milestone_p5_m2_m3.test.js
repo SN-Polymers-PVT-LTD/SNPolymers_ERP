@@ -90,7 +90,7 @@ describe('Milestone P5-M2 & M3 — Daily Progress CRUD & Remarks API', () => {
     await supabase.from('project_cost_estimates').delete().eq('work_order_no', testWorkOrder);
 
     await supabase.from('projects_master')
-      .update({ status: 'Closed' })
+      .delete()
       .eq('work_order_no', testWorkOrder);
 
     if (jeUser) {

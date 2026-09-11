@@ -4,9 +4,10 @@ import { Button, Input } from '../ui';
 const ExportDateRangeModal = ({ onConfirm, onClose }) => {
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+  const [format, setFormat] = useState('combined');
 
   const handleExport = () => {
-    onConfirm({ start, end });
+    onConfirm({ start, end, format });
   };
 
   return (
@@ -27,6 +28,20 @@ const ExportDateRangeModal = ({ onConfirm, onClose }) => {
         </div>
 
         <div className="space-y-4 mb-6">
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-2">
+              Export Format
+            </label>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/80 border border-white/10 text-xs text-slate-200 focus:outline-none focus:border-amber-500/50"
+            >
+              <option value="combined">Combined Expenditure Sheet (Fund Requests &amp; Requisitions)</option>
+              <option value="fundRequests">Fund Requests Summary Only</option>
+            </select>
+          </div>
+
           <div>
             <label className="block text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-2">
               Start Date (Optional)

@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
-import { Button, Select, FormattedCurrencyInput, TextArea, Badge } from '../ui';
+import React from 'react';
+import { Select, FormattedCurrencyInput, TextArea, Badge } from '../ui';
 
-const ACTION_OPTIONS = [
+const ACTION_OPTIONS_CASH = [
   { value: 'Approve', label: 'Approve' },
   { value: 'PartiallyApprove', label: 'Partially Approve' },
+  { value: 'Hold', label: 'Hold' },
+  { value: 'Return', label: 'Return for Correction' },
+  { value: 'Reject', label: 'Reject' }
+];
+
+// A Credit-type item (debit_bank_ac_type === 'Credit') can never be Approved
+// or Partially Approved — the backend hard-rejects that with VAL09
+// (042_credit_purchases_and_ledger.sql). Offer Credit Approved instead.
+const ACTION_OPTIONS_CREDIT = [
+  { value: 'CreditApprove', label: 'Credit Approved' },
   { value: 'Hold', label: 'Hold' },
   { value: 'Return', label: 'Return for Correction' },
   { value: 'Reject', label: 'Reject' }
@@ -19,60 +29,23 @@ const ACTION_OPTIONS = [
  * batch submit. `error` is the per-item failure reported back after a
  * batch submit (e.g. insufficient bank balance on just this item).
  *
- * Reopen is deliberately NOT part of the staged-decision batch — it acts on
- * an already-Rejected (i.e. already decided) item, a distinct one-off
- * action rather than part of the current review session, so it keeps its
- * own immediate submit.
+ * On Hold and Rejected are both terminal on their original sheet
+ * (037_terminal_hold_and_rejected.sql) — no further HO action is possible
+ * here at all; re-importing the item into a new sheet
+ * (import_acct_line_item_transact) is the only way forward from either, so
+ * this renders nothing for them, same as any other already-decided status.
  */
-const HoDecisionPanel = ({ item, decision, onDecisionChange, onReopen, canReopen, disabled, error }) => {
-  const [reopenRemark, setReopenRemark] = useState('');
-  const [reopenSubmitting, setReopenSubmitting] = useState(false);
-  const [reopenError, setReopenError] = useState('');
-
+const HoDecisionPanel = ({ item, decision, onDecisionChange, disabled, error }) => {
   const action = decision?.action || '';
   const hoPassAmount = decision?.ho_pass_amount ?? '';
   const hoRemarks = decision?.ho_remarks ?? '';
   const needsPassAmount = action === 'PartiallyApprove';
   const needsRemarks = ['Hold', 'Return', 'Reject'].includes(action);
+  const actionOptions = item.debit_bank_ac_type === 'Credit' ? ACTION_OPTIONS_CREDIT : ACTION_OPTIONS_CASH;
 
   const setField = (field, value) => onDecisionChange(item.id, { ...decision, action, ho_pass_amount: hoPassAmount, ho_remarks: hoRemarks, [field]: value });
 
-  const handleReopen = async (e) => {
-    e.preventDefault();
-    setReopenError('');
-    if (!reopenRemark.trim()) {
-      setReopenError('reopen_remark is required.');
-      return;
-    }
-    setReopenSubmitting(true);
-    try {
-      await onReopen({ reopen_remark: reopenRemark.trim() });
-      setReopenRemark('');
-    } catch (err) {
-      setReopenError(err.response?.data?.message || 'Failed to reopen line item.');
-    } finally {
-      setReopenSubmitting(false);
-    }
-  };
-
-  if (item.requisition_status === 'Rejected') {
-    if (!canReopen) return null;
-    return (
-      <form onSubmit={handleReopen} className="flex flex-col gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
-        <TextArea
-          label="Reopen Remark"
-          required
-          value={reopenRemark}
-          onChange={(e) => setReopenRemark(e.target.value)}
-          rows={2}
-        />
-        {reopenError && <p className="text-[10px] font-semibold text-red-400">{reopenError}</p>}
-        <Button type="submit" variant="amber" size="sm" loading={reopenSubmitting}>Reopen</Button>
-      </form>
-    );
-  }
-
-  if (!['Pending HO Review', 'On Hold'].includes(item.requisition_status)) return null;
+  if (item.requisition_status !== 'Pending HO Review') return null;
 
   return (
     <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/[0.02] border border-white/10">
@@ -85,7 +58,7 @@ const HoDecisionPanel = ({ item, decision, onDecisionChange, onReopen, canReopen
         value={action}
         disabled={disabled}
         onChange={(e) => setField('action', e.target.value)}
-        options={[{ value: '', label: 'Select a decision...' }, ...ACTION_OPTIONS]}
+        options={[{ value: '', label: 'Select a decision...' }, ...actionOptions]}
       />
 
       {needsPassAmount && (

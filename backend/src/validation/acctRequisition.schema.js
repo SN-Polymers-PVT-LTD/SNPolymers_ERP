@@ -64,11 +64,40 @@ const accountsLineItemBody = z.object({
                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                               message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
                             }),
-  debit_bank_ac_type:     z.string().trim().optional().nullable(),
-  req_amount:             z.coerce.number().positive().optional().nullable(),
-  payment_mode:           z.enum(['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT']).optional().nullable(),
+  beneficiary_bank_id:    z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
+  // Not left as '': the debit bank <select> autosaves '' until chosen, same
+  // as payment_mode below, but '' also isn't a valid bank_name — passing it
+  // through unstransformed would clear Zod fine and then fail at the DB's
+  // fk_arli_debit_bank foreign key instead. Transformed to null up front.
+  debit_bank_ac_type:     z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
+  // Preprocessed (not a bare z.coerce.number()): an unfilled amount field
+  // autosaves '' too, and z.coerce.number() would coerce '' to 0, which then
+  // fails .positive() — '' needs to become null *before* coercion, not after.
+  req_amount:             z.preprocess(
+                            val => (val === '' ? null : val),
+                            z.coerce.number().positive().optional().nullable()
+                          ),
+  // Not a bare z.enum(): the payment mode <select> autosaves '' (its
+  // unselected "Select..." placeholder) until the user actually picks one,
+  // same as the beneficiary fields above — '' must pass through as "not yet
+  // chosen" rather than fail validation. Transformed to null (not left as
+  // '') since chk_arli_payment_mode only allows NULL or a real enum value.
+  payment_mode:           z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val))
+                            .refine(val => val == null || ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].includes(val), {
+                              message: 'payment_mode must be one of Cheque, Bulk NEFT, RTGS, NEFT, Credit.'
+                            }),
   cheque_no:              z.string().trim().optional().nullable(),
   cheque_date:            z.string().trim().optional().nullable(),
+  // Work Order No. <select> autosaves '' until chosen, same convention as
+  // debit_bank_ac_type — transformed to null (chk on the FK column allows
+  // NULL; '' is not a valid projects_master.work_order_no and would fail
+  // the FK instead of just being "not yet chosen").
+  work_order_no:          z.string().trim().optional().nullable()
+                            .transform(val => (val === '' ? null : val)),
+  remarks:                z.string().trim().optional().nullable(),
 });
 
 const addLineItemSchema = {
@@ -85,7 +114,7 @@ const updateLineItemSchema = {
 // either way: ho_pass_amount required for PartiallyApprove, ho_remarks
 // required for Hold/Return/Reject.
 const acctLineItemActionFields = {
-  action:         z.enum(['Approve', 'PartiallyApprove', 'Hold', 'Return', 'Reject']),
+  action:         z.enum(['Approve', 'PartiallyApprove', 'CreditApprove', 'Hold', 'Return', 'Reject']),
   ho_pass_amount: z.coerce.number().positive().optional().nullable(),
   ho_remarks:     z.string().trim().optional().nullable(),
 };
@@ -120,9 +149,33 @@ const resubmitLineItemSchema = {
   body: accountsLineItemBody
 };
 
-const reopenLineItemSchema = {
+const importLineItemSchema = {
   params: z.object({ itemId: uuidSchema }),
-  body: z.object({ reopen_remark: z.string().trim().min(1, 'reopen_remark is required.') })
+  body: z.object({
+    target_sheet_id: uuidSchema,
+    item_type: z.enum(['LINE_ITEM', 'PAYMENT_REQUISITION']).optional()
+  })
+};
+
+const dismissLineItemSchema = {
+  params: z.object({ itemId: uuidSchema })
+};
+
+const importCreditInstallmentSchema = {
+  params: z.object({ ledgerId: uuidSchema }),
+  body: z.object({ target_sheet_id: uuidSchema })
+};
+
+const adjustCreditLedgerBalanceSchema = {
+  params: z.object({ ledgerId: uuidSchema }),
+  body: z.object({
+    new_remaining_balance: z.coerce.number({
+      required_error: 'new_remaining_balance is required.',
+      invalid_type_error: 'new_remaining_balance must be a number.'
+    }).nonnegative('new_remaining_balance cannot be negative.'),
+    remarks: z.string({ required_error: 'remarks are required to adjust a credit ledger balance.' })
+      .trim().min(1, 'remarks are required to adjust a credit ledger balance.')
+  })
 };
 
 const upsertBankBalanceSchema = {
@@ -163,10 +216,15 @@ const upsertBeneficiarySchema = {
     ifsc:                  z.string().trim()
                              .regex(ifscRegex, 'ifsc must be 11-char in format AAAA0XXXXXX.'),
     beneficiary_name:      z.string().trim().min(1, 'beneficiary_name is required.'),
-    beneficiary_bank_name: z.string().trim().min(1, 'beneficiary_bank_name is required.')
-                             .refine(val => INDIAN_BANKS_SET.has(val.toUpperCase()), {
+    beneficiary_bank_id:   z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+                             .transform(val => (val === '' ? null : val)),
+    beneficiary_bank_name: z.string().trim().optional().nullable()
+                             .refine(val => !val || INDIAN_BANKS_SET.has(val.toUpperCase()), {
                                message: 'beneficiary_bank_name must be a recognized bank from the Indian Banks Master List.'
                              })
+  }).refine(data => data.beneficiary_bank_id || data.beneficiary_bank_name, {
+    message: 'Either beneficiary_bank_id or beneficiary_bank_name is required.',
+    path: ['beneficiary_bank_id']
   })
 };
 
@@ -184,10 +242,13 @@ const upsertIndianBankSchema = {
 
 module.exports = {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
-  resubmitLineItemSchema, reopenLineItemSchema,
+  resubmitLineItemSchema,
+  importLineItemSchema, dismissLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
   upsertParticularsSchema,
   upsertIndianBankSchema,
   exportNeftSchema,
+  importCreditInstallmentSchema,
+  adjustCreditLedgerBalanceSchema,
   refreshIndianBanksCache
 };

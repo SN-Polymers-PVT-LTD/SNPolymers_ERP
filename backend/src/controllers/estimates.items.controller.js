@@ -54,7 +54,6 @@ async function saveDraftItems(req, res) {
 
     const isZoRevision = estimate.estimate_status === ESTIMATE_STATUS.ZO_REVISION_REQUESTED;
     const isHoRevision = estimate.estimate_status === ESTIMATE_STATUS.HO_REVISION_REQUESTED;
-    const isReopened = estimate.estimate_status === ESTIMATE_STATUS.ESTIMATE_REOPENED;
 
     // Batch fetch materials with a composite lookup strategy to avoid correctness/uniqueness bugs
     // We fetch in chunks of 40 to avoid URL length limitations on large estimate batches (e.g. 500 items)
@@ -132,12 +131,14 @@ async function saveDraftItems(req, res) {
           }
         }
 
-        // D. Reopened status modifications constraint (non-admins)
-        if (!isAdmin && isReopened) {
-          if (hasItemFieldChanged(prevItem, item)) {
-            return res.status(403).json({ success: false, message: 'Existing items cannot be modified in Estimate Reopened status. Only new rows can be added.' });
-          }
-        }
+        // NOTE: no separate "isReopened" catch-all guard here. reopenEstimate can only
+        // run from Final Approved, and submit_ho_review (the only path to Final Approved)
+        // guarantees every existing item already has ho_office_approve = 'Approve' — so
+        // guard A above already locks every genuine pre-reopen item for every role,
+        // including admins. A blanket isReopened check would additionally (and
+        // incorrectly) lock brand-new items added during this same reopen cycle, which
+        // have ho_office_approve/zo_office_approve still null and were never approved —
+        // exactly the rows this status exists to let JE/ZO/HO freely add and edit.
       }
     }
 
@@ -207,10 +208,10 @@ async function saveDraftItems(req, res) {
             }
           }
 
-          // D. Reopened status delete constraint (non-admins)
-          if (!isAdmin && isReopened) {
-            return res.status(403).json({ success: false, message: 'Existing items cannot be deleted in Estimate Reopened status.' });
-          }
+          // See the matching NOTE above the modification checks: guard A already
+          // locks every genuine pre-reopen item (they always carry ho_office_approve
+          // = 'Approve'), so no separate isReopened delete guard is needed — and one
+          // would incorrectly block deleting a never-approved item added this cycle.
         }
       }
 
