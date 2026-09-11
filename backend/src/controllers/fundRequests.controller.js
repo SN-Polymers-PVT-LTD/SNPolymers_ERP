@@ -366,6 +366,9 @@ async function submitFundRequest(req, res) {
     if (draft.request_status !== 'Draft') {
       return res.status(409).json({ success: false, message: `Only Draft fund requests can be submitted. Current status: ${draft.request_status}` });
     }
+    if (draft.zo_fr_amount === null || draft.zo_fr_amount === undefined || Number(draft.zo_fr_amount) <= 0) {
+      return res.status(422).json({ success: false, message: 'Fund request amount must be greater than zero.' });
+    }
 
     let bankSnapshot;
     try {
@@ -385,6 +388,7 @@ async function submitFundRequest(req, res) {
       if (rpcError.code === 'BUD02') return res.status(422).json({ success: false, message: rpcError.message });
       if (rpcError.code === 'STA01' || rpcError.code === 'STA06') return res.status(409).json({ success: false, message: rpcError.message });
       if (rpcError.code === 'EST01' || rpcError.code === 'VAL01') return res.status(422).json({ success: false, message: rpcError.message });
+      if (rpcError.code === 'AUT01' || rpcError.code === 'STA02' || rpcError.code === 'P0002') return res.status(400).json({ success: false, message: rpcError.message });
       throw rpcError;
     }
     const { notifyAccountsFundRequestSubmitted } = require('../services/telegram.service');

@@ -25,8 +25,14 @@ WHERE request_status = 'Hold'
 -- The old direct settlement function must not remain callable.
 DROP FUNCTION IF EXISTS public.approve_fund_request_transact(uuid, numeric, character varying, character varying, text);
 
+-- Drop any previous 7-argument overload of submit_fund_request_transact so
+-- that only the canonical, draft-authoritative 2-argument RPC exists.
+DROP FUNCTION IF EXISTS public.submit_fund_request_transact(uuid, varchar, varchar, varchar, varchar, uuid, varchar);
+
 -- Submission is the sole capacity reservation boundary. The project row is
 -- locked before the aggregate is calculated, serializing submissions per WO.
+-- Beneficiary details are read from the locked draft, upserted into
+-- projects_beneficiary_master, and linked back to fund_requests.beneficiary_id.
 CREATE OR REPLACE FUNCTION public.submit_fund_request_transact(
   p_fund_request_id uuid,
   p_submitted_by varchar
@@ -41,6 +47,7 @@ DECLARE
   v_estimate numeric(18,2);
   v_committed numeric(18,2);
   v_bank_name varchar;
+  v_beneficiary_id uuid;
 BEGIN
   SELECT * INTO v_fr
   FROM public.fund_requests
@@ -70,6 +77,7 @@ BEGIN
   SELECT bank_name INTO v_bank_name FROM public.indian_bank_master
   WHERE id = v_fr.beneficiary_bank_id AND is_active;
   IF NOT FOUND THEN RAISE EXCEPTION 'Selected bank does not exist or is inactive.' USING ERRCODE = 'VAL01'; END IF;
+
   INSERT INTO public.projects_beneficiary_master (
     beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name,
     beneficiary_bank_id, created_by, updated_by, last_used_at, updated_at
@@ -77,10 +85,13 @@ BEGIN
     trim(v_fr.beneficiary_name), trim(v_fr.beneficiary_ac_no), upper(trim(v_fr.beneficiary_ifsc)), v_bank_name,
     v_fr.beneficiary_bank_id, p_submitted_by, p_submitted_by, now(), now()
   ) ON CONFLICT (beneficiary_ac_no, beneficiary_ifsc) DO UPDATE SET
-    beneficiary_name = EXCLUDED.beneficiary_name, beneficiary_bank_name = EXCLUDED.beneficiary_bank_name,
-    beneficiary_bank_id = EXCLUDED.beneficiary_bank_id, last_used_at = now(), updated_by = EXCLUDED.updated_by, updated_at = now();
-  UPDATE public.fund_requests SET beneficiary_bank_name = v_bank_name, updated_at = now()
-  WHERE fund_request_id = p_fund_request_id;
+    beneficiary_name = EXCLUDED.beneficiary_name,
+    beneficiary_bank_name = EXCLUDED.beneficiary_bank_name,
+    beneficiary_bank_id = EXCLUDED.beneficiary_bank_id,
+    last_used_at = now(),
+    updated_by = EXCLUDED.updated_by,
+    updated_at = now()
+  RETURNING id INTO v_beneficiary_id;
 
   SELECT * INTO v_project
   FROM public.projects_master
@@ -90,7 +101,7 @@ BEGIN
     RAISE EXCEPTION 'Work Order not found.' USING ERRCODE = 'P0002';
   END IF;
   IF v_project.zo_user_id <> v_fr.zo_user_id THEN
-    RAISE EXCEPTION 'Work Order mismatch with Zonal Office.' USING ERRCODE = 'AUTH01';
+    RAISE EXCEPTION 'Work Order mismatch with Zonal Office.' USING ERRCODE = 'AUT01';
   END IF;
   IF v_project.status NOT IN ('Running', 'Complete Under Maintenance') THEN
     RAISE EXCEPTION 'Work Order must be Active (Running) or Under Maintenance.' USING ERRCODE = 'STA02';
@@ -121,7 +132,12 @@ BEGIN
   END IF;
 
   UPDATE public.fund_requests
-  SET request_status = 'Pending', submitted_at = now(), submitted_by = p_submitted_by, updated_at = now()
+  SET request_status = 'Pending',
+      submitted_at = now(),
+      submitted_by = p_submitted_by,
+      beneficiary_id = v_beneficiary_id,
+      beneficiary_bank_name = v_bank_name,
+      updated_at = now()
   WHERE fund_request_id = p_fund_request_id
   RETURNING * INTO v_fr;
   RETURN v_fr;
@@ -130,61 +146,6 @@ $$;
 
 REVOKE ALL ON FUNCTION public.submit_fund_request_transact(uuid, varchar) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_fund_request_transact(uuid, varchar) TO service_role;
-
--- Atomic submission variant: the beneficiary directory change and capacity
--- reservation share the same transaction. If capacity fails, no directory row
--- is left behind.
-CREATE OR REPLACE FUNCTION public.submit_fund_request_transact(
-  p_fund_request_id uuid, p_submitted_by varchar,
-  p_beneficiary_name varchar, p_beneficiary_ac_no varchar,
-  p_beneficiary_ifsc varchar, p_beneficiary_bank_id uuid,
-  p_beneficiary_bank_name varchar
-) RETURNS public.fund_requests
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_fr public.fund_requests;
-  v_bank_name varchar;
-  v_beneficiary_id uuid;
-BEGIN
-  SELECT * INTO v_fr FROM public.fund_requests WHERE fund_request_id = p_fund_request_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Fund request not found.' USING ERRCODE = 'P0002'; END IF;
-  IF v_fr.request_status <> 'Draft' THEN RAISE EXCEPTION 'Only Draft fund requests can be submitted. Current status: %', v_fr.request_status USING ERRCODE = 'STA01'; END IF;
-  IF p_beneficiary_name IS NULL OR trim(p_beneficiary_name) = ''
-     OR p_beneficiary_ac_no IS NULL OR p_beneficiary_ac_no !~ '^[0-9]{9,18}$'
-     OR p_beneficiary_ifsc IS NULL OR upper(trim(p_beneficiary_ifsc)) !~ '^[A-Z]{4}0[A-Z0-9]{6}$'
-     OR p_beneficiary_bank_id IS NULL THEN
-    RAISE EXCEPTION 'Complete beneficiary bank details are required before submission.' USING ERRCODE = 'VAL01';
-  END IF;
-  SELECT bank_name INTO v_bank_name FROM public.indian_bank_master WHERE id = p_beneficiary_bank_id AND is_active;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Selected bank does not exist or is inactive.' USING ERRCODE = 'VAL01'; END IF;
-
-  INSERT INTO public.projects_beneficiary_master (
-    beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name,
-    beneficiary_bank_id, created_by, updated_by, last_used_at, updated_at
-  ) VALUES (
-    trim(p_beneficiary_name), trim(p_beneficiary_ac_no), upper(trim(p_beneficiary_ifsc)), v_bank_name,
-    p_beneficiary_bank_id, p_submitted_by, p_submitted_by, now(), now()
-  )
-  ON CONFLICT (beneficiary_ac_no, beneficiary_ifsc) DO UPDATE SET
-    beneficiary_name = EXCLUDED.beneficiary_name,
-    beneficiary_bank_name = EXCLUDED.beneficiary_bank_name,
-    beneficiary_bank_id = EXCLUDED.beneficiary_bank_id,
-    last_used_at = now(), updated_by = EXCLUDED.updated_by, updated_at = now()
-  RETURNING id INTO v_beneficiary_id;
-
-  UPDATE public.fund_requests
-  SET beneficiary_id = v_beneficiary_id,
-      beneficiary_name = trim(p_beneficiary_name), beneficiary_ac_no = trim(p_beneficiary_ac_no),
-      beneficiary_ifsc = upper(trim(p_beneficiary_ifsc)), beneficiary_bank_name = v_bank_name,
-      beneficiary_bank_id = p_beneficiary_bank_id, updated_at = now()
-  WHERE fund_request_id = p_fund_request_id;
-
-  RETURN public.submit_fund_request_transact(p_fund_request_id, p_submitted_by);
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.submit_fund_request_transact(uuid, varchar, varchar, varchar, varchar, uuid, varchar) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.submit_fund_request_transact(uuid, varchar, varchar, varchar, varchar, uuid, varchar) TO service_role;
 
 -- Replace the import function's source-state guard while retaining its public
 -- return contract used by the Accounts controller.
