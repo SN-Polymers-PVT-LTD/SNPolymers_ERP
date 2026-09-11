@@ -30,13 +30,13 @@ async function getAllActiveZOs() {
 }
 
 /**
- * Returns Zonal Office users that have a positive available balance (> 0) for excess fund return requests.
- * Used exclusively by the Excess Fund Returns module.
+ * Returns Zonal Office users that have a positive available balance (> 0) for
+ * excess fund return requests. Used exclusively by the Excess Fund Returns
+ * module.
  *
  * @returns {Promise<Array<{mobile_number: string, display_name: string, available_balance: number}>>}
  */
 async function getTargetZOsForExcessReturns() {
-  // 1. Fetch ZOs with positive available balance (> 0)
   const { data: positiveBalances, error: balErr } = await supabase
     .from('zo_balances')
     .select('zo_user_id, available_balance')
@@ -48,12 +48,10 @@ async function getTargetZOsForExcessReturns() {
   }
 
   const positiveZoMobiles = (positiveBalances || []).map(b => b.zo_user_id);
-
   if (positiveZoMobiles.length === 0) {
     return [];
   }
 
-  // 2. Fetch active ZO user profiles
   const { data: zos, error: userErr } = await supabase
     .from('authorised_users')
     .select('mobile_number, display_name')

@@ -14,6 +14,7 @@ import { exportMaterialsToExcel } from '../utils/exportHelpers';
 const MaterialMaster = () => {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const canManageMaterials = isAdmin || user?.role === 'je';
   const queryClient = useQueryClient();
 
   // Core Messaging & Modal / Form States
@@ -307,7 +308,7 @@ const MaterialMaster = () => {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Material Master</h1>
             <p className="text-xs text-slate-400 font-medium mt-1">Centralised catalog of construction resources, aggregates, components, and tools.</p>
           </div>
-          {isAdmin && (
+          {canManageMaterials && (
             <Button
               onClick={openCreateModal}
               variant="amber"
@@ -453,14 +454,14 @@ const MaterialMaster = () => {
                   Material Description {sortBy === 'Material_Details' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </TableCell>
                 <TableCell isHeader={true}>Unit</TableCell>
-                {isAdmin && <TableCell isHeader={true} align="center">Status</TableCell>}
+                {canManageMaterials && <TableCell isHeader={true} align="center">Status</TableCell>}
                 {isAdmin && <TableCell isHeader={true} align="right">Actions</TableCell>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow hover={false}>
-                  <TableCell colSpan={isAdmin ? 6 : 4} align="center" className="p-10 text-slate-500 font-medium">
+                  <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-medium">
                     <div className="flex justify-center items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
                       Loading material registry logs...
@@ -469,7 +470,7 @@ const MaterialMaster = () => {
                 </TableRow>
               ) : materials.length === 0 ? (
                 <TableRow hover={false}>
-                  <TableCell colSpan={isAdmin ? 6 : 4} align="center" className="p-10 text-slate-500 font-semibold">
+                  <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-semibold">
                     No materials found matching criteria.
                   </TableCell>
                 </TableRow>
@@ -483,7 +484,7 @@ const MaterialMaster = () => {
                     <TableCell className="text-slate-300 max-w-[180px] truncate">{material.Material_Sub_Head}</TableCell>
                     <TableCell className="text-slate-100 font-medium max-w-sm whitespace-pre-wrap">{material.Material_Details}</TableCell>
                     <TableCell className="font-mono text-slate-400">{material.M_Unit}</TableCell>
-                    {isAdmin && (
+                    {canManageMaterials && (
                       <TableCell align="center">
                         <button
                           onClick={() => handleToggleStatus(material.id, material.is_active)}

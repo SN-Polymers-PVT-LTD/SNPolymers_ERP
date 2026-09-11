@@ -85,6 +85,24 @@ async function createReturnRequest(req, res) {
 }
 
 /**
+ * GET /api/v1/auth/excess-fund-returns/target-zos
+ * Retrieves active ZOs with a positive available balance for HO return requests.
+ */
+async function getTargetZOs(req, res) {
+  try {
+    const { getTargetZOsForExcessReturns } = require('../services/zo.service');
+    const zos = await getTargetZOsForExcessReturns();
+    return res.status(200).json({ success: true, zos });
+  } catch (error) {
+    console.error(`getTargetZOs failed: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve target Zonal Offices for excess returns.'
+    });
+  }
+}
+
+/**
  * POST /api/v1/auth/excess-fund-returns/:id/accept
  * Accepts a return request and deducts balance. (ZO only)
  */
@@ -434,6 +452,7 @@ async function getReturnRequests(req, res) {
 
 module.exports = {
   createReturnRequest,
+  getTargetZOs,
   acceptReturnRequest,
   rejectReturnRequest,
   modifyReturnRequest,

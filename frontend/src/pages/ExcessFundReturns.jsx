@@ -85,7 +85,7 @@ const ExcessFundReturns = () => {
           setZoBalance(ownBalObj ? Number(ownBalObj.available_balance) : 0.00);
         }
       } else {
-        // Fetch target ZOs with positive available balance for excess return request
+        // Fetch target ZOs with positive available balance for excess return request.
         const zoRes = await getTargetZOs();
         if (zoRes.data?.success) setEligibleZOs(zoRes.data.zos || []);
       }

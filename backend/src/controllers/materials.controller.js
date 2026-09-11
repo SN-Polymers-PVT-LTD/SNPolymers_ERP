@@ -113,11 +113,11 @@ async function getMaterialById(req, res) {
 
 /**
  * POST /api/materials
- * Creates a new material record (Admin only)
+ * Creates a new material record (Admin/JE)
  */
 async function createMaterial(req, res) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+  if (!req.user || !['admin', 'je'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin or JE access required.' });
   }
 
   const {
@@ -245,11 +245,11 @@ async function updateMaterial(req, res) {
 
 /**
  * PATCH /api/materials/:id/status
- * Disables or changes status of a material record (Admin only)
+ * Disables or changes status of a material record (Admin/JE)
  */
 async function updateMaterialStatus(req, res) {
-  if (!req.user || req.user.role !== 'admin') {
-    return res.status(403).json({ success: false, message: 'Forbidden: Admin access required.' });
+  if (!req.user || !['admin', 'je'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, message: 'Forbidden: Admin or JE access required.' });
   }
 
   const { id } = req.params;

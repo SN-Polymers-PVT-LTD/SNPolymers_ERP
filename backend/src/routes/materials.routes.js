@@ -9,7 +9,7 @@ const {
   getSubHeadsByMainHead
 } = require('../controllers/materials.controller');
 const verifyJwt = require('../middleware/verifyJwt');
-const requireAdmin = require('../middleware/requireAdmin');
+const requireRole = require('../middleware/requireRole');
 
 const router = express.Router();
 
@@ -22,9 +22,9 @@ router.get('/subheads', getSubHeadsByMainHead);
 router.get('/', getMaterials);
 router.get('/:id', getMaterialById);
 
-// Admin-only write and status change routes
-router.post('/', requireAdmin, createMaterial);
-router.put('/:id', requireAdmin, updateMaterial);
-router.patch('/:id/status', requireAdmin, updateMaterialStatus);
+// Admin and JE may add/deactivate materials; editing existing details remains admin-only.
+router.post('/', requireRole(['admin', 'je']), createMaterial);
+router.put('/:id', requireRole(['admin']), updateMaterial);
+router.patch('/:id/status', requireRole(['admin', 'je']), updateMaterialStatus);
 
 module.exports = router;

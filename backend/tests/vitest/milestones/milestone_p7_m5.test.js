@@ -9,7 +9,8 @@ const {
   rejectReturnRequest,
   modifyReturnRequest,
   hoActionOnReturn,
-  getReturnRequests
+  getReturnRequests,
+  getTargetZOs
 } = require('../../../src/controllers/fundReturns.controller');
 
 describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Tests', () => {
@@ -125,6 +126,20 @@ describe('Milestone P7-M5 — Excess Fund Returns State Machine Integration Test
     expect(Number(res.jsonData.returnRequest.requested_amount)).toBe(2000.00);
 
     returnId1 = res.jsonData.returnRequest.id;
+  });
+
+  test('M5-TC-01a: Lists a funded active ZO as a return-request target (200)', async () => {
+    const res = mockRes();
+    await getTargetZOs({ user: { mobile_number: adminMobile, role: 'admin' } }, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.success).toBe(true);
+    expect(res.jsonData.zos).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        mobile_number: zoMobile,
+        available_balance: 5000
+      })
+    ]));
   });
 
   test('M5-TC-02: Accepting request fails with 422 if ZO has insufficient balance', async () => {

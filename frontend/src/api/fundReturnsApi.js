@@ -46,6 +46,6 @@ export const actionOnReturnRequest = (id, action, remarks_ho, requested_amount) 
   authApi.patch(`/excess-fund-returns/${encodeURIComponent(id)}/ho-action`, { action, remarks_ho, requested_amount });
 
 /**
- * Fetch eligible target ZOs for excess fund returns (ZOs with positive available balance > 0)
+ * Fetch eligible target ZOs for excess fund returns (positive available balance).
  */
 export const getTargetZOs = () => authApi.get('/excess-fund-returns/target-zos');
