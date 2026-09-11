@@ -9,9 +9,9 @@ const ACTION_OPTIONS_CASH = [
   { value: 'Reject', label: 'Reject' }
 ];
 
-// A Credit-type item (debit_bank_ac_type === 'Credit') can never be Approved
-// or Partially Approved — the backend hard-rejects that with VAL09
-// (042_credit_purchases_and_ledger.sql). Offer Credit Approved instead.
+// Credit classification is based on the canonical Debit Bank Type route.
+// The database also requires payment_mode = 'Credit' for that route. Such an
+// item can never be Approved or Partially Approved; it must use Credit Approved.
 const ACTION_OPTIONS_CREDIT = [
   { value: 'CreditApprove', label: 'Credit Approved' },
   { value: 'Hold', label: 'Hold' },

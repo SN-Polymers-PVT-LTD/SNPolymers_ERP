@@ -20,8 +20,10 @@ import {
   getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
+import { formatPaymentOffice } from '../utils/requisitionUtils';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getFundRequests } from '../api/fundRequests';
+import { getReturnRequests } from '../api/fundReturnsApi';
 import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
 import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
 import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
@@ -156,6 +158,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       { label: 'Subcontractor', value: requisition.material_details }
     ] : []),
     { label: 'Requisition Amount', value: formatCurrency(requisition.requisition_amount), accent: 'text-amber-400 font-bold' },
+    { label: 'Payment Office', value: formatPaymentOffice(requisition.payment_destination) },
     { label: 'State', value: requisition.state },
     { label: 'District', value: requisition.district },
     { label: 'Zone / Area', value: requisition.area_code },
@@ -2247,7 +2250,7 @@ const Requisitions = () => {
                 <Table>
                   <TableHeader>
                     <TableRow hover={false}>
-                      {['Requisition No.', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                      {['Requisition No.', 'Material Head', 'Amount', 'Status', 'Payment Office', 'Submitted Date', 'Actions'].map((h) => (
                         <TableCell key={h} isHeader={true}>
                           {h}
                         </TableCell>
@@ -2278,6 +2281,7 @@ const Requisitions = () => {
                           <TableCell>
                             <StatusBadge status={req.requisition_status} />
                           </TableCell>
+                          <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                           <TableCell className="text-[11px] text-slate-500">
                             {formatDate(req.created_at)}
                           </TableCell>
@@ -2601,7 +2605,7 @@ const Requisitions = () => {
                     <Table>
                       <TableHeader className="bg-slate-900/90 border-b border-white/10">
                         <TableRow hover={false} className="border-b border-white/10 bg-slate-900/90">
-                          {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                          {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Payment Office', 'Submitted Date', 'Actions'].map((h) => (
                             <TableCell key={h} isHeader={true} className="text-slate-300 font-black uppercase tracking-widest text-[10px] py-4 bg-slate-900/90">
                               {h}
                             </TableCell>
@@ -2635,6 +2639,7 @@ const Requisitions = () => {
                               <TableCell>
                                 <StatusBadge status={req.requisition_status} />
                               </TableCell>
+                              <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                               <TableCell className="text-xs text-slate-300 font-medium">
                                 {formatDate(req.created_at)}
                               </TableCell>
@@ -2763,13 +2768,19 @@ const Requisitions = () => {
           onConfirm={async ({ dateRange, workOrderFilter }) => {
             setIsExporting(true);
             try {
-              const frRes = await getFundRequests().catch(() => ({ data: { fundRequests: [] } }));
+              const [frRes, reqRes, returnRes] = await Promise.all([
+                getFundRequests().catch(() => ({ data: { fundRequests: [] } })),
+                getRequisitions().catch(() => ({ data: { requisitions: [] } })),
+                getReturnRequests().catch(() => ({ data: { returns: [] } }))
+              ]);
               const allFundRequests = frRes.data?.fundRequests || [];
-              const reqRes = await getRequisitions().catch(() => ({ data: { requisitions: [] } }));
               const allRequisitions = reqRes.data?.requisitions || reqRes.data || requisitionsData || [];
+              const allFundReturns = returnRes.data?.returns || [];
               await exportCombinedExpenditureSheet({
                 fundRequests: allFundRequests,
                 requisitions: allRequisitions,
+                fundReturns: allFundReturns,
+                projects,
                 metadata: { workOrderFilter: workOrderFilter || 'All' },
                 dateRange
               });

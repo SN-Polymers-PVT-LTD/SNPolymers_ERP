@@ -14,7 +14,7 @@ import CancelFundRequestModal from '../components/fundRequests/CancelFundRequest
 import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModal';
 
 // API Clients
-import { getFundRequests, createFundRequest, cancelFundRequest, actOnFundRequest } from '../api/fundRequests';
+import { getFundRequests, createFundRequestDraft, updateFundRequestDraft, submitFundRequest, cancelFundRequest } from '../api/fundRequests';
 import { getRequisitions } from '../api/requisitionsApi';
 import { getProjects } from '../api/projectsApi';
 import { getEstimateSummary } from '../api/estimatesApi';
@@ -109,12 +109,35 @@ const FundRequests = () => {
 
   const handleCreate = async (formData) => {
     try {
-      await createFundRequest(formData);
+      const draftResponse = await createFundRequestDraft(formData);
+      const draftId = draftResponse.data?.fundRequest?.fund_request_id || draftResponse.data?.id;
+      await submitFundRequest(draftId);
       setSuccess(`Fund request ${formData.zo_fr_no} submitted successfully.`);
       queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create fund request.');
+      throw err;
     }
+  };
+
+  const handleSaveDraft = async (formData) => {
+    const response = await createFundRequestDraft(formData);
+    setSuccess(`Fund request ${formData.zo_fr_no} saved as draft.`);
+    queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
+    return response;
+  };
+
+  const handleUpdateDraft = async (id, formData) => {
+    const response = await updateFundRequestDraft(id, formData);
+    setSuccess('Fund request draft saved.');
+    queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
+    return response;
+  };
+
+  const handleSubmitDraft = async (id) => {
+    const response = await submitFundRequest(id);
+    setSuccess('Fund request submitted to Accounts.');
+    queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
+    return response;
   };
 
   const handleCancel = async () => {
@@ -145,15 +168,6 @@ const FundRequests = () => {
     }
   };
 
-  const handleAct = async (id, actionData) => {
-    try {
-      await actOnFundRequest(id, actionData);
-      setSuccess(`Fund request successfully ${actionData.action === 'Approve' ? 'approved' : 'placed on hold'}.`);
-      queryClient.invalidateQueries({ queryKey: ['fundRequests'] });
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to act on fund request.');
-    }
-  };
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -299,7 +313,9 @@ const FundRequests = () => {
               }}
               initialWorkOrder={createWorkOrder}
               onSave={handleCreate}
-              onAct={handleAct}
+              onSaveDraft={handleSaveDraft}
+              onUpdate={handleUpdateDraft}
+              onSubmit={handleSubmitDraft}
               onCancel={handleCancelFromDetail}
             />
           </div>

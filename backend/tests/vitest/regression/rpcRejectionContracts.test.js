@@ -10,14 +10,13 @@ const {
 } = require('../../helpers/capDivergenceFixture');
 const { FROZEN_ISO, withFrozenTime } = require('../../helpers/freezeTime');
 const {
-  createFundRequest,
-  actOnFundRequest
+  createFundRequest
 } = require('../../../src/controllers/fundRequests.controller');
 const { createBill } = require('../../../src/controllers/raFinalBill.controller');
 const { actOnRequisition, payFromZoBalance } = require('../../../src/controllers/requisitions.controller');
 
 describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
-  describe('Fund request approval BUD02', () => {
+  describe('Fund request submission BUD02', () => {
     let ctx;
 
     beforeAll(async () => {
@@ -56,44 +55,37 @@ describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
       await cleanupFinancialScenario(ctx);
     });
 
-    test('rejects approval when approve_ho_amount exceeds remaining estimate capacity (BUD02)', async () => {
-      const { data: pendingFr, error: pendingErr } = await supabase
+    test('rejects submission when the requested amount exceeds remaining estimate capacity (BUD02)', async () => {
+      const { data: bank, error: bankError } = await supabase.from('indian_bank_master').select('id, bank_name')
+        .eq('bank_name', 'State Bank of India').eq('is_active', true).limit(1).maybeSingle();
+      if (bankError || !bank) throw bankError || new Error('Active State Bank of India test bank not found');
+      const { data: draftFr, error: draftErr } = await supabase
         .from('fund_requests')
         .insert({
           zo_user_id: ctx.zoMobile,
           work_order_no: ctx.workOrder,
           zo_fr_no: `FR_RPC_PEND_${ctx.suffix}`,
           zo_fr_amount: 5000,
-          request_status: 'Pending',
+          request_status: 'Draft',
+          beneficiary_name: 'Test Supplier', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234',
+          beneficiary_bank_id: bank.id, beneficiary_bank_name: bank.bank_name,
           created_by: ctx.zoMobile
         })
         .select()
         .single();
-      if (pendingErr) throw pendingErr;
-      ctx.fundRequestIds.push(pendingFr.fund_request_id);
+      if (draftErr) throw draftErr;
+      ctx.fundRequestIds.push(draftFr.fund_request_id);
 
-      const approveRes = mockRes();
-      await actOnFundRequest(
-        {
-          params: { id: pendingFr.fund_request_id },
-          user: { role: 'ho', mobile_number: ctx.hoMobile },
-          body: {
-            action: 'Approve',
-            approve_ho_amount: 5000,
-            transfer_from_account: 'CC',
-            ho_remarks: 'Should fail BUD02'
-          }
-        },
-        approveRes
-      );
-
-      expect(approveRes.statusCode).toBe(422);
-      expect(approveRes.jsonData.message).toMatch(/remaining Cost Estimate funding capacity/i);
+      const { error } = await supabase.rpc('submit_fund_request_transact', {
+        p_fund_request_id: draftFr.fund_request_id, p_submitted_by: ctx.zoMobile
+      });
+      expect(error?.code).toBe('BUD02');
+      expect(error?.message).toMatch(/remaining Cost Estimate funding capacity/i);
     });
   });
 
-  describe('Fund request approval EST01', () => {
-    test('rejects approval when no Final Approved estimate exists', async () => {
+  describe('Fund request submission EST01', () => {
+    test('rejects submission when no Final Approved estimate exists', async () => {
       await requireLocalSupabase();
       const suffix = crypto.randomUUID().substring(0, 8);
       const ctx = await seedCapDivergenceScenario({
@@ -105,6 +97,9 @@ describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
       });
 
       try {
+        const { data: bank, error: bankError } = await supabase.from('indian_bank_master').select('id, bank_name')
+          .eq('bank_name', 'State Bank of India').eq('is_active', true).limit(1).maybeSingle();
+        if (bankError || !bank) throw bankError || new Error('Active State Bank of India test bank not found');
         const { error: estUpdateErr } = await supabase
           .from('project_cost_estimates')
           .update({ estimate_status: 'Draft' })
@@ -119,38 +114,28 @@ describe('rpcRejectionContracts — BUD02 / EST01 / BAL01', () => {
           .eq('estimate_status', 'Final Approved');
         expect(remainingEst || []).toHaveLength(0);
 
-        const { data: pendingFr, error: pendingErr } = await supabase
+        const { data: draftFr, error: draftErr } = await supabase
           .from('fund_requests')
           .insert({
             zo_user_id: ctx.zoMobile,
             work_order_no: ctx.workOrder,
             zo_fr_no: `FR_EST01_${suffix}`,
             zo_fr_amount: 5000,
-            request_status: 'Pending',
+            request_status: 'Draft',
+            beneficiary_name: 'Test Supplier', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234',
+            beneficiary_bank_id: bank.id, beneficiary_bank_name: bank.bank_name,
             created_by: ctx.zoMobile
           })
           .select()
           .single();
-        if (pendingErr) throw pendingErr;
-        ctx.fundRequestIds.push(pendingFr.fund_request_id);
+        if (draftErr) throw draftErr;
+        ctx.fundRequestIds.push(draftFr.fund_request_id);
 
-        const approveRes = mockRes();
-        await actOnFundRequest(
-          {
-            params: { id: pendingFr.fund_request_id },
-            user: { role: 'ho', mobile_number: ctx.hoMobile },
-            body: {
-              action: 'Approve',
-              approve_ho_amount: 5000,
-              transfer_from_account: 'CC',
-              ho_remarks: 'Should fail EST01'
-            }
-          },
-          approveRes
-        );
-
-        expect(approveRes.statusCode).toBe(422);
-        expect(approveRes.jsonData.message).toMatch(/Final Approved cost estimate/i);
+        const { error } = await supabase.rpc('submit_fund_request_transact', {
+          p_fund_request_id: draftFr.fund_request_id, p_submitted_by: ctx.zoMobile
+        });
+        expect(error?.code).toBe('EST01');
+        expect(error?.message).toMatch(/Final Approved cost estimate/i);
       } finally {
         await cleanupFinancialScenario(ctx);
       }

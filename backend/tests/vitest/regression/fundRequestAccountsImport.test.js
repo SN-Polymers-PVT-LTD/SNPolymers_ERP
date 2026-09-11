@@ -11,7 +11,6 @@ const {
   createSheet, updateLineItem, submitSheet, actOnLineItem, deleteLineItem,
   getImportEligibleItems, importLineItem, dismissImportEligibleItem
 } = require('../../../src/controllers/acctRequisition.controller');
-const { actOnFundRequest } = require('../../../src/controllers/fundRequests.controller');
 const { supabase } = require('../../../src/db/supabase');
 
 describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () => {
@@ -85,13 +84,6 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
     return res;
   }
 
-  async function callDirectFundRequestAction(fundRequestId, mobile, body) {
-    const req = { params: { id: fundRequestId }, body, user: { role: 'accounts', mobile_number: mobile } };
-    const res = mockRes();
-    await actOnFundRequest(req, res);
-    return res;
-  }
-
   async function createTestFundRequest({ amount = 15000, remarks = 'Site advance' } = {}) {
     const frNo = `ZO/FR/TEST/${crypto.randomUUID().substring(0, 8)}`;
     const { data: fr, error } = await supabase
@@ -104,9 +96,10 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
         work_order_no: workOrder,
         beneficiary_name: 'Test Supplier',
         beneficiary_ac_no: '9876543210',
-        beneficiary_ifsc: 'TEST0001234',
-        beneficiary_bank_name: 'State Bank of India',
-        created_by: zoMobile
+      beneficiary_ifsc: 'TEST0001234',
+      beneficiary_bank_name: 'State Bank of India',
+      created_by: zoMobile,
+      request_status: 'Pending', submitted_at: new Date().toISOString(), submitted_by: zoMobile
       })
       .select()
       .single();
@@ -237,7 +230,7 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
     expect(restored).toBeDefined();
   });
 
-  test('an imported Fund Request cannot bypass Accounts Sheet approval through the direct action endpoint', async () => {
+  test('an imported Fund Request cannot bypass Accounts Sheet approval through the legacy RPC', async () => {
     const fr = await createTestFundRequest({ amount: 16000, remarks: 'Direct approval bypass guard' });
     const sheetRes = await callCreateSheet(ctx.accountsMobile);
     const sheet = sheetRes.jsonData.sheet;
@@ -252,14 +245,15 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
       .eq('zo_user_id', zoMobile)
       .maybeSingle();
 
-    const actionRes = await callDirectFundRequestAction(fr.fund_request_id, ctx.accountsMobile, {
-      action: 'Approve',
-      approve_ho_amount: 16000,
-      transfer_from_account: 'CC',
-      ho_remarks: 'Must be rejected; request is already in a sheet.'
+    const { error: actionError } = await supabase.rpc('approve_fund_request_transact', {
+      p_fund_request_id: fr.fund_request_id,
+      p_approved_amount: 16000,
+      p_transfer_from_account: 'CC',
+      p_actioned_by: ctx.accountsMobile,
+      p_remarks: 'Must be rejected; legacy path removed.'
     });
-
-    expect(actionRes.statusCode).toBe(409);
+    expect(actionError).toBeTruthy();
+    expect(actionError.message).toMatch(/approve_fund_request_transact.*(does not exist|schema cache)/i);
 
     const { data: afterFr } = await supabase
       .from('fund_requests')

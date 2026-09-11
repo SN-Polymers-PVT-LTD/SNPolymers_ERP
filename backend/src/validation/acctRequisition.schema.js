@@ -98,6 +98,18 @@ const accountsLineItemBody = z.object({
   work_order_no:          z.string().trim().optional().nullable()
                             .transform(val => (val === '' ? null : val)),
   remarks:                z.string().trim().optional().nullable(),
+}).superRefine((data, ctx) => {
+  // Empty/null values are valid for an Open-sheet draft. Once either side is
+  // explicitly Credit, however, both fields must describe the same route.
+  const debitIsCredit = data.debit_bank_ac_type === 'Credit';
+  const paymentIsCredit = data.payment_mode === 'Credit';
+  if (debitIsCredit !== paymentIsCredit) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Credit payments require both Debit Bank Type and Payment Mode to be Credit.',
+      path: ['payment_mode']
+    });
+  }
 });
 
 const addLineItemSchema = {

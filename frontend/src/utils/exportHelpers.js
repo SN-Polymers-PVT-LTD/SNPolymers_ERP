@@ -282,7 +282,7 @@ export async function exportArchiveToZip(estimate, items, quotations) {
   link.click();
 }
 
-import { isFinanciallyActiveRequisition } from './requisitionUtils';
+import { formatPaymentOffice, isFinanciallyActiveRequisition } from './requisitionUtils';
 
 export async function exportSubcontractorRequisitionsToExcel(requisitions, metadata = {}) {
   if (!requisitions || requisitions.length === 0) {
@@ -313,6 +313,7 @@ export async function exportSubcontractorRequisitionsToExcel(requisitions, metad
     "Work Order No.",
     "Requisition No.",
     "Status",
+    "Payment Office",
     "Requested Amount (INR)",
     "Approved Amount (INR)",
     "Effective Liability (INR)",
@@ -335,6 +336,7 @@ export async function exportSubcontractorRequisitionsToExcel(requisitions, metad
       r.work_order_no || '',
       r.requisition_no || '',
       r.requisition_status || '',
+      formatPaymentOffice(r.payment_destination, ''),
       reqAmt,
       appAmt,
       effectiveLiability,
@@ -567,6 +569,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
       "Requisition No.",
       "Work Order No.",
       "Status",
+      "Payment Office",
       "Requested Amount (INR)",
       "Approved Amount (INR)",
       "Effective Liability (INR)",
@@ -586,6 +589,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
         r.requisition_no || '',
         r.work_order_no || '',
         r.requisition_status || '',
+        formatPaymentOffice(r.payment_destination, ''),
         reqAmt,
         appAmt,
         effectiveLiability,
@@ -602,6 +606,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
       { wch: 18 }, // Req No
       { wch: 16 }, // WO
       { wch: 14 }, // Status
+      { wch: 16 }, // Payment Office
       { wch: 18 }, // Req Amt
       { wch: 18 }, // App Amt
       { wch: 20 }, // Eff Liability
@@ -750,6 +755,7 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
       "Subcontractor",
       "Material Sub Head",
       "Status",
+      "Payment Office",
       "Requested Amount (INR)",
       "Approved Amount (INR)",
       "Effective Liability (INR)",
@@ -764,6 +770,7 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
       r.material_details || '',
       r.material_sub_head || '',
       r.requisition_status || '',
+      formatPaymentOffice(r.payment_destination, ''),
       Number(r.requisition_amount || 0),
       Number(r.approved_amount || 0),
       r.requisition_status === 'Approved' ? Number(r.approved_amount || 0) : 0.00,
@@ -773,7 +780,7 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
     ]);
     const reqWorksheet = XLSX.utils.aoa_to_sheet([...reqHeader, reqTableHeaders, ...reqDataRows]);
     reqWorksheet['!cols'] = [
-      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }
+      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }
     ];
     XLSX.utils.book_append_sheet(workbook, reqWorksheet, "Requisitions");
   }
@@ -795,6 +802,8 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
 export async function exportCombinedExpenditureSheet({
   fundRequests = [],
   requisitions = [],
+  fundReturns = [],
+  projects = [],
   metadata = {},
   dateRange
 } = {}) {
@@ -803,6 +812,33 @@ export async function exportCombinedExpenditureSheet({
   // Filter fund requests and requisitions by workOrder & dateRange
   let filteredFrs = [...fundRequests];
   let filteredReqs = [...requisitions];
+  const projectByWorkOrder = new Map(projects.map(p => [String(p.work_order_no || '').trim().toLowerCase(), p]));
+
+  const returnDate = r => r.completed_at || r.accepted_at || r.updated_at;
+  const returnRows = fundReturns
+    .filter(r => r.status === 'Completed')
+    .flatMap(r => {
+      const breakdown = Array.isArray(r.breakdown) ? r.breakdown : [];
+      const total = Number(r.requested_amount);
+      const valid = Number.isFinite(total) && breakdown.length > 0 &&
+        breakdown.every(b => b && b.work_order_no && Number.isFinite(Number(b.amount)) && Number(b.amount) > 0) &&
+        Math.abs(breakdown.reduce((sum, b) => sum + Number(b.amount), 0) - total) < 0.01;
+      if (!valid) {
+        console.warn('Skipping malformed completed excess fund return:', r.id);
+        return [];
+      }
+      return breakdown.map(b => {
+        const wo = String(b.work_order_no).trim();
+        const project = projectByWorkOrder.get(wo.toLowerCase());
+        return {
+          transactionType: 'EXCESS_FUND_RETURN', date: returnDate(r), referenceNo: '', jeName: '',
+          zoName: r.zo_name || r.zo_user_id || '', pdfName: '', mainHead: 'Excess Fund Return',
+          secondField: '', thirdField: '', remarks: r.remarks_zo || r.remarks_ho || 'Fund returned to HO',
+          amount: Number(b.amount), paymentOffice: '', beneficiaryName: 'Head Office', accountNo: '',
+          ifscCode: '', bankName: '', workOrder: wo, workOrderDetails: project?.site_details || ''
+        };
+      });
+    });
 
   if (metadata.workOrderFilter && metadata.workOrderFilter !== 'All') {
     const wo = metadata.workOrderFilter.trim().toLowerCase();
@@ -837,21 +873,39 @@ export async function exportCombinedExpenditureSheet({
         return d <= endDate;
       });
     }
+    // Return rows are already expanded, so apply the date range to the transaction date.
+    // (Work-order filtering is applied below at allocation-row level.)
   }
 
-  if (filteredFrs.length === 0 && filteredReqs.length === 0) {
-    alert('No fund requests or payment requisitions found matching the selected criteria.');
+  let filteredReturns = returnRows;
+  if (metadata.workOrderFilter && metadata.workOrderFilter !== 'All') {
+    const wo = metadata.workOrderFilter.trim().toLowerCase();
+    filteredReturns = filteredReturns.filter(r => r.workOrder.toLowerCase() === wo);
+  }
+  if (dateRange) {
+    const start = dateRange.start || dateRange.startDate;
+    const end = dateRange.end || dateRange.endDate;
+    if (start) filteredReturns = filteredReturns.filter(r => new Date(r.date) >= new Date(new Date(start).setHours(0, 0, 0, 0)));
+    if (end) filteredReturns = filteredReturns.filter(r => new Date(r.date) <= new Date(new Date(end).setHours(23, 59, 59, 999)));
+  }
+  const rightSideTransactions = [
+    ...filteredReqs.map(r => ({ transactionType: 'PAYMENT_REQUISITION', date: r.payment_date || r.created_at || r.login_date, req: r })),
+    ...filteredReturns
+  ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (filteredFrs.length === 0 && rightSideTransactions.length === 0) {
+    alert('No fund requests, payment requisitions, or excess fund returns found matching the selected criteria.');
     return;
   }
 
   // Row 1: Empty row
-  const row1 = Array(22).fill('');
+  const row1 = Array(23).fill('');
 
   // Row 2: Note merged over M2:N2 (col index 12 and 13 - 2nd Field & 3rd Field)
-  const row2 = Array(22).fill('');
+  const row2 = Array(23).fill('');
   row2[12] = 'If Material Main Head is “Sub Contractor” \nthe selected 2nd and 3rd dropdown values should be displayed in the 2nd and 3rd fields.';
 
-  // Row 3: 22 Headers matching modified management specification
+  // Row 3: 23 Headers matching modified management specification
   const row3 = [
     'Date',
     'Approved amount of the ZO → HO Fund Request.',
@@ -869,6 +923,7 @@ export async function exportCombinedExpenditureSheet({
     '3rd Field',
     'Remarks',
     'ZO Approved Amount',
+    'Payment Office',
     'Beneficiary Name',
     'Account No',
     'IFSC Code',
@@ -877,7 +932,7 @@ export async function exportCombinedExpenditureSheet({
     'Work Order Details'
   ];
 
-  const maxRows = Math.max(filteredFrs.length, filteredReqs.length);
+  const maxRows = Math.max(filteredFrs.length, rightSideTransactions.length);
   const dataRows = [];
 
   const formatDateVal = (dateStr) => {
@@ -893,7 +948,9 @@ export async function exportCombinedExpenditureSheet({
 
   for (let i = 0; i < maxRows; i++) {
     const fr = filteredFrs[i] || null;
-    const req = filteredReqs[i] || null;
+    const outflow = rightSideTransactions[i] || null;
+    const req = outflow?.transactionType === 'PAYMENT_REQUISITION' ? outflow.req : null;
+    const ret = outflow?.transactionType === 'EXCESS_FUND_RETURN' ? outflow : null;
 
     // Left Side: Inflow (ZO -> HO Fund Request)
     const frDate = fr ? formatDateVal(fr.approve_ho_date || fr.zo_date || fr.created_at) : '';
@@ -903,23 +960,24 @@ export async function exportCombinedExpenditureSheet({
     const frAmount = fr ? (Number(fr.approve_ho_amount || fr.zo_fr_amount || 0)) : null;
 
     // Right Side: Outflow (Payment Requisition)
-    const reqDate = req ? formatDateVal(req.payment_date || req.created_at || req.login_date) : '';
+    const reqDate = outflow ? formatDateVal(outflow.date) : '';
     const reqNo = req ? (req.requisition_no || '') : '';
     const jeName = req ? (req.requester_name || req.requester_user_id || '') : '';
-    const zoName = req ? (req.approved_name || req.zo_name || req.zo_user_id || '') : '';
+    const zoName = req ? (req.approved_name || req.zo_name || req.zo_user_id || '') : (ret?.zoName || '');
     const reqPdfName = req ? (req.original_filename || (req.requisition_pdf_url ? req.requisition_pdf_url.split('/').pop() : '') || '') : '';
-    const mainHead = req ? (req.material_main_head || '') : '';
+    const mainHead = req ? (req.material_main_head || '') : (ret?.mainHead || '');
     const isSubContractor = (mainHead || '').trim() === 'Sub Contractor';
-    const secondField = (req && isSubContractor) ? (req.material_sub_head || '') : '';
-    const thirdField = (req && isSubContractor) ? (req.material_details || '') : '';
-    const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : '';
-    const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : null;
-    const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : '';
-    const accountNo = req ? (req.beneficiary_ac_no || '') : '';
+    const secondField = req && isSubContractor ? (req.material_sub_head || '') : (ret?.secondField || '');
+    const thirdField = req && isSubContractor ? (req.material_details || '') : (ret?.thirdField || '');
+    const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : (ret?.remarks || '');
+    const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : (ret ? ret.amount : null);
+    const paymentOffice = req ? formatPaymentOffice(req.payment_destination, '') : (ret?.paymentOffice || '');
+    const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : (ret?.beneficiaryName || '');
+    const accountNo = req ? (req.beneficiary_ac_no || '') : (ret?.accountNo || '');
     const ifscCode = req ? (req.beneficiary_ifsc || '') : '';
     const bankName = req ? (req.beneficiary_bank_name || '') : '';
-    const workOrder = req ? (req.work_order_no || '') : '';
-    const workOrderDetails = req ? (req.site_details || '') : '';
+    const workOrder = req ? (req.work_order_no || '') : (ret?.workOrder || '');
+    const workOrderDetails = req ? (req.site_details || '') : (ret?.workOrderDetails || '');
 
     dataRows.push([
       frDate,
@@ -938,6 +996,7 @@ export async function exportCombinedExpenditureSheet({
       thirdField,
       remarks,
       zoApprovedAmount,
+      paymentOffice,
       beneficiaryName,
       accountNo,
       ifscCode,
@@ -950,7 +1009,7 @@ export async function exportCombinedExpenditureSheet({
   const aoa = [row1, row2, row3, ...dataRows];
   const worksheet = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Column widths matching expanded 22-column specification
+  // Column widths matching expanded 23-column specification
   worksheet['!cols'] = [
     { wch: 12 }, // A: Date
     { wch: 45 }, // B: Approved amount of ZO -> HO Fund Request
@@ -968,12 +1027,13 @@ export async function exportCombinedExpenditureSheet({
     { wch: 22 }, // N: 3rd Field
     { wch: 16 }, // O: Remarks
     { wch: 22 }, // P: ZO Approved Amount
-    { wch: 30 }, // Q: Beneficiary Name
-    { wch: 20 }, // R: Account No
-    { wch: 15 }, // S: IFSC Code
-    { wch: 18 }, // T: Bank Name
-    { wch: 16 }, // U: Work_Order
-    { wch: 25 }  // V: Work Order Details
+    { wch: 16 }, // Q: Payment Office
+    { wch: 30 }, // R: Beneficiary Name
+    { wch: 20 }, // S: Account No
+    { wch: 15 }, // T: IFSC Code
+    { wch: 18 }, // U: Bank Name
+    { wch: 16 }, // V: Work_Order
+    { wch: 25 }  // W: Work Order Details
   ];
 
   // Merge M2:N2 (col index 12 to 13 in 0-indexed coords for 2nd Field & 3rd Field)
@@ -1001,6 +1061,3 @@ export async function exportCombinedExpenditureSheet({
   const filename = `Expenditure_Sheet${cleanWo}_${dateSuffix}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }
-
-
-

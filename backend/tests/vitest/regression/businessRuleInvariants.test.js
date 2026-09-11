@@ -143,7 +143,7 @@ describe('businessRuleInvariants — estimate ≠ WO value matrix', () => {
     }
   });
 
-  test('create fund request rejects when pending FRs consume submitted pipeline (spec 4c)', async () => {
+  test('draft creation does not reserve capacity; submission owns the pipeline gate (spec 4c)', async () => {
     const suffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedCapDivergenceScenario({
       suffix: `br_create_${suffix}`,
@@ -182,8 +182,9 @@ describe('businessRuleInvariants — estimate ≠ WO value matrix', () => {
         },
         overRes
       );
-      expect(overRes.statusCode).toBe(400);
-      expect(overRes.jsonData.message).toMatch(/cannot exceed the remaining/i);
+      expect(overRes.statusCode).toBe(201);
+      expect(overRes.jsonData.fundRequest.request_status).toBe('Draft');
+      localCtx.fundRequestIds.push(overRes.jsonData.fundRequest.fund_request_id);
 
       const okRes = mockRes();
       await createFundRequest(

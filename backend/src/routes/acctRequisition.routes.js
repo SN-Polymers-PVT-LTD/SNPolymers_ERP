@@ -2,7 +2,7 @@ const express = require('express');
 const {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty, addLineItem, updateLineItem,
   deleteLineItem, submitSheet, actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
-  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem, restoreFundRequestImport,
   getBankBalances, upsertBankBalance, getBankBalanceLedger, lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary,
   getBeneficiaries, getAccountSubTitles, upsertAccountSubTitle,
   getParticulars, upsertParticular,
@@ -66,6 +66,7 @@ router.post('/items/:itemId/resubmit', requireRole(accountsRoles), validateReque
 router.get('/import-eligible-items', requireRole(accountsRoles), getImportEligibleItems);
 router.post('/import-eligible-items/:itemId/import', requireRole(accountsRoles), validateRequest(importLineItemSchema), importLineItem);
 router.post('/import-eligible-items/:itemId/dismiss', requireRole(accountsRoles), validateRequest(dismissLineItemSchema), dismissImportEligibleItem);
+router.post('/import-eligible-items/fund-request/:id/restore', requireRole(accountsRoles), restoreFundRequestImport);
 
 router.get('/credit-ledger', requireRole(readerRoles), getCreditLedger);
 router.post('/credit-ledger/:ledgerId/import', requireRole(accountsRoles), validateRequest(importCreditInstallmentSchema), importCreditInstallment);

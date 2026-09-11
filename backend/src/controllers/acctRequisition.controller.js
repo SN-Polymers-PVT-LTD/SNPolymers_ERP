@@ -697,7 +697,7 @@ async function actOnLineItem(req, res) {
   try {
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, requisition_status, debit_bank_ac_type, req_amount')
+      .select('id, requisition_status, debit_bank_ac_type, payment_mode, req_amount')
       .eq('id', itemId)
       .maybeSingle();
 
@@ -712,6 +712,13 @@ async function actOnLineItem(req, res) {
     }
 
     let data, rpcErr;
+
+    if ((action === 'Approve' || action === 'PartiallyApprove') && item.payment_mode === 'Credit') {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit payment rows must use Credit Approved.'
+      });
+    }
 
     if (action === 'Approve' || action === 'PartiallyApprove') {
       ({ data, error: rpcErr } = await supabase.rpc('approve_acct_line_item_transact', {
@@ -1139,22 +1146,19 @@ async function getImportEligibleItems(req, res) {
       }
     }
 
-    // Fund Requests queued for Accounts have requisition_status = 'Pending Review' (or 'On Hold')
+    // Only submitted, unimported Pending Fund Requests enter the Accounts queue.
     let fundReqs = [];
     let fundReqsCount = 0;
-    if (!query.status || query.status === 'Pending Review' || query.status === 'On Hold') {
+    if (!query.status || query.status === 'Pending Review') {
       let frQuery = supabase
         .from('fund_requests')
         .select('*', { count: 'exact' })
         .is('accounts_line_item_id', null)
-        .eq('accounts_import_dismissed', false);
+        .eq('accounts_import_dismissed', false)
+        .eq('request_status', 'Pending');
 
       if (query.status === 'Pending Review') {
         frQuery = frQuery.eq('request_status', 'Pending');
-      } else if (query.status === 'On Hold') {
-        frQuery = frQuery.eq('request_status', 'Hold');
-      } else {
-        frQuery = frQuery.in('request_status', ['Pending', 'Hold']);
       }
 
       if (query.particulars) {
@@ -1164,15 +1168,15 @@ async function getImportEligibleItems(req, res) {
         frQuery = frQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
       }
       if (query.date_from) {
-        frQuery = frQuery.gte('created_at', query.date_from);
+        frQuery = frQuery.gte('submitted_at', query.date_from);
       }
       if (query.date_to) {
-        frQuery = frQuery.lte('created_at', `${query.date_to}T23:59:59.999`);
+        frQuery = frQuery.lte('submitted_at', `${query.date_to}T23:59:59.999`);
       }
 
       // If debit_bank_ac_type filter is present, fund requests have no debit bank yet so exclude
       if (!query.debit_bank_ac_type && (!query.account_sub_title || 'fund request'.includes(query.account_sub_title.toLowerCase()))) {
-        const { data: fetchedFrs, count: fCount, error: frErr } = await frQuery.order('created_at', { ascending: false }).limit(5000);
+        const { data: fetchedFrs, count: fCount, error: frErr } = await frQuery.order('submitted_at', { ascending: false }).limit(5000);
         if (frErr) throw frErr;
         fundReqs = (fetchedFrs || []).map(f => ({
           id: f.fund_request_id,
@@ -1193,10 +1197,10 @@ async function getImportEligibleItems(req, res) {
           payment_mode: null,
           cheque_no: null,
           cheque_date: null,
-          requisition_status: f.request_status === 'Hold' ? 'On Hold' : 'Pending Review',
+          requisition_status: 'Pending Review',
           work_order_no: f.work_order_no,
           source_fund_request_id: f.fund_request_id,
-          created_at: f.created_at
+          created_at: f.submitted_at || f.created_at
         }));
         fundReqsCount = fCount || fundReqs.length;
       }
@@ -1319,6 +1323,29 @@ async function importLineItem(req, res) {
   } catch (error) {
     console.error(`importLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to import line item.' });
+  }
+}
+
+/** Restore a dismissed, unimported submitted Fund Request to the queue. */
+async function restoreFundRequestImport(req, res) {
+  const { id } = req.params;
+  if (!uuidRegex.test(id)) return res.status(400).json({ success: false, message: 'Invalid Fund Request ID.' });
+  try {
+    const { data, error } = await supabase
+      .from('fund_requests')
+      .update({ accounts_import_dismissed: false, updated_at: new Date().toISOString() })
+      .eq('fund_request_id', id)
+      .eq('request_status', 'Pending')
+      .is('accounts_line_item_id', null)
+      .eq('accounts_import_dismissed', true)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(409).json({ success: false, message: 'Only dismissed, unimported Pending Fund Requests can be restored.' });
+    return res.status(200).json({ success: true, fundRequest: data, message: 'Fund Request restored to the Accounts import queue.' });
+  } catch (error) {
+    console.error(`restoreFundRequestImport failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to restore Fund Request.' });
   }
 }
 
@@ -2397,7 +2424,7 @@ module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
-  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem, restoreFundRequestImport,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,

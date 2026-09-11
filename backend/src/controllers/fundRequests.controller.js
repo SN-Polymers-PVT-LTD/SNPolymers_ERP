@@ -4,13 +4,17 @@ const { supabase } = require('../db/supabase');
 const { getFinalApprovedEstimateMap, getFundRequestSubmittedTotal, getApprovedEstimateAmount } = require('../services/workOrderCapacity.service');
 const crypto = require('crypto');
 const validate = require('../validation/validate');
-const { createFundRequestSchema, actOnFundRequestSchema, cancelFundRequestSchema } = require('../validation/fundRequest.schema');
-const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary } = require('../services/beneficiaryMaster.service');
+const {
+  createFundRequestSchema,
+  updateFundRequestDraftSchema,
+  submitFundRequestSchema,
+  cancelFundRequestSchema
+} = require('../validation/fundRequest.schema');
+const { BeneficiaryValidationError, resolveBeneficiaryBank } = require('../services/beneficiaryMaster.service');
 
 const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-const VALID_STATUSES = ['Pending', 'Approved', 'Hold', 'Cancelled'];
-const VALID_TRANSFER_ACCOUNTS = ['CC', 'OD', 'CR'];
+const VALID_STATUSES = ['Draft', 'Pending', 'Approved', 'Hold', 'Returned', 'Rejected', 'Cancelled'];
 
 function getEffectiveFrRole(role) {
   return role;
@@ -39,7 +43,8 @@ async function resolveDisplayNames(mobiles) {
 
 /**
  * POST /api/v1/auth/fund-requests
- * Creates a new fund request.
+ * Creates a new fund request draft. Capacity reservation and notification
+ * happen only in submitFundRequest.
  */
 async function createFundRequest(req, res) {
   if (!validate(req, res, createFundRequestSchema)) return;
@@ -52,7 +57,8 @@ async function createFundRequest(req, res) {
   const finalRemarks = (zo_remarks || remarks || '').trim() || null;
 
   try {
-    // Validate beneficiary_bank_id and resolve bank name snapshot
+    // Resolve a supplied bank for the draft snapshot, but do not mutate the
+    // shared beneficiary directory until the draft is submitted.
     let resolvedBankName, validatedBankId;
     try {
       ({ validatedBankId, resolvedBankName } = await resolveBeneficiaryBank(beneficiary_bank_id, beneficiary_bank_name));
@@ -63,15 +69,6 @@ async function createFundRequest(req, res) {
       throw err;
     }
 
-    // Upsert into the shared projects_beneficiary_master directory
-    const resolvedBeneficiaryId = await upsertProjectsBeneficiary({
-      acNo: beneficiary_ac_no,
-      ifsc: beneficiary_ifsc,
-      name: beneficiary_name,
-      bankId: validatedBankId,
-      bankName: resolvedBankName,
-      actorMobile: req.user.mobile_number
-    });
     // Unique check
     const { count, error: countError } = await supabase
       .from('fund_requests')
@@ -101,26 +98,6 @@ async function createFundRequest(req, res) {
       return res.status(400).json({ success: false, message: 'Work Order must be Active (Running) or Under Maintenance.' });
     }
 
-    // Verify that the Work Order has a Final Approved cost estimate
-    const estimateAmount = await getApprovedEstimateAmount(work_order_no.trim());
-    if (estimateAmount == null) {
-      return res.status(400).json({
-        success: false,
-        message: 'No Final Approved cost estimate found for this Work Order.'
-      });
-    }
-
-    const submittedTotal = await getFundRequestSubmittedTotal(work_order_no.trim());
-    const fundingCap = estimateAmount;
-    const remainingCapacity = fundingCap - submittedTotal;
-
-    if (amount > remainingCapacity) {
-      return res.status(400).json({
-        success: false,
-        message: `Requested amount (₹${amount.toLocaleString('en-IN')}) cannot exceed the remaining Cost Estimate funding capacity (₹${remainingCapacity.toLocaleString('en-IN')}).`
-      });
-    }
-
     const { data: newFr, error: insertError } = await supabase
       .from('fund_requests')
       .insert([
@@ -131,8 +108,8 @@ async function createFundRequest(req, res) {
           zo_fr_amount: amount,
           zo_remarks: finalRemarks,
           created_by: req.user.mobile_number,
-          request_status: 'Pending',
-          beneficiary_id: resolvedBeneficiaryId,
+          request_status: 'Draft',
+          beneficiary_id: null,
           beneficiary_name: beneficiary_name?.trim() || null,
           beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
           beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
@@ -150,11 +127,6 @@ async function createFundRequest(req, res) {
       throw insertError;
     }
 
-    const { notifyAccountsFundRequestSubmitted } = require('../services/telegram.service');
-    notifyAccountsFundRequestSubmitted(newFr).catch(err => {
-      console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
-    });
-
     return res.status(201).json({
       success: true,
       fundRequest: newFr,
@@ -163,7 +135,7 @@ async function createFundRequest(req, res) {
         id: newFr.fund_request_id
       },
       id: newFr.fund_request_id,
-      message: 'Fund request created successfully.'
+      message: 'Fund request draft created.'
     });
 
   } catch (error) {
@@ -193,6 +165,8 @@ async function getFundRequests(req, res) {
 
     if (effectiveRole === 'zo') {
       dbQuery = dbQuery.eq('zo_user_id', req.user.mobile_number);
+    } else if (effectiveRole === 'accounts' || effectiveRole === 'ho') {
+      dbQuery = dbQuery.neq('request_status', 'Draft');
     }
 
     // Optional status filter
@@ -322,6 +296,9 @@ async function getFundRequestById(req, res) {
     if (effectiveRole === 'zo' && fr.zo_user_id !== req.user.mobile_number) {
       return res.status(404).json({ success: false, message: 'Fund request not found.' });
     }
+    if ((effectiveRole === 'accounts' || effectiveRole === 'ho') && fr.request_status === 'Draft') {
+      return res.status(404).json({ success: false, message: 'Fund request not found.' });
+    }
 
     const userMap = await resolveDisplayNames([fr.zo_user_id, fr.approve_ho_user_id, fr.cancelled_by]);
 
@@ -343,10 +320,86 @@ async function getFundRequestById(req, res) {
   }
 }
 
-/**
- * PATCH /api/v1/auth/fund-requests/:id/action
- * Workflow action on a fund request (Approve or Hold) by HO or Admin.
- */
+/** PATCH /fund-requests/:id — update an unsubmitted draft. */
+async function updateFundRequestDraft(req, res) {
+  if (!validate(req, res, updateFundRequestDraftSchema)) return;
+  const { id } = req.params;
+  const patch = { ...req.body };
+  if (patch.work_order_no !== undefined) patch.work_order_no = patch.work_order_no.trim();
+  if (patch.zo_fr_no !== undefined) patch.zo_fr_no = patch.zo_fr_no.trim();
+  if (patch.zo_remarks !== undefined) patch.zo_remarks = patch.zo_remarks?.trim() || null;
+  if (patch.beneficiary_ifsc !== undefined) patch.beneficiary_ifsc = patch.beneficiary_ifsc?.trim().toUpperCase() || null;
+  if (patch.beneficiary_bank_name !== undefined) patch.beneficiary_bank_name = patch.beneficiary_bank_name?.trim() || null;
+
+  try {
+    const { data, error } = await supabase
+      .from('fund_requests')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('fund_request_id', id)
+      .eq('zo_user_id', req.user.mobile_number)
+      .eq('request_status', 'Draft')
+      .is('accounts_line_item_id', null)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(409).json({ success: false, message: 'Only your unimported Draft fund requests can be edited.' });
+    return res.status(200).json({ success: true, fundRequest: data, message: 'Fund request draft saved.' });
+  } catch (error) {
+    if (error.code === '23505') return res.status(409).json({ success: false, message: 'A fund request with this number already exists.' });
+    console.error(`updateFundRequestDraft failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save fund request draft.' });
+  }
+}
+
+/** POST /fund-requests/:id/submit — reserve capacity and notify Accounts. */
+async function submitFundRequest(req, res) {
+  if (!validate(req, res, submitFundRequestSchema)) return;
+  const { id } = req.params;
+  try {
+    const { data: draft, error: draftError } = await supabase
+      .from('fund_requests').select('*').eq('fund_request_id', id).maybeSingle();
+    if (draftError) throw draftError;
+    if (!draft) return res.status(404).json({ success: false, message: 'Fund request not found.' });
+    if (draft.zo_user_id !== req.user.mobile_number && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'You can only submit your own fund requests.' });
+    }
+    if (draft.request_status !== 'Draft') {
+      return res.status(409).json({ success: false, message: `Only Draft fund requests can be submitted. Current status: ${draft.request_status}` });
+    }
+
+    let bankSnapshot;
+    try {
+      bankSnapshot = await resolveBeneficiaryBank(draft.beneficiary_bank_id, draft.beneficiary_bank_name);
+      if (!draft.beneficiary_name || !draft.beneficiary_ac_no || !draft.beneficiary_ifsc || !bankSnapshot.validatedBankId) {
+        return res.status(400).json({ success: false, message: 'Complete beneficiary bank details are required before submission.' });
+      }
+    } catch (err) {
+      if (err instanceof BeneficiaryValidationError) return res.status(err.status).json({ success: false, message: err.message });
+      throw err;
+    }
+
+    const { data: submitted, error: rpcError } = await supabase.rpc('submit_fund_request_transact', {
+      p_fund_request_id: id, p_submitted_by: req.user.mobile_number
+    });
+    if (rpcError) {
+      if (rpcError.code === 'BUD02') return res.status(422).json({ success: false, message: rpcError.message });
+      if (rpcError.code === 'STA01' || rpcError.code === 'STA06') return res.status(409).json({ success: false, message: rpcError.message });
+      if (rpcError.code === 'EST01' || rpcError.code === 'VAL01') return res.status(422).json({ success: false, message: rpcError.message });
+      throw rpcError;
+    }
+    const { notifyAccountsFundRequestSubmitted } = require('../services/telegram.service');
+    notifyAccountsFundRequestSubmitted(submitted).catch(err => console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`));
+    return res.status(200).json({ success: true, fundRequest: submitted, message: 'Fund request submitted to Accounts.' });
+  } catch (error) {
+    console.error(`submitFundRequest failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to submit fund request.' });
+  }
+}
+
+/* Legacy direct Fund Request action removed. The historical implementation is
+ * retained in this comment only as migration context; no runtime caller or
+ * route exposes it. */
+/*
 async function actOnFundRequest(req, res) {
   if (!validate(req, res, actOnFundRequestSchema)) return;
   const { id } = req.params;
@@ -484,6 +537,7 @@ async function actOnFundRequest(req, res) {
   }
 }
 
+*/
 /**
  * PATCH /api/v1/auth/fund-requests/:id/cancel
  * Cancels a fund request. Restricted to creator ZO or Admin.
@@ -510,10 +564,10 @@ async function cancelFundRequest(req, res) {
       });
     }
 
-    if (fr.request_status !== 'Pending') {
+    if (!['Draft', 'Pending'].includes(fr.request_status) || fr.accounts_line_item_id) {
       return res.status(403).json({
         success: false,
-        message: `Only Pending fund requests can be cancelled. Current status: ${fr.request_status}`
+        message: `Only unimported Draft or Pending fund requests can be cancelled. Current status: ${fr.request_status}`
       });
     }
 
@@ -525,7 +579,8 @@ async function cancelFundRequest(req, res) {
         cancelled_at: new Date().toISOString()
       })
       .eq('fund_request_id', id)
-      .eq('request_status', 'Pending') // optimistic lock
+      .in('request_status', ['Draft', 'Pending'])
+      .is('accounts_line_item_id', null)
       .select()
       .maybeSingle();
 
@@ -553,6 +608,7 @@ module.exports = {
   createFundRequest,
   getFundRequests,
   getFundRequestById,
-  actOnFundRequest,
+  updateFundRequestDraft,
+  submitFundRequest,
   cancelFundRequest
 };

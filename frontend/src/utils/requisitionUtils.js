@@ -11,3 +11,9 @@ export function isFinanciallyActiveRequisition(status) {
   const s = String(status).trim();
   return s !== 'Cancelled' && s !== 'Rejected';
 }
+
+export function formatPaymentOffice(paymentDestination, emptyValue = '—') {
+  if (paymentDestination === 'ZO_BALANCE') return 'ZO Office';
+  if (paymentDestination === 'ACCOUNTS') return 'HO Office';
+  return emptyValue;
+}

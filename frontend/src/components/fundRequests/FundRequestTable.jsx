@@ -8,7 +8,6 @@ const formatCurrency = (val) =>
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelClick }) => {
-  const isApproverRole = user?.role === 'accounts' || user?.role === 'admin';
   const isZoOrAdmin = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
 
   return (
@@ -28,7 +27,9 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
           const isHold = req.request_status === 'Hold';
           const isImported = !!req.accounts_line_item_id;
           const canCancel = isPending && isZoOrAdmin && !isImported;
-          const canAct = (isPending || isHold) && isApproverRole && !isImported;
+          // Fund Requests are no longer directly approvable here. Accounts
+          // actions are performed exclusively on the Accounts Requisition Sheet.
+          const canAct = false;
 
           return (
             <TableRow 

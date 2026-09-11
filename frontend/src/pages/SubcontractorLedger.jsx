@@ -15,7 +15,7 @@ import {
   exportSubcontractorLedgerStatementToExcel,
   exportAllSubcontractorLedgersToExcel
 } from '../utils/exportHelpers';
-import { isFinanciallyActiveRequisition } from '../utils/requisitionUtils';
+import { formatPaymentOffice, isFinanciallyActiveRequisition } from '../utils/requisitionUtils';
 
 const VIEW_TABS = [
   { value: 'balances', label: 'Balances' },
@@ -718,6 +718,7 @@ const SubcontractorLedger = () => {
                         <TableCell isHeader align="right">Requested</TableCell>
                         <TableCell isHeader align="right">Approved</TableCell>
                         <TableCell isHeader>Status</TableCell>
+                        <TableCell isHeader>Payment Office</TableCell>
                         <TableCell isHeader>Requested By</TableCell>
                         <TableCell isHeader>Creation Date</TableCell>
                         <TableCell isHeader>Approved On</TableCell>
@@ -743,6 +744,7 @@ const SubcontractorLedger = () => {
                               {r.requisition_status}
                             </Badge>
                           </TableCell>
+                          <TableCell><span className="text-slate-300 text-xs">{formatPaymentOffice(r.payment_destination)}</span></TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{r.requester_name}</span>
                           </TableCell>

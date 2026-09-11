@@ -21,7 +21,8 @@ const STATUS_VARIANTS = {
   'Credit Approved': 'blue'
 };
 
-const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].map(v => ({ value: v, label: v }));
+const CASH_PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT']
+  .map(v => ({ value: v, label: v }));
 
 // Backend sets ho_actioned_at (not the generic updated_at) at the moment a row
 // transitions into Hold (act_acct_line_item_non_approve_transact) — the precise
@@ -139,6 +140,29 @@ const LineItemRow = ({
   }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
+
+  // Debit Bank Type is the canonical Credit selector. Keep the two persisted
+  // fields coupled so HO cannot classify a Credit purchase as cash (or vice
+  // versa). Credit is a virtual bank route, not a cash payment mode.
+  const handleDebitBankChange = (value) => {
+    setDraft(prev => {
+      if (value === 'Credit') {
+        return {
+          ...prev,
+          debit_bank_ac_type: 'Credit',
+          payment_mode: 'Credit',
+          cheque_no: '',
+          cheque_date: ''
+        };
+      }
+
+      return {
+        ...prev,
+        debit_bank_ac_type: value,
+        payment_mode: prev.payment_mode === 'Credit' ? '' : prev.payment_mode
+      };
+    });
+  };
 
   const handleSubTitleTextChange = (text) => {
     const match = subTitleOptions.find(o => o.label.trim().toLowerCase() === text.trim().toLowerCase());
@@ -498,7 +522,7 @@ const LineItemRow = ({
         <Select
           disabled={readOnly}
           value={draft.debit_bank_ac_type}
-          onChange={(e) => setField('debit_bank_ac_type', e.target.value)}
+          onChange={(e) => handleDebitBankChange(e.target.value)}
           options={[{ value: '', label: 'Select...' }, ...bankOptions]}
         />
       </TableCell>
@@ -514,10 +538,12 @@ const LineItemRow = ({
       <TableCell className="min-w-[160px]">
         <div className="flex flex-col gap-1.5">
           <Select
-            disabled={readOnly}
+            disabled={readOnly || draft.debit_bank_ac_type === 'Credit'}
             value={draft.payment_mode}
             onChange={(e) => setField('payment_mode', e.target.value)}
-            options={[{ value: '', label: 'Select...' }, ...PAYMENT_MODES]}
+            options={draft.debit_bank_ac_type === 'Credit'
+              ? [{ value: 'Credit', label: 'Credit' }]
+              : [{ value: '', label: 'Select...' }, ...CASH_PAYMENT_MODES]}
           />
           <Input disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No. (optional)" size="sm" />
           <Input disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date (optional)" size="sm" />

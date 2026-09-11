@@ -17,14 +17,14 @@ const createFundRequestSchema = {
     .min(1, 'work_order_no is required.'),
 
     zo_fr_amount: z.union([z.number(), z.string()]).optional()
-      .transform((val) => val === undefined || val === null ? val : Number(val)),
+      .transform((val) => val === undefined || val === null ? val : Number(val))
+      .refine((val) => val === undefined || (Number.isFinite(val) && val >= 0), 'zo_fr_amount must be a finite non-negative number.'),
 
     requested_amount: z.union([z.number(), z.string()]).optional()
-      .transform((val) => val === undefined || val === null ? val : Number(val)),
+      .transform((val) => val === undefined || val === null ? val : Number(val))
+      .refine((val) => val === undefined || (Number.isFinite(val) && val >= 0), 'requested_amount must be a finite non-negative number.'),
     
-    zo_remarks: z.string({
-      required_error: 'ZO remarks are required.'
-    }).trim().min(1, 'ZO remarks are required.'),
+    zo_remarks: z.string().trim().optional().nullable(),
     remarks: z.string().optional(),
 
     beneficiary_name: z.string().trim().optional().nullable(),
@@ -46,23 +46,26 @@ const createFundRequestSchema = {
   })
 };
 
-const actOnFundRequestSchema = {
-  params: z.object({
-    id: uuidSchema
-  }),
+const updateFundRequestDraftSchema = {
+  params: z.object({ id: uuidSchema }),
   body: z.object({
-    action: z.enum(['Approve', 'Hold'], {
-      errorMap: () => ({ message: "action must be 'Approve' or 'Hold'." })
-    }),
-    approve_ho_amount: z.union([z.number(), z.string()]).optional().nullable()
-      .transform((val) => val === undefined || val === null ? val : Number(val)),
-    approved_amount: z.union([z.number(), z.string()]).optional().nullable()
-      .transform((val) => val === undefined || val === null ? val : Number(val)),
-    transfer_from_account: z.string().optional().nullable(),
-    ho_remarks: z.string().optional().nullable(),
-    remarks: z.string().optional().nullable()
-  })
+    work_order_no: z.string().trim().min(1).optional(),
+    zo_fr_no: z.string().trim().optional(),
+    zo_fr_amount: z.union([z.number(), z.string()]).optional().nullable()
+      .transform((val) => val === undefined || val === null ? val : Number(val))
+      .refine((val) => val === undefined || val === null || (Number.isFinite(val) && val >= 0), 'zo_fr_amount must be a finite non-negative number.'),
+    zo_remarks: z.string().trim().optional().nullable(),
+    beneficiary_name: z.string().trim().optional().nullable(),
+    beneficiary_ac_no: z.string().trim().optional().nullable()
+      .refine(val => !val || accountNumberRegex.test(val), { message: 'beneficiary_ac_no must be 9-18 digits.' }),
+    beneficiary_ifsc: z.string().trim().optional().nullable()
+      .refine(val => !val || ifscRegex.test(val), { message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.' }),
+    beneficiary_bank_name: z.string().trim().optional().nullable(),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+  }).strict()
 };
+
+const submitFundRequestSchema = { params: z.object({ id: uuidSchema }) };
 
 const cancelFundRequestSchema = {
   params: z.object({
@@ -72,6 +75,7 @@ const cancelFundRequestSchema = {
 
 module.exports = {
   createFundRequestSchema,
-  actOnFundRequestSchema,
+  updateFundRequestDraftSchema,
+  submitFundRequestSchema,
   cancelFundRequestSchema
 };

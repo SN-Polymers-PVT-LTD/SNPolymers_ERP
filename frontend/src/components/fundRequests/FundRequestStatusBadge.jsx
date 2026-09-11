@@ -2,9 +2,12 @@ import React from 'react';
 import { Badge } from '../ui';
 
 const STATUS_CONFIG = {
+  Draft: { variant: 'slate', label: 'Draft' },
   Pending: { variant: 'amber', label: 'Pending' },
   Approved: { variant: 'emerald', label: 'Approved' },
   Hold: { variant: 'red', label: 'Hold' },
+  Returned: { variant: 'violet', label: 'Returned' },
+  Rejected: { variant: 'red', label: 'Rejected' },
   Cancelled: { variant: 'slate', label: 'Cancelled' }
 };
 
