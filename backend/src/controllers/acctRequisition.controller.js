@@ -40,6 +40,7 @@ function mapAcctRpcError(rpcErr) {
     case 'STA08':
     case 'STA09':
     case 'STA10':
+    case 'STA11':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
@@ -52,6 +53,7 @@ function mapAcctRpcError(rpcErr) {
     case 'VAL10':
     case 'VAL11':
     case 'VAL12':
+    case 'VAL13':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -506,7 +508,7 @@ async function updateLineItem(req, res) {
 
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, requisition_status')
+      .select('id, sheet_id, requisition_status, source_fund_request_id')
       .eq('id', itemId)
       .eq('sheet_id', sheetId)
       .maybeSingle();
@@ -520,6 +522,14 @@ async function updateLineItem(req, res) {
       return res.status(403).json({
         success: false,
         message: 'Line item can only be updated while its sheet is Open, or while the item is Returned for Correction.'
+      });
+    }
+
+    if (item.source_fund_request_id
+      && (req.body.payment_mode === 'Credit' || req.body.debit_bank_ac_type === 'Credit')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit is not available for Fund Request allocations.'
       });
     }
 
@@ -590,41 +600,15 @@ async function deleteLineItem(req, res) {
       return res.status(403).json({ success: false, message: 'Line items can only be deleted while the sheet is Open.' });
     }
 
-    const { data: itemToDelete } = await supabase
-      .from('acct_requisition_line_items')
-      .select('id, source_requisition_id, source_fund_request_id')
-      .eq('id', itemId)
-      .eq('sheet_id', sheetId)
-      .maybeSingle();
+    const { error: deleteErr } = await supabase.rpc('delete_acct_line_item_transact', {
+      p_sheet_id: sheetId,
+      p_line_item_id: itemId
+    });
 
-    const { error: deleteErr } = await supabase
-      .from('acct_requisition_line_items')
-      .delete()
-      .eq('id', itemId)
-      .eq('sheet_id', sheetId);
-
-    if (deleteErr) throw deleteErr;
-
-    if (itemToDelete?.source_requisition_id) {
-      await supabase
-        .from('requisitions')
-        .update({
-          accounts_line_item_id: null,
-          accounts_imported_at: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('requisition_id', itemToDelete.source_requisition_id);
-    }
-
-    if (itemToDelete?.source_fund_request_id) {
-      await supabase
-        .from('fund_requests')
-        .update({
-          accounts_line_item_id: null,
-          accounts_imported_at: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('fund_request_id', itemToDelete.source_fund_request_id);
+    if (deleteErr) {
+      const mapped = mapAcctRpcError(deleteErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw deleteErr;
     }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });

@@ -112,6 +112,7 @@ const LineItemRow = ({
   // lookup endpoint and 403s for an HO user.
   const returnedPath = item.requisition_status === 'Returned for Correction' && Boolean(onResubmit);
   const editable = openPath || returnedPath;
+  const isFundRequestLine = Boolean(item.source_fund_request_id);
 
   const [draft, setDraft] = useState(() => emptyDraft(item));
   const [saving, setSaving] = useState(false);
@@ -123,7 +124,9 @@ const LineItemRow = ({
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => { confirmedBeneficiaryKeyRef.current = confirmedBeneficiaryKey; }, [confirmedBeneficiaryKey]);
 
-  const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
+  const bankOptions = bankBalances
+    .filter(b => !isFundRequestLine || b.bank_name !== 'Credit')
+    .map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
   const indianBankOptions = indianBanks.map(b => (
     typeof b === 'object' && b !== null
@@ -525,6 +528,9 @@ const LineItemRow = ({
           onChange={(e) => handleDebitBankChange(e.target.value)}
           options={[{ value: '', label: 'Select...' }, ...bankOptions]}
         />
+        {editable && isFundRequestLine && (
+          <p className="mt-1 text-xs text-slate-400">Credit is not available for Fund Request allocations.</p>
+        )}
       </TableCell>
 
       <TableCell className="min-w-[90px]">

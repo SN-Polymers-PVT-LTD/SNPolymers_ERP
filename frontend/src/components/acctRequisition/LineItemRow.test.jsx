@@ -120,6 +120,21 @@ describe('LineItemRow — cheque_no/cheque_date are optional for every payment m
   });
 });
 
+describe('LineItemRow — Fund Request rows cannot select Credit', () => {
+  it('hides the Credit bank route and explains why', () => {
+    renderRow({
+      item: { ...baseItem, source_fund_request_id: 'fr-1' },
+      bankBalances: [
+        { bank_name: 'State Bank of India' },
+        { bank_name: 'Credit' }
+      ]
+    });
+
+    expect(screen.getByText('Credit is not available for Fund Request allocations.')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Credit' })).not.toBeInTheDocument();
+  });
+});
+
 describe('LineItemRow — no per-row Save button; Resubmit, Add, and Delete only', () => {
   it('does not render a per-row Save button for an editable open-path row (Save Draft covers it)', () => {
     renderRow();
