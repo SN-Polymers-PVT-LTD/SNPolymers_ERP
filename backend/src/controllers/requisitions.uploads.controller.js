@@ -177,25 +177,14 @@ async function handleDelete(req, res, { kind }) {
   }
 
   try {
-    const { data: attachment, error: fetchErr } = await supabase
-      .from('requisition_attachments')
-      .select('attachment_id, bucket, storage_path, kind, uploaded_by, status')
-      .eq('attachment_id', attachment_id)
-      .eq('kind', kind)
-      .maybeSingle();
-
-    if (fetchErr) throw fetchErr;
-
-    if (!attachment) {
-      return res.status(404).json({ success: false, message: 'Attachment not found.' });
-    }
-
-    if (attachment.uploaded_by !== req.user.mobile_number && req.user.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Access denied. You do not own this attachment.' });
-    }
-
-    if (attachment.status !== 'pending') {
-      return res.status(409).json({ success: false, message: 'This attachment is already attached to a saved requisition and cannot be deleted here.' });
+    const { data: attachment, error: acquireErr } = await supabase.rpc('acquire_requisition_attachment_delete', {
+      p_attachment_id: attachment_id, p_actor: req.user.mobile_number, p_kind: kind
+    });
+    if (acquireErr) {
+      if (acquireErr.code === 'P0002') return res.status(404).json({ success: false, message: 'Attachment not found.' });
+      if (acquireErr.code === '42501') return res.status(403).json({ success: false, message: 'Access denied. You do not own this attachment.' });
+      if (acquireErr.code === 'STA08') return res.status(409).json({ success: false, message: acquireErr.message });
+      throw acquireErr;
     }
 
     const { error: removeErr } = await supabase.storage
@@ -204,12 +193,11 @@ async function handleDelete(req, res, { kind }) {
 
     if (removeErr) throw removeErr;
 
-    const { error: deleteRowErr } = await supabase
-      .from('requisition_attachments')
-      .delete()
-      .eq('attachment_id', attachment_id);
-
-    if (deleteRowErr) throw deleteRowErr;
+    const { data: finalized, error: finalizeErr } = await supabase.rpc('finalize_requisition_attachment_delete', {
+      p_attachment_id: attachment_id
+    });
+    if (finalizeErr) throw finalizeErr;
+    if (!finalized) throw new Error('Attachment deletion was not finalized.');
 
     return res.status(200).json({
       success: true,

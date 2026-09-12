@@ -66,30 +66,8 @@ async function createRequisition(req, res) {
     let resolvedGstPdf = null; // { attachmentId, storagePath, uploadedBy }
 
   const cleanupUploadedFiles = async () => {
-    try {
-      if (resolvedReqPdf) {
-        await supabase.storage.from('requisition-pdfs').remove([resolvedReqPdf.storagePath]);
-        await supabase
-          .from('requisition_attachments')
-          .delete()
-          .eq('attachment_id', resolvedReqPdf.attachmentId)
-          .eq('uploaded_by', resolvedReqPdf.uploadedBy)
-          .eq('status', 'pending');
-      }
-      if (resolvedGstPdf) {
-        await supabase.storage.from('gst-bills').remove([resolvedGstPdf.storagePath]);
-        await supabase
-          .from('requisition_attachments')
-          .delete()
-          .eq('attachment_id', resolvedGstPdf.attachmentId)
-          .eq('uploaded_by', resolvedGstPdf.uploadedBy)
-          .eq('status', 'pending');
-      }
-    } catch (err) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to clean up files:', err);
-      }
-    }
+    // Keep pending attachments available for correction/retry. Any destructive
+    // cleanup after exposure must use the DB-first attachment delete endpoint.
   };
 
   let rowCommitted = false;

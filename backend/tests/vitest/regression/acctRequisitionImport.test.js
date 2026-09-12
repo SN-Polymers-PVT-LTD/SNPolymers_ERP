@@ -249,6 +249,38 @@ describe('Accounts HO Approval — import On Hold/Rejected items into a new shee
     expect(res.statusCode).toBe(409);
   });
 
+  test('rejected source-derived items are hidden from the queue and direct rollover returns STA12', async () => {
+    const reqNo = `REQ_TERMINAL_${crypto.randomUUID().substring(0, 8)}`;
+    const { data: sourceReq, error: reqErr } = await supabase.from('requisitions').insert({
+      requisition_no: reqNo, work_order_no: ctx.workOrder, estimate_no: ctx.estimateNo,
+      state: 'West Bengal', district: 'Kolkata', area_code: 'Kolkata Zone', department: 'PWD',
+      site_details: 'Testing Site', requester_user_id: ctx.accountsMobile, requisition_status: 'Approved',
+      approved_amount: 5000, approved_balance_amount: 0, requisition_amount: 5000,
+      material_main_head: 'Material', requisition_pdf_url: 'requisitions/terminal.pdf',
+      original_filename: 'terminal.pdf', gst_bill: 'No', bank_details: 'Bank Details',
+      expen_head_remarks: 'Terminal source test', created_by: ctx.accountsMobile
+    }).select().single();
+    expect(reqErr).toBeNull();
+
+    try {
+      const { item } = await makeDecidedItem(ctx, 'Reject');
+      const { error: linkErr } = await supabase.from('acct_requisition_line_items')
+        .update({ source_requisition_id: sourceReq.requisition_id }).eq('id', item.id);
+      expect(linkErr).toBeNull();
+
+      const eligible = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
+      expect(eligible.jsonData.items.map(i => i.id)).not.toContain(item.id);
+
+      const target = await callCreateSheet(ctx.accountsMobile);
+      ctx.sheetIds.push(target.jsonData.sheet.id);
+      const directImport = await callImportLineItem(item.id, target.jsonData.sheet.id, ctx.accountsMobile);
+      expect(directImport.statusCode).toBe(409);
+      expect(directImport.jsonData.message).toMatch(/terminal|cannot be imported/i);
+    } finally {
+      await supabase.from('requisitions').delete().eq('requisition_id', sourceReq.requisition_id);
+    }
+  });
+
   test('dismissing an already-imported or already-dismissed item is rejected, not silently accepted', async () => {
     const { item: importedSource } = await makeDecidedItem(ctx, 'Hold');
     const targetSheetRes = await callCreateSheet(ctx.accountsMobile);
