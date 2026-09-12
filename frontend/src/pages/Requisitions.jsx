@@ -2493,18 +2493,20 @@ const Requisitions = () => {
                     </select>
                   </div>
 
-                  <Button
-                    onClick={() => setShowExportModal(true)}
-                    title="Export Expenditure Sheet"
-                    variant="glass"
-                    size="sm"
-                    className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
-                  >
-                    <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export Expenditure Sheet
-                  </Button>
+                  {user?.role?.toLowerCase() !== 'je' && (
+                    <Button
+                      onClick={() => setShowExportModal(true)}
+                      title="Export Expenditure Sheet"
+                      variant="glass"
+                      size="sm"
+                      className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
+                    >
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Export Expenditure Sheet
+                    </Button>
+                  )}
 
                   <Button
                     variant="glass"
@@ -2782,7 +2784,7 @@ const Requisitions = () => {
       )}
 
       {/* Export Expenditure Sheet Modal */}
-      {showExportModal && (
+      {showExportModal && user?.role?.toLowerCase() !== 'je' && (
         <ExportExpenditureModal
           projects={projects}
           onClose={() => setShowExportModal(false)}

@@ -258,7 +258,7 @@ module.exports = {
         "requisition_pdf_url": {
           "type": "text",
           "udtName": "text",
-          "nullable": false,
+          "nullable": true,
           "default": null
         },
         "original_filename": {
@@ -454,6 +454,24 @@ module.exports = {
           "default": "false"
         },
         "accounts_imported_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "payment_status": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "paid_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "zo_actioned_at": {
           "type": "timestamp with time zone",
           "udtName": "timestamptz",
           "nullable": true,

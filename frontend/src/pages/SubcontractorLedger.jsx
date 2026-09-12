@@ -35,6 +35,24 @@ const TX_TYPE_LABELS = {
   ADMIN_ADJUSTMENT: 'Admin Adjustment'
 };
 
+const formatTransactionLabel = (entry) => {
+  if (entry.transaction_type === 'REQUISITION_APPROVAL') {
+    if (entry.settlement_status === 'SETTLED') return 'Debit (Paid)';
+    if (entry.settlement_status === 'RELEASED') return 'Debit (Released)';
+    return 'Debit (Reserved)';
+  }
+  return TX_TYPE_LABELS[entry.transaction_type] || entry.transaction_type;
+};
+
+const getRequisitionLedgerStatus = (requisition) => {
+  if (requisition.payment_status === 'PAID' || requisition.payment_destination === 'ZO_BALANCE') {
+    return 'Paid';
+  }
+  if (requisition.payment_status === 'PARTIALLY_PAID') return 'Partially Paid';
+  if (requisition.payment_destination === 'ACCOUNTS') return 'Reserved';
+  return requisition.requisition_status || '—';
+};
+
 /**
  * Modal to resolve multi-work-order ambiguity when viewing or exporting a
  * grouped subcontractor's ledger statement.
@@ -740,8 +758,8 @@ const SubcontractorLedger = () => {
                             <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={r.requisition_status === 'Approved' ? 'emerald' : r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
-                              {r.requisition_status}
+                            <Badge variant={getRequisitionLedgerStatus(r) === 'Paid' ? 'emerald' : getRequisitionLedgerStatus(r) === 'Released' || r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
+                              {getRequisitionLedgerStatus(r)}
                             </Badge>
                           </TableCell>
                           <TableCell><span className="text-slate-300 text-xs">{formatPaymentOffice(r.payment_destination)}</span></TableCell>
@@ -879,7 +897,7 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                     </TableCell>
                     <TableCell>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        {TX_TYPE_LABELS[e.transaction_type] || e.transaction_type}
+                        {formatTransactionLabel(e)}
                       </span>
                     </TableCell>
                     <TableCell>

@@ -923,6 +923,8 @@ export async function exportCombinedExpenditureSheet({
     '3rd Field',
     'Remarks',
     'ZO Approved Amount',
+    'Payment Status',
+    'Paid Amount',
     'Payment Office',
     'Beneficiary Name',
     'Account No',
@@ -971,6 +973,10 @@ export async function exportCombinedExpenditureSheet({
     const thirdField = req && isSubContractor ? (req.material_details || '') : (ret?.thirdField || '');
     const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : (ret?.remarks || '');
     const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : (ret ? ret.amount : null);
+    const paymentStatus = req ? (req.payment_status || '') : '';
+    const paidAmount = req
+      ? Number(req.payment_destination === 'ZO_BALANCE' ? (req.approved_amount ?? 0) : (req.paid_amount ?? 0))
+      : null;
     const paymentOffice = req ? formatPaymentOffice(req.payment_destination, '') : (ret?.paymentOffice || '');
     const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : (ret?.beneficiaryName || '');
     const accountNo = req ? (req.beneficiary_ac_no || '') : (ret?.accountNo || '');
@@ -996,6 +1002,8 @@ export async function exportCombinedExpenditureSheet({
       thirdField,
       remarks,
       zoApprovedAmount,
+      paymentStatus,
+      paidAmount,
       paymentOffice,
       beneficiaryName,
       accountNo,
@@ -1027,13 +1035,15 @@ export async function exportCombinedExpenditureSheet({
     { wch: 22 }, // N: 3rd Field
     { wch: 16 }, // O: Remarks
     { wch: 22 }, // P: ZO Approved Amount
-    { wch: 16 }, // Q: Payment Office
-    { wch: 30 }, // R: Beneficiary Name
-    { wch: 20 }, // S: Account No
-    { wch: 15 }, // T: IFSC Code
-    { wch: 18 }, // U: Bank Name
-    { wch: 16 }, // V: Work_Order
-    { wch: 25 }  // W: Work Order Details
+    { wch: 22 }, // Q: Payment Status
+    { wch: 16 }, // R: Paid Amount
+    { wch: 16 }, // S: Payment Office
+    { wch: 30 }, // T: Beneficiary Name
+    { wch: 20 }, // U: Account No
+    { wch: 15 }, // V: IFSC Code
+    { wch: 18 }, // W: Bank Name
+    { wch: 16 }, // X: Work_Order
+    { wch: 25 }  // Y: Work Order Details
   ];
 
   // Merge M2:N2 (col index 12 to 13 in 0-indexed coords for 2nd Field & 3rd Field)
@@ -1041,7 +1051,7 @@ export async function exportCombinedExpenditureSheet({
     { s: { r: 1, c: 12 }, e: { r: 1, c: 13 } }
   ];
 
-  // Number formatting for Column E (HO Approved Amount) and Column P (ZO Approved Amount)
+  // Number formatting for Column E (HO Approved Amount), P (ZO Approved Amount), and R (Paid Amount)
   for (let r = 3; r < aoa.length; r++) {
     const eRef = XLSX.utils.encode_cell({ r, c: 4 });
     if (worksheet[eRef] && typeof worksheet[eRef].v === 'number') {
@@ -1050,6 +1060,10 @@ export async function exportCombinedExpenditureSheet({
     const pRef = XLSX.utils.encode_cell({ r, c: 15 });
     if (worksheet[pRef] && typeof worksheet[pRef].v === 'number') {
       worksheet[pRef].z = '#,##0.00';
+    }
+    const paidRef = XLSX.utils.encode_cell({ r, c: 17 });
+    if (worksheet[paidRef] && typeof worksheet[paidRef].v === 'number') {
+      worksheet[paidRef].z = '#,##0.00';
     }
   }
 

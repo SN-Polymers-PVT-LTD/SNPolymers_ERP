@@ -200,10 +200,6 @@ const RequestDetailPanel = ({
     }
   }, [isCreate, request]);
 
-  // General comments/discussion feed
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-
   // Load request details if viewing
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -219,23 +215,11 @@ const RequestDetailPanel = ({
         setBeneficiaryBankId(request.beneficiary_bank_id || '');
         setBeneficiaryBankName(request.beneficiary_bank_name || '');
         
-        // Load comments
-        const feed = [];
-        if (request.zo_remarks) {
-          const author = request.zo_name ? `${request.zo_name} (ZO)` : 'ZO User';
-          feed.push({ author, text: request.zo_remarks, type: 'zo' });
-        }
-        if (request.ho_remarks) {
-          const author = request.approve_ho_name ? `${request.approve_ho_name} (Accounts)` : 'Accounts User';
-          feed.push({ author, text: request.ho_remarks, type: 'ho' });
-        }
-        setComments(feed);
       } else {
         // Clear forms
         setZoFrNo('');
         setZoFrAmount('');
         setZoRemarks('');
-        setComments([]);
       }
     });
   }, [request]);
@@ -402,14 +386,6 @@ const RequestDetailPanel = ({
     } finally {
       setActionSubmitting(false);
     }
-  };
-
-  const handleAddComment = (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    const author = user?.display_name || user?.mobile_number || 'User';
-    setComments(prev => [...prev, { author, text: newComment.trim(), type: 'user' }]);
-    setNewComment('');
   };
 
   const todayFormatted = new Date().toLocaleDateString('en-IN', {
@@ -999,39 +975,7 @@ const RequestDetailPanel = ({
             </div>
           )}
 
-          {/* Panel 3: DISCUSSION FEED */}
-          {!isCreate && (
-            <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col justify-between min-h-[220px]">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Discussion</span>
-                <div className="space-y-3.5 max-h-[160px] overflow-y-auto pr-1">
-                  {comments.map((c, idx) => (
-                    <div key={idx} className={`p-2.5 rounded-xl text-xs ${c.type === 'ho' ? 'bg-indigo-500/5 border border-indigo-500/10' : 'bg-white/5 border border-white/5'}`}>
-                      <span className="block text-[8px] font-extrabold uppercase tracking-wider text-slate-500">{c.author}</span>
-                      <p className="text-slate-300 mt-1 font-medium leading-relaxed">{c.text}</p>
-                    </div>
-                  ))}
-                  {comments.length === 0 && (
-                    <span className="text-slate-500 text-xs">No discussion logs found.</span>
-                  )}
-                </div>
-              </div>
-              <form onSubmit={handleAddComment} className="mt-4 pt-3 border-t border-white/5 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Add comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="flex-grow glass-input rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-0 focus:ring-offset-0"
-                />
-                <button type="submit" className="px-3.5 py-1.5 bg-white text-slate-950 font-bold uppercase text-[9px] tracking-wider rounded-lg shadow hover:bg-slate-100 transition">
-                  Send
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Panel 4: ACTIVITY LOG */}
+          {/* Panel 3: ACTIVITY LOG */}
           {!isCreate && (
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Activity Log</span>
