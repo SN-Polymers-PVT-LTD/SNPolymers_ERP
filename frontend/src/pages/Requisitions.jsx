@@ -823,9 +823,10 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const requisitionPdfAttachmentIdRef = useRef('');
   const gstPdfAttachmentIdRef = useRef('');
   const submittedRef = useRef(false);
+  const submissionInFlightRef = useRef(false);
   useEffect(() => {
     return () => {
-      if (submittedRef.current) return;
+      if (submittedRef.current || submissionInFlightRef.current) return;
       if (requisitionPdfAttachmentIdRef.current) {
         deleteRequisitionPdf(requisitionPdfAttachmentIdRef.current).catch((err) => {
           console.error('Failed to cleanup requisition PDF on unmount:', err);
@@ -1327,12 +1328,14 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         beneficiary_bank_name: beneficiaryBankName.trim() || undefined,
         expen_head_remarks: remarks.trim() || null
       };
+      submissionInFlightRef.current = true;
       await onSave(payload);
       submittedRef.current = true;
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit requisition.');
     } finally {
+      submissionInFlightRef.current = false;
       setSubmitting(false);
     }
   };
