@@ -1170,7 +1170,8 @@ async function getSubcontractorLedgerEntries(req, res) {
   try {
     let dbQuery = supabase
       .from('subcontractor_ledger')
-      .select('*');
+      .select('*')
+      .eq('ledger_visible', true);
 
     if (work_order_no) {
       dbQuery = dbQuery.eq('work_order_no', work_order_no.trim());

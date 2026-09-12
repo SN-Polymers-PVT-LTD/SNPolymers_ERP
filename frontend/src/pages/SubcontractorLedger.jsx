@@ -32,10 +32,12 @@ const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item)',
   ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
   REQUISITION_APPROVAL: 'Debit (Requisition)',
+  REQUISITION_PAYMENT: 'Debit (Paid)',
   ADMIN_ADJUSTMENT: 'Admin Adjustment'
 };
 
 const formatTransactionLabel = (entry) => {
+  if (entry.transaction_type === 'REQUISITION_PAYMENT') return 'Debit (Paid)';
   if (entry.transaction_type === 'REQUISITION_APPROVAL') {
     if (entry.settlement_status === 'SETTLED') return 'Debit (Paid)';
     if (entry.settlement_status === 'RELEASED') return 'Debit (Released)';
