@@ -15,7 +15,7 @@ import {
   exportSubcontractorLedgerStatementToExcel,
   exportAllSubcontractorLedgersToExcel
 } from '../utils/exportHelpers';
-import { formatPaymentOffice, isFinanciallyActiveRequisition } from '../utils/requisitionUtils';
+import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
 
 const VIEW_TABS = [
   { value: 'balances', label: 'Balances' },
@@ -45,15 +45,6 @@ const formatTransactionLabel = (entry) => {
     return 'Debit (Reserved)';
   }
   return TX_TYPE_LABELS[entry.transaction_type] || entry.transaction_type;
-};
-
-const getRequisitionLedgerStatus = (requisition) => {
-  if (requisition.payment_status === 'PAID' || requisition.payment_destination === 'ZO_BALANCE') {
-    return 'Paid';
-  }
-  if (requisition.payment_status === 'PARTIALLY_PAID') return 'Partially Paid';
-  if (requisition.payment_destination === 'ACCOUNTS') return 'Reserved';
-  return requisition.requisition_status || '—';
 };
 
 /**
@@ -661,9 +652,9 @@ const SubcontractorLedger = () => {
             const groupKey = `${group.material_sub_head}|||${group.material_details}`;
             const isCollapsed = Boolean(collapsedGroups[groupKey]);
             // GAP-07: Use authoritative predicate to filter active requisitions for liabilities
-            const activeRows = group.rows.filter((r) => isFinanciallyActiveRequisition(r.requisition_status));
+            const activeRows = group.rows.filter((r) => getRequisitionFinancialState(r).financiallyActive);
             const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
-            const totalApproved = activeRows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+            const totalApproved = activeRows.reduce((sum, r) => sum + getRequisitionFinancialState(r).effectiveLiability, 0);
             const inactiveCount = group.rows.length - activeRows.length;
 
             return (
@@ -751,6 +742,7 @@ const SubcontractorLedger = () => {
                         <TableCell isHeader>Requested By</TableCell>
                         <TableCell isHeader>Creation Date</TableCell>
                         <TableCell isHeader>Approved On</TableCell>
+                        <TableCell isHeader>Paid On</TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -769,8 +761,8 @@ const SubcontractorLedger = () => {
                             <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={getRequisitionLedgerStatus(r) === 'Paid' ? 'emerald' : getRequisitionLedgerStatus(r) === 'Released' || r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
-                              {getRequisitionLedgerStatus(r)}
+                            <Badge variant={getRequisitionFinancialState(r).status === 'Paid' ? 'emerald' : ['Released', 'Rejected', 'Cancelled'].includes(getRequisitionFinancialState(r).status) ? 'red' : 'amber'}>
+                              {getRequisitionFinancialState(r).status}
                             </Badge>
                           </TableCell>
                           <TableCell><span className="text-slate-300 text-xs">{formatPaymentOffice(r.payment_destination)}</span></TableCell>
@@ -779,6 +771,9 @@ const SubcontractorLedger = () => {
                           </TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400 text-xs">{formatDate(r.zo_actioned_at)}</span>
                           </TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>

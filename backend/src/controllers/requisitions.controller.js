@@ -902,10 +902,28 @@ async function sendToAccounts(req, res) {
   }
 }
 
-/**
- * PATCH /api/v1/auth/requisitions/:id/cancel
- * Cancels a pending requisition.
- */
+async function cleanupCancelledRequisitionAttachments(requisitionId, actor) {
+  const { data: attachments, error: acquireError } = await supabase.rpc('acquire_cancelled_requisition_attachment_cleanup', {
+    p_requisition_id: requisitionId,
+    p_actor: actor
+  });
+  if (acquireError) throw acquireError;
+  const failures = [];
+  for (const attachment of attachments || []) {
+    const { error: removeError } = await supabase.storage.from(attachment.bucket).remove([attachment.storage_path]);
+    if (removeError) {
+      failures.push({ attachment_id: attachment.attachment_id, error: removeError.message });
+      continue;
+    }
+    const { error: finalizeError } = await supabase.rpc('finalize_requisition_attachment_delete', {
+      p_attachment_id: attachment.attachment_id
+    });
+    if (finalizeError) failures.push({ attachment_id: attachment.attachment_id, error: finalizeError.message });
+  }
+  return failures;
+}
+
+/** PATCH /api/v1/auth/requisitions/:id/cancel */
 async function cancelRequisition(req, res) {
   if (!validate(req, res, cancelRequisitionSchema)) return;
 
@@ -940,13 +958,6 @@ async function cancelRequisition(req, res) {
       });
     }
 
-    const { data: attachments, error: attachmentError } = await supabase
-      .from('requisition_attachments')
-      .select('attachment_id, bucket, storage_path')
-      .eq('requisition_id', id)
-      .eq('status', 'committed');
-    if (attachmentError) throw attachmentError;
-
     // Mark the row cancelled and clear references before external storage work.
     // Storage deletion is retried per attachment below; the cancelled row remains
     // safe to retry and never points at a file that should be used operationally.
@@ -972,22 +983,7 @@ async function cancelRequisition(req, res) {
       });
     }
 
-    const cleanupFailures = [];
-    for (const attachment of attachments || []) {
-      const { error: removeError } = await supabase.storage
-        .from(attachment.bucket)
-        .remove([attachment.storage_path]);
-      if (removeError) {
-        cleanupFailures.push({ attachment_id: attachment.attachment_id, error: removeError.message });
-        continue;
-      }
-      const { error: deleteError } = await supabase
-        .from('requisition_attachments')
-        .delete()
-        .eq('attachment_id', attachment.attachment_id)
-        .eq('requisition_id', id);
-      if (deleteError) cleanupFailures.push({ attachment_id: attachment.attachment_id, error: deleteError.message });
-    }
+    const cleanupFailures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
 
     return res.status(200).json({
       success: true,
@@ -1005,6 +1001,23 @@ async function cancelRequisition(req, res) {
       console.error(`cancelRequisition failed: ${error.message}`);
     }
     return res.status(500).json({ success: false, message: 'Failed to cancel requisition.' });
+  }
+}
+
+/** POST /api/v1/auth/requisitions/:id/retry-attachment-cleanup */
+async function retryCancelledRequisitionAttachmentCleanup(req, res) {
+  const { id } = req.params;
+  try {
+    const { data: reqRecord, error } = await supabase.from('requisitions').select('requisition_id, requisition_status, requester_user_id').eq('requisition_id', id).maybeSingle();
+    if (error) throw error;
+    if (!reqRecord) return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    if (req.user.role !== 'admin' && reqRecord.requester_user_id !== req.user.mobile_number) return res.status(403).json({ success: false, message: 'Access denied.' });
+    if (reqRecord.requisition_status !== 'Cancelled') return res.status(409).json({ success: false, message: 'Attachment cleanup is only available for cancelled requisitions.' });
+    const failures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
+    return res.status(200).json({ success: true, cleanup_pending: failures.length > 0, failures });
+  } catch (error) {
+    console.error(`retryCancelledRequisitionAttachmentCleanup failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retry attachment cleanup.' });
   }
 }
 
@@ -1625,6 +1638,7 @@ module.exports = {
   payFromZoBalance,
   sendToAccounts,
   cancelRequisition,
+  retryCancelledRequisitionAttachmentCleanup,
   getMainHeadCapacity,
   getSubcontractorCapacity,
   getSubcontractorLedger,

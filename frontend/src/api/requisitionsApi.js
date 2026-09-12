@@ -69,6 +69,9 @@ export const sendRequisitionToAccounts = (id) =>
 export const cancelRequisition = (id) =>
   authApi.patch(`/requisitions/${id}/cancel`);
 
+export const retryCancelledRequisitionAttachmentCleanup = (id) =>
+  authApi.post(`/requisitions/${id}/retry-attachment-cleanup`);
+
 /** Upload Requisition PDF
  * @param {File} file
  * @param {string} requisitionNo
@@ -126,4 +129,3 @@ export const upsertIndianBank = (data) =>
 /** Fetch active Indian banks list */
 export const getIndianBanks = () =>
   authApi.get('/requisitions/indian-banks');
-

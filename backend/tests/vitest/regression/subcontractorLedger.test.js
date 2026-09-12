@@ -494,13 +494,15 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
 
     const { data: reqLedgerRows, error: reqLedgerErr } = await supabase
       .from('subcontractor_ledger')
-      .select('transaction_type, amount, ledger_visible')
+      .select('transaction_type, amount, ledger_visible, settlement_status')
       .eq('reference_id', reqXId)
       .order('transaction_type');
     expect(reqLedgerErr).toBeNull();
     expect(reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_APPROVAL')?.ledger_visible).toBe(false);
     const paymentRow = reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_PAYMENT');
     expect(paymentRow?.ledger_visible).toBe(true);
+    expect(reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_APPROVAL')?.settlement_status).toBe('SETTLED');
+    expect(paymentRow?.settlement_status).toBe('SETTLED');
     expect(Number(paymentRow?.amount)).toBe(-10000);
 
     const req = { query: { work_order_no: workOrder, material_sub_head: SUB_HEAD, material_details: DETAILS } };

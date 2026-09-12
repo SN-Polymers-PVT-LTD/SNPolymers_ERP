@@ -240,6 +240,42 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
     expect(finalized.data).toBe(true);
   });
 
+  test('cancelled requisition cleanup claims committed attachments and is retryable', async () => {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
+    const reqNo = `REQ-ATTLC-CANCEL-${suffix}`;
+    const { error: uploadError } = await supabase.storage.from('requisition-pdfs').upload(
+      attachment.storagePath, Buffer.from('%PDF-1.4 cancellation-test'), { contentType: 'application/pdf' }
+    );
+    expect(uploadError).toBeNull();
+    const createRes = mockRes();
+    await createRequisition({
+      user: { mobile_number: jeMobile, role: 'je' },
+      body: { work_order_no: workOrder, requisition_no: reqNo, material_main_head: `Material ATTLC-${suffix}`,
+        requisition_pdf_attachment_id: attachment.attachmentId, original_filename: 'cancel.pdf',
+        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ' }
+    }, createRes);
+    expect(createRes.statusCode).toBe(201);
+    const requisitionId = createRes.jsonData.requisition.requisition_id;
+    const { error: cancelError } = await supabase.from('requisitions').update({ requisition_status: 'Cancelled' }).eq('requisition_id', requisitionId);
+    expect(cancelError).toBeNull();
+
+    const claimed = await supabase.rpc('acquire_cancelled_requisition_attachment_cleanup', {
+      p_requisition_id: requisitionId, p_actor: jeMobile
+    });
+    expect(claimed.error).toBeNull();
+    expect(claimed.data).toHaveLength(1);
+    expect(claimed.data[0].status).toBe('deleting');
+
+    const resumed = await supabase.rpc('acquire_cancelled_requisition_attachment_cleanup', {
+      p_requisition_id: requisitionId, p_actor: jeMobile
+    });
+    expect(resumed.error).toBeNull();
+    expect(resumed.data).toHaveLength(1);
+    expect((await supabase.rpc('finalize_requisition_attachment_delete', { p_attachment_id: attachment.attachmentId })).data).toBe(true);
+    await supabase.storage.from('requisition-pdfs').remove([attachment.storagePath]);
+    await supabase.from('requisitions').delete().eq('requisition_id', requisitionId);
+  });
+
   test('createRequisition rejects an attachment id owned by a different user with 400', async () => {
     const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: otherJeMobile });
     const req = {

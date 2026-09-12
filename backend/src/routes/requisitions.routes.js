@@ -8,6 +8,7 @@ const {
   payFromZoBalance,
   sendToAccounts,
   cancelRequisition,
+  retryCancelledRequisitionAttachmentCleanup,
   getMainHeadCapacity,
   getSubcontractorCapacity,
   getSubcontractorLedger,
@@ -86,6 +87,7 @@ router.patch('/:id/action', requireRole(approverRoles), validateRequest(actOnReq
 router.post('/:id/pay-from-zo-balance', requireRole(routingRoles), validateRequest(payFromZoBalanceSchema), payFromZoBalance);
 router.post('/:id/send-to-accounts', requireRole(routingRoles), validateRequest(sendToAccountsSchema), sendToAccounts);
 router.patch('/:id/cancel', requireRole(requesterRoles), validateRequest(cancelRequisitionSchema), cancelRequisition);
+router.post('/:id/retry-attachment-cleanup', requireRole(requesterRoles), retryCancelledRequisitionAttachmentCleanup);
 
 // Upload endpoints (JE only)
 router.post('/upload/requisition-pdf', requireRole(uploadRoles), upload.single('file'), uploadRequisitionPdf);
