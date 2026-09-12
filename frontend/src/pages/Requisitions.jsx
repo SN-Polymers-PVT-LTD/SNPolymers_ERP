@@ -1216,6 +1216,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   };
 
   const handleCancelOrClose = async () => {
+    if (submitting) return;
     if (requisitionPdfAttachmentId) {
       try {
         await deleteRequisitionPdf(requisitionPdfAttachmentId);
@@ -1410,7 +1411,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   return (
     <Modal
       isOpen={true}
-      onClose={handleCancelOrClose}
+      onClose={submitting ? null : handleCancelOrClose}
       title="Create Requisition"
       subtitle={`Step ${step} of 3`}
       footer={getFooterButtons()}

@@ -177,6 +177,10 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
   test('createRequisition claims a valid pending attachment atomically (status -> committed, requisition_id set)', async () => {
     const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
     const reqNo = `REQ-ATTLC-CLAIM-${suffix}`;
+    const { error: storageUploadError } = await supabase.storage
+      .from('requisition-pdfs')
+      .upload(attachment.storagePath, Buffer.from('%PDF-1.4 committed-test'), { contentType: 'application/pdf' });
+    if (storageUploadError) throw storageUploadError;
     const req = {
       user: { mobile_number: jeMobile, role: 'je' },
       body: {
@@ -202,7 +206,38 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
     expect(row.status).toBe('committed');
     expect(row.requisition_id).toBe(res.jsonData.requisition.requisition_id);
 
+    const deleteRes = mockRes();
+    await deleteRequisitionPdf({ user: { mobile_number: jeMobile, role: 'je' }, body: { attachment_id: attachment.attachmentId } }, deleteRes);
+    expect(deleteRes.statusCode).toBe(409);
+    const { data: storedFile, error: downloadError } = await supabase.storage
+      .from('requisition-pdfs').download(attachment.storagePath);
+    expect(downloadError).toBeNull();
+    expect(storedFile).not.toBeNull();
+
     await supabase.from('requisitions').delete().eq('requisition_no', reqNo);
+    await supabase.storage.from('requisition-pdfs').remove([attachment.storagePath]);
+    await supabase.from('requisition_attachments').delete().eq('attachment_id', attachment.attachmentId);
+  });
+
+  test('a deleting attachment can be resumed and finalized without returning to pending', async () => {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
+    const first = await supabase.rpc('acquire_requisition_attachment_delete', {
+      p_attachment_id: attachment.attachmentId, p_actor: jeMobile, p_kind: 'requisition_pdf'
+    });
+    expect(first.error).toBeNull();
+    expect(first.data.status).toBe('deleting');
+
+    const resumed = await supabase.rpc('acquire_requisition_attachment_delete', {
+      p_attachment_id: attachment.attachmentId, p_actor: jeMobile, p_kind: 'requisition_pdf'
+    });
+    expect(resumed.error).toBeNull();
+    expect(resumed.data.status).toBe('deleting');
+
+    const finalized = await supabase.rpc('finalize_requisition_attachment_delete', {
+      p_attachment_id: attachment.attachmentId
+    });
+    expect(finalized.error).toBeNull();
+    expect(finalized.data).toBe(true);
   });
 
   test('createRequisition rejects an attachment id owned by a different user with 400', async () => {
