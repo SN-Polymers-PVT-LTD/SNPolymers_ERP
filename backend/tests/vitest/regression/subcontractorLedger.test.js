@@ -484,7 +484,25 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(row.project?.department).toBe('PWD');
   });
 
-  test('12. getSubcontractorLedgerEntries returns the full transaction trail for one balance, newest first', async () => {
+  test('12. getSubcontractorLedgerEntries exposes actual ZO settlement, not the hidden authorization reservation', async () => {
+    const { data: settled, error: settlementErr } = await supabase.rpc('select_zo_balance_payment_transact', {
+      p_requisition_id: reqXId,
+      p_actioned_by: zoMobile
+    });
+    expect(settlementErr).toBeNull();
+    expect(settled.payment_status).toBe('PAID');
+
+    const { data: reqLedgerRows, error: reqLedgerErr } = await supabase
+      .from('subcontractor_ledger')
+      .select('transaction_type, amount, ledger_visible')
+      .eq('reference_id', reqXId)
+      .order('transaction_type');
+    expect(reqLedgerErr).toBeNull();
+    expect(reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_APPROVAL')?.ledger_visible).toBe(false);
+    const paymentRow = reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_PAYMENT');
+    expect(paymentRow?.ledger_visible).toBe(true);
+    expect(Number(paymentRow?.amount)).toBe(-10000);
+
     const req = { query: { work_order_no: workOrder, material_sub_head: SUB_HEAD, material_details: DETAILS } };
     const res = mockRes();
     await getSubcontractorLedgerEntries(req, res);
@@ -492,7 +510,8 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(res.statusCode).toBe(200);
     expect(res.jsonData.success).toBe(true);
     const entries = res.jsonData.entries;
-    // Credits from itemA (20,000) + itemA2 (15,000), debit from Req X (-10,000)
+    // The statement contains the two estimate credits and actual payment. The
+    // ZO authorization reservation is retained internally but hidden.
     expect(entries.length).toBe(3);
     expect(entries.every(e => e.created_by_name)).toBe(true);
     const total = entries.reduce((sum, e) => sum + Number(e.amount), 0);

@@ -449,7 +449,9 @@ export async function exportRequisitionDetailsToExcel(items) {
 const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item Approval)',
   ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
-  REQUISITION_APPROVAL: 'Debit (Requisition Approval)',
+  REQUISITION_APPROVAL: 'Reservation (Internal)',
+  REQUISITION_PAYMENT: 'Debit (Paid)',
+  REQUISITION_RELEASE: 'Release (Internal)',
   ADMIN_ADJUSTMENT: 'Admin Balance Adjustment'
 };
 
@@ -472,9 +474,13 @@ export async function exportSubcontractorLedgerStatementToExcel({
 
   const totalCredits = entries.reduce((sum, e) => sum + (Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0)), 0);
   const totalDebits = entries.reduce((sum, e) => sum + (Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0)), 0);
-  const finalBalance = balance?.available_balance != null 
-    ? Number(balance.available_balance) 
-    : (entries[0]?.running_balance != null ? Number(entries[0].running_balance) : (totalCredits - totalDebits));
+  const statementBalance = entries[0]?.running_balance != null
+    ? Number(entries[0].running_balance)
+    : Number((totalCredits - totalDebits).toFixed(2));
+  const availableCapacity = balance?.available_capacity ?? balance?.available_balance;
+  const committedTotal = balance?.committed_total ?? balance?.paid_total;
+  const settledTotal = balance?.settled_total;
+  const reservedTotal = balance?.reserved_total;
 
   const workbook = XLSX.utils.book_new();
 
@@ -485,8 +491,11 @@ export async function exportSubcontractorLedgerStatementToExcel({
     [],
     ["Subcontractor Name:", subcontractor || '—', "", "Work Order No.:", workOrder || 'All'],
     ["Material Sub Head:", subHead || '—', "", "Department:", balance?.project?.department || '—'],
-    ["Total Allocated (Credits):", totalCredits, "", "Total Paid (Debits):", totalDebits],
-    ["Available Balance (INR):", finalBalance],
+    ["Statement Credits:", totalCredits, "", "Actual Paid (Debits):", totalDebits],
+    ["Statement Balance (INR):", statementBalance],
+    ["Available Capacity (INR):", availableCapacity ?? '—'],
+    ["Committed Total (INR):", committedTotal ?? '—', "", "Reserved / Awaiting Payment (INR):", reservedTotal ?? '—'],
+    ["Settled Total (INR):", settledTotal ?? totalDebits],
     []
   ];
 
@@ -536,7 +545,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
     "",
     totalCredits,
     totalDebits,
-    finalBalance,
+    statementBalance,
     ""
   ];
 

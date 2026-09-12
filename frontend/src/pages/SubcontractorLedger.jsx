@@ -33,6 +33,7 @@ const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
   REQUISITION_APPROVAL: 'Debit (Requisition)',
   REQUISITION_PAYMENT: 'Debit (Paid)',
+  REQUISITION_RELEASE: 'Release (Internal)',
   ADMIN_ADJUSTMENT: 'Admin Adjustment'
 };
 
@@ -559,15 +560,17 @@ const SubcontractorLedger = () => {
           </div>
         ) : (
           <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-            <Table containerClassName="min-w-[1100px]">
+            <Table containerClassName="min-w-[1250px]">
               <TableHeader>
                 <TableRow hover={false}>
                   <TableCell isHeader>Work Order</TableCell>
                   <TableCell isHeader>Sub Head</TableCell>
                   <TableCell isHeader>Subcontractor</TableCell>
                   <TableCell isHeader align="right">Estimated Total</TableCell>
-                  <TableCell isHeader align="right">Paid So Far</TableCell>
-                  <TableCell isHeader align="right">Remaining Balance</TableCell>
+                  <TableCell isHeader align="right">Committed</TableCell>
+                  <TableCell isHeader align="right">Actually Paid</TableCell>
+                  <TableCell isHeader align="right">Reserved</TableCell>
+                  <TableCell isHeader align="right">Available Capacity</TableCell>
                   <TableCell isHeader>Actions</TableCell>
                 </TableRow>
               </TableHeader>
@@ -590,10 +593,16 @@ const SubcontractorLedger = () => {
                       <span className="text-slate-400">{formatCurrency(b.estimated_total)}</span>
                     </TableCell>
                     <TableCell align="right">
-                      <span className="text-slate-400">{formatCurrency(b.paid_total)}</span>
+                      <span className="text-slate-400">{formatCurrency(b.committed_total ?? b.paid_total)}</span>
                     </TableCell>
                     <TableCell align="right">
-                      <span className="font-bold text-emerald-400">{formatCurrency(b.available_balance)}</span>
+                      <span className="text-slate-400">{formatCurrency(b.settled_total)}</span>
+                    </TableCell>
+                    <TableCell align="right">
+                      <span className="text-amber-300">{formatCurrency(b.reserved_total)}</span>
+                    </TableCell>
+                    <TableCell align="right">
+                      <span className="font-bold text-emerald-400">{formatCurrency(b.available_capacity ?? b.available_balance)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

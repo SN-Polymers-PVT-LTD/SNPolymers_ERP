@@ -1110,7 +1110,7 @@ async function getSubcontractorLedger(req, res) {
     const offset = (page - 1) * limit;
 
     let dbQuery = supabase
-      .from('subcontractor_balances')
+      .from('subcontractor_balance_summary')
       .select('*', { count: 'exact' });
 
     if (query.work_order_no) {

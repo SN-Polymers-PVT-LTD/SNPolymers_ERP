@@ -41,6 +41,7 @@ function mapAcctRpcError(rpcErr) {
     case 'STA09':
     case 'STA10':
     case 'STA11':
+    case 'STA12':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
@@ -990,8 +991,8 @@ async function resubmitLineItem(req, res) {
   }
 }
 
-// On Hold/Rejected/Pending Review — the full set of terminal statuses that
-// accumulate in the import-eligible rollover queue (idx_arli_importable, 041).
+// Rejected generic Accounts rows remain eligible. Rejected source-derived
+// obligations are terminal and are excluded both here and in RPC 067.
 const IMPORT_ELIGIBLE_STATUSES = ['On Hold', 'Rejected', 'Pending Review'];
 
 /**
@@ -1019,6 +1020,10 @@ async function getImportEligibleItems(req, res) {
       .in('requisition_status', IMPORT_ELIGIBLE_STATUSES)
       .is('imported_to_sheet_id', null)
       .eq('import_dismissed', false);
+
+    dbQuery = dbQuery.or(
+      'requisition_status.in.("On Hold","Pending Review"),and(requisition_status.eq.Rejected,source_fund_request_id.is.null,source_requisition_id.is.null)'
+    );
 
     // Narrow to one specific status, still within the eligible set
     if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
