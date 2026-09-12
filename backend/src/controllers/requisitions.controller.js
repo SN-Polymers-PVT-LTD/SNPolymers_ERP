@@ -145,7 +145,8 @@ async function createRequisition(req, res) {
     const { count, error: countError } = await supabase
       .from('requisitions')
       .select('requisition_no', { count: 'exact', head: true })
-      .eq('requisition_no', requisition_no.trim());
+      .eq('requisition_no', requisition_no.trim())
+      .neq('requisition_status', 'Cancelled');
 
     if (countError) throw countError;
     if (count && count > 0) {
@@ -961,13 +962,24 @@ async function cancelRequisition(req, res) {
       });
     }
 
-    // Perform cancel with optimistic lock
+    const { data: attachments, error: attachmentError } = await supabase
+      .from('requisition_attachments')
+      .select('attachment_id, bucket, storage_path')
+      .eq('requisition_id', id)
+      .eq('status', 'committed');
+    if (attachmentError) throw attachmentError;
+
+    // Mark the row cancelled and clear references before external storage work.
+    // Storage deletion is retried per attachment below; the cancelled row remains
+    // safe to retry and never points at a file that should be used operationally.
     const { data: updated, error: updateError } = await supabase
       .from('requisitions')
       .update({
         requisition_status: 'Cancelled',
         cancelled_by: req.user.mobile_number,
-        cancelled_at: new Date().toISOString()
+        cancelled_at: new Date().toISOString(),
+        requisition_pdf_url: null,
+        gst_bill_pdf_url: null
       })
       .eq('requisition_id', id)
       .in('requisition_status', ['Pending', 'Hold'])
@@ -982,10 +994,30 @@ async function cancelRequisition(req, res) {
       });
     }
 
+    const cleanupFailures = [];
+    for (const attachment of attachments || []) {
+      const { error: removeError } = await supabase.storage
+        .from(attachment.bucket)
+        .remove([attachment.storage_path]);
+      if (removeError) {
+        cleanupFailures.push({ attachment_id: attachment.attachment_id, error: removeError.message });
+        continue;
+      }
+      const { error: deleteError } = await supabase
+        .from('requisition_attachments')
+        .delete()
+        .eq('attachment_id', attachment.attachment_id)
+        .eq('requisition_id', id);
+      if (deleteError) cleanupFailures.push({ attachment_id: attachment.attachment_id, error: deleteError.message });
+    }
+
     return res.status(200).json({
       success: true,
       requisition: updated,
-      message: 'Requisition cancelled successfully.'
+      message: cleanupFailures.length
+        ? 'Requisition cancelled; some attachment cleanup will require retry.'
+        : 'Requisition cancelled successfully.',
+      cleanup_pending: cleanupFailures.length > 0
     });
 
   } catch (error) {

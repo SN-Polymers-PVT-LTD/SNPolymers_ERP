@@ -140,7 +140,9 @@ BEGIN
 
     -- 3. Re-verify uniqueness of requisition_no
     IF EXISTS (
-        SELECT 1 FROM public.requisitions WHERE requisition_no = TRIM(p_requisition_no)
+        SELECT 1 FROM public.requisitions
+        WHERE requisition_no = TRIM(p_requisition_no)
+          AND requisition_status IS DISTINCT FROM 'Cancelled'::public.requisition_status_enum
     ) THEN
         RAISE EXCEPTION 'A requisition with number % already exists.', TRIM(p_requisition_no) USING ERRCODE = '23505';
     END IF;

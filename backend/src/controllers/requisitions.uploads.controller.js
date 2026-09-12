@@ -55,6 +55,7 @@ async function handleUpload(req, res, { bucket, kind, upsert }) {
       .from('requisitions')
       .select('requester_user_id')
       .eq('requisition_no', requisition_no.trim())
+      .neq('requisition_status', 'Cancelled')
       .maybeSingle();
 
     if (fetchErr) throw fetchErr;
