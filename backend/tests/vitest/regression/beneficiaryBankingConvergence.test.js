@@ -134,6 +134,9 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
         requisition_amount: 5000,
         gst_bill: 'No',
         bank_details: 'SBI',
+        beneficiary_name: 'Test Beneficiary',
+        beneficiary_ac_no: '9876543210',
+        beneficiary_ifsc: 'SBIN0001234',
         beneficiary_bank_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
       });
       expect(parsed.success).toBe(true);
@@ -149,6 +152,9 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
         requisition_amount: 5000,
         gst_bill: 'No',
         bank_details: 'SBI',
+        beneficiary_name: 'Test Beneficiary',
+        beneficiary_ac_no: '9876543210',
+        beneficiary_ifsc: 'SBIN0001234',
         beneficiary_bank_id: 'invalid-id'
       });
       expect(parsed.success).toBe(false);
@@ -189,6 +195,9 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
           requisition_amount: 1000,
           gst_bill: 'No',
           bank_details: 'Test',
+          beneficiary_name: 'Test Beneficiary',
+          beneficiary_ac_no: '9876543210',
+          beneficiary_ifsc: 'SBIN0001234',
           beneficiary_bank_id: '00000000-0000-0000-0000-000000000000'
         },
         user: { role: 'site_engineer', mobile_number: ctx.accountsMobile }
@@ -211,6 +220,9 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
           requisition_amount: 1000,
           gst_bill: 'No',
           bank_details: 'Test',
+          beneficiary_name: 'Test Beneficiary',
+          beneficiary_ac_no: '9876543210',
+          beneficiary_ifsc: 'SBIN0001234',
           beneficiary_bank_id: inactiveBankId
         },
         user: { role: 'site_engineer', mobile_number: ctx.accountsMobile }

@@ -486,6 +486,47 @@ const TX_TYPE_LABELS = {
   ADMIN_ADJUSTMENT: 'Admin Balance Adjustment'
 };
 
+export const fullLedgerRequisitionHeaders = [
+  "Sl. No.",
+  "Requisition No.",
+  "Work Order No.",
+  "Subcontractor",
+  "Material Sub Head",
+  "Authorization Status",
+  "Payment Status",
+  "Payment Office",
+  "Requested Amount (INR)",
+  "Approved Amount (INR)",
+  "Effective Liability (INR)",
+  "Paid Amount (INR)",
+  "Requested By",
+  "Creation Date",
+  "Approved On",
+  "Paid On"
+];
+
+export function buildFullLedgerRequisitionRow(r = {}, index = 0) {
+  const financial = getRequisitionFinancialState(r);
+  return [
+    index + 1,
+    r.requisition_no || '',
+    r.work_order_no || '',
+    r.material_details || '',
+    r.material_sub_head || '',
+    r.requisition_status || '',
+    r.payment_status || '',
+    formatPaymentOffice(r.payment_destination, ''),
+    Number(r.requisition_amount || 0),
+    Number(r.approved_amount || 0),
+    financial.effectiveLiability,
+    financial.paidAmount,
+    r.requester_name || r.requester_user_id || '',
+    r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
+    r.zo_actioned_at ? new Date(r.zo_actioned_at).toLocaleDateString('en-IN') : '',
+    r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
+  ];
+}
+
 /**
  * Exports a comprehensive statement of account (Ledger) for a specific Subcontractor.
  * Includes:
@@ -789,36 +830,12 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
       ["Total Requisitions:", requisitions.length],
       []
     ];
-    const reqTableHeaders = [
-      "Sl. No.",
-      "Requisition No.",
-      "Work Order No.",
-      "Subcontractor",
-      "Material Sub Head",
-      "Status",
-      "Payment Office",
-      "Requested Amount (INR)",
-      "Approved Amount (INR)",
-      "Effective Liability (INR)",
-      "Requested By",
-      "Creation Date",
-      "Approved On",
-      "Paid On"
-    ];
-    const reqDataRows = requisitions.map((r, index) => {
-      const financial = getRequisitionFinancialState(r);
-      return [
-        index + 1, r.requisition_no || '', r.work_order_no || '', r.material_details || '', r.material_sub_head || '',
-        r.requisition_status || '', r.payment_status || '', formatPaymentOffice(r.payment_destination, ''),
-        Number(r.requisition_amount || 0), Number(r.approved_amount || 0), financial.effectiveLiability, financial.paidAmount,
-        r.requester_name || r.requester_user_id || '', r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
-        r.zo_actioned_at ? new Date(r.zo_actioned_at).toLocaleDateString('en-IN') : '',
-        r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
-      ];
-    });
+    const reqTableHeaders = fullLedgerRequisitionHeaders;
+    const reqDataRows = requisitions.map(buildFullLedgerRequisitionRow);
     const reqWorksheet = XLSX.utils.aoa_to_sheet([...reqHeader, reqTableHeaders, ...reqDataRows]);
     reqWorksheet['!cols'] = [
-      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 14 }, { wch: 16 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }
+      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
+      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
     ];
     XLSX.utils.book_append_sheet(workbook, reqWorksheet, "Requisitions");
   }

@@ -18,6 +18,7 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
   const sourceReqIds = [];
   const sheetIds = [];
   const itemIds = [];
+  const beneficiaryKeys = [];
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().slice(0, 8);
@@ -68,6 +69,12 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
     }
     await supabase.from('projects_master').delete().eq('work_order_no', workOrder);
     await supabase.from('bank_balance_master').delete().eq('bank_name', debitBankName);
+    for (const key of beneficiaryKeys) {
+      await supabase.from('projects_beneficiary_master')
+        .delete()
+        .eq('beneficiary_ac_no', key.account)
+        .eq('beneficiary_ifsc', key.ifsc);
+    }
     await supabase.from('authorised_users').delete().in('mobile_number', [adminMobile, accountsMobile, zoMobile]);
   });
 
@@ -97,6 +104,22 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
       beneficiary_bank_name: 'Accounts Bank',
       beneficiary_bank_id: bankId
     };
+
+    const staleMaster = {
+      account: newDetails.beneficiary_ac_no,
+      ifsc: newDetails.beneficiary_ifsc
+    };
+    beneficiaryKeys.push(staleMaster);
+    const { error: masterError } = await supabase.from('projects_beneficiary_master').insert({
+      beneficiary_name: 'Stale Fund Supplier',
+      beneficiary_ac_no: staleMaster.account,
+      beneficiary_ifsc: staleMaster.ifsc,
+      beneficiary_bank_name: 'Stale Bank',
+      beneficiary_bank_id: bankId,
+      created_by: adminMobile,
+      updated_by: adminMobile
+    });
+    if (masterError) throw masterError;
 
     const { data: fr, error: frError } = await supabase.from('fund_requests').insert({
       zo_user_id: zoMobile,
@@ -138,9 +161,21 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
     expect(submitError).toBeNull();
 
     const { data: reconciled } = await supabase.from('fund_requests')
-      .select('beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, request_status')
+      .select('beneficiary_id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, request_status')
       .eq('fund_request_id', fr.fund_request_id).single();
     expect(reconciled).toMatchObject({ ...newDetails, request_status: 'Pending' });
+
+    const { data: updatedMaster } = await supabase.from('projects_beneficiary_master')
+      .select('id, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id')
+      .eq('beneficiary_ac_no', newDetails.beneficiary_ac_no)
+      .eq('beneficiary_ifsc', newDetails.beneficiary_ifsc)
+      .single();
+    expect(updatedMaster).toMatchObject({
+      id: reconciled.beneficiary_id,
+      beneficiary_name: newDetails.beneficiary_name,
+      beneficiary_bank_name: newDetails.beneficiary_bank_name,
+      beneficiary_bank_id: newDetails.beneficiary_bank_id
+    });
 
     const { data: auditRows, error: auditError } = await supabase.from('audit_log')
       .select('old_value, new_value, user_id, action')

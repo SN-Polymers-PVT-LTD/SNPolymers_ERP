@@ -172,7 +172,6 @@ async function getSheets(req, res) {
     let limit = parseInt(query.limit) || 20;
     if (limit < 1) limit = 20;
     limit = Math.min(limit, 100);
-    const offset = (page - 1) * limit;
 
     let dbQuery = supabase.from('acct_requisition_sheets').select('*', { count: 'exact' });
 
@@ -1028,27 +1027,14 @@ async function getImportEligibleItems(req, res) {
     };
 
     if (isExport) {
-      const exportedItems = [];
-      let exportPage = 1;
-      let total = null;
+      const { data: exportResult, error: exportError } = await supabase.rpc(
+        'get_accounts_import_queue_export',
+        commonRpcParams
+      );
+      if (exportError) throw exportError;
 
-      while (total === null || exportedItems.length < total) {
-        const { data: exportResult, error: exportError } = await supabase.rpc(
-          'get_accounts_import_queue',
-          { ...commonRpcParams, p_page: exportPage, p_limit: 100 }
-        );
-        if (exportError) throw exportError;
-
-        const batch = exportResult?.items || [];
-        total = Number(exportResult?.total || 0);
-        exportedItems.push(...batch);
-        exportPage += 1;
-
-        if (batch.length === 0 && exportedItems.length < total) {
-          throw new Error(`Accounts import export truncated: retrieved ${exportedItems.length} of ${total}.`);
-        }
-      }
-
+      const exportedItems = exportResult?.items || [];
+      const total = Number(exportResult?.total || 0);
       if (exportedItems.length !== total) {
         throw new Error(`Accounts import export count mismatch: retrieved ${exportedItems.length} of ${total}.`);
       }

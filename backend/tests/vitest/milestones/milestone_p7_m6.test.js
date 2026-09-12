@@ -4,6 +4,7 @@ const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
 const setupAttachment = require('../../helpers/setupAttachment');
 const mockRes = require('../../helpers/mockRes');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 // Controllers under test
 const { createRequisition, getRequisitions, getRequisitionById, actOnRequisition, payFromZoBalance } = require('../../../src/controllers/requisitions.controller');
@@ -28,6 +29,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
   let progressId;
   let estimateId;
   let billId;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -35,6 +37,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     zo2Mobile = `9502${suffix}`;
     jeMobile = `9503${suffix}`;
     adminMobile = `9504${suffix}`;
+    testBankId = await getActiveTestBankId(supabase);
 
     workOrder1 = `WO-P7-M6-A-${suffix}`;
     workOrder2 = `WO-P7-M6-B-${suffix}`;
@@ -187,7 +190,8 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
         requisition_amount: 5000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const resCreateFail = mockRes();
@@ -207,7 +211,8 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
         requisition_amount: 5000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const resCreateOk = mockRes();

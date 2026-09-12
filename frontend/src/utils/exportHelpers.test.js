@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { expandCompletedFundReturn } from './exportHelpers';
+import {
+  expandCompletedFundReturn,
+  fullLedgerRequisitionHeaders,
+  buildFullLedgerRequisitionRow
+} from './exportHelpers';
 
 describe('expandCompletedFundReturn', () => {
   test('falls back to the single work order when breakdown is absent', () => {
@@ -30,5 +34,29 @@ describe('expandCompletedFundReturn', () => {
     const rows = expandCompletedFundReturn({ status: 'Completed', work_order_no: 'WO-1', requested_amount: 500, payment_destination: 'ACCOUNTS' });
     expect(rows).toHaveLength(1);
     expect(rows[0].paymentOffice).toBe('HO Office');
+  });
+});
+
+describe('full subcontractor ledger requisition export contract', () => {
+  test('keeps headers aligned with financial row values', () => {
+    const row = buildFullLedgerRequisitionRow({
+      requisition_no: 'REQ-001',
+      work_order_no: 'WO-001',
+      material_details: 'Vendor A',
+      material_sub_head: 'Civil',
+      requisition_status: 'Approved',
+      payment_status: 'PARTIALLY_PAID',
+      payment_destination: 'ACCOUNTS',
+      requisition_amount: 50000,
+      approved_amount: 45000,
+      paid_amount: 30000,
+      requester_name: 'JE'
+    });
+
+    expect(fullLedgerRequisitionHeaders.length).toBe(row.length);
+    expect(row[fullLedgerRequisitionHeaders.indexOf('Payment Status')]).toBe('PARTIALLY_PAID');
+    expect(row[fullLedgerRequisitionHeaders.indexOf('Payment Office')]).toBe('HO Office');
+    expect(row[fullLedgerRequisitionHeaders.indexOf('Effective Liability (INR)')]).toBe(30000);
+    expect(row[fullLedgerRequisitionHeaders.indexOf('Paid Amount (INR)')]).toBe(30000);
   });
 });

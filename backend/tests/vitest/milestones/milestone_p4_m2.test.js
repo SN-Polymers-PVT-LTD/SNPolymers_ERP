@@ -5,6 +5,7 @@ const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
 const setupUsers = require('../../helpers/setupUsers');
 const setupAttachment = require('../../helpers/setupAttachment');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 const {
   createRequisition,
   getRequisitions,
@@ -23,6 +24,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -32,6 +34,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     jeUser = { role: 'je', mobile_number: `9101${suffix}` };
     jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
     zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
@@ -150,7 +153,8 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
           original_filename: 'mock.pdf',
           requisition_amount: 500.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resCreate = mockRes();
@@ -177,7 +181,8 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
           original_filename: 'mock.pdf',
           requisition_amount: 100.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resDup = mockRes();
@@ -198,7 +203,8 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
           original_filename: 'mock.pdf',
           requisition_amount: 100.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resInvalidMat = mockRes();

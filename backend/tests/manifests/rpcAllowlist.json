@@ -8,5 +8,6 @@
   "refresh_analytics_views",
   "lock_estimate_quotations",
   "get_accounts_import_queue",
+  "get_accounts_import_queue_export",
   "get_subcontractor_ledger_entries"
 ]

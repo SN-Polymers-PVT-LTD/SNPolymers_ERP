@@ -5,6 +5,7 @@ const setupUsers = require('../../helpers/setupUsers');
 const setupProject = require('../../helpers/setupProject');
 const setupAttachment = require('../../helpers/setupAttachment');
 const mockRes = require('../../helpers/mockRes');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 const {
   createRequisition,
@@ -21,6 +22,7 @@ describe('Regression — Cancelled requisition number reuse and storage cleanup'
   let zoMobile;
   let workOrder;
   let reqNo;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -29,6 +31,7 @@ describe('Regression — Cancelled requisition number reuse and storage cleanup'
     zoMobile = `9714${suffix}`;
     workOrder = `WO-REUSE-${suffix}`;
     reqNo = `REQ-REUSE-${suffix}`;
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: jeMobile, role: 'je', is_active: true, display_name: `JE ${suffix}` },
@@ -134,7 +137,8 @@ describe('Regression — Cancelled requisition number reuse and storage cleanup'
         original_filename: 'first.pdf',
         requisition_amount: 1000.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const createRes1 = mockRes();
@@ -207,7 +211,8 @@ describe('Regression — Cancelled requisition number reuse and storage cleanup'
         original_filename: 'second.pdf',
         requisition_amount: 1200.00,
         gst_bill: 'No',
-        bank_details: 'Bank ABC'
+        bank_details: 'Bank ABC',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const createRes2 = mockRes();
@@ -242,7 +247,8 @@ describe('Regression — Cancelled requisition number reuse and storage cleanup'
         original_filename: 'third.pdf',
         requisition_amount: 1500.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const createRes3 = mockRes();

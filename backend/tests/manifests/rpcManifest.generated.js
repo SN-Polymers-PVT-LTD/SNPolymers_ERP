@@ -222,6 +222,39 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_accounts_import_queue_export": {
+      "args": [
+        {
+          "name": "p_status",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_particulars",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_account_sub_title",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_debit_bank_ac_type",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_subcontractor_ledger_entries": {
       "args": [
         {

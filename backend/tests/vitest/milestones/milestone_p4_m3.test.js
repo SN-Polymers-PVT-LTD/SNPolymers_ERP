@@ -5,6 +5,7 @@ const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
 const setupUsers = require('../../helpers/setupUsers');
 const setupAttachment = require('../../helpers/setupAttachment');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 const {
   createRequisition,
   actOnRequisition,
@@ -23,6 +24,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -32,6 +34,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
     zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
     adminUser = { role: 'admin', mobile_number: `9104${suffix}` };
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
@@ -163,7 +166,8 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
         original_filename: 'mock.pdf',
         requisition_amount: amount,
         gst_bill: 'No',
-        bank_details: 'SBI Account 1234567890'
+        bank_details: 'SBI Account 1234567890',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const res = mockRes();

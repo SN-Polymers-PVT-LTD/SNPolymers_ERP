@@ -21,6 +21,7 @@ const {
   createFundRequest
 } = require('../../../src/controllers/fundRequests.controller');
 const { supabase } = require('../../../src/db/supabase');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 describe('financialInvariants — budget, ledger, approval integrity', () => {
   let ctx;
@@ -41,7 +42,6 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 500000,
       sandHeadAmount: 0
     });
-
     try {
       const approved = await insertRequisitionDirect(localCtx, {
         requisition_no: `REQ_APP_${localSuffix}`,
@@ -84,6 +84,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 10000,
       sandHeadAmount: 0
     });
+    const testBankId = await getActiveTestBankId(supabase);
 
     try {
       await insertRequisitionDirect(localCtx, {
@@ -106,7 +107,8 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             original_filename: `REQ_NEW_${localSuffix}.pdf`,
             requisition_amount: 9000,
             gst_bill: 'No',
-            bank_details: 'Test bank'
+            bank_details: 'Test bank',
+            ...validRequisitionBeneficiary(testBankId)
           }
         },
         res
@@ -130,6 +132,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 10000,
       sandHeadAmount: 0
     });
+    const testBankId = await getActiveTestBankId(supabase);
 
     try {
       await insertRequisitionDirect(localCtx, {
@@ -154,7 +157,8 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             original_filename: `REQ_OVER_${localSuffix}.pdf`,
             requisition_amount: 5001,
             gst_bill: 'No',
-            bank_details: 'Test bank'
+            bank_details: 'Test bank',
+            ...validRequisitionBeneficiary(testBankId)
           }
         },
         res

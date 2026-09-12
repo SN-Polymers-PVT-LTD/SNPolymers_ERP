@@ -4,6 +4,7 @@ const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
 const setupAttachment = require('../../helpers/setupAttachment');
 const mockRes = require('../../helpers/mockRes');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 // Monkeypatch computeMainHeadCapacity BEFORE requiring the controller under test, so the
 // controller's `const { computeMainHeadCapacity } = require(...)` destructure captures our
@@ -32,6 +33,7 @@ describe('Regression — requisition creation stays atomic across a post-commit 
   let adminMobile;
   let workOrder;
   let reqNo;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -40,6 +42,7 @@ describe('Regression — requisition creation stays atomic across a post-commit 
     adminMobile = `9603${suffix}`;
     workOrder = `WO-ATOMIC-${suffix}`;
     reqNo = `REQ-ATOMIC-${suffix}`;
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: zoMobile, role: 'zo', is_active: true, display_name: `ZO ${suffix}` },
@@ -145,7 +148,8 @@ describe('Regression — requisition creation stays atomic across a post-commit 
         requisition_amount: 5000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
 
@@ -199,7 +203,8 @@ describe('Regression — requisition creation stays atomic across a post-commit 
         requisition_amount: 1000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
 
