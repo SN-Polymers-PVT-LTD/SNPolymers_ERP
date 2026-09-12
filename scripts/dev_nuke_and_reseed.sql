@@ -1,10 +1,13 @@
 -- FOR DEVELOPMENT DB ONLY. DO NOT USE THIS IN PROD.
 --
 -- Nuke and reseed script for development/staging environments:
--- 1.  Truncates all application tables with RESTART IDENTITY CASCADE.
+-- 1.  Truncates all application tables with RESTART IDENTITY CASCADE
+--     (including newly added requisition_attachments from migration 056).
 -- 1b. Reseeds baseline sentinel row that the application assumes always exists
 --     ('Credit' virtual bank in bank_balance_master for credit purchases / 042 & 045).
 --     Ensures an admin user is available and attributed to satisfy FK constraints.
+--     (Note: Canonical master data like Indian Banks and Account Sub-Titles are
+--     managed in scripts/seed_canonical_master_data.sql).
 -- 2.  Cleans up transient test users without a Telegram ID, safely preserving
 --     admin and accounts role users.
 -- 3.  Reset user daily streaks and report timestamps.
@@ -35,6 +38,7 @@ TRUNCATE TABLE
   subcontractor_balances,
 
   -- Field Operations & Billing
+  requisition_attachments,
   requisitions,
   projects_beneficiary_master,
   ra_final_bills,
