@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll, afterAll, vi } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
@@ -10,7 +10,7 @@ const {
   uploadRequisitionPdf,
   deleteRequisitionPdf
 } = require('../../../src/controllers/requisitions.uploads.controller');
-const { createRequisition } = require('../../../src/controllers/requisitions.controller');
+const { createRequisition, cancelRequisition, retryCancelledRequisitionAttachmentCleanup } = require('../../../src/controllers/requisitions.controller');
 
 describe('Regression — requisition_attachments lifecycle (upload -> claim / delete)', () => {
   let suffix;
@@ -273,6 +273,89 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
     expect(resumed.data).toHaveLength(1);
     expect((await supabase.rpc('finalize_requisition_attachment_delete', { p_attachment_id: attachment.attachmentId })).data).toBe(true);
     await supabase.storage.from('requisition-pdfs').remove([attachment.storagePath]);
+    await supabase.from('requisitions').delete().eq('requisition_id', requisitionId);
+  });
+
+  async function createCommittedRequisition(attachment, reqNo) {
+    const { error: uploadError } = await supabase.storage.from('requisition-pdfs').upload(
+      attachment.storagePath, Buffer.from('%PDF-1.4 failure-test'), { contentType: 'application/pdf' }
+    );
+    expect(uploadError).toBeNull();
+    const response = mockRes();
+    await createRequisition({
+      user: { mobile_number: jeMobile, role: 'je' },
+      body: { work_order_no: workOrder, requisition_no: reqNo, material_main_head: `Material ATTLC-${suffix}`,
+        requisition_pdf_attachment_id: attachment.attachmentId, original_filename: 'failure.pdf',
+        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ' }
+    }, response);
+    expect(response.statusCode).toBe(201);
+    return response.jsonData.requisition.requisition_id;
+  }
+
+  test('Storage failure leaves cancellation successful and cleanup retryable', async () => {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
+    const requisitionId = await createCommittedRequisition(attachment, `REQ-ATTLC-STORAGE-FAIL-${suffix}`);
+    const storageFrom = vi.spyOn(supabase.storage, 'from').mockReturnValue({
+      remove: vi.fn().mockResolvedValue({ error: { message: 'simulated storage outage' } })
+    });
+    const cancelRes = mockRes();
+    await cancelRequisition({ params: { id: requisitionId }, body: {}, user: { mobile_number: jeMobile, role: 'je' } }, cancelRes);
+    storageFrom.mockRestore();
+    expect(cancelRes.statusCode).toBe(200);
+    expect(cancelRes.jsonData.cleanup_pending).toBe(true);
+    const { data: deleting } = await supabase.from('requisition_attachments').select('status').eq('attachment_id', attachment.attachmentId).single();
+    expect(deleting.status).toBe('deleting');
+
+    const retryRes = mockRes();
+    await retryCancelledRequisitionAttachmentCleanup({ params: { id: requisitionId }, user: { mobile_number: jeMobile, role: 'je' } }, retryRes);
+    expect(retryRes.statusCode).toBe(200);
+    expect(retryRes.jsonData.cleanup_pending).toBe(false);
+    const { data: removed } = await supabase.from('requisition_attachments').select('attachment_id').eq('attachment_id', attachment.attachmentId).maybeSingle();
+    expect(removed).toBeNull();
+    await supabase.from('requisitions').delete().eq('requisition_id', requisitionId);
+  });
+
+  test('cleanup-acquire failure still returns successful cancellation', async () => {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
+    const reqNo = `REQ-ATTLC-ACQUIRE-FAIL-${suffix}`;
+    const requisitionId = await createCommittedRequisition(attachment, reqNo);
+    const originalRpc = supabase.rpc.bind(supabase);
+    const rpcSpy = vi.spyOn(supabase, 'rpc').mockImplementation(async (name, args) => {
+      if (name === 'acquire_cancelled_requisition_attachment_cleanup') return { data: null, error: { message: 'simulated acquire outage' } };
+      return originalRpc(name, args);
+    });
+    const cancelRes = mockRes();
+    await cancelRequisition({ params: { id: requisitionId }, body: {}, user: { mobile_number: jeMobile, role: 'je' } }, cancelRes);
+    rpcSpy.mockRestore();
+    expect(cancelRes.statusCode).toBe(200);
+    expect(cancelRes.jsonData.success).toBe(true);
+    expect(cancelRes.jsonData.cleanup_pending).toBe(true);
+    await supabase.from('requisition_attachments').delete().eq('attachment_id', attachment.attachmentId);
+    await supabase.from('requisitions').delete().eq('requisition_id', requisitionId);
+  });
+
+  test('finalize failure leaves deleting metadata and retry removes it after Storage succeeded', async () => {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
+    const requisitionId = await createCommittedRequisition(attachment, `REQ-ATTLC-FINALIZE-FAIL-${suffix}`);
+    const originalRpc = supabase.rpc.bind(supabase);
+    const rpcSpy = vi.spyOn(supabase, 'rpc').mockImplementation(async (name, args) => {
+      if (name === 'finalize_requisition_attachment_delete') return { data: null, error: { message: 'simulated finalize outage' } };
+      return originalRpc(name, args);
+    });
+    const cancelRes = mockRes();
+    await cancelRequisition({ params: { id: requisitionId }, body: {}, user: { mobile_number: jeMobile, role: 'je' } }, cancelRes);
+    rpcSpy.mockRestore();
+    expect(cancelRes.statusCode).toBe(200);
+    expect(cancelRes.jsonData.cleanup_pending).toBe(true);
+    const { data: deleting } = await supabase.from('requisition_attachments').select('status').eq('attachment_id', attachment.attachmentId).single();
+    expect(deleting.status).toBe('deleting');
+
+    const retryRes = mockRes();
+    await retryCancelledRequisitionAttachmentCleanup({ params: { id: requisitionId }, user: { mobile_number: jeMobile, role: 'je' } }, retryRes);
+    expect(retryRes.statusCode).toBe(200);
+    expect(retryRes.jsonData.cleanup_pending).toBe(false);
+    const { data: removed } = await supabase.from('requisition_attachments').select('attachment_id').eq('attachment_id', attachment.attachmentId).maybeSingle();
+    expect(removed).toBeNull();
     await supabase.from('requisitions').delete().eq('requisition_id', requisitionId);
   });
 

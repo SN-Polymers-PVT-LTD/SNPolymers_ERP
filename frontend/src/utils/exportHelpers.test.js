@@ -19,4 +19,16 @@ describe('expandCompletedFundReturn', () => {
   test('does not hide a malformed non-empty breakdown behind the fallback', () => {
     expect(expandCompletedFundReturn({ status: 'Completed', work_order_no: 'WO-1', requested_amount: 300, breakdown: [{ work_order_no: 'WO-1', amount: 100 }] })).toEqual([]);
   });
+
+  test('defaults paymentOffice to ZO Office when payment_destination is absent', () => {
+    const rows = expandCompletedFundReturn({ status: 'Completed', work_order_no: 'WO-1', requested_amount: 500 });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].paymentOffice).toBe('ZO Office');
+  });
+
+  test('formats paymentOffice according to payment_destination when present', () => {
+    const rows = expandCompletedFundReturn({ status: 'Completed', work_order_no: 'WO-1', requested_amount: 500, payment_destination: 'ACCOUNTS' });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].paymentOffice).toBe('HO Office');
+  });
 });

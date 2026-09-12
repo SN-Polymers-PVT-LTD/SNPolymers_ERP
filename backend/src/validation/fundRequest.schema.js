@@ -29,8 +29,6 @@ const createFundRequestSchema = {
 
     beneficiary_name: z.string().trim().optional().nullable(),
     beneficiary_ac_no: z.string().trim().optional().nullable()
-      // Not .regex() directly: empty string must pass through untouched since
-      // the beneficiary block is optional on the fund request form.
       .refine(val => !val || accountNumberRegex.test(val), {
         message: 'beneficiary_ac_no must be 9-18 digits.'
       }),
@@ -39,10 +37,25 @@ const createFundRequestSchema = {
         message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'
       }),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
-    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable()
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
+    submission_mode: z.enum(['draft', 'submit']).optional().default('draft')
   }).refine(data => data.zo_fr_amount !== undefined || data.requested_amount !== undefined, {
     message: 'Either zo_fr_amount or requested_amount must be provided.',
     path: ['zo_fr_amount']
+  }).superRefine((data, ctx) => {
+    if (data.submission_mode !== 'submit') return;
+    if (!data.beneficiary_name?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Beneficiary name is required.', path: ['beneficiary_name'] });
+    }
+    if (!data.beneficiary_ac_no?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Beneficiary account number is required.', path: ['beneficiary_ac_no'] });
+    }
+    if (!data.beneficiary_ifsc?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Beneficiary IFSC is required.', path: ['beneficiary_ifsc'] });
+    }
+    if (!data.beneficiary_bank_id) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Beneficiary bank is required.', path: ['beneficiary_bank_id'] });
+    }
   })
 };
 

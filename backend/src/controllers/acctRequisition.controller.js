@@ -1696,8 +1696,8 @@ async function lookupBeneficiary(req, res) {
 }
 
 /**
- * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...
- * Live typeahead for the line-item entry row's A/C No. field
+ * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...&search_by=...
+ * Live typeahead for the line-item entry row's A/C No. or beneficiary name field
  */
 async function searchBeneficiariesByAcNo(req, res) {
   const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
@@ -1705,14 +1705,16 @@ async function searchBeneficiariesByAcNo(req, res) {
     return res.status(200).json({ success: true, beneficiaries: [] });
   }
   const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
+  const searchBy = req.query?.search_by;
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('beneficiary_master')
-      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)')
-      .like('account_number', `${prefix}%`)
-      .order('last_used_at', { ascending: false, nullsFirst: false })
-      .limit(limit);
+      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
+    query = searchBy === 'name'
+      ? query.ilike('beneficiary_name', `%${prefix}%`)
+      : query.like('account_number', `${prefix}%`);
+    const { data, error } = await query.order('last_used_at', { ascending: false, nullsFirst: false }).limit(limit);
     if (error) throw error;
 
     const enriched = (data || []).map(b => ({

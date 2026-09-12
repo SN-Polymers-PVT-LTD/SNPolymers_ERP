@@ -50,13 +50,18 @@ async function createFundRequest(req, res) {
   if (!validate(req, res, createFundRequestSchema)) return;
   const {
     zo_fr_no, work_order_no, zo_fr_amount, requested_amount, zo_remarks, remarks,
-    beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id
+    beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id,
+    submission_mode
   } = req.body;
   const amount = zo_fr_amount !== undefined && zo_fr_amount !== null ? Number(zo_fr_amount) : Number(requested_amount);
   const finalFrNo = (zo_fr_no || `FR-${crypto.randomUUID().substring(0, 8)}`).trim();
   const finalRemarks = (zo_remarks || remarks || '').trim() || null;
 
   try {
+    if (submission_mode === 'submit' && (!beneficiary_name?.trim() || !beneficiary_ac_no?.trim() || !beneficiary_ifsc?.trim() || !beneficiary_bank_id)) {
+      return res.status(400).json({ success: false, message: 'Complete beneficiary bank details are required before submission.' });
+    }
+
     // Resolve a supplied bank for the draft snapshot, but do not mutate the
     // shared beneficiary directory until the draft is submitted.
     let resolvedBankName, validatedBankId;

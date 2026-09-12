@@ -27,6 +27,18 @@ const formatDateTime = (d) => {
   });
 };
 
+const getBeneficiaryValidationError = ({ name, accountNo, ifsc, bankId }) => {
+  if (!name.trim()) return 'Beneficiary name is required.';
+  if (!accountNo.trim() || !/^\d{9,18}$/.test(accountNo.trim())) {
+    return 'Beneficiary account number must be 9-18 digits.';
+  }
+  if (!ifsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.trim().toUpperCase())) {
+    return 'Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.';
+  }
+  if (!bankId) return 'Beneficiary bank is required.';
+  return null;
+};
+
 /** Display-only: Final Approved estimate and spec 4(c) remaining (never WO-value fallback). */
 function getFinalApprovedEstimateDisplay(capacity) {
   if (!capacity || capacity.estimate_amount == null) {
@@ -268,6 +280,16 @@ const RequestDetailPanel = ({
       setActionError('Remarks are required to submit a fund request.');
       return;
     }
+    const beneficiaryError = getBeneficiaryValidationError({
+      name: beneficiaryName,
+      accountNo: beneficiaryAcNo,
+      ifsc: beneficiaryIfsc,
+      bankId: beneficiaryBankId
+    });
+    if (beneficiaryError) {
+      setActionError(beneficiaryError);
+      return;
+    }
 
     setActionError('');
     setActionSubmitting(true);
@@ -281,7 +303,8 @@ const RequestDetailPanel = ({
         beneficiary_ifsc: beneficiaryIfsc.trim() || null,
         beneficiary_name: beneficiaryName.trim() || null,
         beneficiary_bank_id: beneficiaryBankId || null,
-        beneficiary_bank_name: beneficiaryBankName.trim() || null
+        beneficiary_bank_name: beneficiaryBankName.trim() || null,
+        submission_mode: 'submit'
       });
       onClose();
     } catch (err) {
@@ -304,7 +327,8 @@ const RequestDetailPanel = ({
     beneficiary_ifsc: beneficiaryIfsc.trim() || null,
     beneficiary_name: beneficiaryName.trim() || null,
     beneficiary_bank_id: beneficiaryBankId || null,
-    beneficiary_bank_name: beneficiaryBankName.trim() || null
+    beneficiary_bank_name: beneficiaryBankName.trim() || null,
+    submission_mode: 'draft'
   });
 
   const handleSaveDraft = async (e) => {
@@ -335,6 +359,16 @@ const RequestDetailPanel = ({
   const handleSubmitDraft = async (e) => {
     e.preventDefault();
     if (isCreate) return handleCreateSubmit(e);
+    const beneficiaryError = getBeneficiaryValidationError({
+      name: beneficiaryName,
+      accountNo: beneficiaryAcNo,
+      ifsc: beneficiaryIfsc,
+      bankId: beneficiaryBankId
+    });
+    if (beneficiaryError) {
+      setActionError(beneficiaryError);
+      return;
+    }
     setActionSubmitting(true);
     setActionError('');
     try {
@@ -630,7 +664,7 @@ const RequestDetailPanel = ({
             <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
               <div className="flex items-center justify-between pb-2 border-b border-white/5">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-                  Beneficiary Banking Details {isCreate ? '(Optional)' : ''}
+                  Beneficiary Banking Details
                 </span>
                 {isEditable && (
                   <span className="text-[9px] text-slate-500 italic">
@@ -655,6 +689,7 @@ const RequestDetailPanel = ({
                     }}
                     placeholder="Enter bank account no…"
                     disabled={actionSubmitting}
+                    required
                     size="sm"
                   />
 
@@ -667,21 +702,43 @@ const RequestDetailPanel = ({
                       placeholder="e.g. SBIN0001234"
                       maxLength={11}
                       disabled={actionSubmitting}
+                      required
                       className="w-full glass-input rounded-lg px-3 py-1.5 font-semibold text-xs"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Beneficiary Name</label>
-                    <input
-                      type="text"
-                      value={beneficiaryName}
-                      onChange={(e) => setBeneficiaryName(e.target.value)}
-                      placeholder="Enter payee name…"
-                      disabled={actionSubmitting}
-                      className="w-full glass-input rounded-lg px-3 py-1.5 font-semibold text-xs"
-                    />
-                  </div>
+                  <ProjectBeneficiarySuggestions
+                    label="Beneficiary Name"
+                    value={beneficiaryName}
+                    searchBy="name"
+                    primaryField="name"
+                    enabled={!actionSubmitting}
+                    onChange={(e) => {
+                      setBeneficiaryName(e.target.value);
+                      setBeneficiaryAcNo('');
+                      setBeneficiaryIfsc('');
+                      setBeneficiaryBankId('');
+                      setBeneficiaryBankName('');
+                    }}
+                    onClearSelection={() => {
+                      setBeneficiaryName('');
+                      setBeneficiaryAcNo('');
+                      setBeneficiaryIfsc('');
+                      setBeneficiaryBankId('');
+                      setBeneficiaryBankName('');
+                    }}
+                    onSelect={(b) => {
+                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                      setBeneficiaryName(b.beneficiary_name || '');
+                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                    }}
+                    placeholder="Enter payee name…"
+                    disabled={actionSubmitting}
+                    required
+                    size="sm"
+                  />
 
                   <Select
                     label="Indian Banks"
@@ -693,8 +750,9 @@ const RequestDetailPanel = ({
                       setBeneficiaryBankName(found ? found.bank_name : '');
                     }}
                     disabled={actionSubmitting}
+                    required
                   >
-                    <option value="">-- Select Bank (Optional) --</option>
+                    <option value="">-- Select Bank --</option>
                     {indianBanks.map((b) => (
                       <option key={b.id} value={b.id}>{b.bank_name}</option>
                     ))}

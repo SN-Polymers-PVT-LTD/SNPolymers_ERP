@@ -5,7 +5,8 @@ import LineItemRow from './LineItemRow';
 import { Table, TableBody } from '../ui';
 
 vi.mock('../../api/acctRequisitionsApi', () => ({
-  upsertBeneficiary: vi.fn().mockResolvedValue({})
+  upsertBeneficiary: vi.fn().mockResolvedValue({}),
+  searchBeneficiariesByAcNo: vi.fn().mockResolvedValue({ data: { beneficiaries: [] } })
 }));
 
 const baseItem = {

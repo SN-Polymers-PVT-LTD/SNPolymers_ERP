@@ -983,7 +983,15 @@ async function cancelRequisition(req, res) {
       });
     }
 
-    const cleanupFailures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
+    let cleanupFailures;
+    try {
+      cleanupFailures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
+    } catch (cleanupError) {
+      // Cancellation is the business transaction. Attachment cleanup is an
+      // external, retryable side effect and must not turn a successful
+      // cancellation into an HTTP 500.
+      cleanupFailures = [{ stage: 'acquire', error: cleanupError.message }];
+    }
 
     return res.status(200).json({
       success: true,
@@ -1577,13 +1585,18 @@ async function searchProjectsBeneficiaries(req, res) {
     return res.status(200).json({ success: true, beneficiaries: [] });
   }
   const limit = Math.min(parseInt(req.query?.limit, 10) || 8, 20);
+  const searchBy = req.query?.search_by;
 
   try {
     let query = supabase
       .from('projects_beneficiary_master')
       .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, last_used_at, indian_bank_master:beneficiary_bank_id (id, bank_name)');
 
-    if (/^\d+$/.test(prefix)) {
+    if (searchBy === 'name') {
+      query = query.ilike('beneficiary_name', `%${prefix}%`);
+    } else if (searchBy === 'ac_no') {
+      query = query.like('beneficiary_ac_no', `${prefix}%`);
+    } else if (/^\d+$/.test(prefix)) {
       query = query.like('beneficiary_ac_no', `${prefix}%`);
     } else {
       query = query.ilike('beneficiary_name', `%${prefix}%`);

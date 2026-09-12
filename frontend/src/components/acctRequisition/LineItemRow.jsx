@@ -486,7 +486,29 @@ const LineItemRow = ({
             size="sm"
           />
           <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase().trim())} placeholder="IFSC" size="sm" />
-          <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
+          <BeneficiaryAcNoSuggestions
+            disabled={readOnly}
+            value={draft.beneficiary_name}
+            searchBy="name"
+            primaryField="name"
+            onChange={(e) => {
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_name: e.target.value,
+                beneficiary_ac_no: '',
+                beneficiary_ifsc: '',
+                beneficiary_bank_id: null,
+                beneficiary_bank_name: ''
+              }));
+              setConfirmedBeneficiaryKey(null);
+            }}
+            onClearSelection={() => {
+              setDraft(prev => ({ ...prev, beneficiary_name: '', beneficiary_ac_no: '', beneficiary_ifsc: '', beneficiary_bank_id: null, beneficiary_bank_name: '' }));
+              setConfirmedBeneficiaryKey(null);
+            }}
+            placeholder="Beneficiary Name"
+            size="sm"
+          />
           <Select
             disabled={readOnly}
             value={draft.beneficiary_bank_id || (indianBanks.find(b => (typeof b === 'object' ? b.bank_name : b) === draft.beneficiary_bank_name)?.id || '')}

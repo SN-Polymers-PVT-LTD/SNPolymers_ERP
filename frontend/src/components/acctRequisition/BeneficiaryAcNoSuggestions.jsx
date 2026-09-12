@@ -27,7 +27,7 @@ const MENU_MAX_HEIGHT = 224; // px, matches max-h-56
  * account number, IFSC, name, and bank — since the point is completing a
  * still-partial account number.
  */
-const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = false, ...inputProps }) => {
+const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelection, searchBy = 'ac_no', primaryField = 'ac_no', disabled = false, ...inputProps }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
@@ -68,7 +68,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await searchBeneficiariesByAcNo(prefix);
+        const res = await searchBeneficiariesByAcNo(prefix, 8, searchBy);
         // A slower, earlier request must never clobber a newer one's results.
         if (requestId !== requestIdRef.current) return;
         setResults(res.data?.beneficiaries || []);
@@ -81,7 +81,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, searchBy]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -139,6 +139,9 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
         onFocus={() => setOpen(true)}
         onChange={onChange}
       />
+      {onClearSelection && value && !disabled && (
+        <button type="button" aria-label="Clear beneficiary selection" onClick={onClearSelection} className="absolute right-2 top-7 text-slate-400 hover:text-white text-sm">×</button>
+      )}
 
       {showMenu && menuRect && createPortal(
         <div
@@ -164,8 +167,8 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handlePick(b)}
             >
-              <p className="text-xs font-bold text-slate-200">{b.account_number}</p>
-              <p className="text-[10px] text-slate-400">{b.beneficiary_name} &middot; {b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</p>
+              <p className="text-xs font-bold text-slate-200">{primaryField === 'name' ? b.beneficiary_name : b.account_number}</p>
+              <p className="text-[10px] text-slate-400">{primaryField === 'name' ? `A/C: ${b.account_number}` : b.beneficiary_name} &middot; {b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</p>
             </button>
           ))}
         </div>,

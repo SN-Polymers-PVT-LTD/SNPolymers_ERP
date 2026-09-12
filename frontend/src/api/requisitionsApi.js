@@ -111,8 +111,8 @@ export const deleteGstBillPdf = (attachmentId) =>
   authApi.delete('/requisitions/upload/gst-bill', { params: { attachment_id: attachmentId } });
 
 /** Live typeahead search for project payment requisition beneficiary suggestions */
-export const searchProjectsBeneficiaries = (prefix, limit = 8) =>
-  authApi.get('/requisitions/beneficiary-suggestions', { params: { prefix, limit } });
+export const searchProjectsBeneficiaries = (prefix, limit = 8, searchBy) =>
+  authApi.get('/requisitions/beneficiary-suggestions', { params: { prefix, limit, search_by: searchBy } });
 
 /** Paginated/searchable list backing the Beneficiary Master page */
 export const getProjectsBeneficiaries = (params) =>

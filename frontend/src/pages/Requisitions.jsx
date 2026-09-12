@@ -1285,12 +1285,28 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
     }
-    if (beneficiaryAcNo.trim() && !/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
+    if (!beneficiaryName.trim()) {
+      setError('Beneficiary name is required.');
+      return;
+    }
+    if (!beneficiaryAcNo.trim()) {
+      setError('Beneficiary account number is required.');
+      return;
+    }
+    if (!/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
       setError('Beneficiary account number must be 9-18 digits.');
       return;
     }
-    if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim())) {
+    if (!beneficiaryIfsc.trim()) {
+      setError('Beneficiary IFSC is required.');
+      return;
+    }
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
       setError('Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.');
+      return;
+    }
+    if (!beneficiaryBankId) {
+      setError('Beneficiary bank is required.');
       return;
     }
 
@@ -1825,7 +1841,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-                Beneficiary Banking Details (Optional)
+                Beneficiary Banking Details
               </span>
               <span className="text-[9px] text-slate-500 italic">
                 Auto-saved to Projects Beneficiary Master
@@ -1851,6 +1867,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 }}
                 placeholder="Enter bank account no…"
                 disabled={submitting}
+                required
                 size="sm"
               />
 
@@ -1861,15 +1878,43 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 placeholder="e.g. SBIN0001234"
                 maxLength={11}
                 disabled={submitting}
+                required
                 size="sm"
               />
 
-              <Input
+              <ProjectBeneficiarySuggestions
                 label="Beneficiary Name"
                 value={beneficiaryName}
-                onChange={(e) => setBeneficiaryName(e.target.value)}
+                searchBy="name"
+                primaryField="name"
+                enabled={!submitting}
+                onChange={(e) => {
+                  setBeneficiaryName(e.target.value);
+                  setBeneficiaryAcNo('');
+                  setBeneficiaryIfsc('');
+                  setBeneficiaryBankId('');
+                  setBeneficiaryBankName('');
+                  setBeneficiaryId(null);
+                }}
+                onClearSelection={() => {
+                  setBeneficiaryName('');
+                  setBeneficiaryAcNo('');
+                  setBeneficiaryIfsc('');
+                  setBeneficiaryBankId('');
+                  setBeneficiaryBankName('');
+                  setBeneficiaryId(null);
+                }}
+                onSelect={(b) => {
+                  setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                  setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                  setBeneficiaryName(b.beneficiary_name || '');
+                  setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                  setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                  setBeneficiaryId(b.id || null);
+                }}
                 placeholder="Enter payee / subcontractor name…"
                 disabled={submitting}
+                required
                 size="sm"
               />
 
@@ -1883,8 +1928,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                   setBeneficiaryBankName(found ? found.bank_name : '');
                 }}
                 disabled={submitting}
+                required
               >
-                <option value="">-- Select Bank (Optional) --</option>
+                <option value="">-- Select Bank --</option>
                 {indianBanks.map((b) => (
                   <option key={b.id} value={b.id}>{b.bank_name}</option>
                 ))}

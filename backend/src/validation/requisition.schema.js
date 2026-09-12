@@ -31,19 +31,15 @@ const createRequisitionSchema = {
     gst_bill_pdf_attachment_id: z.string().regex(uuidRegex, 'Invalid GST bill attachment ID.').optional().nullable(),
     bank_details: z.string().trim().optional().nullable(),
     beneficiary_id: z.string().regex(uuidRegex, 'Invalid beneficiary ID.').optional().nullable(),
-    beneficiary_name: z.string().trim().optional().nullable(),
-    beneficiary_ac_no: z.string().trim().optional().nullable()
-      // Not .regex() directly: empty string must pass through untouched since
-      // the beneficiary block is optional on the requisition form.
-      .refine(val => !val || accountNumberRegex.test(val), {
-        message: 'beneficiary_ac_no must be 9-18 digits.'
-      }),
-    beneficiary_ifsc: z.string().trim().optional().nullable()
-      .refine(val => !val || ifscRegex.test(val), {
-        message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'
-      }),
+    beneficiary_name: z.string({ required_error: 'Beneficiary name is required.' })
+      .trim().min(1, 'Beneficiary name is required.'),
+    beneficiary_ac_no: z.string({ required_error: 'Beneficiary account number is required.' })
+      .trim().regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.'),
+    beneficiary_ifsc: z.string({ required_error: 'Beneficiary IFSC is required.' })
+      .trim().toUpperCase().regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
-    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
+    beneficiary_bank_id: z.string({ required_error: 'Beneficiary bank is required.' })
+      .regex(uuidRegex, 'Invalid bank ID.'),
     expen_head_remarks: z.string().optional().nullable()
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_attachment_id && data.gst_bill_pdf_attachment_id.trim() !== ''), {
     message: "gst_bill_pdf_attachment_id is required when GST Bill is 'Yes'.",

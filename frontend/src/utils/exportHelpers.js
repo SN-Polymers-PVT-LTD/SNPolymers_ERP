@@ -304,7 +304,7 @@ export function expandCompletedFundReturn(returnRow, projectByWorkOrder = new Ma
       referenceNo: '', jeName: '', zoName: returnRow.zo_name || returnRow.zo_user_id || '', pdfName: '',
       mainHead: 'Excess Fund Return', secondField: '', thirdField: '',
       remarks: returnRow.remarks_zo || returnRow.remarks_ho || 'Fund returned to HO', amount: Number(b.amount),
-      paymentOffice: '', beneficiaryName: 'Head Office', accountNo: '', ifscCode: '', bankName: '',
+      paymentOffice: formatPaymentOffice(returnRow.payment_destination, 'ZO Office'), beneficiaryName: 'Head Office', accountNo: '', ifscCode: '', bankName: '',
       workOrder: wo, workOrderDetails: project?.site_details || ''
     };
   });
@@ -997,8 +997,8 @@ export async function exportCombinedExpenditureSheet({
     const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : (ret?.remarks || '');
     const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : (ret ? ret.amount : null);
     const paymentStatus = req ? (req.payment_status || '') : '';
-    const paidAmount = req ? getRequisitionFinancialState(req).paidAmount : null;
-    const paymentOffice = req ? formatPaymentOffice(req.payment_destination, '') : (ret?.paymentOffice || '');
+    const paidAmount = req ? getRequisitionFinancialState(req).paidAmount : (ret ? zoApprovedAmount : null);
+    const paymentOffice = req ? formatPaymentOffice(req.payment_destination, '') : (ret?.paymentOffice || (ret ? 'ZO Office' : ''));
     const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : (ret?.beneficiaryName || '');
     const accountNo = req ? (req.beneficiary_ac_no || '') : (ret?.accountNo || '');
     const ifscCode = req ? (req.beneficiary_ifsc || '') : '';
