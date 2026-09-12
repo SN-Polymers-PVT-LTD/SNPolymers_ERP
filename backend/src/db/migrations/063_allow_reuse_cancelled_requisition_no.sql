@@ -18,6 +18,12 @@ END $$;
 ALTER TABLE public.requisitions
   DROP CONSTRAINT IF EXISTS requisitions_requisition_no_key;
 
+-- A cancelled requisition must retain its database row but no longer point at
+-- deleted storage. The original schema made this URL mandatory, which caused
+-- cancellation to fail with 23502 before storage cleanup could run.
+ALTER TABLE public.requisitions
+  ALTER COLUMN requisition_pdf_url DROP NOT NULL;
+
 CREATE UNIQUE INDEX IF NOT EXISTS uq_requisitions_active_requisition_no
   ON public.requisitions(requisition_no)
   WHERE requisition_status IS DISTINCT FROM 'Cancelled'::public.requisition_status_enum;
