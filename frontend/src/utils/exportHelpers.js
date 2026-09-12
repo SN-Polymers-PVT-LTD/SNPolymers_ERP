@@ -545,7 +545,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
   // In standard accounting statements, show transactions chronologically (oldest to newest)
   const entriesAsc = [...entries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-  let currentRunning = 0;
+  let currentRunning = Number(entriesAsc[0]?.opening_balance || 0);
   const ledgerDataRows = entriesAsc.map((e, index) => {
     const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
     const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);

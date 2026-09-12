@@ -19,6 +19,7 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
   let workOrder;
   let estimateNo;
   let createdFrIds = [];
+  const queueOverflowPrefix = `QUEUE_OVERFLOW_${crypto.randomUUID().substring(0, 8)}`;
 
   async function callCreateSheet(mobile) {
     const req = { body: {}, user: { role: 'accounts', mobile_number: mobile } };
@@ -146,6 +147,59 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
     }
     await supabase.from('authorised_users').delete().eq('mobile_number', zoMobile);
     await cleanupAcctRequisitionScenario(ctx);
+  });
+
+  test('Accounts queue pagination does not truncate a source beyond 5000 rows', async () => {
+    const sheetRes = await callCreateSheet(ctx.accountsMobile);
+    const sheet = sheetRes.jsonData.sheet;
+    ctx.sheetIds.push(sheet.id);
+
+    const rows = Array.from({ length: 5001 }, (_, index) => ({
+      sheet_id: sheet.id,
+      created_by: ctx.accountsMobile,
+      account_sub_title_text: 'Queue Overflow Test',
+      particulars: `${queueOverflowPrefix}_${String(index).padStart(4, '0')}`,
+      req_amount: 1,
+      requisition_status: 'Pending Review',
+      import_dismissed: false
+    }));
+
+    for (let offset = 0; offset < rows.length; offset += 500) {
+      const { error } = await supabase.from('acct_requisition_line_items').insert(rows.slice(offset, offset + 500));
+      expect(error).toBeNull();
+    }
+
+    const res = await callGetEligible({ particulars: queueOverflowPrefix, page: 51, limit: 100 }, ctx.accountsMobile);
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.pagination.total).toBe(5001);
+    expect(res.jsonData.items).toHaveLength(1);
+    expect(res.jsonData.items[0].particulars).toContain(queueOverflowPrefix);
+
+    const exportRes = await callGetEligible({ particulars: queueOverflowPrefix, export: 'true' }, ctx.accountsMobile);
+    expect(exportRes.statusCode).toBe(200);
+    expect(exportRes.jsonData.items).toHaveLength(5001);
+    expect(exportRes.jsonData.total).toBe(5001);
+
+    // Submitted-status line items are audit-protected. Return these open-sheet
+    // fixtures to their pre-submit state before removing them.
+    const { data: overflowItems, error: lookupError } = await supabase
+      .from('acct_requisition_line_items')
+      .select('id')
+      .like('particulars', `${queueOverflowPrefix}%`);
+    expect(lookupError).toBeNull();
+    for (let offset = 0; offset < (overflowItems || []).length; offset += 100) {
+      const ids = overflowItems.slice(offset, offset + 100).map(item => item.id);
+      const { error: resetError } = await supabase
+        .from('acct_requisition_line_items')
+        .update({ requisition_status: null })
+        .in('id', ids);
+      expect(resetError).toBeNull();
+      const { error: cleanupError } = await supabase
+        .from('acct_requisition_line_items')
+        .delete()
+        .in('id', ids);
+      expect(cleanupError).toBeNull();
+    }
   });
 
   test('ZO-submitted Fund Request appears in Accounts Import Eligible Items list', async () => {
@@ -296,6 +350,40 @@ describe('Fund Request -> Accounts Sheet Integration & ZO Balance Credit', () =>
     const eligibleRes = await callGetEligible({ limit: 100 }, ctx.accountsMobile);
     const inEligible = (eligibleRes.jsonData.items || []).find(i => i.id === fr.fund_request_id);
     expect(inEligible).toBeUndefined();
+  });
+
+  test('a Draft Fund Request cannot be dismissed before submission', async () => {
+    const frNo = `ZO/FR/DRAFT/${crypto.randomUUID().substring(0, 8)}`;
+    const { data: draft, error } = await supabase
+      .from('fund_requests')
+      .insert({
+        zo_user_id: zoMobile,
+        zo_fr_no: frNo,
+        zo_fr_amount: 5000,
+        zo_remarks: 'Draft must remain actionable',
+        work_order_no: workOrder,
+        beneficiary_name: 'Draft Supplier',
+        beneficiary_ac_no: '9876543210',
+        beneficiary_ifsc: 'TEST0001234',
+        beneficiary_bank_name: 'State Bank of India',
+        created_by: zoMobile,
+        request_status: 'Draft'
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    createdFrIds.push(draft.fund_request_id);
+
+    const dismissRes = await callDismissLineItem(draft.fund_request_id, 'FUND_REQUEST', ctx.accountsMobile);
+    expect(dismissRes.statusCode).toBe(409);
+
+    const { data: unchanged } = await supabase
+      .from('fund_requests')
+      .select('request_status, accounts_import_dismissed')
+      .eq('fund_request_id', draft.fund_request_id)
+      .single();
+    expect(unchanged.request_status).toBe('Draft');
+    expect(unchanged.accounts_import_dismissed).toBe(false);
   });
 
   test('End-to-end: HO approval debits bank, credits ZO balance, logs ledger, and updates Fund Request', async () => {

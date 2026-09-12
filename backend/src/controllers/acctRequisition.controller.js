@@ -1014,6 +1014,61 @@ async function getImportEligibleItems(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
+    // The queue is a single server-side read model.  Keeping the merge and
+    // global ordering in PostgreSQL prevents per-source caps from producing
+    // pages whose totals do not match the available records.
+    const commonRpcParams = {
+      p_status: query.status || null,
+      p_particulars: query.particulars || null,
+      p_account_sub_title: query.account_sub_title || null,
+      p_beneficiary_ac_no: query.beneficiary_ac_no || null,
+      p_debit_bank_ac_type: query.debit_bank_ac_type || null,
+      p_date_from: query.date_from ? `${query.date_from}T00:00:00+05:30` : null,
+      p_date_to: query.date_to ? `${query.date_to}T23:59:59.999+05:30` : null
+    };
+
+    if (isExport) {
+      const exportedItems = [];
+      let exportPage = 1;
+      let total = null;
+
+      while (total === null || exportedItems.length < total) {
+        const { data: exportResult, error: exportError } = await supabase.rpc(
+          'get_accounts_import_queue',
+          { ...commonRpcParams, p_page: exportPage, p_limit: 100 }
+        );
+        if (exportError) throw exportError;
+
+        const batch = exportResult?.items || [];
+        total = Number(exportResult?.total || 0);
+        exportedItems.push(...batch);
+        exportPage += 1;
+
+        if (batch.length === 0 && exportedItems.length < total) {
+          throw new Error(`Accounts import export truncated: retrieved ${exportedItems.length} of ${total}.`);
+        }
+      }
+
+      if (exportedItems.length !== total) {
+        throw new Error(`Accounts import export count mismatch: retrieved ${exportedItems.length} of ${total}.`);
+      }
+      return res.status(200).json({ success: true, items: exportedItems, total });
+    }
+
+    const { data: queueResult, error: queueError } = await supabase.rpc(
+      'get_accounts_import_queue',
+      { ...commonRpcParams, p_page: page, p_limit: limit }
+    );
+    if (queueError) throw queueError;
+
+    const queueItems = queueResult?.items || [];
+    const queueTotal = Number(queueResult?.total || 0);
+    return res.status(200).json({
+      success: true,
+      items: queueItems,
+      pagination: { page, limit, total: queueTotal, totalPages: Math.ceil(queueTotal / limit) }
+    });
+
     let dbQuery = supabase
       .from('acct_requisition_line_items')
       .select('*', { count: 'exact' })
@@ -1256,6 +1311,7 @@ async function importLineItem(req, res) {
           .select('fund_request_id')
           .eq('fund_request_id', itemId)
           .is('accounts_line_item_id', null)
+          .eq('request_status', 'Pending')
           .maybeSingle();
         if (maybeFr) isFundReq = true;
       }
@@ -1413,6 +1469,7 @@ async function dismissImportEligibleItem(req, res) {
         })
         .eq('fund_request_id', itemId)
         .is('accounts_line_item_id', null)
+        .eq('request_status', 'Pending')
         .eq('accounts_import_dismissed', false)
         .select()
         .maybeSingle();

@@ -19,6 +19,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
   let adminMobile;
   let zoMobile;
   let workOrder;
+  let bankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -34,6 +35,16 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
       { mobile_number: adminMobile, role: 'admin', is_active: true, display_name: `Admin ${suffix}` },
       { mobile_number: zoMobile, role: 'zo', is_active: true, display_name: `ZO ${suffix}` }
     ]);
+
+    const { data: bank, error: bankError } = await supabase
+      .from('indian_bank_master')
+      .select('id')
+      .eq('bank_name', 'State Bank of India')
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+    if (bankError || !bank) throw bankError || new Error('Test bank not found');
+    bankId = bank.id;
 
     await setupProject(workOrder, `EST-ATTLC-${suffix}`, 100000.00, adminMobile);
     await supabase.from('projects_master').update({ zo_user_id: zoMobile }).eq('work_order_no', workOrder);
@@ -191,7 +202,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
         original_filename: 'test.pdf',
         requisition_amount: 1000.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId
       }
     };
     const res = mockRes();
@@ -252,7 +263,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
       user: { mobile_number: jeMobile, role: 'je' },
       body: { work_order_no: workOrder, requisition_no: reqNo, material_main_head: `Material ATTLC-${suffix}`,
         requisition_pdf_attachment_id: attachment.attachmentId, original_filename: 'cancel.pdf',
-        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ' }
+        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId }
     }, createRes);
     expect(createRes.statusCode).toBe(201);
     const requisitionId = createRes.jsonData.requisition.requisition_id;
@@ -286,7 +297,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
       user: { mobile_number: jeMobile, role: 'je' },
       body: { work_order_no: workOrder, requisition_no: reqNo, material_main_head: `Material ATTLC-${suffix}`,
         requisition_pdf_attachment_id: attachment.attachmentId, original_filename: 'failure.pdf',
-        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ' }
+        requisition_amount: 1000, gst_bill: 'No', bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId }
     }, response);
     expect(response.statusCode).toBe(201);
     return response.jsonData.requisition.requisition_id;
@@ -371,7 +382,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
         original_filename: 'test.pdf',
         requisition_amount: 1000.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId
       }
     };
     const res = mockRes();
@@ -402,7 +413,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
         original_filename: 'test.pdf',
         requisition_amount: 1000.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId
       }
     }, firstRes);
     expect(firstRes.statusCode).toBe(201);
@@ -419,7 +430,7 @@ describe('Regression — requisition_attachments lifecycle (upload -> claim / de
         original_filename: 'test.pdf',
         requisition_amount: 1000.00,
         gst_bill: 'No',
-        bank_details: 'Bank XYZ'
+        bank_details: 'Bank XYZ', beneficiary_name: 'Attachment Test Beneficiary', beneficiary_ac_no: '9876543210', beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: bankId
       }
     }, secondRes);
 

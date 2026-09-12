@@ -181,6 +181,76 @@ module.exports = {
       ],
       "returns": "requisitions"
     },
+    "get_accounts_import_queue": {
+      "args": [
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        },
+        {
+          "name": "p_status",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_particulars",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_account_sub_title",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_debit_bank_ac_type",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_subcontractor_ledger_entries": {
+      "args": [
+        {
+          "name": "p_work_order_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_sub_head",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_details",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_search",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "TABLE(entry jsonb, opening_balance numeric, closing_balance numeric)"
+    },
     "increment_otp_attempts": {
       "args": [
         {

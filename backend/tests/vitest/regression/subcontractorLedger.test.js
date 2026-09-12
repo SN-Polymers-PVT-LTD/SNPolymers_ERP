@@ -523,6 +523,46 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     }
   });
 
+  test('12a. date-filtered ledger entries seed the running balance from the opening balance', async () => {
+    const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const todayIst = new Date(Date.now() + (5.5 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+
+    const { error: creditDateError } = await supabase
+      .from('subcontractor_ledger')
+      .update({ created_at: oldDate })
+      .eq('work_order_no', workOrder)
+      .eq('material_sub_head', SUB_HEAD)
+      .eq('material_details', DETAILS)
+      .eq('transaction_type', 'ESTIMATE_ITEM_APPROVAL');
+    expect(creditDateError).toBeNull();
+
+    const { error: paymentDateError } = await supabase
+      .from('subcontractor_ledger')
+      .update({ created_at: new Date().toISOString() })
+      .eq('reference_id', reqXId)
+      .eq('transaction_type', 'REQUISITION_PAYMENT');
+    expect(paymentDateError).toBeNull();
+
+    const req = {
+      query: {
+        work_order_no: workOrder,
+        material_sub_head: SUB_HEAD,
+        material_details: DETAILS,
+        date_from: todayIst,
+        date_to: todayIst
+      }
+    };
+    const res = mockRes();
+    await getSubcontractorLedgerEntries(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.entries).toHaveLength(1);
+    expect(Number(res.jsonData.entries[0].amount)).toBe(-10000);
+    expect(Number(res.jsonData.entries[0].opening_balance)).toBe(35000);
+    expect(Number(res.jsonData.entries[0].running_balance)).toBe(25000);
+    expect(Number(res.jsonData.entries[0].closing_balance)).toBe(25000);
+  });
+
   test('13. getSubcontractorRequisitions lists every requisition for a Sub Contractor, filterable by work order', async () => {
     const req = { query: { work_order_no: workOrder } };
     const res = mockRes();

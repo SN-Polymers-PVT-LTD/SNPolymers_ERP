@@ -89,6 +89,15 @@ describe('Fund Request canonical Draft → Submit workflow', () => {
 
   test('submission reserves capacity, records submission metadata, and populates beneficiary_id', async () => {
     const fr = await insertDraft(20000);
+    // Simulate a stale caller or older client having marked the Draft as
+    // dismissed before submission. Draft -> Pending must restore queue
+    // visibility atomically at the database boundary.
+    const { error: staleDismissError } = await supabase
+      .from('fund_requests')
+      .update({ accounts_import_dismissed: true })
+      .eq('fund_request_id', fr.fund_request_id);
+    expect(staleDismissError).toBeNull();
+
     const { data, error } = await supabase.rpc('submit_fund_request_transact', {
       p_fund_request_id: fr.fund_request_id, p_submitted_by: zoMobile
     });
@@ -97,6 +106,7 @@ describe('Fund Request canonical Draft → Submit workflow', () => {
     expect(data.submitted_at).toBeTruthy();
     expect(data.submitted_by).toBe(zoMobile);
     expect(data.beneficiary_id).toBeTruthy();
+    expect(data.accounts_import_dismissed).toBe(false);
 
     const { data: pbmRow, error: pbmErr } = await supabase
       .from('projects_beneficiary_master')

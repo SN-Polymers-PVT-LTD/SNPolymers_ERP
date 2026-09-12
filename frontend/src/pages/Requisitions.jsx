@@ -20,7 +20,7 @@ import {
   getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
-import { formatPaymentOffice } from '../utils/requisitionUtils';
+import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getFundRequests } from '../api/fundRequests';
 import { getReturnRequests } from '../api/fundReturnsApi';
@@ -2333,6 +2333,7 @@ const Requisitions = () => {
                     {requisitions.filter(r => r.work_order_no === activeWO.work_order_no).map((req) => {
                       const isPending = req.requisition_status === 'Pending';
                       const isHold = req.requisition_status === 'Hold';
+                      const financialState = getRequisitionFinancialState(req);
                       const isOwner = req.requester_user_id === user?.mobile_number;
                       const isAdmin = user?.role === 'admin';
                       const canCancel = isPending && (isOwner || isAdmin);
@@ -2351,7 +2352,7 @@ const Requisitions = () => {
                             }
                           </TableCell>
                           <TableCell>
-                            <StatusBadge status={req.requisition_status} />
+                            <StatusBadge status={financialState.status} />
                           </TableCell>
                           <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                           <TableCell className="text-[11px] text-slate-500">
@@ -2690,6 +2691,7 @@ const Requisitions = () => {
                         {paginatedRequisitions.map((req) => {
                           const isPending = req.requisition_status === 'Pending';
                           const isHold = req.requisition_status === 'Hold';
+                          const financialState = getRequisitionFinancialState(req);
                           const isOwner = req.requester_user_id === user?.mobile_number;
                           const isAdmin = user?.role === 'admin';
                           const canCancel = isPending && (isOwner || isAdmin);
@@ -2711,7 +2713,7 @@ const Requisitions = () => {
                                 }
                               </TableCell>
                               <TableCell>
-                                <StatusBadge status={req.requisition_status} />
+                                <StatusBadge status={financialState.status} />
                               </TableCell>
                               <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                               <TableCell className="text-xs text-slate-300 font-medium">

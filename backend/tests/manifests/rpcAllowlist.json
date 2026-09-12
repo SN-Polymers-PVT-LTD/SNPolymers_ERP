@@ -6,5 +6,7 @@
   "create_requisition_secure",
   "increment_otp_attempts",
   "refresh_analytics_views",
-  "lock_estimate_quotations"
+  "lock_estimate_quotations",
+  "get_accounts_import_queue",
+  "get_subcontractor_ledger_entries"
 ]

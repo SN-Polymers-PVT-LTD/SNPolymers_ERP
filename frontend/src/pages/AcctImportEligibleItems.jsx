@@ -160,7 +160,7 @@ const AcctImportEligibleItems = () => {
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {item.item_type === 'FUND_REQUEST' ? (
                           <Badge variant="purple">Fund Request</Badge>
-                        ) : item.item_type === 'REQUISITION' ? (
+                        ) : item.item_type === 'PAYMENT_REQUISITION' ? (
                           <Badge variant="blue">Payment Req</Badge>
                         ) : null}
                         <span className="text-slate-300 font-medium">{item.particulars || '—'}</span>

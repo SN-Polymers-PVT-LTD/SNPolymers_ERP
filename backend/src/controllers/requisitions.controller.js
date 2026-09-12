@@ -1167,38 +1167,22 @@ async function getSubcontractorLedgerEntries(req, res) {
   const { work_order_no, material_sub_head, material_details, search, date_from, date_to } = req.query || {};
 
   try {
-    let dbQuery = supabase
-      .from('subcontractor_ledger')
-      .select('*')
-      .eq('ledger_visible', true);
-
-    if (work_order_no) {
-      dbQuery = dbQuery.eq('work_order_no', work_order_no.trim());
-    }
-    if (material_sub_head) {
-      dbQuery = dbQuery.eq('material_sub_head', material_sub_head.trim());
-    }
-    if (material_details) {
-      dbQuery = dbQuery.eq('material_details', material_details.trim());
-    }
-    if (search) {
-      const s = search.trim();
-      dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
-    }
-    if (date_from) {
-      dbQuery = dbQuery.gte('created_at', `${date_from}T00:00:00+05:30`);
-    }
-    if (date_to) {
-      dbQuery = dbQuery.lte('created_at', `${date_to}T23:59:59.999+05:30`);
-    }
-
-    dbQuery = dbQuery.order('created_at', { ascending: false });
-
-    const { data: entries, error } = await dbQuery;
+    const { data: ledgerRows, error } = await supabase.rpc('get_subcontractor_ledger_entries', {
+      p_work_order_no: work_order_no?.trim() || null,
+      p_material_sub_head: material_sub_head?.trim() || null,
+      p_material_details: material_details?.trim() || null,
+      p_search: search?.trim() || null,
+      p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
+      p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
+    });
 
     if (error) throw error;
 
-    const rawEntries = entries || [];
+    const rawEntries = (ledgerRows || []).map(row => ({
+      ...(row.entry || {}),
+      opening_balance: Number(row.opening_balance || 0),
+      closing_balance: Number(row.closing_balance || 0)
+    }));
 
     // 1. Resolve user display names
     const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
@@ -1253,19 +1237,9 @@ async function getSubcontractorLedgerEntries(req, res) {
       }, {});
     }
 
-    // 5. Compute chronological running balance per (work_order_no, material_sub_head, material_details)
-    const runningBalances = {};
-    // Chronological order (oldest first)
-    const entriesAsc = [...rawEntries].reverse();
-    for (const e of entriesAsc) {
-      const key = `${e.work_order_no}|||${e.material_sub_head}|||${e.material_details}`;
-      runningBalances[key] = Number(((runningBalances[key] || 0) + Number(e.amount || 0)).toFixed(2));
-      e.running_balance = runningBalances[key];
-      e.credit_amount = Number(e.amount) > 0 ? Number(e.amount) : 0;
-      e.debit_amount = Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0;
-    }
-
-    // 6. Enrich entries (returned newest first)
+    // 5. Enrich entries (returned newest first). Running/opening/closing
+    // balances were calculated over the complete partition in PostgreSQL
+    // before the requested date window was applied.
     const enriched = rawEntries.map(e => {
       const reqInfo = reqMap[e.reference_id];
       const itemInfo = itemMap[e.reference_id];
