@@ -172,6 +172,7 @@ async function getSheets(req, res) {
     let limit = parseInt(query.limit) || 20;
     if (limit < 1) limit = 20;
     limit = Math.min(limit, 100);
+    const offset = (page - 1) * limit;
 
     let dbQuery = supabase.from('acct_requisition_sheets').select('*', { count: 'exact' });
 

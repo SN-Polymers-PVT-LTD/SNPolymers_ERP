@@ -6,7 +6,7 @@ const {
 } = require('../../helpers/acctRequisitionFixture');
 const {
   createSheet, addLineItem, updateLineItem, deleteLineItem, deleteSheetIfEmpty, submitSheet,
-  actOnLineItem, resubmitLineItem, exportBulkNeft, upsertBeneficiary
+  actOnLineItem, resubmitLineItem, exportBulkNeft, upsertBeneficiary, getSheets
 } = require('../../../src/controllers/acctRequisition.controller');
 const { supabase } = require('../../../src/db/supabase');
 
@@ -14,6 +14,13 @@ async function callCreateSheet(mobile) {
   const req = { body: {}, user: { role: 'accounts', mobile_number: mobile } };
   const res = mockRes();
   await createSheet(req, res);
+  return res;
+}
+
+async function callGetSheets(query, mobile) {
+  const req = { query, user: { role: 'accounts', mobile_number: mobile } };
+  const res = mockRes();
+  await getSheets(req, res);
   return res;
 }
 
@@ -52,6 +59,25 @@ describe('Accounts HO Approval — §9 lifecycle regression suite', () => {
 
   afterAll(async () => {
     await cleanupAcctRequisitionScenario(ctx);
+  });
+
+  test('getSheets supports page 1 and page 2 without returning an error', async () => {
+    const firstSheetRes = await callCreateSheet(ctx.accountsMobile);
+    const secondSheetRes = await callCreateSheet(ctx.accountsMobile);
+    expect(firstSheetRes.statusCode).toBe(201);
+    expect(secondSheetRes.statusCode).toBe(201);
+    ctx.sheetIds.push(firstSheetRes.jsonData.sheet.id, secondSheetRes.jsonData.sheet.id);
+
+    const pageOne = await callGetSheets({ page: 1, limit: 1 }, ctx.accountsMobile);
+    const pageTwo = await callGetSheets({ page: 2, limit: 1 }, ctx.accountsMobile);
+
+    expect(pageOne.statusCode).toBe(200);
+    expect(pageTwo.statusCode).toBe(200);
+    expect(pageOne.jsonData.pagination.page).toBe(1);
+    expect(pageTwo.jsonData.pagination.page).toBe(2);
+    expect(pageOne.jsonData.sheets).toHaveLength(1);
+    expect(pageTwo.jsonData.sheets).toHaveLength(1);
+    expect(pageOne.jsonData.sheets[0].id).not.toBe(pageTwo.jsonData.sheets[0].id);
   });
 
   // ── Test 1 — Balance guardrail (status-flag gated, not date-window gated) ──

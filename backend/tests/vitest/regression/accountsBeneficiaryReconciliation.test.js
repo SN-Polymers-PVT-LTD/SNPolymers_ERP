@@ -148,6 +148,12 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
     }).select().single();
     if (itemError) throw itemError;
     itemIds.push(item.id);
+    expect(item).toMatchObject({
+      source_fund_request_id: fr.fund_request_id,
+      beneficiary_name: newDetails.beneficiary_name,
+      beneficiary_ac_no: newDetails.beneficiary_ac_no,
+      beneficiary_ifsc: newDetails.beneficiary_ifsc
+    });
 
     const { error: linkError } = await supabase.from('fund_requests')
       .update({ accounts_line_item_id: item.id })
@@ -188,9 +194,116 @@ describe('Accounts beneficiary reconciliation at sheet submission', () => {
     expect(auditRows[0].old_value.beneficiary_ac_no).toBe(oldDetails.beneficiary_ac_no);
     expect(auditRows[0].new_value.beneficiary_ac_no).toBe(newDetails.beneficiary_ac_no);
 
+    const { data: masterAuditRows, error: masterAuditError } = await supabase.from('audit_log')
+      .select('old_value, new_value, user_id, action')
+      .eq('module_name', 'Beneficiary Master')
+      .eq('record_identifier', updatedMaster.id)
+      .eq('action', 'BENEFICIARY_MASTER_RECONCILED');
+    expect(masterAuditError).toBeNull();
+    expect(masterAuditRows).toHaveLength(1);
+    expect(masterAuditRows[0].user_id).toBe(accountsMobile);
+    expect(masterAuditRows[0].old_value.beneficiary_name).toBe('Stale Fund Supplier');
+    expect(masterAuditRows[0].new_value.beneficiary_name).toBe(newDetails.beneficiary_name);
+
     const { data: submittedItem } = await supabase.from('acct_requisition_line_items')
       .select('requisition_status').eq('id', item.id).single();
     expect(submittedItem.requisition_status).toBe('Pending HO Review');
+  });
+
+  test('audits a beneficiary-master correction even when the source snapshot is already current', async () => {
+    const details = {
+      beneficiary_name: 'Current Fund Supplier',
+      beneficiary_ac_no: `555${suffix}`,
+      beneficiary_ifsc: `ICIC${suffix.toUpperCase()}`,
+      beneficiary_bank_name: 'Current Bank',
+      beneficiary_bank_id: bankId
+    };
+    const masterKey = { account: details.beneficiary_ac_no, ifsc: details.beneficiary_ifsc };
+    beneficiaryKeys.push(masterKey);
+    const { error: masterError } = await supabase.from('projects_beneficiary_master').insert({
+      beneficiary_name: 'Stale Directory Supplier',
+      beneficiary_ac_no: masterKey.account,
+      beneficiary_ifsc: masterKey.ifsc,
+      beneficiary_bank_name: 'Stale Directory Bank',
+      beneficiary_bank_id: bankId,
+      created_by: adminMobile,
+      updated_by: adminMobile
+    });
+    if (masterError) throw masterError;
+
+    const { data: fr, error: frError } = await supabase.from('fund_requests').insert({
+      zo_user_id: zoMobile,
+      work_order_no: workOrder,
+      zo_fr_no: `FR_BEN_MASTER_ONLY_${suffix}`,
+      zo_fr_amount: 1000,
+      zo_remarks: 'master-only beneficiary reconciliation test',
+      request_status: 'Pending',
+      created_by: zoMobile,
+      ...details
+    }).select().single();
+    if (frError) throw frError;
+    sourceFrIds.push(fr.fund_request_id);
+
+    const sheet = await createOpenSheet(`SHEET_FR_MASTER_ONLY_${suffix}`);
+    const { data: item, error: itemError } = await supabase.from('acct_requisition_line_items').insert({
+      sheet_id: sheet.id,
+      source_fund_request_id: fr.fund_request_id,
+      created_by: accountsMobile,
+      particulars: 'Fund Request master-only reconciliation',
+      req_amount: 1000,
+      payment_mode: 'NEFT',
+      debit_bank_ac_type: debitBankName,
+      work_order_no: workOrder,
+      ...details
+    }).select().single();
+    if (itemError) throw itemError;
+    itemIds.push(item.id);
+    expect(item).toMatchObject({
+      source_fund_request_id: fr.fund_request_id,
+      beneficiary_name: details.beneficiary_name,
+      beneficiary_ac_no: details.beneficiary_ac_no,
+      beneficiary_ifsc: details.beneficiary_ifsc
+    });
+
+    const { error: linkError } = await supabase.from('fund_requests')
+      .update({ accounts_line_item_id: item.id })
+      .eq('fund_request_id', fr.fund_request_id);
+    if (linkError) throw linkError;
+
+    const { error: submitError } = await supabase.rpc('submit_acct_sheet_transact', {
+      p_sheet_id: sheet.id,
+      p_submitted_by: accountsMobile
+    });
+    expect(submitError).toBeNull();
+
+    const { data: sourceAuditRows, error: sourceAuditError } = await supabase.from('audit_log')
+      .select('id')
+      .eq('module_name', 'Fund Request')
+      .eq('record_identifier', fr.fund_request_id)
+      .eq('action', 'BENEFICIARY_RECONCILED');
+    expect(sourceAuditError).toBeNull();
+    expect(sourceAuditRows).toHaveLength(0);
+
+    const { data: updatedMaster } = await supabase.from('projects_beneficiary_master')
+      .select('id, beneficiary_name, beneficiary_bank_name')
+      .eq('beneficiary_ac_no', details.beneficiary_ac_no)
+      .eq('beneficiary_ifsc', details.beneficiary_ifsc)
+      .single();
+    expect(updatedMaster).toMatchObject({
+      beneficiary_name: details.beneficiary_name,
+      beneficiary_bank_name: details.beneficiary_bank_name
+    });
+
+    const { data: masterAuditRows, error: masterAuditError } = await supabase.from('audit_log')
+      .select('old_value, new_value, user_id')
+      .eq('module_name', 'Beneficiary Master')
+      .eq('record_identifier', updatedMaster.id)
+      .eq('action', 'BENEFICIARY_MASTER_RECONCILED');
+    expect(masterAuditError).toBeNull();
+    expect(masterAuditRows).toHaveLength(1);
+    expect(masterAuditRows[0].user_id).toBe(accountsMobile);
+    expect(masterAuditRows[0].old_value.beneficiary_name).toBe('Stale Directory Supplier');
+    expect(masterAuditRows[0].new_value.beneficiary_name).toBe(details.beneficiary_name);
   });
 
   test('Payment Requisition Accounts edits reconcile only the current descendant', async () => {
