@@ -27,7 +27,7 @@ const MENU_MAX_HEIGHT = 224; // px, matches max-h-56
  * account number, IFSC, name, and bank — since the point is completing a
  * still-partial account number.
  */
-const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelection, searchBy = 'ac_no', primaryField = 'ac_no', disabled = false, ...inputProps }) => {
+const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelection, searchBy = 'ac_no', primaryField = 'ac_no', disabled = false, enabled = true, ...inputProps }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
@@ -45,6 +45,14 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
   const justSelectedRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled || disabled) {
+      requestIdRef.current += 1;
+      setResults([]);
+      setLoading(false);
+      setOpen(false);
+      return undefined;
+    }
+
     if (justSelectedRef.current) {
       justSelectedRef.current = false;
       return undefined;
@@ -81,7 +89,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [value, searchBy]);
+  }, [value, searchBy, enabled, disabled]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -127,7 +135,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
     setResults([]);
   };
 
-  const showMenu = open && !disabled && value.trim().length >= MIN_PREFIX_LENGTH;
+  const showMenu = open && enabled && !disabled && value.trim().length >= MIN_PREFIX_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">
@@ -136,7 +144,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
         value={value}
         disabled={disabled}
         autoComplete="off"
-        onFocus={() => setOpen(true)}
+        onFocus={() => enabled && setOpen(true)}
         onChange={onChange}
       />
       {onClearSelection && value && !disabled && (
@@ -164,7 +172,10 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
               key={`${b.account_number}|${b.ifsc}`}
               type="button"
               className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition border-b border-white/5 last:border-b-0"
-              onMouseDown={(e) => e.preventDefault()}
+              // Keep the outside-click handler from closing the portal before
+              // the button's click event, while preserving normal browser
+              // mouse interaction so the suggestion can actually be chosen.
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={() => handlePick(b)}
             >
               <p className="text-xs font-bold text-slate-200">{primaryField === 'name' ? b.beneficiary_name : b.account_number}</p>
