@@ -484,7 +484,27 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(row.project?.department).toBe('PWD');
   });
 
-  test('12. getSubcontractorLedgerEntries returns the full transaction trail for one balance, newest first', async () => {
+  test('12. getSubcontractorLedgerEntries exposes actual ZO settlement, not the hidden authorization reservation', async () => {
+    const { data: settled, error: settlementErr } = await supabase.rpc('select_zo_balance_payment_transact', {
+      p_requisition_id: reqXId,
+      p_actioned_by: zoMobile
+    });
+    expect(settlementErr).toBeNull();
+    expect(settled.payment_status).toBe('PAID');
+
+    const { data: reqLedgerRows, error: reqLedgerErr } = await supabase
+      .from('subcontractor_ledger')
+      .select('transaction_type, amount, ledger_visible, settlement_status')
+      .eq('reference_id', reqXId)
+      .order('transaction_type');
+    expect(reqLedgerErr).toBeNull();
+    expect(reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_APPROVAL')?.ledger_visible).toBe(false);
+    const paymentRow = reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_PAYMENT');
+    expect(paymentRow?.ledger_visible).toBe(true);
+    expect(reqLedgerRows.find((row) => row.transaction_type === 'REQUISITION_APPROVAL')?.settlement_status).toBe('SETTLED');
+    expect(paymentRow?.settlement_status).toBe('SETTLED');
+    expect(Number(paymentRow?.amount)).toBe(-10000);
+
     const req = { query: { work_order_no: workOrder, material_sub_head: SUB_HEAD, material_details: DETAILS } };
     const res = mockRes();
     await getSubcontractorLedgerEntries(req, res);
@@ -492,7 +512,8 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(res.statusCode).toBe(200);
     expect(res.jsonData.success).toBe(true);
     const entries = res.jsonData.entries;
-    // Credits from itemA (20,000) + itemA2 (15,000), debit from Req X (-10,000)
+    // The statement contains the two estimate credits and actual payment. The
+    // ZO authorization reservation is retained internally but hidden.
     expect(entries.length).toBe(3);
     expect(entries.every(e => e.created_by_name)).toBe(true);
     const total = entries.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -500,6 +521,46 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     for (let i = 1; i < entries.length; i++) {
       expect(new Date(entries[i - 1].created_at).getTime()).toBeGreaterThanOrEqual(new Date(entries[i].created_at).getTime());
     }
+  });
+
+  test('12a. date-filtered ledger entries seed the running balance from the opening balance', async () => {
+    const oldDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const todayIst = new Date(Date.now() + (5.5 * 60 * 60 * 1000)).toISOString().slice(0, 10);
+
+    const { error: creditDateError } = await supabase
+      .from('subcontractor_ledger')
+      .update({ created_at: oldDate })
+      .eq('work_order_no', workOrder)
+      .eq('material_sub_head', SUB_HEAD)
+      .eq('material_details', DETAILS)
+      .eq('transaction_type', 'ESTIMATE_ITEM_APPROVAL');
+    expect(creditDateError).toBeNull();
+
+    const { error: paymentDateError } = await supabase
+      .from('subcontractor_ledger')
+      .update({ created_at: new Date().toISOString() })
+      .eq('reference_id', reqXId)
+      .eq('transaction_type', 'REQUISITION_PAYMENT');
+    expect(paymentDateError).toBeNull();
+
+    const req = {
+      query: {
+        work_order_no: workOrder,
+        material_sub_head: SUB_HEAD,
+        material_details: DETAILS,
+        date_from: todayIst,
+        date_to: todayIst
+      }
+    };
+    const res = mockRes();
+    await getSubcontractorLedgerEntries(req, res);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.entries).toHaveLength(1);
+    expect(Number(res.jsonData.entries[0].amount)).toBe(-10000);
+    expect(Number(res.jsonData.entries[0].opening_balance)).toBe(35000);
+    expect(Number(res.jsonData.entries[0].running_balance)).toBe(25000);
+    expect(Number(res.jsonData.entries[0].closing_balance)).toBe(25000);
   });
 
   test('13. getSubcontractorRequisitions lists every requisition for a Sub Contractor, filterable by work order', async () => {
@@ -519,7 +580,9 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('14. getSubcontractorRequisitions date_from filter excludes requisitions created before the cutoff', async () => {
-    const future = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    // Use two days ahead so converting the instant to a UTC date cannot
+    // accidentally produce the current IST calendar day around midnight.
+    const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const req = { query: { work_order_no: workOrder, date_from: future } };
     const res = mockRes();
     await getSubcontractorRequisitions(req, res);

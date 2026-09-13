@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { getProjects } from '../api/projectsApi';
 import { getEstimates, getEstimateById } from '../api/estimatesApi';
@@ -20,8 +20,10 @@ import {
   getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
+import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getFundRequests } from '../api/fundRequests';
+import { getReturnRequests } from '../api/fundReturnsApi';
 import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
 import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
 import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
@@ -44,13 +46,32 @@ const StatusBadge = ({ status }) => {
     Hold: { variant: 'orange', label: 'Hold' },
     Cancelled: { variant: 'slate', label: 'Cancelled' },
   };
-  const s = cfg[status] ?? cfg['Pending'];
+  const s = cfg[status] ?? { variant: 'indigo', label: status || 'Pending' };
   return (
     <Badge variant={s.variant} showDot={true}>
       {s.label}
     </Badge>
   );
 };
+
+const PAYMENT_STATUS_LABELS = {
+  AWAITING_PAYMENT_ROUTE: 'Awaiting Payment Route',
+  PENDING_ACCOUNTS_IMPORT: 'Pending Accounts Import',
+  ACCOUNTS_DRAFT: 'Accounts Draft',
+  PENDING_HO_REVIEW: 'Pending HO Review',
+  PENDING_REVIEW: 'Pending Review',
+  ON_HOLD: 'On Hold',
+  RETURNED_FOR_CORRECTION: 'Returned for Correction',
+  REJECTED: 'Rejected',
+  PARTIALLY_PAID: 'Partially Paid',
+  PAID: 'Paid'
+};
+
+const getRequisitionDisplayStatus = (req) => (
+  req.requisition_status === 'Approved' && req.payment_status
+    ? PAYMENT_STATUS_LABELS[req.payment_status] || req.payment_status
+    : req.requisition_status
+);
 
 // Modal for confirming cancellation
 const CancelConfirmModal = ({ requisitionNo, isCancelling, onConfirm, onClose }) => (
@@ -156,6 +177,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
       { label: 'Subcontractor', value: requisition.material_details }
     ] : []),
     { label: 'Requisition Amount', value: formatCurrency(requisition.requisition_amount), accent: 'text-amber-400 font-bold' },
+    { label: 'Payment Office', value: formatPaymentOffice(requisition.payment_destination) },
     { label: 'State', value: requisition.state },
     { label: 'District', value: requisition.district },
     { label: 'Zone / Area', value: requisition.area_code },
@@ -179,16 +201,19 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
 
   if (requisition.requisition_status === 'Approved') {
     detailRows.push(
-      { label: 'Approved By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
-      { label: 'Approved Amount', value: formatCurrency(requisition.approved_amount), accent: 'text-emerald-400 font-bold' },
+      { label: 'ZO Approved By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
+      { label: 'ZO Approved Amount', value: formatCurrency(requisition.approved_amount), accent: 'text-emerald-400 font-bold' },
       { label: 'Approved Balance', value: formatCurrency(requisition.approved_balance_amount) },
+      { label: 'ZO Actioned On', value: formatDate(requisition.zo_actioned_at) },
+      { label: 'Payment Status', value: PAYMENT_STATUS_LABELS[requisition.payment_status] || requisition.payment_status || '—' },
+      { label: 'Paid Amount', value: formatCurrency(requisition.paid_amount) },
       { label: 'Payment Date', value: formatDate(requisition.payment_date) },
       { label: 'Authority Remarks', value: requisition.remarks_approved_authority || '—' }
     );
   } else if (requisition.requisition_status === 'Hold') {
     detailRows.push(
       { label: 'Placed on Hold By', value: requisition.approved_name || requisition.approved_user_id, mono: true },
-      { label: 'Hold Date', value: formatDate(requisition.payment_date) },
+      { label: 'Hold Date', value: formatDate(requisition.zo_actioned_at || requisition.payment_date) },
       { label: 'Hold Remarks', value: requisition.remarks_approved_authority || '—' }
     );
   } else if (requisition.requisition_status === 'Cancelled') {
@@ -251,7 +276,7 @@ const RequisitionDetailModal = ({ reqId, onClose, user, onCancelClick }) => {
                   Open Sheet {requisition.accounts_sheet.sheet_number}
                 </a>
               )}
-              <StatusBadge status={requisition.requisition_status} />
+              <StatusBadge status={getRequisitionDisplayStatus(requisition)} />
             </div>
           </div>
 
@@ -779,16 +804,41 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
   // Upload state
   const [requisitionPdf, setRequisitionPdf] = useState(null); // original file
-  const [requisitionPdfUrl, setRequisitionPdfUrl] = useState(''); // storage path
+  const [requisitionPdfUrl, setRequisitionPdfUrl] = useState(''); // storage path (opaque; used only as an "uploaded?" flag)
+  const [requisitionPdfAttachmentId, setRequisitionPdfAttachmentId] = useState('');
   const [requisitionPdfPreview, setRequisitionPdfPreview] = useState(''); // signed url
   const [isUploadingReq, setIsUploadingReq] = useState(false);
   const [reqUploadProgress, setReqUploadProgress] = useState(0);
 
   const [gstPdf, setGstPdf] = useState(null); // original file
-  const [gstPdfUrl, setGstPdfUrl] = useState(''); // storage path
+  const [gstPdfUrl, setGstPdfUrl] = useState(''); // storage path (opaque; used only as an "uploaded?" flag)
+  const [gstPdfAttachmentId, setGstPdfAttachmentId] = useState('');
   const [gstPdfPreview, setGstPdfPreview] = useState(''); // signed url
   const [isUploadingGst, setIsUploadingGst] = useState(false);
   const [gstUploadProgress, setGstUploadProgress] = useState(0);
+
+  // Safety net: clean up any uploaded-but-unsubmitted PDFs if this modal is torn down
+  // without going through handleCancelOrClose (e.g. the user navigates to another page
+  // in-app instead of clicking the modal's own close control).
+  const requisitionPdfAttachmentIdRef = useRef('');
+  const gstPdfAttachmentIdRef = useRef('');
+  const submittedRef = useRef(false);
+  const submissionInFlightRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      if (submittedRef.current || submissionInFlightRef.current) return;
+      if (requisitionPdfAttachmentIdRef.current) {
+        deleteRequisitionPdf(requisitionPdfAttachmentIdRef.current).catch((err) => {
+          console.error('Failed to cleanup requisition PDF on unmount:', err);
+        });
+      }
+      if (gstPdfAttachmentIdRef.current) {
+        deleteGstBillPdf(gstPdfAttachmentIdRef.current).catch((err) => {
+          console.error('Failed to cleanup GST PDF on unmount:', err);
+        });
+      }
+    };
+  }, []);
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -988,13 +1038,23 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     ? computeRequisitionAdvisoryRemaining(projectMetadata.estimateAmount, requisitions, selectedWO)
     : null;
 
-  // Reset GST Upload state if toggled to No
-  const handleGstToggle = (val) => {
+  // Reset GST Upload state if toggled to No, cleaning up any already-uploaded file
+  const handleGstToggle = async (val) => {
     setGstBill(val);
     if (val === 'No') {
+      if (gstPdfAttachmentId) {
+        try {
+          await deleteGstBillPdf(gstPdfAttachmentId);
+        } catch (err) {
+          console.error('Failed to delete GST bill PDF on toggle-off:', err);
+        }
+      }
       setGstPdf(null);
       setGstPdfUrl('');
+      setGstPdfAttachmentId('');
       setGstPdfPreview('');
+      setGstUploadProgress(0);
+      gstPdfAttachmentIdRef.current = '';
     }
   };
 
@@ -1050,7 +1110,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setReqUploadProgress(100);
       setRequisitionPdf(file);
       setRequisitionPdfUrl(res.data.storagePath);
+      setRequisitionPdfAttachmentId(res.data.attachmentId);
       setRequisitionPdfPreview(res.data.signedUrl);
+      requisitionPdfAttachmentIdRef.current = res.data.attachmentId;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload Requisition PDF.');
       e.target.value = null;
@@ -1061,17 +1123,19 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
   // Clear PDF handler to reset upload state and unlock requisition number
   const handleClearRequisitionPdf = async () => {
-    if (requisitionPdfUrl) {
+    if (requisitionPdfAttachmentId) {
       try {
-        await deleteRequisitionPdf(requisitionNo);
+        await deleteRequisitionPdf(requisitionPdfAttachmentId);
       } catch (err) {
         console.error('Failed to delete cleared requisition PDF:', err);
       }
     }
     setRequisitionPdf(null);
     setRequisitionPdfUrl('');
+    setRequisitionPdfAttachmentId('');
     setRequisitionPdfPreview('');
     setReqUploadProgress(0);
+    requisitionPdfAttachmentIdRef.current = '';
   };
 
   // Immediate upload handler for GST Bill PDF
@@ -1124,7 +1188,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setGstUploadProgress(100);
       setGstPdf(file);
       setGstPdfUrl(res.data.storagePath);
+      setGstPdfAttachmentId(res.data.attachmentId);
       setGstPdfPreview(res.data.signedUrl);
+      gstPdfAttachmentIdRef.current = res.data.attachmentId;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to upload GST Bill PDF.');
       e.target.value = null;
@@ -1134,34 +1200,39 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   };
 
   const handleClearGstPdf = async () => {
-    if (gstPdfUrl) {
+    if (gstPdfAttachmentId) {
       try {
-        await deleteGstBillPdf(requisitionNo);
+        await deleteGstBillPdf(gstPdfAttachmentId);
       } catch (err) {
         console.error('Failed to delete cleared GST PDF:', err);
       }
     }
     setGstPdf(null);
     setGstPdfUrl('');
+    setGstPdfAttachmentId('');
     setGstPdfPreview('');
     setGstUploadProgress(0);
+    gstPdfAttachmentIdRef.current = '';
   };
 
   const handleCancelOrClose = async () => {
-    if (requisitionPdfUrl) {
+    if (submitting) return;
+    if (requisitionPdfAttachmentId) {
       try {
-        await deleteRequisitionPdf(requisitionNo);
+        await deleteRequisitionPdf(requisitionPdfAttachmentId);
       } catch (err) {
         console.error('Failed to cleanup requisition PDF on close:', err);
       }
     }
-    if (gstPdfUrl) {
+    if (gstPdfAttachmentId) {
       try {
-        await deleteGstBillPdf(requisitionNo);
+        await deleteGstBillPdf(gstPdfAttachmentId);
       } catch (err) {
         console.error('Failed to cleanup GST PDF on close:', err);
       }
     }
+    requisitionPdfAttachmentIdRef.current = '';
+    gstPdfAttachmentIdRef.current = '';
     onClose();
   };
 
@@ -1214,12 +1285,28 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       setError('GST Bill is toggled to Yes but no GST Invoice PDF has been uploaded.');
       return;
     }
-    if (beneficiaryAcNo.trim() && !/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
+    if (!beneficiaryName.trim()) {
+      setError('Beneficiary name is required.');
+      return;
+    }
+    if (!beneficiaryAcNo.trim()) {
+      setError('Beneficiary account number is required.');
+      return;
+    }
+    if (!/^\d{9,18}$/.test(beneficiaryAcNo.trim())) {
       setError('Beneficiary account number must be 9-18 digits.');
       return;
     }
-    if (beneficiaryIfsc.trim() && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim())) {
+    if (!beneficiaryIfsc.trim()) {
+      setError('Beneficiary IFSC is required.');
+      return;
+    }
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(beneficiaryIfsc.trim().toUpperCase())) {
       setError('Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.');
+      return;
+    }
+    if (!beneficiaryBankId) {
+      setError('Beneficiary bank is required.');
       return;
     }
 
@@ -1244,11 +1331,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         material_main_head: materialHead.trim(),
         material_sub_head: materialHead === 'Sub Contractor' ? materialSubHead.trim() : undefined,
         material_details: materialHead === 'Sub Contractor' ? materialDetails.trim() : undefined,
-        requisition_pdf_url: requisitionPdfUrl.trim(),
+        requisition_pdf_attachment_id: requisitionPdfAttachmentId,
         original_filename: requisitionPdf?.name || null,
         requisition_amount: Number(reqAmount),
         gst_bill: gstBill,
-        gst_bill_pdf_url: gstBill === 'Yes' ? gstPdfUrl.trim() : null,
+        gst_bill_pdf_attachment_id: gstBill === 'Yes' ? gstPdfAttachmentId : null,
         bank_details: finalBankDetails,
         beneficiary_id: beneficiaryId || undefined,
         beneficiary_name: beneficiaryName.trim() || undefined,
@@ -1258,11 +1345,14 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         beneficiary_bank_name: beneficiaryBankName.trim() || undefined,
         expen_head_remarks: remarks.trim() || null
       };
+      submissionInFlightRef.current = true;
       await onSave(payload);
+      submittedRef.current = true;
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to submit requisition.');
     } finally {
+      submissionInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -1337,7 +1427,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   return (
     <Modal
       isOpen={true}
-      onClose={handleCancelOrClose}
+      onClose={submitting ? null : handleCancelOrClose}
       title="Create Requisition"
       subtitle={`Step ${step} of 3`}
       footer={getFooterButtons()}
@@ -1751,7 +1841,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
-                Beneficiary Banking Details (Optional)
+                Beneficiary Banking Details
               </span>
               <span className="text-[9px] text-slate-500 italic">
                 Auto-saved to Projects Beneficiary Master
@@ -1777,6 +1867,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 }}
                 placeholder="Enter bank account no…"
                 disabled={submitting}
+                required
                 size="sm"
               />
 
@@ -1787,15 +1878,43 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 placeholder="e.g. SBIN0001234"
                 maxLength={11}
                 disabled={submitting}
+                required
                 size="sm"
               />
 
-              <Input
+              <ProjectBeneficiarySuggestions
                 label="Beneficiary Name"
                 value={beneficiaryName}
-                onChange={(e) => setBeneficiaryName(e.target.value)}
+                searchBy="name"
+                primaryField="name"
+                enabled={!submitting}
+                onChange={(e) => {
+                  setBeneficiaryName(e.target.value);
+                  setBeneficiaryAcNo('');
+                  setBeneficiaryIfsc('');
+                  setBeneficiaryBankId('');
+                  setBeneficiaryBankName('');
+                  setBeneficiaryId(null);
+                }}
+                onClearSelection={() => {
+                  setBeneficiaryName('');
+                  setBeneficiaryAcNo('');
+                  setBeneficiaryIfsc('');
+                  setBeneficiaryBankId('');
+                  setBeneficiaryBankName('');
+                  setBeneficiaryId(null);
+                }}
+                onSelect={(b) => {
+                  setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                  setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                  setBeneficiaryName(b.beneficiary_name || '');
+                  setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                  setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                  setBeneficiaryId(b.id || null);
+                }}
                 placeholder="Enter payee / subcontractor name…"
                 disabled={submitting}
+                required
                 size="sm"
               />
 
@@ -1809,8 +1928,9 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                   setBeneficiaryBankName(found ? found.bank_name : '');
                 }}
                 disabled={submitting}
+                required
               >
-                <option value="">-- Select Bank (Optional) --</option>
+                <option value="">-- Select Bank --</option>
                 {indianBanks.map((b) => (
                   <option key={b.id} value={b.id}>{b.bank_name}</option>
                 ))}
@@ -2202,7 +2322,7 @@ const Requisitions = () => {
                 <Table>
                   <TableHeader>
                     <TableRow hover={false}>
-                      {['Requisition No.', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                      {['Requisition No.', 'Material Head', 'Amount', 'Status', 'Payment Office', 'Submitted Date', 'Actions'].map((h) => (
                         <TableCell key={h} isHeader={true}>
                           {h}
                         </TableCell>
@@ -2213,6 +2333,7 @@ const Requisitions = () => {
                     {requisitions.filter(r => r.work_order_no === activeWO.work_order_no).map((req) => {
                       const isPending = req.requisition_status === 'Pending';
                       const isHold = req.requisition_status === 'Hold';
+                      const financialState = getRequisitionFinancialState(req);
                       const isOwner = req.requester_user_id === user?.mobile_number;
                       const isAdmin = user?.role === 'admin';
                       const canCancel = isPending && (isOwner || isAdmin);
@@ -2231,8 +2352,9 @@ const Requisitions = () => {
                             }
                           </TableCell>
                           <TableCell>
-                            <StatusBadge status={req.requisition_status} />
+                            <StatusBadge status={financialState.status} />
                           </TableCell>
+                          <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                           <TableCell className="text-[11px] text-slate-500">
                             {formatDate(req.created_at)}
                           </TableCell>
@@ -2422,18 +2544,20 @@ const Requisitions = () => {
                     </select>
                   </div>
 
-                  <Button
-                    onClick={() => setShowExportModal(true)}
-                    title="Export Expenditure Sheet"
-                    variant="glass"
-                    size="sm"
-                    className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
-                  >
-                    <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Export Expenditure Sheet
-                  </Button>
+                  {user?.role?.toLowerCase() !== 'je' && (
+                    <Button
+                      onClick={() => setShowExportModal(true)}
+                      title="Export Expenditure Sheet"
+                      variant="glass"
+                      size="sm"
+                      className="border-white/10 hover:border-amber-500/30 text-slate-300 hover:text-amber-400"
+                    >
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Export Expenditure Sheet
+                    </Button>
+                  )}
 
                   <Button
                     variant="glass"
@@ -2556,7 +2680,7 @@ const Requisitions = () => {
                     <Table>
                       <TableHeader className="bg-slate-900/90 border-b border-white/10">
                         <TableRow hover={false} className="border-b border-white/10 bg-slate-900/90">
-                          {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Submitted Date', 'Actions'].map((h) => (
+                          {['Requisition No.', 'Work Order', 'Material Head', 'Amount', 'Status', 'Payment Office', 'Submitted Date', 'Actions'].map((h) => (
                             <TableCell key={h} isHeader={true} className="text-slate-300 font-black uppercase tracking-widest text-[10px] py-4 bg-slate-900/90">
                               {h}
                             </TableCell>
@@ -2567,6 +2691,7 @@ const Requisitions = () => {
                         {paginatedRequisitions.map((req) => {
                           const isPending = req.requisition_status === 'Pending';
                           const isHold = req.requisition_status === 'Hold';
+                          const financialState = getRequisitionFinancialState(req);
                           const isOwner = req.requester_user_id === user?.mobile_number;
                           const isAdmin = user?.role === 'admin';
                           const canCancel = isPending && (isOwner || isAdmin);
@@ -2588,8 +2713,9 @@ const Requisitions = () => {
                                 }
                               </TableCell>
                               <TableCell>
-                                <StatusBadge status={req.requisition_status} />
+                                <StatusBadge status={financialState.status} />
                               </TableCell>
+                              <TableCell className="text-xs text-slate-300">{formatPaymentOffice(req.payment_destination)}</TableCell>
                               <TableCell className="text-xs text-slate-300 font-medium">
                                 {formatDate(req.created_at)}
                               </TableCell>
@@ -2710,7 +2836,7 @@ const Requisitions = () => {
       )}
 
       {/* Export Expenditure Sheet Modal */}
-      {showExportModal && (
+      {showExportModal && user?.role?.toLowerCase() !== 'je' && (
         <ExportExpenditureModal
           projects={projects}
           onClose={() => setShowExportModal(false)}
@@ -2718,13 +2844,19 @@ const Requisitions = () => {
           onConfirm={async ({ dateRange, workOrderFilter }) => {
             setIsExporting(true);
             try {
-              const frRes = await getFundRequests().catch(() => ({ data: { fundRequests: [] } }));
+              const [frRes, reqRes, returnRes] = await Promise.all([
+                getFundRequests().catch(() => ({ data: { fundRequests: [] } })),
+                getRequisitions().catch(() => ({ data: { requisitions: [] } })),
+                getReturnRequests().catch(() => ({ data: { returns: [] } }))
+              ]);
               const allFundRequests = frRes.data?.fundRequests || [];
-              const reqRes = await getRequisitions().catch(() => ({ data: { requisitions: [] } }));
               const allRequisitions = reqRes.data?.requisitions || reqRes.data || requisitionsData || [];
+              const allFundReturns = returnRes.data?.returns || [];
               await exportCombinedExpenditureSheet({
                 fundRequests: allFundRequests,
                 requisitions: allRequisitions,
+                fundReturns: allFundReturns,
+                projects,
                 metadata: { workOrderFilter: workOrderFilter || 'All' },
                 dateRange
               });

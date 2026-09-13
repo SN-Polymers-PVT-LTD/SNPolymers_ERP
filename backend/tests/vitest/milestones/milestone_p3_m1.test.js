@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'vitest';
+import { describe, test, expect, beforeAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
@@ -20,10 +20,6 @@ describe('Milestone P3-M1 — Database Foundation Verification', () => {
       { mobile_number: testZoMobile, display_name: 'Test ZO User', role: 'zo', permissions: {}, is_active: true },
       { mobile_number: testAdminMobile, display_name: 'Test Admin User', role: 'admin', permissions: {}, is_active: true }
     ]);
-  });
-
-  afterAll(async () => {
-    await supabase.from('authorised_users').delete().in('mobile_number', [testZoMobile, testAdminMobile]);
   });
 
   describe('Fund Request Operations', () => {

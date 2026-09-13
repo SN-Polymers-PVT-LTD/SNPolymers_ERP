@@ -10,6 +10,7 @@ const {
   getLedgerRows,
   cleanupFinancialScenario
 } = require('../../helpers/financialFixture');
+const setupAttachment = require('../../helpers/setupAttachment');
 const {
   getRequisitionById,
   createRequisition,
@@ -17,10 +18,10 @@ const {
   payFromZoBalance
 } = require('../../../src/controllers/requisitions.controller');
 const {
-  createFundRequest,
-  actOnFundRequest
+  createFundRequest
 } = require('../../../src/controllers/fundRequests.controller');
 const { supabase } = require('../../../src/db/supabase');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 describe('financialInvariants — budget, ledger, approval integrity', () => {
   let ctx;
@@ -41,7 +42,6 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 500000,
       sandHeadAmount: 0
     });
-
     try {
       const approved = await insertRequisitionDirect(localCtx, {
         requisition_no: `REQ_APP_${localSuffix}`,
@@ -84,6 +84,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 10000,
       sandHeadAmount: 0
     });
+    const testBankId = await getActiveTestBankId(supabase);
 
     try {
       await insertRequisitionDirect(localCtx, {
@@ -93,6 +94,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
         requisition_status: 'Cancelled'
       });
 
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: localCtx.jeMobile });
       const res = mockRes();
       await createRequisition(
         {
@@ -101,10 +103,12 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             work_order_no: localCtx.workOrder,
             requisition_no: `REQ_NEW_${localSuffix}`,
             material_main_head: 'Cement',
-            requisition_pdf_url: `fixtures/REQ_NEW_${localSuffix}.pdf`,
+            requisition_pdf_attachment_id: attachment.attachmentId,
+            original_filename: `REQ_NEW_${localSuffix}.pdf`,
             requisition_amount: 9000,
             gst_bill: 'No',
-            bank_details: 'Test bank'
+            bank_details: 'Test bank',
+            ...validRequisitionBeneficiary(testBankId)
           }
         },
         res
@@ -128,6 +132,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       cementHeadAmount: 10000,
       sandHeadAmount: 0
     });
+    const testBankId = await getActiveTestBankId(supabase);
 
     try {
       await insertRequisitionDirect(localCtx, {
@@ -139,6 +144,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
         approved_balance_amount: 0
       });
 
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: localCtx.jeMobile });
       const res = mockRes();
       await createRequisition(
         {
@@ -147,10 +153,12 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
             work_order_no: localCtx.workOrder,
             requisition_no: `REQ_OVER_${localSuffix}`,
             material_main_head: 'Cement',
-            requisition_pdf_url: `fixtures/REQ_OVER_${localSuffix}.pdf`,
+            requisition_pdf_attachment_id: attachment.attachmentId,
+            original_filename: `REQ_OVER_${localSuffix}.pdf`,
             requisition_amount: 5001,
             gst_bill: 'No',
-            bank_details: 'Test bank'
+            bank_details: 'Test bank',
+            ...validRequisitionBeneficiary(testBankId)
           }
         },
         res
@@ -284,7 +292,7 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
     }
   });
 
-  test('fund request create rejects amount above remaining estimate funding capacity', async () => {
+  test('fund request drafts do not reserve remaining estimate funding capacity', async () => {
     const localSuffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedFinancialScenario({
       suffix: `bud6_${localSuffix}`,
@@ -327,14 +335,15 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
         res
       );
 
-      expect(res.statusCode).toBe(400);
-      expect(res.jsonData.message).toMatch(/remaining Cost Estimate funding capacity/i);
+      expect(res.statusCode).toBe(201);
+      expect(res.jsonData.fundRequest.request_status).toBe('Draft');
+      localCtx.fundRequestIds.push(res.jsonData.fundRequest.fund_request_id);
     } finally {
       await cleanupFinancialScenario(localCtx);
     }
   });
 
-  test('fund request approval credits ZO balance and writes positive ledger entry', async () => {
+  test('fund request draft creation leaves ZO balance and ledger unchanged', async () => {
     const localSuffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedFinancialScenario({
       suffix: `bud7_${localSuffix}`,
@@ -363,32 +372,11 @@ describe('financialInvariants — budget, ledger, approval integrity', () => {
       const balanceBefore = await getZoBalance(localCtx.zoMobile);
       const ledgerBefore = await getLedgerRows({ referenceId: frId });
 
-      const approveRes = mockRes();
-      await withFrozenTime(FROZEN_ISO, async () => {
-        await actOnFundRequest(
-          {
-            params: { id: frId },
-            user: { role: 'ho', mobile_number: localCtx.hoMobile },
-            body: {
-              action: 'Approve',
-              approve_ho_amount: 5000,
-              transfer_from_account: 'CC',
-              ho_remarks: 'Approved for credit test'
-            }
-          },
-          approveRes
-        );
-      });
-
-      expect(approveRes.statusCode).toBe(200);
-
       const balanceAfter = await getZoBalance(localCtx.zoMobile);
-      expect(balanceAfter).toBe(balanceBefore + 5000);
+      expect(balanceAfter).toBe(balanceBefore);
 
       const ledgerAfter = await getLedgerRows({ referenceId: frId });
-      expect(ledgerAfter.length).toBe(ledgerBefore.length + 1);
-      const creditRow = ledgerAfter.find((row) => row.reference_id === frId && row.transaction_type === 'ALLOCATION');
-      expect(Number(creditRow.amount)).toBe(5000);
+      expect(ledgerAfter).toHaveLength(ledgerBefore.length);
     } finally {
       await cleanupFinancialScenario(localCtx);
     }

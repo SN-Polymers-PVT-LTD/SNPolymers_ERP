@@ -173,7 +173,7 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
               <TableRow hover={false}>
                 <TableCell isHeader>Particulars</TableCell>
                 <TableCell isHeader>Account Sub-title</TableCell>
-                <TableCell isHeader>Source Sheet</TableCell>
+                <TableCell isHeader>Source Ref</TableCell>
                 <TableCell isHeader>Beneficiary</TableCell>
                 <TableCell isHeader align="right">Amount</TableCell>
                 <TableCell isHeader>Payment Mode</TableCell>
@@ -185,7 +185,19 @@ const ImportEligibleItemsModal = ({ isOpen, onClose, targetSheetId, onImported }
               {eligibleItems.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell>
-                    <span className="text-slate-300">{item.particulars || '—'}</span>
+                    <div className="flex flex-col gap-1 max-w-xs">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {item.item_type === 'FUND_REQUEST' ? (
+                          <Badge variant="purple">Fund Request</Badge>
+                        ) : item.item_type === 'PAYMENT_REQUISITION' ? (
+                          <Badge variant="blue">Payment Req</Badge>
+                        ) : null}
+                        <span className="text-slate-300 font-medium">{item.particulars || '—'}</span>
+                      </div>
+                      {item.work_order_no && (
+                        <span className="text-[10px] text-slate-500 font-mono">WO: {item.work_order_no}</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="text-slate-300">{item.account_sub_title_text || '—'}</span>

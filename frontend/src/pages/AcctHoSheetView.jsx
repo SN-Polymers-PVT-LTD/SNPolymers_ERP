@@ -161,6 +161,8 @@ const AcctHoSheetView = () => {
       setBatchErrors(nextBatchErrors);
       if (Object.keys(nextBatchErrors).length === 0) {
         setError('Stage at least one decision before submitting.');
+      } else {
+        setError('Please fix validation errors on your staged decisions (e.g. required remarks or pass amount).');
       }
       return false;
     }
@@ -212,10 +214,9 @@ const AcctHoSheetView = () => {
   // would otherwise get silently swept into 'Pending Review' by the RPC
   // below, since it only sees DB state, not this component's local state.
   // If one of those staged decisions fails to apply (e.g. insufficient bank
-  // balance), handleSubmitDecisions surfaces it via batchErrors/error state
-  // but doesn't throw — so its own return value (false on any failure) is
-  // what stops the close here, rather than letting a failed decision get
-  // silently swept into Pending Review alongside genuinely-untouched items.
+  // balance or missing required remarks), handleSubmitDecisions surfaces it
+  // via batchErrors/error state but doesn't throw — so its own return value
+  // (false on any failure) is what stops the close here.
   const handleCloseReview = async () => {
     setError('');
     setSuccess('');
@@ -224,6 +225,10 @@ const AcctHoSheetView = () => {
       if (stagedCount > 0) {
         const allApplied = await handleSubmitDecisions(false);
         if (!allApplied) {
+          setShowCloseConfirm(false);
+          setError(
+            'Cannot close review yet: Some staged decisions have validation errors (e.g. missing required remarks or pass amount). Please fix them or reset their dropdown to "Select a decision..." first.'
+          );
           setClosingReview(false);
           return;
         }
@@ -488,11 +493,18 @@ const AcctHoSheetView = () => {
           </div>
         }
       >
-        <p className="text-sm text-slate-300 mb-2">
-          {actionableItems.length - stagedCount} item(s) will still be undecided. They'll move to the
-          pending queue — Accounts can bring them into a new sheet later, but they can no longer be
-          decided on this one.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-300">
+            {actionableItems.length - stagedCount} item(s) will still be undecided. They'll move to the
+            pending queue — Accounts can bring them into a new sheet later, but they can no longer be
+            decided on this one.
+          </p>
+          {stagedCount > 0 && (
+            <p className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+              Note: {stagedCount} staged decision(s) will be submitted before closing. If any staged item is missing required remarks or pass amount, closing will be halted so you can complete or reset it.
+            </p>
+          )}
+        </div>
       </Modal>
 
       <ExportCsvStatusModal

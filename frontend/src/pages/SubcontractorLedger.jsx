@@ -15,7 +15,7 @@ import {
   exportSubcontractorLedgerStatementToExcel,
   exportAllSubcontractorLedgersToExcel
 } from '../utils/exportHelpers';
-import { isFinanciallyActiveRequisition } from '../utils/requisitionUtils';
+import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
 
 const VIEW_TABS = [
   { value: 'balances', label: 'Balances' },
@@ -32,7 +32,19 @@ const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item)',
   ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
   REQUISITION_APPROVAL: 'Debit (Requisition)',
+  REQUISITION_PAYMENT: 'Debit (Paid)',
+  REQUISITION_RELEASE: 'Release (Internal)',
   ADMIN_ADJUSTMENT: 'Admin Adjustment'
+};
+
+const formatTransactionLabel = (entry) => {
+  if (entry.transaction_type === 'REQUISITION_PAYMENT') return 'Debit (Paid)';
+  if (entry.transaction_type === 'REQUISITION_APPROVAL') {
+    if (entry.settlement_status === 'SETTLED') return 'Debit (Paid)';
+    if (entry.settlement_status === 'RELEASED') return 'Debit (Released)';
+    return 'Debit (Reserved)';
+  }
+  return TX_TYPE_LABELS[entry.transaction_type] || entry.transaction_type;
 };
 
 /**
@@ -539,15 +551,17 @@ const SubcontractorLedger = () => {
           </div>
         ) : (
           <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-            <Table containerClassName="min-w-[1100px]">
+            <Table containerClassName="min-w-[1250px]">
               <TableHeader>
                 <TableRow hover={false}>
                   <TableCell isHeader>Work Order</TableCell>
                   <TableCell isHeader>Sub Head</TableCell>
                   <TableCell isHeader>Subcontractor</TableCell>
                   <TableCell isHeader align="right">Estimated Total</TableCell>
-                  <TableCell isHeader align="right">Paid So Far</TableCell>
-                  <TableCell isHeader align="right">Remaining Balance</TableCell>
+                  <TableCell isHeader align="right">Committed</TableCell>
+                  <TableCell isHeader align="right">Actually Paid</TableCell>
+                  <TableCell isHeader align="right">Reserved</TableCell>
+                  <TableCell isHeader align="right">Available Capacity</TableCell>
                   <TableCell isHeader>Actions</TableCell>
                 </TableRow>
               </TableHeader>
@@ -570,10 +584,16 @@ const SubcontractorLedger = () => {
                       <span className="text-slate-400">{formatCurrency(b.estimated_total)}</span>
                     </TableCell>
                     <TableCell align="right">
-                      <span className="text-slate-400">{formatCurrency(b.paid_total)}</span>
+                      <span className="text-slate-400">{formatCurrency(b.committed_total ?? b.paid_total)}</span>
                     </TableCell>
                     <TableCell align="right">
-                      <span className="font-bold text-emerald-400">{formatCurrency(b.available_balance)}</span>
+                      <span className="text-slate-400">{formatCurrency(b.settled_total)}</span>
+                    </TableCell>
+                    <TableCell align="right">
+                      <span className="text-amber-300">{formatCurrency(b.reserved_total)}</span>
+                    </TableCell>
+                    <TableCell align="right">
+                      <span className="font-bold text-emerald-400">{formatCurrency(b.available_capacity ?? b.available_balance)}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -632,9 +652,9 @@ const SubcontractorLedger = () => {
             const groupKey = `${group.material_sub_head}|||${group.material_details}`;
             const isCollapsed = Boolean(collapsedGroups[groupKey]);
             // GAP-07: Use authoritative predicate to filter active requisitions for liabilities
-            const activeRows = group.rows.filter((r) => isFinanciallyActiveRequisition(r.requisition_status));
+            const activeRows = group.rows.filter((r) => getRequisitionFinancialState(r).financiallyActive);
             const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
-            const totalApproved = activeRows.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
+            const totalApproved = activeRows.reduce((sum, r) => sum + getRequisitionFinancialState(r).effectiveLiability, 0);
             const inactiveCount = group.rows.length - activeRows.length;
 
             return (
@@ -718,9 +738,11 @@ const SubcontractorLedger = () => {
                         <TableCell isHeader align="right">Requested</TableCell>
                         <TableCell isHeader align="right">Approved</TableCell>
                         <TableCell isHeader>Status</TableCell>
+                        <TableCell isHeader>Payment Office</TableCell>
                         <TableCell isHeader>Requested By</TableCell>
                         <TableCell isHeader>Creation Date</TableCell>
                         <TableCell isHeader>Approved On</TableCell>
+                        <TableCell isHeader>Paid On</TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -739,15 +761,19 @@ const SubcontractorLedger = () => {
                             <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={r.requisition_status === 'Approved' ? 'emerald' : r.requisition_status === 'Cancelled' ? 'red' : 'amber'}>
-                              {r.requisition_status}
+                            <Badge variant={getRequisitionFinancialState(r).status === 'Paid' ? 'emerald' : ['Released', 'Rejected', 'Cancelled'].includes(getRequisitionFinancialState(r).status) ? 'red' : 'amber'}>
+                              {getRequisitionFinancialState(r).status}
                             </Badge>
                           </TableCell>
+                          <TableCell><span className="text-slate-300 text-xs">{formatPaymentOffice(r.payment_destination)}</span></TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{r.requester_name}</span>
                           </TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-slate-400 text-xs">{formatDate(r.zo_actioned_at)}</span>
                           </TableCell>
                           <TableCell>
                             <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>
@@ -877,7 +903,7 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                     </TableCell>
                     <TableCell>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                        {TX_TYPE_LABELS[e.transaction_type] || e.transaction_type}
+                        {formatTransactionLabel(e)}
                       </span>
                     </TableCell>
                     <TableCell>

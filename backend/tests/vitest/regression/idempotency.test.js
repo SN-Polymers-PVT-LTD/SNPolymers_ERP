@@ -18,8 +18,7 @@ const {
 const { refreshTokens } = require('../../../src/controllers/auth.controller');
 const { actOnRequisition } = require('../../../src/controllers/requisitions.controller');
 const {
-  createFundRequest,
-  actOnFundRequest
+  createFundRequest
 } = require('../../../src/controllers/fundRequests.controller');
 const { submitEstimate } = require('../../../src/controllers/estimates.workflow.controller');
 const { supabase } = require('../../../src/db/supabase');
@@ -95,7 +94,7 @@ describe('idempotency — retries must not duplicate money or session side effec
     }
   });
 
-  test('retrying fund request approve does not double-credit ZO balance or ledger', async () => {
+  test('retrying fund request draft creation cannot duplicate its request number', async () => {
     const localSuffix = crypto.randomUUID().substring(0, 8);
     const localCtx = await seedFinancialScenario({
       suffix: `idem2_${localSuffix}`,
@@ -119,40 +118,16 @@ describe('idempotency — retries must not duplicate money or session side effec
       expect(createRes.statusCode).toBe(201);
       const frId = createRes.jsonData.fundRequest.fund_request_id;
       localCtx.fundRequestIds.push(frId);
-
-      const actionReq = {
-        params: { id: frId },
-        user: { role: 'ho', mobile_number: localCtx.hoMobile },
-        body: {
-          action: 'Approve',
-          approve_ho_amount: 4000,
-          transfer_from_account: 'CC',
-          ho_remarks: 'Approved once'
-        }
-      };
-
-      const firstRes = mockRes();
-      await withFrozenTime(FROZEN_ISO, async () => {
-        await actOnFundRequest(actionReq, firstRes);
-      });
-      expect(firstRes.statusCode).toBe(200);
-
-      const balanceAfterFirst = await getZoBalance(localCtx.zoMobile);
-      const ledgerCountAfterFirst = await countLedgerRows({ referenceId: frId });
+      const balanceBeforeRetry = await getZoBalance(localCtx.zoMobile);
 
       const retryRes = mockRes();
-      await withFrozenTime(FROZEN_ISO, async () => {
-        await actOnFundRequest(actionReq, retryRes);
-      });
-
-      expect(retryRes.statusCode).toBe(403);
-      expect(retryRes.jsonData.message).toMatch(/Pending or Hold/i);
-
-      const balanceAfterRetry = await getZoBalance(localCtx.zoMobile);
-      const ledgerCountAfterRetry = await countLedgerRows({ referenceId: frId });
-
-      expect(balanceAfterRetry).toBe(balanceAfterFirst);
-      expect(ledgerCountAfterRetry).toBe(ledgerCountAfterFirst);
+      await createFundRequest({
+        user: { role: 'zo', mobile_number: localCtx.zoMobile },
+        body: { zo_fr_no: `FR_IDEM_${localSuffix}`, work_order_no: localCtx.workOrder, zo_fr_amount: 4000 }
+      }, retryRes);
+      expect(retryRes.statusCode).toBe(409);
+      expect(await getZoBalance(localCtx.zoMobile)).toBe(balanceBeforeRetry);
+      expect(await countLedgerRows({ referenceId: frId })).toBe(0);
     } finally {
       await cleanupFinancialScenario(localCtx);
     }

@@ -16,8 +16,11 @@ const createRequisitionSchema = {
     material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
     material_sub_head: z.string().trim().optional().nullable(),
     material_details: z.string().trim().optional().nullable(),
-    requisition_pdf_url: z.string({ required_error: 'requisition_pdf_url is required. Upload the PDF first.' }).trim().min(1, 'requisition_pdf_url is required. Upload the PDF first.'),
-    original_filename: z.string().optional().nullable(),
+    requisition_pdf_attachment_id: z.string({ required_error: 'requisition_pdf_attachment_id is required. Upload the PDF first.' })
+      .regex(uuidRegex, 'Invalid requisition PDF attachment ID. Upload the PDF first.'),
+    // Now the only human-readable filename source once storage paths are UUID-based
+    // (exportHelpers.js falls back to parsing the storage path otherwise).
+    original_filename: z.string({ required_error: 'original_filename is required.' }).trim().min(1, 'original_filename is required.'),
     requisition_amount: z.coerce.number({
       required_error: 'requisition_amount must be a positive number greater than zero.',
       invalid_type_error: 'requisition_amount must be a positive number greater than zero.'
@@ -25,26 +28,22 @@ const createRequisitionSchema = {
     gst_bill: z.enum(['Yes', 'No'], {
       errorMap: () => ({ message: "gst_bill must be 'Yes' or 'No'." })
     }),
-    gst_bill_pdf_url: z.string().optional().nullable(),
+    gst_bill_pdf_attachment_id: z.string().regex(uuidRegex, 'Invalid GST bill attachment ID.').optional().nullable(),
     bank_details: z.string().trim().optional().nullable(),
     beneficiary_id: z.string().regex(uuidRegex, 'Invalid beneficiary ID.').optional().nullable(),
-    beneficiary_name: z.string().trim().optional().nullable(),
-    beneficiary_ac_no: z.string().trim().optional().nullable()
-      // Not .regex() directly: empty string must pass through untouched since
-      // the beneficiary block is optional on the requisition form.
-      .refine(val => !val || accountNumberRegex.test(val), {
-        message: 'beneficiary_ac_no must be 9-18 digits.'
-      }),
-    beneficiary_ifsc: z.string().trim().optional().nullable()
-      .refine(val => !val || ifscRegex.test(val), {
-        message: 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'
-      }),
+    beneficiary_name: z.string({ required_error: 'Beneficiary name is required.' })
+      .trim().min(1, 'Beneficiary name is required.'),
+    beneficiary_ac_no: z.string({ required_error: 'Beneficiary account number is required.' })
+      .trim().regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.'),
+    beneficiary_ifsc: z.string({ required_error: 'Beneficiary IFSC is required.' })
+      .trim().toUpperCase().regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
-    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
+    beneficiary_bank_id: z.string({ required_error: 'Beneficiary bank is required.' })
+      .regex(uuidRegex, 'Invalid bank ID.'),
     expen_head_remarks: z.string().optional().nullable()
-  }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_url && data.gst_bill_pdf_url.trim() !== ''), {
-    message: "gst_bill_pdf_url is required when GST Bill is 'Yes'.",
-    path: ['gst_bill_pdf_url']
+  }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_attachment_id && data.gst_bill_pdf_attachment_id.trim() !== ''), {
+    message: "gst_bill_pdf_attachment_id is required when GST Bill is 'Yes'.",
+    path: ['gst_bill_pdf_attachment_id']
   }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
     message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
     path: ['material_sub_head']

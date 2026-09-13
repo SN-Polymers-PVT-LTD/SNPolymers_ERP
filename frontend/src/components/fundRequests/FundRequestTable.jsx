@@ -8,14 +8,13 @@ const formatCurrency = (val) =>
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 
 const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelClick }) => {
-  const isHoOrAdmin = user?.role === 'ho' || user?.role === 'admin';
   const isZoOrAdmin = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
 
   return (
     <Table>
       <TableHeader className="bg-slate-900/90 border-b border-white/10">
         <TableRow hover={false} className="border-b border-white/10 bg-slate-900/90">
-           {['FR Order No', 'Work Order No', 'Work Order Value', 'Estimated Value', 'Zonal Office', 'Requested Amount', 'Approved Amount', 'Request Date', 'Status', 'Actions'].map((h) => (
+           {['FR Order No', 'Work Order No', 'Work Order Value', 'Estimated Value', 'Zonal Office', 'Beneficiary', 'Requested Amount', 'Approved Amount', 'Request Date', 'Status', 'Actions'].map((h) => (
             <TableCell key={h} isHeader={true} className="text-slate-300 font-black uppercase tracking-widest text-[10px] py-3.5 px-3 bg-slate-900/90 whitespace-nowrap">
               {h}
             </TableCell>
@@ -25,9 +24,11 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
       <TableBody className="divide-y divide-white/5">
         {requests.map((req) => {
           const isPending = req.request_status === 'Pending';
-          const isHold = req.request_status === 'Hold';
-          const canCancel = isPending && isZoOrAdmin;
-          const canAct = (isPending || isHold) && isHoOrAdmin;
+          const isImported = !!req.accounts_line_item_id;
+          const canCancel = isPending && isZoOrAdmin && !isImported;
+          // Fund Requests are no longer directly approvable here. Accounts
+          // actions are performed exclusively on the Accounts Requisition Sheet.
+          const canAct = false;
 
           return (
             <TableRow 
@@ -64,6 +65,15 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
                   {req.zo_name || 'ZO User'}
                 </span>
               </TableCell>
+              <TableCell className="py-3 px-3 whitespace-nowrap">
+                {req.beneficiary_name ? (
+                  <span className="text-slate-300 text-xs font-semibold" title={[req.beneficiary_ac_no, req.beneficiary_ifsc, req.beneficiary_bank_name].filter(Boolean).join(' • ')}>
+                    {req.beneficiary_name}
+                  </span>
+                ) : (
+                  <span className="text-slate-600 font-bold">—</span>
+                )}
+              </TableCell>
               <TableCell className="py-3 px-3 font-mono font-black text-amber-400 text-xs tracking-tight whitespace-nowrap">
                 {formatCurrency(req.zo_fr_amount)}
               </TableCell>
@@ -78,7 +88,7 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
                 {formatDate(req.zo_date)}
               </TableCell>
               <TableCell className="py-3 px-3 whitespace-nowrap">
-                <FundRequestStatusBadge status={req.request_status} />
+                <FundRequestStatusBadge status={req.request_status} isImported={isImported} />
               </TableCell>
               <TableCell onClick={(e) => e.stopPropagation()} className="py-3 px-3 whitespace-nowrap">
                 <div className="flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity duration-200">

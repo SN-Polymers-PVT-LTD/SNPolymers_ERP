@@ -2,6 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
+const setupUsers = require('../../helpers/setupUsers');
 const {
   createFundRequest,
   getFundRequests,
@@ -24,6 +25,13 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
     testFrNo1 = `TEST_M2_FR_${suffix}_1`;
     testFrNo2 = `TEST_M2_FR_${suffix}_2`;
     testWorkOrder = `TEST_WO_P3M2_${suffix}`;
+
+    await setupUsers([
+      { mobile_number: zoUser.mobile_number, display_name: 'Test ZO User 1', role: 'zo', permissions: {}, is_active: true },
+      { mobile_number: zoUser2.mobile_number, display_name: 'Test ZO User 2', role: 'zo', permissions: {}, is_active: true },
+      { mobile_number: jeUser.mobile_number, display_name: 'Test JE User', role: 'je', permissions: {}, is_active: true },
+      { mobile_number: hoUser.mobile_number, display_name: 'Test HO User', role: 'ho', permissions: {}, is_active: true }
+    ]);
 
     // Insert a project owned by zoUser so the ZO ownership check in createFundRequest passes
     const { error: projErr } = await supabase.from('projects_master').insert({
@@ -63,7 +71,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
   });
 
   describe('Fund Request Creation', () => {
-    test('Test 1: Creates a valid fund request as ZO (Pending status)', async () => {
+    test('Test 1: Creates a valid fund request as ZO (Draft status)', async () => {
       const reqCreate1 = {
         user: zoUser,
         body: {
@@ -80,7 +88,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       expect(resCreate1.jsonData.success).toBe(true);
       expect(resCreate1.jsonData.fundRequest.zo_fr_no).toBe(testFrNo1);
       expect(Number(resCreate1.jsonData.fundRequest.zo_fr_amount)).toBe(45000.50);
-      expect(resCreate1.jsonData.fundRequest.request_status).toBe('Pending');
+      expect(resCreate1.jsonData.fundRequest.request_status).toBe('Draft');
       createdFr1 = resCreate1.jsonData.fundRequest;
     });
 
@@ -101,7 +109,7 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       expect(resCreateDup.jsonData.success).toBe(false);
     });
 
-    test('Test 3: Blocks 0 and negative zo_fr_amount with 400 Bad Request', async () => {
+    test('Test 3: Allows zero-valued drafts but rejects negative amounts', async () => {
       const reqCreateZero = {
         user: zoUser,
         body: {
@@ -124,11 +132,11 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       const resCreateNeg = mockRes();
       await createFundRequest(reqCreateNeg, resCreateNeg);
 
-      expect(resCreateZero.statusCode).toBe(400);
+      expect(resCreateZero.statusCode).toBe(201);
       expect(resCreateNeg.statusCode).toBe(400);
     });
 
-    test('Test 4: Blocks blank/whitespace zo_fr_no with 400 Bad Request', async () => {
+    test('Test 4: Generates a request number when a draft number is blank', async () => {
       const reqCreateBlank = {
         user: zoUser,
         body: {
@@ -140,7 +148,8 @@ describe('Milestone P3-M2 — Fund Requests CRUD Integration', () => {
       const resCreateBlank = mockRes();
       await createFundRequest(reqCreateBlank, resCreateBlank);
 
-      expect(resCreateBlank.statusCode).toBe(400);
+      expect(resCreateBlank.statusCode).toBe(201);
+      expect(resCreateBlank.jsonData.fundRequest.zo_fr_no).toMatch(/^FR-/);
     });
   });
 

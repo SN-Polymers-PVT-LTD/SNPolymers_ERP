@@ -22,31 +22,6 @@ module.exports = {
       ],
       "returns": "excess_fund_returns"
     },
-    "approve_fund_request_transact": {
-      "args": [
-        {
-          "name": "p_fund_request_id",
-          "type": "uuid"
-        },
-        {
-          "name": "p_approved_amount",
-          "type": "numeric"
-        },
-        {
-          "name": "p_transfer_from_account",
-          "type": "character varying"
-        },
-        {
-          "name": "p_actioned_by",
-          "type": "character varying"
-        },
-        {
-          "name": "p_remarks",
-          "type": "text"
-        }
-      ],
-      "returns": "fund_requests"
-    },
     "approve_requisition_transact": {
       "args": [
         {
@@ -190,9 +165,124 @@ module.exports = {
         {
           "name": "p_beneficiary_bank_id",
           "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_zo_user_id",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_requisition_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_gst_bill_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
         }
       ],
       "returns": "requisitions"
+    },
+    "get_accounts_import_queue": {
+      "args": [
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        },
+        {
+          "name": "p_status",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_particulars",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_account_sub_title",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_debit_bank_ac_type",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_accounts_import_queue_export": {
+      "args": [
+        {
+          "name": "p_status",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_particulars",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_account_sub_title",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_debit_bank_ac_type",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_subcontractor_ledger_entries": {
+      "args": [
+        {
+          "name": "p_work_order_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_sub_head",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_details",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_search",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_date_from",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        },
+        {
+          "name": "p_date_to",
+          "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "TABLE(entry jsonb, opening_balance numeric, closing_balance numeric)"
     },
     "increment_otp_attempts": {
       "args": [
@@ -215,6 +305,19 @@ module.exports = {
     "refresh_analytics_views": {
       "args": [],
       "returns": "void"
+    },
+    "submit_fund_request_transact": {
+      "args": [
+        {
+          "name": "p_fund_request_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_submitted_by",
+          "type": "character varying"
+        }
+      ],
+      "returns": "fund_requests"
     }
   }
 };

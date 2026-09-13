@@ -1,6 +1,31 @@
 /** Statuses that count toward submitted FR totals in WO summary views */
 export const FR_COMMITTED_STATUSES = new Set(['Pending', 'Hold', 'Approved']);
 
+export function isFundRequestOwner(request, user) {
+  return Boolean(request && user && request.zo_user_id === user.mobile_number);
+}
+
+export function canEditFundRequest(request, user) {
+  return isFundRequestOwner(request, user) && request.request_status === 'Draft' && !request.accounts_line_item_id;
+}
+
+export function canSubmitFundRequest(request, user) {
+  return canEditFundRequest(request, user);
+}
+
+export function canCancelFundRequest(request, user) {
+  return Boolean(
+    request && user && (user.role === 'admin' || isFundRequestOwner(request, user)) &&
+    ['Draft', 'Pending'].includes(request.request_status) && !request.accounts_line_item_id
+  );
+}
+
+export function getFundRequestDisplayStatus(request) {
+  if (!request) return null;
+  if (request.request_status === 'Pending' && request.accounts_line_item_id) return 'In Accounts Sheet';
+  return request.request_status;
+}
+
 /**
  * Effective committed amount for a single fund request row.
  * Approved rows use approve_ho_amount; pending/hold use zo_fr_amount.

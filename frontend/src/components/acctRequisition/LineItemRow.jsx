@@ -21,7 +21,8 @@ const STATUS_VARIANTS = {
   'Credit Approved': 'blue'
 };
 
-const PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT', 'Credit'].map(v => ({ value: v, label: v }));
+const CASH_PAYMENT_MODES = ['Cheque', 'Bulk NEFT', 'RTGS', 'NEFT']
+  .map(v => ({ value: v, label: v }));
 
 // Backend sets ho_actioned_at (not the generic updated_at) at the moment a row
 // transitions into Hold (act_acct_line_item_non_approve_transact) — the precise
@@ -111,6 +112,7 @@ const LineItemRow = ({
   // lookup endpoint and 403s for an HO user.
   const returnedPath = item.requisition_status === 'Returned for Correction' && Boolean(onResubmit);
   const editable = openPath || returnedPath;
+  const isExternalPaymentSource = Boolean(item.source_fund_request_id || item.source_requisition_id);
 
   const [draft, setDraft] = useState(() => emptyDraft(item));
   const [saving, setSaving] = useState(false);
@@ -122,7 +124,9 @@ const LineItemRow = ({
   useEffect(() => { draftRef.current = draft; }, [draft]);
   useEffect(() => { confirmedBeneficiaryKeyRef.current = confirmedBeneficiaryKey; }, [confirmedBeneficiaryKey]);
 
-  const bankOptions = bankBalances.map(b => ({ value: b.bank_name, label: b.bank_name }));
+  const bankOptions = bankBalances
+    .filter(b => !isExternalPaymentSource || b.bank_name !== 'Credit')
+    .map(b => ({ value: b.bank_name, label: b.bank_name }));
   const subTitleOptions = accountSubTitles.map(t => ({ value: t.id, label: t.title }));
   const indianBankOptions = indianBanks.map(b => (
     typeof b === 'object' && b !== null
@@ -139,6 +143,29 @@ const LineItemRow = ({
   }));
 
   const setField = (field, value) => setDraft(prev => ({ ...prev, [field]: value }));
+
+  // Debit Bank Type is the canonical Credit selector. Keep the two persisted
+  // fields coupled so HO cannot classify a Credit purchase as cash (or vice
+  // versa). Credit is a virtual bank route, not a cash payment mode.
+  const handleDebitBankChange = (value) => {
+    setDraft(prev => {
+      if (value === 'Credit') {
+        return {
+          ...prev,
+          debit_bank_ac_type: 'Credit',
+          payment_mode: 'Credit',
+          cheque_no: '',
+          cheque_date: ''
+        };
+      }
+
+      return {
+        ...prev,
+        debit_bank_ac_type: value,
+        payment_mode: prev.payment_mode === 'Credit' ? '' : prev.payment_mode
+      };
+    });
+  };
 
   const handleSubTitleTextChange = (text) => {
     const match = subTitleOptions.find(o => o.label.trim().toLowerCase() === text.trim().toLowerCase());
@@ -443,7 +470,10 @@ const LineItemRow = ({
             value={draft.beneficiary_ac_no}
             maxLength={18}
             inputMode="numeric"
-            onChange={(e) => setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''))}
+            onChange={(e) => {
+              setField('beneficiary_ac_no', e.target.value.replace(/\D/g, ''));
+              setConfirmedBeneficiaryKey(null);
+            }}
             onSelect={(b) => {
               setDraft(prev => ({
                 ...prev,
@@ -458,8 +488,45 @@ const LineItemRow = ({
             placeholder="A/C No."
             size="sm"
           />
-          <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => setField('beneficiary_ifsc', e.target.value.toUpperCase().trim())} placeholder="IFSC" size="sm" />
-          <Input disabled={readOnly} value={draft.beneficiary_name} onChange={(e) => setField('beneficiary_name', e.target.value)} placeholder="Beneficiary Name" size="sm" />
+          <Input disabled={readOnly} value={draft.beneficiary_ifsc} maxLength={11} onChange={(e) => {
+            setField('beneficiary_ifsc', e.target.value.toUpperCase().trim());
+            setConfirmedBeneficiaryKey(null);
+          }} placeholder="IFSC" size="sm" />
+          <BeneficiaryAcNoSuggestions
+            disabled={readOnly}
+            enabled={!confirmedBeneficiaryKey}
+            value={draft.beneficiary_name}
+            searchBy="name"
+            primaryField="name"
+            onSelect={(b) => {
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_ac_no: b.account_number,
+                beneficiary_ifsc: b.ifsc,
+                beneficiary_name: b.beneficiary_name,
+                beneficiary_bank_id: b.beneficiary_bank_id || b.beneficiary_bank?.id || null,
+                beneficiary_bank_name: b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || ''
+              }));
+              setConfirmedBeneficiaryKey(beneficiaryKey(b.account_number, b.ifsc));
+            }}
+            onChange={(e) => {
+              setDraft(prev => ({
+                ...prev,
+                beneficiary_name: e.target.value,
+                beneficiary_ac_no: '',
+                beneficiary_ifsc: '',
+                beneficiary_bank_id: null,
+                beneficiary_bank_name: ''
+              }));
+              setConfirmedBeneficiaryKey(null);
+            }}
+            onClearSelection={() => {
+              setDraft(prev => ({ ...prev, beneficiary_name: '', beneficiary_ac_no: '', beneficiary_ifsc: '', beneficiary_bank_id: null, beneficiary_bank_name: '' }));
+              setConfirmedBeneficiaryKey(null);
+            }}
+            placeholder="Beneficiary Name"
+            size="sm"
+          />
           <Select
             disabled={readOnly}
             value={draft.beneficiary_bank_id || (indianBanks.find(b => (typeof b === 'object' ? b.bank_name : b) === draft.beneficiary_bank_name)?.id || '')}
@@ -498,9 +565,12 @@ const LineItemRow = ({
         <Select
           disabled={readOnly}
           value={draft.debit_bank_ac_type}
-          onChange={(e) => setField('debit_bank_ac_type', e.target.value)}
+          onChange={(e) => handleDebitBankChange(e.target.value)}
           options={[{ value: '', label: 'Select...' }, ...bankOptions]}
         />
+        {editable && isExternalPaymentSource && (
+          <p className="mt-1 text-xs text-slate-400">Credit is not available for Fund Request or Payment Requisition rows.</p>
+        )}
       </TableCell>
 
       <TableCell className="min-w-[90px]">
@@ -514,10 +584,12 @@ const LineItemRow = ({
       <TableCell className="min-w-[160px]">
         <div className="flex flex-col gap-1.5">
           <Select
-            disabled={readOnly}
+            disabled={readOnly || draft.debit_bank_ac_type === 'Credit'}
             value={draft.payment_mode}
             onChange={(e) => setField('payment_mode', e.target.value)}
-            options={[{ value: '', label: 'Select...' }, ...PAYMENT_MODES]}
+            options={draft.debit_bank_ac_type === 'Credit'
+              ? [{ value: 'Credit', label: 'Credit' }]
+              : [{ value: '', label: 'Select...' }, ...CASH_PAYMENT_MODES]}
           />
           <Input disabled={readOnly} value={draft.cheque_no} onChange={(e) => setField('cheque_no', e.target.value)} placeholder="Cheque No. (optional)" size="sm" />
           <Input disabled={readOnly} value={draft.cheque_date} onChange={(e) => setField('cheque_date', e.target.value)} placeholder="Cheque Date (optional)" size="sm" />

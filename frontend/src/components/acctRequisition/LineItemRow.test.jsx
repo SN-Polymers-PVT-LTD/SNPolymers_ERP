@@ -3,9 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import LineItemRow from './LineItemRow';
 import { Table, TableBody } from '../ui';
+import { searchBeneficiariesByAcNo } from '../../api/acctRequisitionsApi';
 
 vi.mock('../../api/acctRequisitionsApi', () => ({
-  upsertBeneficiary: vi.fn().mockResolvedValue({})
+  upsertBeneficiary: vi.fn().mockResolvedValue({}),
+  searchBeneficiariesByAcNo: vi.fn().mockResolvedValue({ data: { beneficiaries: [] } })
 }));
 
 const baseItem = {
@@ -117,6 +119,21 @@ describe('LineItemRow — cheque_no/cheque_date are optional for every payment m
     fireEvent.change(paymentModeSelect, { target: { value: 'NEFT' } });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(onSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('LineItemRow — Fund Request rows cannot select Credit', () => {
+  it('hides the Credit bank route and explains why', () => {
+    renderRow({
+      item: { ...baseItem, source_fund_request_id: 'fr-1' },
+      bankBalances: [
+        { bank_name: 'State Bank of India' },
+        { bank_name: 'Credit' }
+      ]
+    });
+
+    expect(screen.getByText('Credit is not available for Fund Request or Payment Requisition rows.')).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Credit' })).not.toBeInTheDocument();
   });
 });
 
@@ -470,5 +487,28 @@ describe('LineItemRow — beneficiary A/C No. and IFSC input constraints', () =>
     const acInput = screen.getByPlaceholderText('A/C No.');
     fireEvent.change(acInput, { target: { value: '12a 34-56b' } });
     expect(acInput).toHaveValue('123456');
+  });
+});
+
+describe('LineItemRow — beneficiary name suggestion selection', () => {
+  it('fills the complete beneficiary block when a name suggestion is selected', async () => {
+    const beneficiary = {
+      account_number: '9876543210',
+      ifsc: 'HDFC0001234',
+      beneficiary_name: 'Acme Infra',
+      beneficiary_bank_name: 'HDFC Bank',
+      beneficiary_bank_id: 'bank-1'
+    };
+    vi.mocked(searchBeneficiariesByAcNo).mockResolvedValueOnce({ data: { beneficiaries: [beneficiary] } });
+    renderRow();
+
+    const nameInput = screen.getByPlaceholderText('Beneficiary Name');
+    fireEvent.change(nameInput, { target: { value: 'Acme' } });
+    await waitFor(() => expect(screen.getByText('Acme Infra')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Acme Infra'));
+
+    expect(screen.getByPlaceholderText('Beneficiary Name')).toHaveValue('Acme Infra');
+    expect(screen.getByPlaceholderText('A/C No.')).toHaveValue('9876543210');
+    expect(screen.getByPlaceholderText('IFSC')).toHaveValue('HDFC0001234');
   });
 });

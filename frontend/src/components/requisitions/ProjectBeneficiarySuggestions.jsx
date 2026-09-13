@@ -17,7 +17,11 @@ const ProjectBeneficiarySuggestions = ({
   value = '',
   onChange,
   onSelect,
+  onClearSelection,
   disabled = false,
+  enabled = true,
+  searchBy = 'ac_no',
+  primaryField = 'ac_no',
   label = 'Account No.',
   placeholder = 'Enter account number…',
   ...inputProps
@@ -37,6 +41,13 @@ const ProjectBeneficiarySuggestions = ({
       return undefined;
     }
 
+    if (!enabled) {
+      setResults([]);
+      setLoading(false);
+      setOpen(false);
+      return undefined;
+    }
+
     const prefix = (value || '').trim();
     if (prefix.length < MIN_PREFIX_LENGTH) {
       setResults([]);
@@ -50,7 +61,7 @@ const ProjectBeneficiarySuggestions = ({
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await searchProjectsBeneficiaries(prefix);
+        const res = await searchProjectsBeneficiaries(prefix, 8, searchBy);
         if (requestId !== requestIdRef.current) return;
         setResults(res.data?.beneficiaries || []);
       } catch {
@@ -62,7 +73,7 @@ const ProjectBeneficiarySuggestions = ({
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, enabled, searchBy]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -108,7 +119,7 @@ const ProjectBeneficiarySuggestions = ({
     setResults([]);
   };
 
-  const showMenu = open && !disabled && (value || '').trim().length >= MIN_PREFIX_LENGTH;
+  const showMenu = open && !disabled && enabled && (value || '').trim().length >= MIN_PREFIX_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">
@@ -119,11 +130,21 @@ const ProjectBeneficiarySuggestions = ({
         autoComplete="off"
         placeholder={placeholder}
         onFocus={() => {
-          if ((value || '').trim().length >= MIN_PREFIX_LENGTH) setOpen(true);
+          if (enabled && (value || '').trim().length >= MIN_PREFIX_LENGTH) setOpen(true);
         }}
         onChange={onChange}
         {...inputProps}
       />
+      {onClearSelection && value && !disabled && (
+        <button
+          type="button"
+          aria-label="Clear beneficiary selection"
+          onClick={onClearSelection}
+          className="absolute right-2 top-7 text-slate-400 hover:text-white text-sm"
+        >
+          ×
+        </button>
+      )}
 
       {showMenu && menuRect && createPortal(
         <div
@@ -149,14 +170,29 @@ const ProjectBeneficiarySuggestions = ({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handlePick(b)}
             >
-              <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition">
-                {b.beneficiary_ac_no}
-              </p>
-              <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-                <span className="font-semibold text-slate-300">{b.beneficiary_name}</span>
-                {(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name) ? ` • ${b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}` : ''}
-                {b.beneficiary_ifsc ? ` (${b.beneficiary_ifsc})` : ''}
-              </p>
+              {primaryField === 'name' ? (
+                <>
+                  <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition">
+                    {b.beneficiary_name}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                    <span className="font-semibold text-slate-300">A/C: {b.beneficiary_ac_no}</span>
+                    {(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name) ? ` • ${b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}` : ''}
+                    {b.beneficiary_ifsc ? ` (${b.beneficiary_ifsc})` : ''}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs font-bold text-slate-200 group-hover:text-amber-400 transition">
+                    {b.beneficiary_ac_no}
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                    <span className="font-semibold text-slate-300">{b.beneficiary_name}</span>
+                    {(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name) ? ` • ${b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}` : ''}
+                    {b.beneficiary_ifsc ? ` (${b.beneficiary_ifsc})` : ''}
+                  </p>
+                </>
+              )}
             </button>
           ))}
         </div>,

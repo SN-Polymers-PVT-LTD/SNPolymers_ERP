@@ -258,7 +258,7 @@ module.exports = {
         "requisition_pdf_url": {
           "type": "text",
           "udtName": "text",
-          "nullable": false,
+          "nullable": true,
           "default": null
         },
         "original_filename": {
@@ -458,6 +458,24 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": true,
           "default": null
+        },
+        "payment_status": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "paid_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "zo_actioned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -503,7 +521,7 @@ module.exports = {
           "type": "USER-DEFINED",
           "udtName": "fund_request_status_enum",
           "nullable": false,
-          "default": "'Pending'::fund_request_status_enum"
+          "default": "'Draft'::fund_request_status_enum"
         },
         "approve_ho_user_id": {
           "type": "character varying",
@@ -524,8 +542,8 @@ module.exports = {
           "default": null
         },
         "transfer_from_account": {
-          "type": "USER-DEFINED",
-          "udtName": "transfer_account_enum",
+          "type": "character varying",
+          "udtName": "varchar",
           "nullable": true,
           "default": null
         },
@@ -572,6 +590,72 @@ module.exports = {
           "default": "'[]'::jsonb"
         },
         "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ac_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_ifsc": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "beneficiary_bank_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_line_item_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_imported_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_import_dismissed": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": true,
+          "default": "false"
+        },
+        "submitted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "submitted_by": {
           "type": "character varying",
           "udtName": "varchar",
           "nullable": true,

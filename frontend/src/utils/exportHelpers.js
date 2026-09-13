@@ -282,7 +282,33 @@ export async function exportArchiveToZip(estimate, items, quotations) {
   link.click();
 }
 
-import { isFinanciallyActiveRequisition } from './requisitionUtils';
+import { formatPaymentOffice, getRequisitionFinancialState } from './requisitionUtils';
+
+export function expandCompletedFundReturn(returnRow, projectByWorkOrder = new Map()) {
+  if (!returnRow || returnRow.status !== 'Completed') return [];
+  const total = Number(returnRow.requested_amount);
+  const breakdown = Array.isArray(returnRow.breakdown) ? returnRow.breakdown : [];
+  let allocations = breakdown;
+  if (breakdown.length === 0 && returnRow.work_order_no && Number.isFinite(total) && total > 0) {
+    allocations = [{ work_order_no: returnRow.work_order_no, amount: total }];
+  }
+  const valid = Number.isFinite(total) && total > 0 && allocations.length > 0 &&
+    allocations.every(b => b && b.work_order_no && Number.isFinite(Number(b.amount)) && Number(b.amount) > 0) &&
+    Math.abs(allocations.reduce((sum, b) => sum + Number(b.amount), 0) - total) < 0.01;
+  if (!valid) return [];
+  return allocations.map(b => {
+    const wo = String(b.work_order_no).trim();
+    const project = projectByWorkOrder.get(wo.toLowerCase());
+    return {
+      transactionType: 'EXCESS_FUND_RETURN', date: returnRow.completed_at || returnRow.accepted_at || returnRow.updated_at,
+      referenceNo: '', jeName: '', zoName: returnRow.zo_name || returnRow.zo_user_id || '', pdfName: '',
+      mainHead: 'Excess Fund Return', secondField: '', thirdField: '',
+      remarks: returnRow.remarks_zo || returnRow.remarks_ho || 'Fund returned to HO', amount: Number(b.amount),
+      paymentOffice: formatPaymentOffice(returnRow.payment_destination, 'ZO Office'), beneficiaryName: 'Head Office', accountNo: '', ifscCode: '', bankName: '',
+      workOrder: wo, workOrderDetails: project?.site_details || ''
+    };
+  });
+}
 
 export async function exportSubcontractorRequisitionsToExcel(requisitions, metadata = {}) {
   if (!requisitions || requisitions.length === 0) {
@@ -292,7 +318,7 @@ export async function exportSubcontractorRequisitionsToExcel(requisitions, metad
 
   const XLSX = await import('xlsx');
 
-  const totalActive = requisitions.filter(r => isFinanciallyActiveRequisition(r.requisition_status)).length;
+  const totalActive = requisitions.filter(r => getRequisitionFinancialState(r).financiallyActive).length;
   const totalInactive = requisitions.length - totalActive;
 
   const headerRows = [
@@ -312,21 +338,24 @@ export async function exportSubcontractorRequisitionsToExcel(requisitions, metad
     "Sub Head",
     "Work Order No.",
     "Requisition No.",
-    "Status",
+    "Authorization Status",
+    "Payment Status",
+    "Payment Office",
     "Requested Amount (INR)",
     "Approved Amount (INR)",
     "Effective Liability (INR)",
+    "Paid Amount (INR)",
     "Requested By",
     "Approved By",
     "Creation Date",
-    "Approved On"
+    "Approved On",
+    "Paid On"
   ];
 
   const dataRows = requisitions.map((r, index) => {
     const reqAmt = Number(r.requisition_amount || 0);
     const appAmt = Number(r.approved_amount || 0);
-    // Numeric Effective Liability: Approved requisitions represent confirmed liabilities; cancelled/rejected represent 0.00
-    const effectiveLiability = r.requisition_status === 'Approved' ? appAmt : 0.00;
+    const financial = getRequisitionFinancialState(r);
 
     return [
       index + 1,
@@ -335,12 +364,16 @@ export async function exportSubcontractorRequisitionsToExcel(requisitions, metad
       r.work_order_no || '',
       r.requisition_no || '',
       r.requisition_status || '',
+      r.payment_status || '',
+      formatPaymentOffice(r.payment_destination, ''),
       reqAmt,
       appAmt,
-      effectiveLiability,
+      financial.effectiveLiability,
+      financial.paidAmount,
       r.requester_name || r.requester_user_id || '',
       r.approved_name || r.approved_user_id || '',
       r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
+      r.zo_actioned_at ? new Date(r.zo_actioned_at).toLocaleDateString('en-IN') : '',
       r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
     ];
   });
@@ -447,9 +480,52 @@ export async function exportRequisitionDetailsToExcel(items) {
 const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item Approval)',
   ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
-  REQUISITION_APPROVAL: 'Debit (Requisition Approval)',
+  REQUISITION_APPROVAL: 'Reservation (Internal)',
+  REQUISITION_PAYMENT: 'Debit (Paid)',
+  REQUISITION_RELEASE: 'Release (Internal)',
   ADMIN_ADJUSTMENT: 'Admin Balance Adjustment'
 };
+
+export const fullLedgerRequisitionHeaders = [
+  "Sl. No.",
+  "Requisition No.",
+  "Work Order No.",
+  "Subcontractor",
+  "Material Sub Head",
+  "Authorization Status",
+  "Payment Status",
+  "Payment Office",
+  "Requested Amount (INR)",
+  "Approved Amount (INR)",
+  "Effective Liability (INR)",
+  "Paid Amount (INR)",
+  "Requested By",
+  "Creation Date",
+  "Approved On",
+  "Paid On"
+];
+
+export function buildFullLedgerRequisitionRow(r = {}, index = 0) {
+  const financial = getRequisitionFinancialState(r);
+  return [
+    index + 1,
+    r.requisition_no || '',
+    r.work_order_no || '',
+    r.material_details || '',
+    r.material_sub_head || '',
+    r.requisition_status || '',
+    r.payment_status || '',
+    formatPaymentOffice(r.payment_destination, ''),
+    Number(r.requisition_amount || 0),
+    Number(r.approved_amount || 0),
+    financial.effectiveLiability,
+    financial.paidAmount,
+    r.requester_name || r.requester_user_id || '',
+    r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
+    r.zo_actioned_at ? new Date(r.zo_actioned_at).toLocaleDateString('en-IN') : '',
+    r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
+  ];
+}
 
 /**
  * Exports a comprehensive statement of account (Ledger) for a specific Subcontractor.
@@ -470,9 +546,13 @@ export async function exportSubcontractorLedgerStatementToExcel({
 
   const totalCredits = entries.reduce((sum, e) => sum + (Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0)), 0);
   const totalDebits = entries.reduce((sum, e) => sum + (Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0)), 0);
-  const finalBalance = balance?.available_balance != null 
-    ? Number(balance.available_balance) 
-    : (entries[0]?.running_balance != null ? Number(entries[0].running_balance) : (totalCredits - totalDebits));
+  const statementBalance = entries[0]?.running_balance != null
+    ? Number(entries[0].running_balance)
+    : Number((totalCredits - totalDebits).toFixed(2));
+  const availableCapacity = balance?.available_capacity ?? balance?.available_balance;
+  const committedTotal = balance?.committed_total ?? balance?.paid_total;
+  const settledTotal = balance?.settled_total;
+  const reservedTotal = balance?.reserved_total;
 
   const workbook = XLSX.utils.book_new();
 
@@ -483,8 +563,11 @@ export async function exportSubcontractorLedgerStatementToExcel({
     [],
     ["Subcontractor Name:", subcontractor || '—', "", "Work Order No.:", workOrder || 'All'],
     ["Material Sub Head:", subHead || '—', "", "Department:", balance?.project?.department || '—'],
-    ["Total Allocated (Credits):", totalCredits, "", "Total Paid (Debits):", totalDebits],
-    ["Available Balance (INR):", finalBalance],
+    ["Statement Credits:", totalCredits, "", "Actual Paid (Debits):", totalDebits],
+    ["Statement Balance (INR):", statementBalance],
+    ["Available Capacity (INR):", availableCapacity ?? '—'],
+    ["Committed Total (INR):", committedTotal ?? '—', "", "Reserved / Awaiting Payment (INR):", reservedTotal ?? '—'],
+    ["Settled Total (INR):", settledTotal ?? totalDebits],
     []
   ];
 
@@ -503,7 +586,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
   // In standard accounting statements, show transactions chronologically (oldest to newest)
   const entriesAsc = [...entries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-  let currentRunning = 0;
+  let currentRunning = Number(entriesAsc[0]?.opening_balance || 0);
   const ledgerDataRows = entriesAsc.map((e, index) => {
     const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
     const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
@@ -534,7 +617,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
     "",
     totalCredits,
     totalDebits,
-    finalBalance,
+    statementBalance,
     ""
   ];
 
@@ -566,31 +649,34 @@ export async function exportSubcontractorLedgerStatementToExcel({
       "Sl. No.",
       "Requisition No.",
       "Work Order No.",
-      "Status",
+      "Authorization Status",
+      "Payment Status",
+      "Payment Office",
       "Requested Amount (INR)",
       "Approved Amount (INR)",
       "Effective Liability (INR)",
+      "Paid Amount (INR)",
       "Requested By",
       "Creation Date",
       "Approved On",
+      "Paid On",
       "Remarks"
     ];
 
     const reqDataRows = requisitions.map((r, index) => {
-      const reqAmt = Number(r.requisition_amount || 0);
-      const appAmt = Number(r.approved_amount || 0);
-      const effectiveLiability = r.requisition_status === 'Approved' ? appAmt : 0.00;
+      const financial = getRequisitionFinancialState(r);
 
       return [
         index + 1,
         r.requisition_no || '',
         r.work_order_no || '',
-        r.requisition_status || '',
-        reqAmt,
-        appAmt,
-        effectiveLiability,
+        r.requisition_status || '', r.payment_status || '', formatPaymentOffice(r.payment_destination, ''),
+        Number(r.requisition_amount || 0), Number(r.approved_amount || 0),
+        financial.effectiveLiability,
+        financial.paidAmount,
         r.requester_name || r.requester_user_id || '',
         r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
+        r.zo_actioned_at ? new Date(r.zo_actioned_at).toLocaleDateString('en-IN') : '',
         r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : '',
         r.remarks_approved_authority || r.remarks || ''
       ];
@@ -602,6 +688,7 @@ export async function exportSubcontractorLedgerStatementToExcel({
       { wch: 18 }, // Req No
       { wch: 16 }, // WO
       { wch: 14 }, // Status
+      { wch: 16 }, // Payment Office
       { wch: 18 }, // Req Amt
       { wch: 18 }, // App Amt
       { wch: 20 }, // Eff Liability
@@ -743,37 +830,12 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
       ["Total Requisitions:", requisitions.length],
       []
     ];
-    const reqTableHeaders = [
-      "Sl. No.",
-      "Requisition No.",
-      "Work Order No.",
-      "Subcontractor",
-      "Material Sub Head",
-      "Status",
-      "Requested Amount (INR)",
-      "Approved Amount (INR)",
-      "Effective Liability (INR)",
-      "Requested By",
-      "Creation Date",
-      "Approved On"
-    ];
-    const reqDataRows = requisitions.map((r, index) => [
-      index + 1,
-      r.requisition_no || '',
-      r.work_order_no || '',
-      r.material_details || '',
-      r.material_sub_head || '',
-      r.requisition_status || '',
-      Number(r.requisition_amount || 0),
-      Number(r.approved_amount || 0),
-      r.requisition_status === 'Approved' ? Number(r.approved_amount || 0) : 0.00,
-      r.requester_name || r.requester_user_id || '',
-      r.created_at ? new Date(r.created_at).toLocaleDateString('en-IN') : '',
-      r.payment_date ? new Date(r.payment_date).toLocaleDateString('en-IN') : ''
-    ]);
+    const reqTableHeaders = fullLedgerRequisitionHeaders;
+    const reqDataRows = requisitions.map(buildFullLedgerRequisitionRow);
     const reqWorksheet = XLSX.utils.aoa_to_sheet([...reqHeader, reqTableHeaders, ...reqDataRows]);
     reqWorksheet['!cols'] = [
-      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 14 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 14 }, { wch: 14 }
+      { wch: 8 }, { wch: 18 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
+      { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 }
     ];
     XLSX.utils.book_append_sheet(workbook, reqWorksheet, "Requisitions");
   }
@@ -795,6 +857,8 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
 export async function exportCombinedExpenditureSheet({
   fundRequests = [],
   requisitions = [],
+  fundReturns = [],
+  projects = [],
   metadata = {},
   dateRange
 } = {}) {
@@ -803,6 +867,18 @@ export async function exportCombinedExpenditureSheet({
   // Filter fund requests and requisitions by workOrder & dateRange
   let filteredFrs = [...fundRequests];
   let filteredReqs = [...requisitions];
+  const projectByWorkOrder = new Map(projects.map(p => [String(p.work_order_no || '').trim().toLowerCase(), p]));
+
+  const returnRows = fundReturns
+    .filter(r => r.status === 'Completed')
+    .flatMap(r => {
+      const rows = expandCompletedFundReturn(r, projectByWorkOrder);
+      if (rows.length === 0) {
+        console.warn('Skipping malformed completed excess fund return:', r.id);
+        return [];
+      }
+      return rows;
+    });
 
   if (metadata.workOrderFilter && metadata.workOrderFilter !== 'All') {
     const wo = metadata.workOrderFilter.trim().toLowerCase();
@@ -837,21 +913,39 @@ export async function exportCombinedExpenditureSheet({
         return d <= endDate;
       });
     }
+    // Return rows are already expanded, so apply the date range to the transaction date.
+    // (Work-order filtering is applied below at allocation-row level.)
   }
 
-  if (filteredFrs.length === 0 && filteredReqs.length === 0) {
-    alert('No fund requests or payment requisitions found matching the selected criteria.');
+  let filteredReturns = returnRows;
+  if (metadata.workOrderFilter && metadata.workOrderFilter !== 'All') {
+    const wo = metadata.workOrderFilter.trim().toLowerCase();
+    filteredReturns = filteredReturns.filter(r => r.workOrder.toLowerCase() === wo);
+  }
+  if (dateRange) {
+    const start = dateRange.start || dateRange.startDate;
+    const end = dateRange.end || dateRange.endDate;
+    if (start) filteredReturns = filteredReturns.filter(r => new Date(r.date) >= new Date(new Date(start).setHours(0, 0, 0, 0)));
+    if (end) filteredReturns = filteredReturns.filter(r => new Date(r.date) <= new Date(new Date(end).setHours(23, 59, 59, 999)));
+  }
+  const rightSideTransactions = [
+    ...filteredReqs.map(r => ({ transactionType: 'PAYMENT_REQUISITION', date: r.payment_date || r.zo_actioned_at || r.created_at || r.login_date, req: r })),
+    ...filteredReturns
+  ].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  if (filteredFrs.length === 0 && rightSideTransactions.length === 0) {
+    alert('No fund requests, payment requisitions, or excess fund returns found matching the selected criteria.');
     return;
   }
 
   // Row 1: Empty row
-  const row1 = Array(22).fill('');
+  const row1 = Array(23).fill('');
 
   // Row 2: Note merged over M2:N2 (col index 12 and 13 - 2nd Field & 3rd Field)
-  const row2 = Array(22).fill('');
+  const row2 = Array(23).fill('');
   row2[12] = 'If Material Main Head is “Sub Contractor” \nthe selected 2nd and 3rd dropdown values should be displayed in the 2nd and 3rd fields.';
 
-  // Row 3: 22 Headers matching modified management specification
+  // Row 3: 23 Headers matching modified management specification
   const row3 = [
     'Date',
     'Approved amount of the ZO → HO Fund Request.',
@@ -869,6 +963,9 @@ export async function exportCombinedExpenditureSheet({
     '3rd Field',
     'Remarks',
     'ZO Approved Amount',
+    'Payment Status',
+    'Paid Amount',
+    'Payment Office',
     'Beneficiary Name',
     'Account No',
     'IFSC Code',
@@ -877,7 +974,7 @@ export async function exportCombinedExpenditureSheet({
     'Work Order Details'
   ];
 
-  const maxRows = Math.max(filteredFrs.length, filteredReqs.length);
+  const maxRows = Math.max(filteredFrs.length, rightSideTransactions.length);
   const dataRows = [];
 
   const formatDateVal = (dateStr) => {
@@ -893,7 +990,9 @@ export async function exportCombinedExpenditureSheet({
 
   for (let i = 0; i < maxRows; i++) {
     const fr = filteredFrs[i] || null;
-    const req = filteredReqs[i] || null;
+    const outflow = rightSideTransactions[i] || null;
+    const req = outflow?.transactionType === 'PAYMENT_REQUISITION' ? outflow.req : null;
+    const ret = outflow?.transactionType === 'EXCESS_FUND_RETURN' ? outflow : null;
 
     // Left Side: Inflow (ZO -> HO Fund Request)
     const frDate = fr ? formatDateVal(fr.approve_ho_date || fr.zo_date || fr.created_at) : '';
@@ -903,23 +1002,26 @@ export async function exportCombinedExpenditureSheet({
     const frAmount = fr ? (Number(fr.approve_ho_amount || fr.zo_fr_amount || 0)) : null;
 
     // Right Side: Outflow (Payment Requisition)
-    const reqDate = req ? formatDateVal(req.payment_date || req.created_at || req.login_date) : '';
+    const reqDate = outflow ? formatDateVal(outflow.date) : '';
     const reqNo = req ? (req.requisition_no || '') : '';
     const jeName = req ? (req.requester_name || req.requester_user_id || '') : '';
-    const zoName = req ? (req.approved_name || req.zo_name || req.zo_user_id || '') : '';
+    const zoName = req ? (req.approved_name || req.zo_name || req.zo_user_id || '') : (ret?.zoName || '');
     const reqPdfName = req ? (req.original_filename || (req.requisition_pdf_url ? req.requisition_pdf_url.split('/').pop() : '') || '') : '';
-    const mainHead = req ? (req.material_main_head || '') : '';
+    const mainHead = req ? (req.material_main_head || '') : (ret?.mainHead || '');
     const isSubContractor = (mainHead || '').trim() === 'Sub Contractor';
-    const secondField = (req && isSubContractor) ? (req.material_sub_head || '') : '';
-    const thirdField = (req && isSubContractor) ? (req.material_details || '') : '';
-    const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : '';
-    const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : null;
-    const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : '';
-    const accountNo = req ? (req.beneficiary_ac_no || '') : '';
+    const secondField = req && isSubContractor ? (req.material_sub_head || '') : (ret?.secondField || '');
+    const thirdField = req && isSubContractor ? (req.material_details || '') : (ret?.thirdField || '');
+    const remarks = req ? (req.remarks_approved_authority || req.expen_head_remarks || '') : (ret?.remarks || '');
+    const zoApprovedAmount = req ? Number(req.approved_amount ?? req.requisition_amount ?? 0) : (ret ? ret.amount : null);
+    const paymentStatus = req ? (req.payment_status || '') : '';
+    const paidAmount = req ? getRequisitionFinancialState(req).paidAmount : (ret ? zoApprovedAmount : null);
+    const paymentOffice = req ? formatPaymentOffice(req.payment_destination, '') : (ret?.paymentOffice || (ret ? 'ZO Office' : ''));
+    const beneficiaryName = req ? (req.beneficiary_name || (isSubContractor ? req.material_details : '') || '') : (ret?.beneficiaryName || '');
+    const accountNo = req ? (req.beneficiary_ac_no || '') : (ret?.accountNo || '');
     const ifscCode = req ? (req.beneficiary_ifsc || '') : '';
     const bankName = req ? (req.beneficiary_bank_name || '') : '';
-    const workOrder = req ? (req.work_order_no || '') : '';
-    const workOrderDetails = req ? (req.site_details || '') : '';
+    const workOrder = req ? (req.work_order_no || '') : (ret?.workOrder || '');
+    const workOrderDetails = req ? (req.site_details || '') : (ret?.workOrderDetails || '');
 
     dataRows.push([
       frDate,
@@ -938,6 +1040,9 @@ export async function exportCombinedExpenditureSheet({
       thirdField,
       remarks,
       zoApprovedAmount,
+      paymentStatus,
+      paidAmount,
+      paymentOffice,
       beneficiaryName,
       accountNo,
       ifscCode,
@@ -950,7 +1055,7 @@ export async function exportCombinedExpenditureSheet({
   const aoa = [row1, row2, row3, ...dataRows];
   const worksheet = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Column widths matching expanded 22-column specification
+  // Column widths matching expanded 23-column specification
   worksheet['!cols'] = [
     { wch: 12 }, // A: Date
     { wch: 45 }, // B: Approved amount of ZO -> HO Fund Request
@@ -968,12 +1073,15 @@ export async function exportCombinedExpenditureSheet({
     { wch: 22 }, // N: 3rd Field
     { wch: 16 }, // O: Remarks
     { wch: 22 }, // P: ZO Approved Amount
-    { wch: 30 }, // Q: Beneficiary Name
-    { wch: 20 }, // R: Account No
-    { wch: 15 }, // S: IFSC Code
-    { wch: 18 }, // T: Bank Name
-    { wch: 16 }, // U: Work_Order
-    { wch: 25 }  // V: Work Order Details
+    { wch: 22 }, // Q: Payment Status
+    { wch: 16 }, // R: Paid Amount
+    { wch: 16 }, // S: Payment Office
+    { wch: 30 }, // T: Beneficiary Name
+    { wch: 20 }, // U: Account No
+    { wch: 15 }, // V: IFSC Code
+    { wch: 18 }, // W: Bank Name
+    { wch: 16 }, // X: Work_Order
+    { wch: 25 }  // Y: Work Order Details
   ];
 
   // Merge M2:N2 (col index 12 to 13 in 0-indexed coords for 2nd Field & 3rd Field)
@@ -981,7 +1089,7 @@ export async function exportCombinedExpenditureSheet({
     { s: { r: 1, c: 12 }, e: { r: 1, c: 13 } }
   ];
 
-  // Number formatting for Column E (HO Approved Amount) and Column P (ZO Approved Amount)
+  // Number formatting for Column E (HO Approved Amount), P (ZO Approved Amount), and R (Paid Amount)
   for (let r = 3; r < aoa.length; r++) {
     const eRef = XLSX.utils.encode_cell({ r, c: 4 });
     if (worksheet[eRef] && typeof worksheet[eRef].v === 'number') {
@@ -990,6 +1098,10 @@ export async function exportCombinedExpenditureSheet({
     const pRef = XLSX.utils.encode_cell({ r, c: 15 });
     if (worksheet[pRef] && typeof worksheet[pRef].v === 'number') {
       worksheet[pRef].z = '#,##0.00';
+    }
+    const paidRef = XLSX.utils.encode_cell({ r, c: 17 });
+    if (worksheet[paidRef] && typeof worksheet[paidRef].v === 'number') {
+      worksheet[paidRef].z = '#,##0.00';
     }
   }
 
@@ -1001,6 +1113,3 @@ export async function exportCombinedExpenditureSheet({
   const filename = `Expenditure_Sheet${cleanWo}_${dateSuffix}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }
-
-
-

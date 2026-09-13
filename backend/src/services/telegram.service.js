@@ -806,27 +806,27 @@ async function notifyJeRevisionRequested(estimate, revisionLog) {
   }
 }
 
-async function notifyHoFundRequestSubmitted(fundRequest) {
+async function notifyAccountsFundRequestSubmitted(fundRequest) {
   if (process.env.NODE_ENV === 'test') {
     return;
   }
   try {
-    const { data: hoUsers, error } = await supabase
+    const { data: accountsUsers, error } = await supabase
       .from('authorised_users')
       .select('display_name, telegram_chat_id')
-      .eq('role', 'ho')
+      .eq('role', 'accounts')
       .eq('is_active', true)
       .not('telegram_chat_id', 'is', null);
 
     if (error) {
-      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active HO users for fund request notification: ${error.message}`);
+      console.warn(`[TELEGRAM ALERTS] Failed to retrieve active Accounts users for fund request notification: ${error.message}`);
       return;
     }
 
-    const recipients = (hoUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+    const recipients = (accountsUsers || []).filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
     if (recipients.length === 0) {
       console.warn(
-        `[TELEGRAM ALERTS] No active HO users configured with Telegram chat IDs for fund request submission. ` +
+        `[TELEGRAM ALERTS] No active Accounts users configured with Telegram chat IDs for fund request submission. ` +
         `Fund Request No: ${fundRequest?.zo_fr_no || 'N/A'}`
       );
       return;
@@ -869,7 +869,7 @@ async function notifyHoFundRequestSubmitted(fundRequest) {
       }
     }
   } catch (error) {
-    console.error(`[TELEGRAM ALERTS] notifyHoFundRequestSubmitted failed: ${error.message}`);
+    console.error(`[TELEGRAM ALERTS] notifyAccountsFundRequestSubmitted failed: ${error.message}`);
   }
 }
 
@@ -2421,7 +2421,7 @@ module.exports = {
   zo_balances_reconcile: () => { }, // placeholder if needed
   notifyZoFundRequestApproved,
   notifyJeRevisionRequested,
-  notifyHoFundRequestSubmitted,
+  notifyAccountsFundRequestSubmitted,
   notifyZoFundRequestHeld,
   notifyZoRequisitionSubmitted,
   notifyHoRequisitionSubmitted,

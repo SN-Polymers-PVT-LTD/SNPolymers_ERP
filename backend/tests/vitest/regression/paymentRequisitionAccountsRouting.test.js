@@ -167,6 +167,7 @@ describe('Payment Requisition -> ZO Payment / Accounts Routing', () => {
     });
     expect(error).toBeNull();
     expect(data.requisition.payment_destination).toBe('ACCOUNTS');
+    expect(data.requisition.payment_status).toBe('PENDING_ACCOUNTS_IMPORT');
     expect(data.requisition.accounts_line_item_id).toBeNull();
     expect(data.requisition.accounts_sent_by).toBe(zoMobile);
 
@@ -214,6 +215,7 @@ describe('Payment Requisition -> ZO Payment / Accounts Routing', () => {
     expect(importRes.line_item.requisition_status).toBeNull();
 
     expect(importRes.requisition.accounts_line_item_id).toBe(importRes.line_item.id);
+    expect(importRes.requisition.payment_status).toBe('ACCOUNTS_DRAFT');
 
     // Double import is rejected
     const { error: doubleImportErr } = await supabase.rpc('import_payment_requisition_to_acct_sheet_transact', {

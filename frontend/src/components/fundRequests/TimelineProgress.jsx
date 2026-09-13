@@ -2,31 +2,24 @@ import React from 'react';
 
 const TimelineProgress = ({ status }) => {
   const stages = [
-    { label: 'Fund Request Created', key: 'created' },
-    { label: 'Pending HO Approval', key: 'pending' },
-    { label: 'Approved / Hold', key: 'terminal' }
+    { label: 'Draft', key: 'draft' },
+    { label: 'Submitted', key: 'submitted' },
+    { label: 'Accounts Sheet', key: 'accounts' },
+    { label: 'HO Outcome', key: 'outcome' }
   ];
 
   const getStageState = (stageKey) => {
-    if (stageKey === 'created') {
-      return 'completed'; // Always completed if request exists
+    if (stageKey === 'draft') {
+      return status === 'Draft' ? 'active' : 'completed';
     }
-    
-    if (stageKey === 'pending') {
-      if (status === 'Pending') {
-        return 'active';
-      }
-      if (status === 'Approved' || status === 'Hold' || status === 'Cancelled') {
-        return 'completed';
-      }
-      return 'upcoming';
+    if (stageKey === 'submitted') {
+      return status === 'Draft' ? 'upcoming' : 'completed';
     }
-
-    if (stageKey === 'terminal') {
-      if (status === 'Approved' || status === 'Hold' || status === 'Cancelled') {
-        return 'completed'; // reached terminal state
-      }
-      return 'upcoming';
+    if (stageKey === 'accounts') {
+      return status === 'Draft' || status === 'Cancelled' ? 'upcoming' : status === 'Pending' ? 'active' : 'completed';
+    }
+    if (stageKey === 'outcome') {
+      return ['Approved', 'Hold', 'Returned', 'Rejected', 'Cancelled'].includes(status) ? 'completed' : 'upcoming';
     }
 
     return 'upcoming';

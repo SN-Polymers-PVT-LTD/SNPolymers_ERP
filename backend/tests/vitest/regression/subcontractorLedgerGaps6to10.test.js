@@ -564,7 +564,8 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
         requisition_status: 'Approved',
         created_by: hoMobile,
         created_at: createdDate,
-        payment_date: approvedDate
+        payment_date: approvedDate,
+        zo_actioned_at: approvedDate
       }])
       .select()
       .single();

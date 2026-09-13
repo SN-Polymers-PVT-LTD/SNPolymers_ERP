@@ -27,7 +27,7 @@ const MENU_MAX_HEIGHT = 224; // px, matches max-h-56
  * account number, IFSC, name, and bank — since the point is completing a
  * still-partial account number.
  */
-const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = false, ...inputProps }) => {
+const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelection, searchBy = 'ac_no', primaryField = 'ac_no', disabled = false, enabled = true, ...inputProps }) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
@@ -45,6 +45,14 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
   const justSelectedRef = useRef(false);
 
   useEffect(() => {
+    if (!enabled || disabled) {
+      requestIdRef.current += 1;
+      setResults([]);
+      setLoading(false);
+      setOpen(false);
+      return undefined;
+    }
+
     if (justSelectedRef.current) {
       justSelectedRef.current = false;
       return undefined;
@@ -68,7 +76,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
     setLoading(true);
     const timer = setTimeout(async () => {
       try {
-        const res = await searchBeneficiariesByAcNo(prefix);
+        const res = await searchBeneficiariesByAcNo(prefix, 8, searchBy);
         // A slower, earlier request must never clobber a newer one's results.
         if (requestId !== requestIdRef.current) return;
         setResults(res.data?.beneficiaries || []);
@@ -81,7 +89,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [value]);
+  }, [value, searchBy, enabled, disabled]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -127,7 +135,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
     setResults([]);
   };
 
-  const showMenu = open && !disabled && value.trim().length >= MIN_PREFIX_LENGTH;
+  const showMenu = open && enabled && !disabled && value.trim().length >= MIN_PREFIX_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">
@@ -136,9 +144,12 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
         value={value}
         disabled={disabled}
         autoComplete="off"
-        onFocus={() => setOpen(true)}
+        onFocus={() => enabled && setOpen(true)}
         onChange={onChange}
       />
+      {onClearSelection && value && !disabled && (
+        <button type="button" aria-label="Clear beneficiary selection" onClick={onClearSelection} className="absolute right-2 top-7 text-slate-400 hover:text-white text-sm">×</button>
+      )}
 
       {showMenu && menuRect && createPortal(
         <div
@@ -161,11 +172,14 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, disabled = fals
               key={`${b.account_number}|${b.ifsc}`}
               type="button"
               className="w-full text-left px-4 py-2.5 hover:bg-white/5 transition border-b border-white/5 last:border-b-0"
-              onMouseDown={(e) => e.preventDefault()}
+              // Keep the outside-click handler from closing the portal before
+              // the button's click event, while preserving normal browser
+              // mouse interaction so the suggestion can actually be chosen.
+              onMouseDown={(e) => e.stopPropagation()}
               onClick={() => handlePick(b)}
             >
-              <p className="text-xs font-bold text-slate-200">{b.account_number}</p>
-              <p className="text-[10px] text-slate-400">{b.beneficiary_name} &middot; {b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</p>
+              <p className="text-xs font-bold text-slate-200">{primaryField === 'name' ? b.beneficiary_name : b.account_number}</p>
+              <p className="text-[10px] text-slate-400">{primaryField === 'name' ? `A/C: ${b.account_number}` : b.beneficiary_name} &middot; {b.beneficiary_bank?.bank_name || b.beneficiary_bank_name}</p>
             </button>
           ))}
         </div>,

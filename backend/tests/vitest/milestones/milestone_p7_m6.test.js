@@ -2,11 +2,13 @@ import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const setupUsers = require('../../helpers/setupUsers');
+const setupAttachment = require('../../helpers/setupAttachment');
 const mockRes = require('../../helpers/mockRes');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 
 // Controllers under test
 const { createRequisition, getRequisitions, getRequisitionById, actOnRequisition, payFromZoBalance } = require('../../../src/controllers/requisitions.controller');
-const { createFundRequest, getFundRequests, getFundRequestById, actOnFundRequest } = require('../../../src/controllers/fundRequests.controller');
+const { createFundRequest, getFundRequests, getFundRequestById } = require('../../../src/controllers/fundRequests.controller');
 const { createProgressReport, getProgressReports, getProgressReportById, addAuthorityRemarks } = require('../../../src/controllers/dailyProgress.controller');
 const { getEstimates, getEstimateById } = require('../../../src/controllers/estimates.core.controller');
 const { createBill, getBills, getBillById, getBillSummaryByWorkOrder } = require('../../../src/controllers/raFinalBill.controller');
@@ -27,6 +29,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
   let progressId;
   let estimateId;
   let billId;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -34,6 +37,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     zo2Mobile = `9502${suffix}`;
     jeMobile = `9503${suffix}`;
     adminMobile = `9504${suffix}`;
+    testBankId = await getActiveTestBankId(supabase);
 
     workOrder1 = `WO-P7-M6-A-${suffix}`;
     workOrder2 = `WO-P7-M6-B-${suffix}`;
@@ -156,6 +160,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
 
   afterAll(async () => {
     // Delete in reverse order of dependencies
+    await supabase.from('requisition_attachments').delete().eq('uploaded_by', jeMobile);
     await supabase.from('ra_final_bills').delete().eq('work_order_no', workOrder1);
     await supabase.from('daily_progress_reports').delete().eq('work_order_no', workOrder1);
     await supabase.from('zo_balances').delete().in('zo_user_id', [zo1Mobile, zo2Mobile]);
@@ -173,18 +178,20 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
 
   test('M6-TC-01: Requisition creation gates & zo_user_id population', async () => {
     // 1. Try creating a requisition for Work Order 2 (not assigned to JE) -> Should fail with 403
+    const failAttachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
     const reqCreateFail = {
       user: { mobile_number: jeMobile, role: 'je' },
       body: {
         work_order_no: workOrder2,
         requisition_no: `REQ-M6-Fail-${suffix}`,
         material_main_head: `Material M6-${suffix}`,
-        requisition_pdf_url: 'path/pdf',
+        requisition_pdf_attachment_id: failAttachment.attachmentId,
         original_filename: 'pdf.pdf',
         requisition_amount: 5000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const resCreateFail = mockRes();
@@ -192,18 +199,20 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     expect(resCreateFail.statusCode).toBe(403);
 
     // 2. Create for Work Order 1 (assigned to JE) -> Should succeed and set zo_user_id = zo1Mobile
+    const okAttachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeMobile });
     const reqCreateOk = {
       user: { mobile_number: jeMobile, role: 'je' },
       body: {
         work_order_no: workOrder1,
         requisition_no: `REQ-M6-Ok-${suffix}`,
         material_main_head: `Material M6-${suffix}`,
-        requisition_pdf_url: 'path/pdf',
+        requisition_pdf_attachment_id: okAttachment.attachmentId,
         original_filename: 'pdf.pdf',
         requisition_amount: 5000.00,
         gst_bill: 'No',
         bank_details: 'Bank XYZ',
-        expen_head_remarks: 'Remarks'
+        expen_head_remarks: 'Remarks',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const resCreateOk = mockRes();
@@ -277,7 +286,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     expect(Number(ledgerEntry.amount)).toBe(-4000.00);
   });
 
-  test('M6-TC-03: Fund Request creation & transactional approval', async () => {
+  test('M6-TC-03: Fund Request creation starts a Draft without crediting ZO balance', async () => {
     // 1. Create a fund request for Work Order 2 as ZO 1 -> Should fail with 400 (ZO 1 does not own WO 2)
     const reqFrFail = {
       user: { mobile_number: zo1Mobile, role: 'zo' },
@@ -310,31 +319,16 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
     expect(resFrOk.statusCode).toBe(201);
     frId = resFrOk.jsonData.fundRequest.fund_request_id;
 
-    // 3. Approve as HO -> Should credit balance (16000 + 8000 = 24000), insert credit ledger
-    const reqApproveFr = {
-      user: { mobile_number: adminMobile, role: 'admin' },
-      params: { id: frId },
-      body: {
-        action: 'Approve',
-        approve_ho_amount: 8000.00,
-        transfer_from_account: 'OD',
-        ho_remarks: 'Approved HO allocation'
-      }
-    };
-    const resApproveFr = mockRes();
-    await actOnFundRequest(reqApproveFr, resApproveFr);
-    if (resApproveFr.statusCode !== 200) {
-      console.log('DEBUG TC-03 Fund Request Action failed response:', resApproveFr.jsonData);
-    }
-    expect(resApproveFr.statusCode).toBe(200);
+    expect(resFrOk.jsonData.fundRequest.request_status).toBe('Draft');
 
-    // Verify balance updated
+    // Approval is now exclusively an Accounts Sheet action, so draft creation
+    // must not mutate the ZO balance or ledger.
     const { data: balanceData } = await supabase
       .from('zo_balances')
       .select('available_balance')
       .eq('zo_user_id', zo1Mobile)
       .single();
-    expect(Number(balanceData.available_balance)).toBe(24000.00);
+    expect(Number(balanceData.available_balance)).toBe(16000.00);
 
     // Verify positive ledger credit
     const { data: ledgerEntry } = await supabase
@@ -342,8 +336,7 @@ describe('Milestone P7-M6 — Operational Modules Integration Tests', () => {
       .select('*')
       .eq('reference_id', frId)
       .single();
-    expect(ledgerEntry.transaction_type).toBe('ALLOCATION');
-    expect(Number(ledgerEntry.amount)).toBe(8000.00);
+    expect(ledgerEntry).toBeNull();
   });
 
   test('M6-TC-04: Daily Progress visibility controls & auto-population', async () => {

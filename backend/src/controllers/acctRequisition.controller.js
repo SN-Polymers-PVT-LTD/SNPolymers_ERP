@@ -40,6 +40,8 @@ function mapAcctRpcError(rpcErr) {
     case 'STA08':
     case 'STA09':
     case 'STA10':
+    case 'STA11':
+    case 'STA12':
       return { status: 409, message: rpcErr.message };
     case 'VAL01':
     case 'VAL02':
@@ -52,6 +54,7 @@ function mapAcctRpcError(rpcErr) {
     case 'VAL10':
     case 'VAL11':
     case 'VAL12':
+    case 'VAL13':
       return { status: 400, message: rpcErr.message };
     case 'BNK01':
       return { status: 404, message: rpcErr.message };
@@ -391,13 +394,24 @@ async function getSheetById(req, res) {
       sourceReqMap = (sourceReqs || []).reduce((acc, r) => { acc[r.requisition_id] = r; return acc; }, {});
     }
 
+    const sourceFrIds = [...new Set((items || []).map(i => i.source_fund_request_id).filter(Boolean))];
+    let sourceFrMap = {};
+    if (sourceFrIds.length > 0) {
+      const { data: sourceFrs } = await supabase
+        .from('fund_requests')
+        .select('fund_request_id, zo_fr_no, zo_user_id, created_at')
+        .in('fund_request_id', sourceFrIds);
+      sourceFrMap = (sourceFrs || []).reduce((acc, f) => { acc[f.fund_request_id] = f; return acc; }, {});
+    }
+
     const enrichedItems = (items || []).map(item => ({
       ...item,
       beneficiary_bank: item.beneficiary_bank_id ? {
         id: item.beneficiary_bank_id,
         bank_name: item.beneficiary_bank_name
       } : null,
-      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null
+      source_requisition: item.source_requisition_id ? (sourceReqMap[item.source_requisition_id] || null) : null,
+      source_fund_request: item.source_fund_request_id ? (sourceFrMap[item.source_fund_request_id] || null) : null
     }));
 
     return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
@@ -495,7 +509,7 @@ async function updateLineItem(req, res) {
 
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, requisition_status')
+      .select('id, sheet_id, requisition_status, source_fund_request_id, source_requisition_id')
       .eq('id', itemId)
       .eq('sheet_id', sheetId)
       .maybeSingle();
@@ -509,6 +523,14 @@ async function updateLineItem(req, res) {
       return res.status(403).json({
         success: false,
         message: 'Line item can only be updated while its sheet is Open, or while the item is Returned for Correction.'
+      });
+    }
+
+    if ((item.source_fund_request_id || item.source_requisition_id)
+      && (req.body.payment_mode === 'Credit' || req.body.debit_bank_ac_type === 'Credit')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit is not available for Fund Request or Payment Requisition rows.'
       });
     }
 
@@ -579,31 +601,15 @@ async function deleteLineItem(req, res) {
       return res.status(403).json({ success: false, message: 'Line items can only be deleted while the sheet is Open.' });
     }
 
-    const { data: itemToDelete } = await supabase
-      .from('acct_requisition_line_items')
-      .select('id, source_requisition_id')
-      .eq('id', itemId)
-      .eq('sheet_id', sheetId)
-      .maybeSingle();
+    const { error: deleteErr } = await supabase.rpc('delete_acct_line_item_transact', {
+      p_sheet_id: sheetId,
+      p_line_item_id: itemId
+    });
 
-    const { error: deleteErr } = await supabase
-      .from('acct_requisition_line_items')
-      .delete()
-      .eq('id', itemId)
-      .eq('sheet_id', sheetId);
-
-    if (deleteErr) throw deleteErr;
-
-    if (itemToDelete?.source_requisition_id) {
-      await supabase
-        .from('requisitions')
-        .update({
-          accounts_line_item_id: null,
-          accounts_imported_at: null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('requisition_id', itemToDelete.source_requisition_id)
-        .eq('accounts_line_item_id', itemId);
+    if (deleteErr) {
+      const mapped = mapAcctRpcError(deleteErr);
+      if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+      throw deleteErr;
     }
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
@@ -676,7 +682,7 @@ async function actOnLineItem(req, res) {
   try {
     const { data: item, error: itemErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, requisition_status, debit_bank_ac_type, req_amount')
+      .select('id, requisition_status, debit_bank_ac_type, payment_mode, req_amount, source_fund_request_id, source_requisition_id')
       .eq('id', itemId)
       .maybeSingle();
 
@@ -691,6 +697,20 @@ async function actOnLineItem(req, res) {
     }
 
     let data, rpcErr;
+
+    if ((action === 'Approve' || action === 'PartiallyApprove') && item.payment_mode === 'Credit') {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit payment rows must use Credit Approved.'
+      });
+    }
+
+    if (action === 'CreditApprove' && (item.source_fund_request_id || item.source_requisition_id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Credit is not available for Fund Request or Payment Requisition rows.'
+      });
+    }
 
     if (action === 'Approve' || action === 'PartiallyApprove') {
       ({ data, error: rpcErr } = await supabase.rpc('approve_acct_line_item_transact', {
@@ -971,8 +991,8 @@ async function resubmitLineItem(req, res) {
   }
 }
 
-// On Hold/Rejected/Pending Review — the full set of terminal statuses that
-// accumulate in the import-eligible rollover queue (idx_arli_importable, 041).
+// Rejected generic Accounts rows remain eligible. Rejected source-derived
+// obligations are terminal and are excluded both here and in RPC 067.
 const IMPORT_ELIGIBLE_STATUSES = ['On Hold', 'Rejected', 'Pending Review'];
 
 /**
@@ -994,12 +1014,58 @@ async function getImportEligibleItems(req, res) {
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
+    // The queue is a single server-side read model.  Keeping the merge and
+    // global ordering in PostgreSQL prevents per-source caps from producing
+    // pages whose totals do not match the available records.
+    const commonRpcParams = {
+      p_status: query.status || null,
+      p_particulars: query.particulars || null,
+      p_account_sub_title: query.account_sub_title || null,
+      p_beneficiary_ac_no: query.beneficiary_ac_no || null,
+      p_debit_bank_ac_type: query.debit_bank_ac_type || null,
+      p_date_from: query.date_from ? `${query.date_from}T00:00:00+05:30` : null,
+      p_date_to: query.date_to ? `${query.date_to}T23:59:59.999+05:30` : null
+    };
+
+    if (isExport) {
+      const { data: exportResult, error: exportError } = await supabase.rpc(
+        'get_accounts_import_queue_export',
+        commonRpcParams
+      );
+      if (exportError) throw exportError;
+
+      const exportedItems = exportResult?.items || [];
+      const total = Number(exportResult?.total || 0);
+      if (exportedItems.length !== total) {
+        throw new Error(`Accounts import export count mismatch: retrieved ${exportedItems.length} of ${total}.`);
+      }
+      return res.status(200).json({ success: true, items: exportedItems, total });
+    }
+
+    const { data: queueResult, error: queueError } = await supabase.rpc(
+      'get_accounts_import_queue',
+      { ...commonRpcParams, p_page: page, p_limit: limit }
+    );
+    if (queueError) throw queueError;
+
+    const queueItems = queueResult?.items || [];
+    const queueTotal = Number(queueResult?.total || 0);
+    return res.status(200).json({
+      success: true,
+      items: queueItems,
+      pagination: { page, limit, total: queueTotal, totalPages: Math.ceil(queueTotal / limit) }
+    });
+
     let dbQuery = supabase
       .from('acct_requisition_line_items')
       .select('*', { count: 'exact' })
       .in('requisition_status', IMPORT_ELIGIBLE_STATUSES)
       .is('imported_to_sheet_id', null)
       .eq('import_dismissed', false);
+
+    dbQuery = dbQuery.or(
+      'requisition_status.in.("On Hold","Pending Review"),and(requisition_status.eq.Rejected,source_fund_request_id.is.null,source_requisition_id.is.null)'
+    );
 
     // Narrow to one specific status, still within the eligible set
     if (query.status && IMPORT_ELIGIBLE_STATUSES.includes(query.status)) {
@@ -1118,13 +1184,73 @@ async function getImportEligibleItems(req, res) {
       }
     }
 
-    const allCombined = [...enrichedLineItems, ...reqs].sort((a, b) => {
+    // Only submitted, unimported Pending Fund Requests enter the Accounts queue.
+    let fundReqs = [];
+    let fundReqsCount = 0;
+    if (!query.status || query.status === 'Pending Review') {
+      let frQuery = supabase
+        .from('fund_requests')
+        .select('*', { count: 'exact' })
+        .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .eq('request_status', 'Pending');
+
+      if (query.status === 'Pending Review') {
+        frQuery = frQuery.eq('request_status', 'Pending');
+      }
+
+      if (query.particulars) {
+        frQuery = frQuery.ilike('zo_remarks', `%${query.particulars}%`);
+      }
+      if (query.beneficiary_ac_no) {
+        frQuery = frQuery.ilike('beneficiary_ac_no', `%${query.beneficiary_ac_no}%`);
+      }
+      if (query.date_from) {
+        frQuery = frQuery.gte('submitted_at', query.date_from);
+      }
+      if (query.date_to) {
+        frQuery = frQuery.lte('submitted_at', `${query.date_to}T23:59:59.999`);
+      }
+
+      // If debit_bank_ac_type filter is present, fund requests have no debit bank yet so exclude
+      if (!query.debit_bank_ac_type && (!query.account_sub_title || 'fund request'.includes(query.account_sub_title.toLowerCase()))) {
+        const { data: fetchedFrs, count: fCount, error: frErr } = await frQuery.order('submitted_at', { ascending: false }).limit(5000);
+        if (frErr) throw frErr;
+        fundReqs = (fetchedFrs || []).map(f => ({
+          id: f.fund_request_id,
+          item_type: 'FUND_REQUEST',
+          sheet_id: null,
+          sheet_number: f.zo_fr_no,
+          sheet_status: null,
+          account_sub_title_id: null,
+          account_sub_title_text: 'Fund Request',
+          particulars: f.zo_remarks || `Fund Request ${f.zo_fr_no}`,
+          beneficiary_ac_no: f.beneficiary_ac_no || null,
+          beneficiary_name: f.beneficiary_name || null,
+          beneficiary_ifsc: f.beneficiary_ifsc || null,
+          beneficiary_bank_name: f.beneficiary_bank_name || null,
+          beneficiary_bank_id: f.beneficiary_bank_id || null,
+          debit_bank_ac_type: null,
+          req_amount: f.zo_fr_amount,
+          payment_mode: null,
+          cheque_no: null,
+          cheque_date: null,
+          requisition_status: 'Pending Review',
+          work_order_no: f.work_order_no,
+          source_fund_request_id: f.fund_request_id,
+          created_at: f.submitted_at || f.created_at
+        }));
+        fundReqsCount = fCount || fundReqs.length;
+      }
+    }
+
+    const allCombined = [...enrichedLineItems, ...reqs, ...fundReqs].sort((a, b) => {
       const timeA = new Date(a.created_at || 0).getTime();
       const timeB = new Date(b.created_at || 0).getTime();
       return timeB - timeA;
     });
 
-    const total = (lineItemsCount || 0) + reqsCount;
+    const total = (lineItemsCount || 0) + reqsCount + fundReqsCount;
 
     if (isExport) {
       return res.status(200).json({ success: true, items: allCombined });
@@ -1146,7 +1272,7 @@ async function getImportEligibleItems(req, res) {
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/import
  * body: { target_sheet_id, item_type }
- * Copies an On Hold/Rejected/Pending Review line item or Payment Requisition into target_sheet_id.
+ * Copies an On Hold/Rejected/Pending Review line item, Payment Requisition, or Fund Request into target_sheet_id.
  */
 async function importLineItem(req, res) {
   const { itemId } = req.params;
@@ -1154,7 +1280,9 @@ async function importLineItem(req, res) {
 
   try {
     let isPaymentReq = item_type === 'PAYMENT_REQUISITION';
-    if (!isPaymentReq) {
+    let isFundReq = item_type === 'FUND_REQUEST';
+
+    if (!isPaymentReq && !isFundReq) {
       const { data: maybeReq } = await supabase
         .from('requisitions')
         .select('requisition_id')
@@ -1162,7 +1290,18 @@ async function importLineItem(req, res) {
         .eq('payment_destination', 'ACCOUNTS')
         .is('accounts_line_item_id', null)
         .maybeSingle();
-      if (maybeReq) isPaymentReq = true;
+      if (maybeReq) {
+        isPaymentReq = true;
+      } else {
+        const { data: maybeFr } = await supabase
+          .from('fund_requests')
+          .select('fund_request_id')
+          .eq('fund_request_id', itemId)
+          .is('accounts_line_item_id', null)
+          .eq('request_status', 'Pending')
+          .maybeSingle();
+        if (maybeFr) isFundReq = true;
+      }
     }
 
     if (isPaymentReq) {
@@ -1186,6 +1325,27 @@ async function importLineItem(req, res) {
       });
     }
 
+    if (isFundReq) {
+      const { data, error: rpcErr } = await supabase.rpc('import_fund_request_to_acct_sheet_transact', {
+        p_fund_request_id: itemId,
+        p_target_sheet_id: target_sheet_id,
+        p_imported_by: req.user.mobile_number
+      });
+
+      if (rpcErr) {
+        const mapped = mapAcctRpcError(rpcErr);
+        if (mapped) return res.status(mapped.status).json({ success: false, message: mapped.message });
+        throw rpcErr;
+      }
+
+      return res.status(201).json({
+        success: true,
+        item: data.line_item,
+        fund_request: data.fund_request,
+        message: 'Line item imported.'
+      });
+    }
+
     const { data, error: rpcErr } = await supabase.rpc('import_acct_line_item_transact', {
       p_source_item_id: itemId,
       p_target_sheet_id: target_sheet_id,
@@ -1205,6 +1365,29 @@ async function importLineItem(req, res) {
   }
 }
 
+/** Restore a dismissed, unimported submitted Fund Request to the queue. */
+async function restoreFundRequestImport(req, res) {
+  const { id } = req.params;
+  if (!uuidRegex.test(id)) return res.status(400).json({ success: false, message: 'Invalid Fund Request ID.' });
+  try {
+    const { data, error } = await supabase
+      .from('fund_requests')
+      .update({ accounts_import_dismissed: false, updated_at: new Date().toISOString() })
+      .eq('fund_request_id', id)
+      .eq('request_status', 'Pending')
+      .is('accounts_line_item_id', null)
+      .eq('accounts_import_dismissed', true)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(409).json({ success: false, message: 'Only dismissed, unimported Pending Fund Requests can be restored.' });
+    return res.status(200).json({ success: true, fundRequest: data, message: 'Fund Request restored to the Accounts import queue.' });
+  } catch (error) {
+    console.error(`restoreFundRequestImport failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to restore Fund Request.' });
+  }
+}
+
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
  * Soft-hides an eligible item from the import list without touching its
@@ -1216,7 +1399,9 @@ async function dismissImportEligibleItem(req, res) {
 
   try {
     let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
-    if (!isPaymentReq) {
+    let isFundReq = itemType === 'FUND_REQUEST';
+
+    if (!isPaymentReq && !isFundReq) {
       const { data: maybeReq } = await supabase
         .from('requisitions')
         .select('requisition_id')
@@ -1224,7 +1409,17 @@ async function dismissImportEligibleItem(req, res) {
         .eq('payment_destination', 'ACCOUNTS')
         .is('accounts_line_item_id', null)
         .maybeSingle();
-      if (maybeReq) isPaymentReq = true;
+      if (maybeReq) {
+        isPaymentReq = true;
+      } else {
+        const { data: maybeFr } = await supabase
+          .from('fund_requests')
+          .select('fund_request_id')
+          .eq('fund_request_id', itemId)
+          .is('accounts_line_item_id', null)
+          .maybeSingle();
+        if (maybeFr) isFundReq = true;
+      }
     }
 
     if (isPaymentReq) {
@@ -1237,6 +1432,31 @@ async function dismissImportEligibleItem(req, res) {
         .eq('requisition_id', itemId)
         .eq('payment_destination', 'ACCOUNTS')
         .is('accounts_line_item_id', null)
+        .eq('accounts_import_dismissed', false)
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        return res.status(409).json({
+          success: false,
+          message: 'Item does not exist, or is already imported or dismissed.'
+        });
+      }
+
+      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
+    }
+
+    if (isFundReq) {
+      const { data, error } = await supabase
+        .from('fund_requests')
+        .update({
+          accounts_import_dismissed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('fund_request_id', itemId)
+        .is('accounts_line_item_id', null)
+        .eq('request_status', 'Pending')
         .eq('accounts_import_dismissed', false)
         .select()
         .maybeSingle();
@@ -1520,8 +1740,8 @@ async function lookupBeneficiary(req, res) {
 }
 
 /**
- * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...
- * Live typeahead for the line-item entry row's A/C No. field
+ * GET /acct-requisitions/beneficiary-suggestions?prefix=...&limit=...&search_by=...
+ * Live typeahead for the line-item entry row's A/C No. or beneficiary name field
  */
 async function searchBeneficiariesByAcNo(req, res) {
   const prefix = (req.query?.prefix || '').trim().replace(/[%_]/g, '');
@@ -1529,14 +1749,16 @@ async function searchBeneficiariesByAcNo(req, res) {
     return res.status(200).json({ success: true, beneficiaries: [] });
   }
   const limit = Math.min(parseInt(req.query?.limit) || 8, 20);
+  const searchBy = req.query?.search_by;
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('beneficiary_master')
-      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)')
-      .like('account_number', `${prefix}%`)
-      .order('last_used_at', { ascending: false, nullsFirst: false })
-      .limit(limit);
+      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
+    query = searchBy === 'name'
+      ? query.ilike('beneficiary_name', `%${prefix}%`)
+      : query.like('account_number', `${prefix}%`);
+    const { data, error } = await query.order('last_used_at', { ascending: false, nullsFirst: false }).limit(limit);
     if (error) throw error;
 
     const enriched = (data || []).map(b => ({
@@ -2244,7 +2466,7 @@ module.exports = {
   createSheet, getSheets, getSheetById, getLineItems, deleteSheetIfEmpty,
   addLineItem, updateLineItem, deleteLineItem, submitSheet,
   actOnLineItem, actOnLineItemsBatch, closeSheetReview, resubmitLineItem,
-  getImportEligibleItems, importLineItem, dismissImportEligibleItem,
+  getImportEligibleItems, importLineItem, dismissImportEligibleItem, restoreFundRequestImport,
   getBankBalances, upsertBankBalance, getBankBalanceLedger,
   lookupBeneficiary, searchBeneficiariesByAcNo, upsertBeneficiary, getBeneficiaries,
   getAccountSubTitles, upsertAccountSubTitle,

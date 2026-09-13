@@ -4,6 +4,8 @@ const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
 const setupUsers = require('../../helpers/setupUsers');
+const setupAttachment = require('../../helpers/setupAttachment');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 const {
   createRequisition,
   actOnRequisition,
@@ -22,6 +24,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -31,6 +34,7 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
     zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
     adminUser = { role: 'admin', mobile_number: `9104${suffix}` };
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
@@ -144,21 +148,26 @@ describe('Milestone P4-M3 — Requisitions Workflow API', () => {
     }
 
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
-    if (jeUser) await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number, adminUser.mobile_number]);
+    if (jeUser) {
+      await supabase.from('requisition_attachments').delete().eq('uploaded_by', jeUser.mobile_number);
+      await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number, adminUser.mobile_number]);
+    }
   });
 
   async function createTestReq(reqNo, amount = 1000.00) {
+    const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeUser.mobile_number });
     const req = {
       user: jeUser,
       body: {
         work_order_no: testWorkOrder,
         requisition_no: reqNo,
         material_main_head: 'Pipes',
-        requisition_pdf_url: 'mock_requisition_path.pdf',
+        requisition_pdf_attachment_id: attachment.attachmentId,
         original_filename: 'mock.pdf',
         requisition_amount: amount,
         gst_bill: 'No',
-        bank_details: 'SBI Account 1234567890'
+        bank_details: 'SBI Account 1234567890',
+        ...validRequisitionBeneficiary(testBankId)
       }
     };
     const res = mockRes();

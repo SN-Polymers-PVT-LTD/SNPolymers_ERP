@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import TimelineProgress from './TimelineProgress';
 import { getProjects, getProjectCapacity } from '../../api/projectsApi';
 import { getZonalBalances } from '../../api/zoBalancesApi';
-import { FormattedCurrencyInput } from '../ui';
+import { getIndianBanks } from '../../api/requisitionsApi';
+import { FormattedCurrencyInput, Select } from '../ui';
+import ProjectBeneficiarySuggestions from '../requisitions/ProjectBeneficiarySuggestions';
 import {
   computeHoApproveRemaining,
   computePipelineRemainingAfterApprove
@@ -25,6 +27,18 @@ const formatDateTime = (d) => {
   });
 };
 
+const getBeneficiaryValidationError = ({ name, accountNo, ifsc, bankId }) => {
+  if (!name.trim()) return 'Beneficiary name is required.';
+  if (!accountNo.trim() || !/^\d{9,18}$/.test(accountNo.trim())) {
+    return 'Beneficiary account number must be 9-18 digits.';
+  }
+  if (!ifsc.trim() || !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.trim().toUpperCase())) {
+    return 'Beneficiary IFSC must be 11-char in format AAAA0XXXXXX.';
+  }
+  if (!bankId) return 'Beneficiary bank is required.';
+  return null;
+};
+
 /** Display-only: Final Approved estimate and spec 4(c) remaining (never WO-value fallback). */
 function getFinalApprovedEstimateDisplay(capacity) {
   if (!capacity || capacity.estimate_amount == null) {
@@ -44,20 +58,35 @@ const RequestDetailPanel = ({
   initialWorkOrder = '',
   onClose,
   onSave,         // ZO submit function
-  onAct,          // HO approve/hold action function
+  onSaveDraft,
+  onUpdate,
+  onSubmit,
+  onAct,          // Accounts approve/hold action function
   onCancel        // ZO cancel action function
 }) => {
   const isCreate = !request;
+  const isDraft = request?.request_status === 'Draft';
+  const isEditable = isCreate || (isDraft && (request.zo_user_id === user?.mobile_number || user?.role === 'admin'));
   const isPending = request?.request_status === 'Pending';
   const isHold = request?.request_status === 'Hold';
   const isPendingOrHold = isPending || isHold;
-  const isHoOrAdmin = user?.role === 'ho' || user?.role === 'admin';
+  // Fund Request approval is performed only from the Accounts Requisition
+  // Sheet; this panel is never an approval surface.
+  const isApproverRole = false;
   const isZoOrAdmin = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
 
   // State values
   const [zoFrNo, setZoFrNo] = useState('');
   const [zoFrAmount, setZoFrAmount] = useState('');
   const [zoRemarks, setZoRemarks] = useState('');
+
+  // Beneficiary banking details (creation mode) — shared projects_beneficiary_master
+  const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
+  const [beneficiaryIfsc, setBeneficiaryIfsc] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState('');
+  const [beneficiaryBankId, setBeneficiaryBankId] = useState('');
+  const [beneficiaryBankName, setBeneficiaryBankName] = useState('');
+  const [indianBanks, setIndianBanks] = useState([]);
 
   // Projects and capacity states for creation mode
   const [projects, setProjects] = useState([]);
@@ -83,7 +112,7 @@ const RequestDetailPanel = ({
 
   // Load projects list for dropdown in creation mode
   useEffect(() => {
-    if (isCreate && user) {
+    if (isEditable && user) {
       Promise.resolve().then(() => {
         setLoadingProjects(true);
       });
@@ -105,17 +134,31 @@ const RequestDetailPanel = ({
           setLoadingProjects(false);
         });
     }
-  }, [isCreate, user]);
+  }, [isEditable, user]);
 
   useEffect(() => {
-    if (isCreate && initialWorkOrder) {
+    if (isEditable && initialWorkOrder) {
       setSelectedWorkOrder(initialWorkOrder);
     }
-  }, [isCreate, initialWorkOrder]);
+  }, [isEditable, initialWorkOrder]);
+
+  // Load active Indian Banks for the beneficiary bank dropdown in creation mode
+  useEffect(() => {
+    if (isEditable) {
+      getIndianBanks()
+        .then((res) => {
+          const banks = (res.data?.indianBanks || []).filter((b) => b.is_active);
+          setIndianBanks(banks);
+        })
+        .catch((err) => {
+          console.error('Failed to load Indian Banks', err);
+        });
+    }
+  }, [isEditable]);
 
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {
-    if (isCreate && selectedWorkOrder) {
+    if (isEditable && selectedWorkOrder) {
       getProjectCapacity(selectedWorkOrder)
         .then((res) => {
           const { estimateValue, remainingCapacity: remaining } = getFinalApprovedEstimateDisplay(
@@ -133,7 +176,7 @@ const RequestDetailPanel = ({
       setSelectedProjectValue(null);
       setRemainingCapacity(null);
     }
-  }, [isCreate, selectedWorkOrder]);
+  }, [isEditable, selectedWorkOrder]);
 
   // Load context details (estimate, remaining capacity, ZO balance) in viewing mode
   useEffect(() => {
@@ -169,10 +212,6 @@ const RequestDetailPanel = ({
     }
   }, [isCreate, request]);
 
-  // General comments/discussion feed
-  const [comments, setComments] = useState([]);
-  const [newComment, setNewComment] = useState('');
-
   // Load request details if viewing
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -181,24 +220,18 @@ const RequestDetailPanel = ({
         setZoFrAmount(request.zo_fr_amount);
         setZoRemarks(request.zo_remarks || '');
         setHoRemarks(request.ho_remarks || '');
+        setSelectedWorkOrder(request.work_order_no || '');
+        setBeneficiaryAcNo(request.beneficiary_ac_no || '');
+        setBeneficiaryIfsc(request.beneficiary_ifsc || '');
+        setBeneficiaryName(request.beneficiary_name || '');
+        setBeneficiaryBankId(request.beneficiary_bank_id || '');
+        setBeneficiaryBankName(request.beneficiary_bank_name || '');
         
-        // Load comments
-        const feed = [];
-        if (request.zo_remarks) {
-          const author = request.zo_name ? `${request.zo_name} (ZO)` : 'ZO User';
-          feed.push({ author, text: request.zo_remarks, type: 'zo' });
-        }
-        if (request.ho_remarks) {
-          const author = request.approve_ho_name ? `${request.approve_ho_name} (HO)` : 'HO User';
-          feed.push({ author, text: request.ho_remarks, type: 'ho' });
-        }
-        setComments(feed);
       } else {
         // Clear forms
         setZoFrNo('');
         setZoFrAmount('');
         setZoRemarks('');
-        setComments([]);
       }
     });
   }, [request]);
@@ -247,6 +280,16 @@ const RequestDetailPanel = ({
       setActionError('Remarks are required to submit a fund request.');
       return;
     }
+    const beneficiaryError = getBeneficiaryValidationError({
+      name: beneficiaryName,
+      accountNo: beneficiaryAcNo,
+      ifsc: beneficiaryIfsc,
+      bankId: beneficiaryBankId
+    });
+    if (beneficiaryError) {
+      setActionError(beneficiaryError);
+      return;
+    }
 
     setActionError('');
     setActionSubmitting(true);
@@ -255,7 +298,13 @@ const RequestDetailPanel = ({
         work_order_no: selectedWorkOrder,
         zo_fr_no: zoFrNo.trim(),
         zo_fr_amount: parsedAmount,
-        zo_remarks: zoRemarks.trim() || null
+        zo_remarks: zoRemarks.trim() || null,
+        beneficiary_ac_no: beneficiaryAcNo.trim() || null,
+        beneficiary_ifsc: beneficiaryIfsc.trim() || null,
+        beneficiary_name: beneficiaryName.trim() || null,
+        beneficiary_bank_id: beneficiaryBankId || null,
+        beneficiary_bank_name: beneficiaryBankName.trim() || null,
+        submission_mode: 'submit'
       });
       onClose();
     } catch (err) {
@@ -264,6 +313,70 @@ const RequestDetailPanel = ({
       } else {
         setActionError(err.response?.data?.message || 'Failed to create request.');
       }
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const getDraftPayload = () => ({
+    work_order_no: selectedWorkOrder,
+    zo_fr_no: zoFrNo.trim(),
+    zo_fr_amount: Number(zoFrAmount),
+    zo_remarks: zoRemarks.trim() || null,
+    beneficiary_ac_no: beneficiaryAcNo.trim() || null,
+    beneficiary_ifsc: beneficiaryIfsc.trim() || null,
+    beneficiary_name: beneficiaryName.trim() || null,
+    beneficiary_bank_id: beneficiaryBankId || null,
+    beneficiary_bank_name: beneficiaryBankName.trim() || null,
+    submission_mode: 'draft'
+  });
+
+  const handleSaveDraft = async (e) => {
+    e.preventDefault();
+    if (!selectedWorkOrder || !zoFrNo.trim()) {
+      setActionError('Work Order and Fund Request Number are required to save a draft.');
+      return;
+    }
+    const parsedAmount = Number(zoFrAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      setActionError('Amount must be a finite non-negative number.');
+      return;
+    }
+    setActionError('');
+    setActionSubmitting(true);
+    try {
+      const payload = getDraftPayload();
+      if (isDraft) await onUpdate(request.fund_request_id, payload);
+      else await onSaveDraft(payload);
+      onClose();
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Failed to save draft.');
+    } finally {
+      setActionSubmitting(false);
+    }
+  };
+
+  const handleSubmitDraft = async (e) => {
+    e.preventDefault();
+    if (isCreate) return handleCreateSubmit(e);
+    const beneficiaryError = getBeneficiaryValidationError({
+      name: beneficiaryName,
+      accountNo: beneficiaryAcNo,
+      ifsc: beneficiaryIfsc,
+      bankId: beneficiaryBankId
+    });
+    if (beneficiaryError) {
+      setActionError(beneficiaryError);
+      return;
+    }
+    setActionSubmitting(true);
+    setActionError('');
+    try {
+      await onUpdate(request.fund_request_id, getDraftPayload());
+      await onSubmit(request.fund_request_id);
+      onClose();
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Failed to submit fund request.');
     } finally {
       setActionSubmitting(false);
     }
@@ -309,21 +422,13 @@ const RequestDetailPanel = ({
     }
   };
 
-  const handleAddComment = (e) => {
-    e.preventDefault();
-    if (!newComment.trim()) return;
-    const author = user?.display_name || user?.mobile_number || 'User';
-    setComments(prev => [...prev, { author, text: newComment.trim(), type: 'user' }]);
-    setNewComment('');
-  };
-
   const todayFormatted = new Date().toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric'
   });
 
-  const showHoApproveHeadroom = !isCreate && isPendingOrHold && isHoOrAdmin;
+  const showHoApproveHeadroom = !isCreate && isPendingOrHold && isApproverRole;
   const showDualRemaining =
     !isCreate && isPendingOrHold && detailHoApproveRemaining != null && detailRemainingCapacity != null;
   const hoApprovedOnThisFr =
@@ -363,19 +468,20 @@ const RequestDetailPanel = ({
             </h2>
             {!isCreate && (
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-[9px] font-bold uppercase tracking-wider border ${
+                request.request_status === 'Pending' && request.accounts_line_item_id ? 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400' :
                 request.request_status === 'Pending' ? 'bg-amber-500/10 border-amber-500/25 text-amber-400' :
                 request.request_status === 'Approved' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' :
                 request.request_status === 'Hold' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
                 'bg-slate-500/10 border-slate-500/25 text-slate-400'
               }`}>
-                {request.request_status}
+                {request.request_status === 'Pending' && request.accounts_line_item_id ? 'In Accounts Sheet' : request.request_status}
               </span>
             )}
           </div>
           <p className="text-xs text-slate-400 font-medium mt-1">Create and manage fund requests against approved project estimates.</p>
         </div>
         <div className="flex items-center gap-3 self-end">
-          {isCreate && (
+          {isEditable && (
             <>
               <button 
                 onClick={onClose} 
@@ -383,18 +489,25 @@ const RequestDetailPanel = ({
               >
                 Cancel
               </button>
-              <button 
-                onClick={handleCreateSubmit}
+              <button
+                onClick={handleSaveDraft}
                 disabled={actionSubmitting}
-                className="bg-white hover:bg-slate-100 text-slate-950 px-6 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition duration-300 shadow-md flex items-center gap-2"
+                className="bg-white/10 hover:bg-white/20 border border-white/10 text-slate-200 font-bold px-5 py-2 rounded-xl text-xs uppercase tracking-wider transition"
+              >
+                {actionSubmitting ? 'Saving...' : 'Save Draft'}
+              </button>
+              <button
+                onClick={handleSubmitDraft}
+                disabled={actionSubmitting}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2 rounded-xl text-xs uppercase tracking-wider shadow-lg shadow-amber-500/20 transition flex items-center gap-2"
               >
                 {actionSubmitting ? 'Submitting...' : 'Submit Request'}
               </button>
             </>
           )}
-          {!isCreate && (
+          {!isEditable && (
             <>
-              {isPending && isZoOrAdmin && (
+              {isPending && isZoOrAdmin && !request.accounts_line_item_id && (
                 <button
                   onClick={() => onCancel(request.fund_request_id)}
                   disabled={actionSubmitting}
@@ -413,6 +526,15 @@ const RequestDetailPanel = ({
           )}
         </div>
       </div>
+
+      {!isCreate && request.accounts_line_item_id && isPending && (
+        <div className="mb-5 p-4 bg-indigo-950/20 border border-indigo-900/30 rounded-2xl text-xs text-indigo-300 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
+            <span>This Fund Request has been imported into an Accounts Requisition Sheet. Final approval, bank debit, and ZO balance credit will occur upon Head Office approval of that sheet.</span>
+          </div>
+        </div>
+      )}
 
       {actionError && (
         <div className="mb-5 p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 flex items-center gap-2">
@@ -436,7 +558,7 @@ const RequestDetailPanel = ({
               {/* Requested amount indicator box */}
               <div className="md:col-span-1 border border-emerald-500/25 bg-emerald-500/[0.02] p-5 rounded-2xl flex flex-col justify-center items-center min-h-[120px]">
                 <span className="text-[8px] font-bold uppercase tracking-widest text-emerald-400">Requested Amount</span>
-                {isCreate ? (
+                {isEditable ? (
                   <FormattedCurrencyInput
                     value={zoFrAmount}
                     onValueChange={(val) => setZoFrAmount(val)}
@@ -454,7 +576,7 @@ const RequestDetailPanel = ({
 
               {/* Form/Request Metadata & remarks */}
               <div className="md:col-span-2 space-y-4">
-                {isCreate && (
+                {isEditable && (
                   <div>
                     <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Work Order (Project)</label>
                     <select
@@ -490,7 +612,7 @@ const RequestDetailPanel = ({
                 )}
 
                 <div className="grid grid-cols-2 gap-4 text-xs">
-                  {isCreate ? (
+                  {isEditable ? (
                     <div>
                       <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Request Number</label>
                       <input
@@ -537,6 +659,126 @@ const RequestDetailPanel = ({
               </div>
 
             </div>
+
+            {/* Beneficiary Banking Details */}
+            <div className="mt-6 p-4 rounded-2xl bg-white/[0.02] border border-white/10 space-y-3.5 text-left">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-400">
+                  Beneficiary Banking Details
+                </span>
+                {isEditable && (
+                  <span className="text-[9px] text-slate-500 italic">
+                    Saved to the beneficiary directory on submission
+                  </span>
+                )}
+              </div>
+
+              {isEditable ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ProjectBeneficiarySuggestions
+                    label="Account No."
+                    value={beneficiaryAcNo}
+                    onChange={(e) => setBeneficiaryAcNo(e.target.value.replace(/\D/g, '').slice(0, 18))}
+                    maxLength={18}
+                    onSelect={(b) => {
+                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                      setBeneficiaryName(b.beneficiary_name || '');
+                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                    }}
+                    placeholder="Enter bank account no…"
+                    disabled={actionSubmitting}
+                    required
+                    size="sm"
+                  />
+
+                  <div>
+                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">IFSC Code</label>
+                    <input
+                      type="text"
+                      value={beneficiaryIfsc}
+                      onChange={(e) => setBeneficiaryIfsc(e.target.value.toUpperCase().trim())}
+                      placeholder="e.g. SBIN0001234"
+                      maxLength={11}
+                      disabled={actionSubmitting}
+                      required
+                      className="w-full glass-input rounded-lg px-3 py-1.5 font-semibold text-xs"
+                    />
+                  </div>
+
+                  <ProjectBeneficiarySuggestions
+                    label="Beneficiary Name"
+                    value={beneficiaryName}
+                    searchBy="name"
+                    primaryField="name"
+                    enabled={!actionSubmitting}
+                    onChange={(e) => {
+                      setBeneficiaryName(e.target.value);
+                      setBeneficiaryAcNo('');
+                      setBeneficiaryIfsc('');
+                      setBeneficiaryBankId('');
+                      setBeneficiaryBankName('');
+                    }}
+                    onClearSelection={() => {
+                      setBeneficiaryName('');
+                      setBeneficiaryAcNo('');
+                      setBeneficiaryIfsc('');
+                      setBeneficiaryBankId('');
+                      setBeneficiaryBankName('');
+                    }}
+                    onSelect={(b) => {
+                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+                      setBeneficiaryName(b.beneficiary_name || '');
+                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
+                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
+                    }}
+                    placeholder="Enter payee name…"
+                    disabled={actionSubmitting}
+                    required
+                    size="sm"
+                  />
+
+                  <Select
+                    label="Indian Banks"
+                    value={beneficiaryBankId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setBeneficiaryBankId(id);
+                      const found = indianBanks.find((b) => b.id === id);
+                      setBeneficiaryBankName(found ? found.bank_name : '');
+                    }}
+                    disabled={actionSubmitting}
+                    required
+                  >
+                    <option value="">-- Select Bank --</option>
+                    {indianBanks.map((b) => (
+                      <option key={b.id} value={b.id}>{b.bank_name}</option>
+                    ))}
+                  </Select>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Account No.</span>
+                    <span className="font-bold text-slate-300 font-mono">{request.beneficiary_ac_no || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">IFSC Code</span>
+                    <span className="font-bold text-slate-300 font-mono">{request.beneficiary_ifsc || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Beneficiary Name</span>
+                    <span className="font-bold text-slate-300">{request.beneficiary_name || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Bank</span>
+                    <span className="font-bold text-slate-300">{request.beneficiary_bank_name || '—'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {!isCreate && (
@@ -556,7 +798,7 @@ const RequestDetailPanel = ({
                  </span>
               </div>
               <div>
-                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">HO Approved (This FR)</span>
+                <span className="text-slate-500 block text-[9px] uppercase tracking-wider font-bold">Accounts Approved (This FR)</span>
                 {hoApprovedOnThisFr != null ? (
                   <span className="font-bold font-mono text-emerald-400">
                     {loadingContext ? 'Loading...' : formatCurrency(hoApprovedOnThisFr)}
@@ -577,7 +819,7 @@ const RequestDetailPanel = ({
                     </span>
                     {!loadingContext && (
                       <span className="block text-[9px] text-slate-500 mt-1 leading-snug">
-                        {isPendingOrHold ? 'Pending HO approval' : 'Not HO-approved'}
+                        {isPendingOrHold ? 'Pending Accounts approval' : 'Not Accounts-approved'}
                       </span>
                     )}
                   </>
@@ -654,7 +896,15 @@ const RequestDetailPanel = ({
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Approval Information</span>
               
-              {isPendingOrHold && isHoOrAdmin ? (
+              {isPendingOrHold && isApproverRole ? (
+                request.accounts_line_item_id ? (
+                  <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300">
+                    <p className="font-bold mb-1">Queued in Accounts Requisition Sheet</p>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      This Fund Request was imported into an Accounts Requisition Sheet. Final approval, bank selection, and ZO balance credit will be executed when Head Office approves the Accounts Sheet.
+                    </p>
+                  </div>
+                ) : (
                 <form onSubmit={handleHoActionSubmit} className="space-y-4">
                   <div>
                     <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Action Type</label>
@@ -738,7 +988,7 @@ const RequestDetailPanel = ({
                   )}
 
                   <div>
-                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">HO Remarks</label>
+                    <label className="block text-[8px] font-bold uppercase tracking-widest text-slate-500 mb-1">Remarks</label>
                     <textarea
                       value={hoRemarks}
                       onChange={(e) => setHoRemarks(e.target.value)}
@@ -757,11 +1007,12 @@ const RequestDetailPanel = ({
                     {actionSubmitting ? 'Saving...' : `Save as ${hoAction}`}
                   </button>
                 </form>
+                )
               ) : (
                 <div className="space-y-3.5 text-xs">
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved By</span>
-                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'HO User' : '—')}</span>
+                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'Accounts User' : '—')}</span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved Amount</span>
@@ -782,39 +1033,7 @@ const RequestDetailPanel = ({
             </div>
           )}
 
-          {/* Panel 3: DISCUSSION FEED */}
-          {!isCreate && (
-            <div className="glass-panel p-5 rounded-3xl border border-white/5 flex flex-col justify-between min-h-[220px]">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Discussion</span>
-                <div className="space-y-3.5 max-h-[160px] overflow-y-auto pr-1">
-                  {comments.map((c, idx) => (
-                    <div key={idx} className={`p-2.5 rounded-xl text-xs ${c.type === 'ho' ? 'bg-indigo-500/5 border border-indigo-500/10' : 'bg-white/5 border border-white/5'}`}>
-                      <span className="block text-[8px] font-extrabold uppercase tracking-wider text-slate-500">{c.author}</span>
-                      <p className="text-slate-300 mt-1 font-medium leading-relaxed">{c.text}</p>
-                    </div>
-                  ))}
-                  {comments.length === 0 && (
-                    <span className="text-slate-500 text-xs">No discussion logs found.</span>
-                  )}
-                </div>
-              </div>
-              <form onSubmit={handleAddComment} className="mt-4 pt-3 border-t border-white/5 flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Add comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  className="flex-grow glass-input rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-0 focus:ring-offset-0"
-                />
-                <button type="submit" className="px-3.5 py-1.5 bg-white text-slate-950 font-bold uppercase text-[9px] tracking-wider rounded-lg shadow hover:bg-slate-100 transition">
-                  Send
-                </button>
-              </form>
-            </div>
-          )}
-
-          {/* Panel 4: ACTIVITY LOG */}
+          {/* Panel 3: ACTIVITY LOG */}
           {!isCreate && (
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Activity Log</span>

@@ -4,6 +4,8 @@ const { supabase } = require('../../../src/db/supabase');
 const mockRes = require('../../helpers/mockRes');
 const setupProject = require('../../helpers/setupProject');
 const setupUsers = require('../../helpers/setupUsers');
+const setupAttachment = require('../../helpers/setupAttachment');
+const { getActiveTestBankId, validRequisitionBeneficiary } = require('../../helpers/requisitionTestFixtures');
 const {
   createRequisition,
   getRequisitions,
@@ -22,6 +24,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
   let createdId = null;
   let woMappingId = null;
   let jeZoMappingId = null;
+  let testBankId;
 
   beforeAll(async () => {
     suffix = crypto.randomUUID().substring(0, 8);
@@ -31,6 +34,7 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     jeUser = { role: 'je', mobile_number: `9101${suffix}` };
     jeUser2 = { role: 'je', mobile_number: `9102${suffix}` };
     zoUser = { role: 'zo', mobile_number: `9103${suffix}` };
+    testBankId = await getActiveTestBankId(supabase);
 
     await setupUsers([
       { mobile_number: jeUser.mobile_number, role: 'je', is_active: true, display_name: `JE 1 ${suffix}` },
@@ -130,22 +134,27 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     }
 
     await supabase.from('projects_master').delete().eq('work_order_no', testWorkOrder);
-    if (jeUser) await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number]);
+    if (jeUser) {
+      await supabase.from('requisition_attachments').delete().eq('uploaded_by', jeUser.mobile_number);
+      await supabase.from('authorised_users').delete().in('mobile_number', [jeUser.mobile_number, jeUser2.mobile_number, zoUser.mobile_number]);
+    }
   });
 
   describe('Requisition Creation', () => {
     test('Test 1: Creates a valid requisition as JE (Pending status)', async () => {
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeUser.mobile_number });
       const reqCreate = {
         user: jeUser,
         body: {
           work_order_no: testWorkOrder,
           requisition_no: testReqNo,
           material_main_head: 'Pipes',
-          requisition_pdf_url: 'mock_requisition_path.pdf',
+          requisition_pdf_attachment_id: attachment.attachmentId,
           original_filename: 'mock.pdf',
           requisition_amount: 500.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resCreate = mockRes();
@@ -161,16 +170,19 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     });
 
     test('Test 2: Blocks duplicate requisition_no with 409 Conflict', async () => {
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeUser.mobile_number });
       const reqDup = {
         user: jeUser,
         body: {
           work_order_no: testWorkOrder,
           requisition_no: testReqNo, // Duplicate
           material_main_head: 'Pipes',
-          requisition_pdf_url: 'mock_requisition_path_2.pdf',
+          requisition_pdf_attachment_id: attachment.attachmentId,
+          original_filename: 'mock.pdf',
           requisition_amount: 100.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resDup = mockRes();
@@ -180,16 +192,19 @@ describe('Milestone P4-M2 — Requisitions CRUD API', () => {
     });
 
     test('Test 3: Blocks requisition with invalid material_main_head', async () => {
+      const attachment = await setupAttachment({ kind: 'requisition_pdf', uploadedBy: jeUser.mobile_number });
       const reqInvalidMat = {
         user: jeUser,
         body: {
           work_order_no: testWorkOrder,
           requisition_no: `REQ_M2_MAT_${suffix}`,
           material_main_head: 'INVALID_MAIN_HEAD_VALUE_123', // Invalid
-          requisition_pdf_url: 'mock_requisition_path.pdf',
+          requisition_pdf_attachment_id: attachment.attachmentId,
+          original_filename: 'mock.pdf',
           requisition_amount: 100.00,
           gst_bill: 'No',
-          bank_details: 'SBI Account 1234567890'
+          bank_details: 'SBI Account 1234567890',
+          ...validRequisitionBeneficiary(testBankId)
         }
       };
       const resInvalidMat = mockRes();

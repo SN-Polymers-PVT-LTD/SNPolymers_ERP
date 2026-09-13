@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
 const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
+const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary } = require('../services/beneficiaryMaster.service');
 const validate = require('../validation/validate');
 const {
   createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
@@ -43,11 +44,11 @@ async function createRequisition(req, res) {
     material_main_head,
     material_sub_head,
     material_details,
-    requisition_pdf_url,
+    requisition_pdf_attachment_id,
+    gst_bill_pdf_attachment_id,
     original_filename,
     requisition_amount,
     gst_bill,
-    gst_bill_pdf_url,
     bank_details,
     beneficiary_id,
     beneficiary_name,
@@ -58,31 +59,72 @@ async function createRequisition(req, res) {
     expen_head_remarks
   } = req.body;
 
+  // Populated once the corresponding attachment is resolved (step 0 below). Only ever
+    // holds attachments this request has actually claimed the right to use — cleanup never
+    // touches storage/rows it hasn't verified ownership of.
+    let resolvedReqPdf = null; // { attachmentId, storagePath, uploadedBy }
+    let resolvedGstPdf = null; // { attachmentId, storagePath, uploadedBy }
+
   const cleanupUploadedFiles = async () => {
-    try {
-      if (requisition_pdf_url) {
-        await supabase.storage
-          .from('requisition-pdfs')
-          .remove([requisition_pdf_url]);
-      }
-      if (gst_bill === 'Yes' && gst_bill_pdf_url) {
-        await supabase.storage
-          .from('gst-bills')
-          .remove([gst_bill_pdf_url]);
-      }
-    } catch (err) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.error('Failed to clean up files:', err);
-      }
-    }
+    // Keep pending attachments available for correction/retry. Any destructive
+    // cleanup after exposure must use the DB-first attachment delete endpoint.
   };
 
+  let rowCommitted = false;
+
   try {
+    // 0. Resolve & validate the attachment(s) this request claims to use — must exist,
+    //    belong to this user (or admin), still be unclaimed ('pending'), and be the right
+    //    kind. This is what replaces trusting a raw, client-suppliable storage path string.
+    const { data: reqAttachment, error: reqAttErr } = await supabase
+      .from('requisition_attachments')
+      .select('storage_path, kind, uploaded_by, status')
+      .eq('attachment_id', requisition_pdf_attachment_id)
+      .maybeSingle();
+    if (reqAttErr) throw reqAttErr;
+    if (
+      !reqAttachment ||
+      reqAttachment.kind !== 'requisition_pdf' ||
+      reqAttachment.status !== 'pending' ||
+      (reqAttachment.uploaded_by !== req.user.mobile_number && req.user.role !== 'admin')
+    ) {
+      return res.status(400).json({ success: false, message: 'Invalid or already-used requisition PDF attachment. Please re-upload.' });
+    }
+    resolvedReqPdf = {
+      attachmentId: requisition_pdf_attachment_id,
+      storagePath: reqAttachment.storage_path,
+      uploadedBy: reqAttachment.uploaded_by
+    };
+
+    if (gst_bill === 'Yes') {
+      const { data: gstAttachment, error: gstAttErr } = await supabase
+        .from('requisition_attachments')
+        .select('storage_path, kind, uploaded_by, status')
+        .eq('attachment_id', gst_bill_pdf_attachment_id)
+        .maybeSingle();
+      if (gstAttErr) throw gstAttErr;
+      if (
+        !gstAttachment ||
+        gstAttachment.kind !== 'gst_bill' ||
+        gstAttachment.status !== 'pending' ||
+        (gstAttachment.uploaded_by !== req.user.mobile_number && req.user.role !== 'admin')
+      ) {
+        await cleanupUploadedFiles();
+        return res.status(400).json({ success: false, message: 'Invalid or already-used GST bill attachment. Please re-upload.' });
+      }
+      resolvedGstPdf = {
+        attachmentId: gst_bill_pdf_attachment_id,
+        storagePath: gstAttachment.storage_path,
+        uploadedBy: gstAttachment.uploaded_by
+      };
+    }
+
     // 1. Unique check
     const { count, error: countError } = await supabase
       .from('requisitions')
       .select('requisition_no', { count: 'exact', head: true })
-      .eq('requisition_no', requisition_no.trim());
+      .eq('requisition_no', requisition_no.trim())
+      .neq('requisition_status', 'Cancelled');
 
     if (countError) throw countError;
     if (count && count > 0) {
@@ -94,27 +136,15 @@ async function createRequisition(req, res) {
     }
 
     // 1a. Validate beneficiary_bank_id and resolve bank name snapshot
-    let resolvedBankName = beneficiary_bank_name?.trim() || null;
-    let validatedBankId = beneficiary_bank_id || null;
-
-    if (validatedBankId) {
-      const bankCheck = await validateActiveIndianBank(validatedBankId);
-      if (!bankCheck.valid) {
+    let resolvedBankName, validatedBankId;
+    try {
+      ({ validatedBankId, resolvedBankName } = await resolveBeneficiaryBank(beneficiary_bank_id, beneficiary_bank_name));
+    } catch (err) {
+      if (err instanceof BeneficiaryValidationError) {
         await cleanupUploadedFiles();
-        if (bankCheck.reason === 'NOT_FOUND') {
-          return res.status(422).json({
-            success: false,
-            message: 'Selected bank does not exist.'
-          });
-        }
-        if (bankCheck.reason === 'INACTIVE') {
-          return res.status(422).json({
-            success: false,
-            message: 'Selected bank is currently inactive.'
-          });
-        }
+        return res.status(err.status).json({ success: false, message: err.message });
       }
-      resolvedBankName = bankCheck.bank.bank_name;
+      throw err;
     }
 
     // 1b. Verify JE is actively mapped to the work order
@@ -224,35 +254,16 @@ async function createRequisition(req, res) {
     }
 
     // 4c. Upsert into projects_beneficiary_master if account_no and ifsc provided
-    let resolvedBeneficiaryId = beneficiary_id || null;
-    if (beneficiary_ac_no?.trim() && beneficiary_ifsc?.trim()) {
-      const cleanAcNo = beneficiary_ac_no.trim();
-      const cleanIfsc = beneficiary_ifsc.trim().toUpperCase();
-      const cleanName = beneficiary_name?.trim() || material_details?.trim() || 'Payee';
-      try {
-        const { data: upserted, error: upsertErr } = await supabase
-          .from('projects_beneficiary_master')
-          .upsert({
-            beneficiary_ac_no: cleanAcNo,
-            beneficiary_ifsc: cleanIfsc,
-            beneficiary_name: cleanName,
-            beneficiary_bank_id: validatedBankId,
-            beneficiary_bank_name: resolvedBankName,
-            last_used_at: new Date().toISOString(),
-            created_by: req.user.mobile_number,
-            updated_by: req.user.mobile_number,
-            updated_at: new Date().toISOString()
-          }, { onConflict: 'beneficiary_ac_no,beneficiary_ifsc' })
-          .select('id')
-          .maybeSingle();
-
-        if (!upsertErr && upserted) {
-          resolvedBeneficiaryId = upserted.id;
-        }
-      } catch (err) {
-        console.warn('projects_beneficiary_master upsert warning:', err.message);
-      }
-    }
+    const upsertedBeneficiaryId = await upsertSharedBeneficiary({
+      acNo: beneficiary_ac_no,
+      ifsc: beneficiary_ifsc,
+      name: beneficiary_name,
+      fallbackName: material_details,
+      bankId: validatedBankId,
+      bankName: resolvedBankName,
+      actorMobile: req.user.mobile_number
+    });
+    const resolvedBeneficiaryId = upsertedBeneficiaryId || beneficiary_id || null;
 
     // 5. Call the transactional RPC create_requisition_secure to insert atomically with lock and budget check
     const { data: newReq, error: rpcError } = await supabase.rpc('create_requisition_secure', {
@@ -269,11 +280,11 @@ async function createRequisition(req, res) {
       p_material_main_head: material_main_head.trim(),
       p_material_sub_head: material_sub_head?.trim() || null,
       p_material_details: material_details?.trim() || null,
-      p_requisition_pdf_url: requisition_pdf_url.trim(),
+      p_requisition_pdf_url: resolvedReqPdf.storagePath,
       p_original_filename: original_filename?.trim() || null,
       p_requisition_amount: Number(requisition_amount),
       p_gst_bill: gst_bill,
-      p_gst_bill_pdf_url: gst_bill === 'Yes' ? gst_bill_pdf_url.trim() : null,
+      p_gst_bill_pdf_url: gst_bill === 'Yes' ? resolvedGstPdf.storagePath : null,
       p_bank_details: effectiveBankDetails,
       p_expen_head_remarks: expen_head_remarks?.trim() || null,
       p_requisition_status: 'Pending',
@@ -283,10 +294,22 @@ async function createRequisition(req, res) {
       p_beneficiary_ac_no: beneficiary_ac_no?.trim() || null,
       p_beneficiary_ifsc: beneficiary_ifsc?.trim() || null,
       p_beneficiary_bank_name: resolvedBankName,
-      p_beneficiary_bank_id: validatedBankId
+      p_beneficiary_bank_id: validatedBankId,
+      p_zo_user_id: zo_user_id,
+      p_requisition_pdf_attachment_id: requisition_pdf_attachment_id,
+      p_gst_bill_pdf_attachment_id: gst_bill === 'Yes' ? gst_bill_pdf_attachment_id : null
     });
 
     if (rpcError) {
+      if (rpcError.code === 'ATT01' || rpcError.message?.includes('attachment is invalid or no longer pending')) {
+        // A concurrent submission may have claimed this attachment after the controller's
+        // initial validation. Never clean it up here: it can now belong to that committed
+        // requisition, and deleting its storage object would break the other record.
+        return res.status(409).json({
+          success: false,
+          message: 'An uploaded attachment was changed or already used. Please re-upload and try again.'
+        });
+      }
       await cleanupUploadedFiles();
       if (rpcError.code === '23505') {
         return res.status(409).json({
@@ -331,14 +354,12 @@ async function createRequisition(req, res) {
       throw rpcError;
     }
 
-    // Set zo_user_id in database
-    const { error: updateZoErr } = await supabase
-      .from('requisitions')
-      .update({ zo_user_id })
-      .eq('requisition_id', newReq.requisition_id);
+    // The row is now durably committed by the RPC — any failure from here on must NOT
+    // trigger cleanupUploadedFiles(), since the requisition already references these files.
+    rowCommitted = true;
 
-    if (updateZoErr) throw updateZoErr;
-    newReq.zo_user_id = zo_user_id;
+    // zo_user_id is now set atomically inside create_requisition_secure (p_zo_user_id
+    // above) — newReq.zo_user_id is already populated from the RPC's RETURNING row.
 
     if (validatedBankId) {
       newReq.beneficiary_bank = { id: validatedBankId, bank_name: resolvedBankName };
@@ -389,7 +410,9 @@ async function createRequisition(req, res) {
     });
 
   } catch (error) {
-    await cleanupUploadedFiles();
+    if (!rowCommitted) {
+      await cleanupUploadedFiles();
+    }
     if (process.env.NODE_ENV !== 'production') {
       console.error('createRequisition failed:', error);
     } else {
@@ -879,10 +902,28 @@ async function sendToAccounts(req, res) {
   }
 }
 
-/**
- * PATCH /api/v1/auth/requisitions/:id/cancel
- * Cancels a pending requisition.
- */
+async function cleanupCancelledRequisitionAttachments(requisitionId, actor) {
+  const { data: attachments, error: acquireError } = await supabase.rpc('acquire_cancelled_requisition_attachment_cleanup', {
+    p_requisition_id: requisitionId,
+    p_actor: actor
+  });
+  if (acquireError) throw acquireError;
+  const failures = [];
+  for (const attachment of attachments || []) {
+    const { error: removeError } = await supabase.storage.from(attachment.bucket).remove([attachment.storage_path]);
+    if (removeError) {
+      failures.push({ attachment_id: attachment.attachment_id, error: removeError.message });
+      continue;
+    }
+    const { error: finalizeError } = await supabase.rpc('finalize_requisition_attachment_delete', {
+      p_attachment_id: attachment.attachment_id
+    });
+    if (finalizeError) failures.push({ attachment_id: attachment.attachment_id, error: finalizeError.message });
+  }
+  return failures;
+}
+
+/** PATCH /api/v1/auth/requisitions/:id/cancel */
 async function cancelRequisition(req, res) {
   if (!validate(req, res, cancelRequisitionSchema)) return;
 
@@ -917,13 +958,17 @@ async function cancelRequisition(req, res) {
       });
     }
 
-    // Perform cancel with optimistic lock
+    // Mark the row cancelled and clear references before external storage work.
+    // Storage deletion is retried per attachment below; the cancelled row remains
+    // safe to retry and never points at a file that should be used operationally.
     const { data: updated, error: updateError } = await supabase
       .from('requisitions')
       .update({
         requisition_status: 'Cancelled',
         cancelled_by: req.user.mobile_number,
-        cancelled_at: new Date().toISOString()
+        cancelled_at: new Date().toISOString(),
+        requisition_pdf_url: null,
+        gst_bill_pdf_url: null
       })
       .eq('requisition_id', id)
       .in('requisition_status', ['Pending', 'Hold'])
@@ -938,10 +983,23 @@ async function cancelRequisition(req, res) {
       });
     }
 
+    let cleanupFailures;
+    try {
+      cleanupFailures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
+    } catch (cleanupError) {
+      // Cancellation is the business transaction. Attachment cleanup is an
+      // external, retryable side effect and must not turn a successful
+      // cancellation into an HTTP 500.
+      cleanupFailures = [{ stage: 'acquire', error: cleanupError.message }];
+    }
+
     return res.status(200).json({
       success: true,
       requisition: updated,
-      message: 'Requisition cancelled successfully.'
+      message: cleanupFailures.length
+        ? 'Requisition cancelled; some attachment cleanup will require retry.'
+        : 'Requisition cancelled successfully.',
+      cleanup_pending: cleanupFailures.length > 0
     });
 
   } catch (error) {
@@ -951,6 +1009,23 @@ async function cancelRequisition(req, res) {
       console.error(`cancelRequisition failed: ${error.message}`);
     }
     return res.status(500).json({ success: false, message: 'Failed to cancel requisition.' });
+  }
+}
+
+/** POST /api/v1/auth/requisitions/:id/retry-attachment-cleanup */
+async function retryCancelledRequisitionAttachmentCleanup(req, res) {
+  const { id } = req.params;
+  try {
+    const { data: reqRecord, error } = await supabase.from('requisitions').select('requisition_id, requisition_status, requester_user_id').eq('requisition_id', id).maybeSingle();
+    if (error) throw error;
+    if (!reqRecord) return res.status(404).json({ success: false, message: 'Requisition not found.' });
+    if (req.user.role !== 'admin' && reqRecord.requester_user_id !== req.user.mobile_number) return res.status(403).json({ success: false, message: 'Access denied.' });
+    if (reqRecord.requisition_status !== 'Cancelled') return res.status(409).json({ success: false, message: 'Attachment cleanup is only available for cancelled requisitions.' });
+    const failures = await cleanupCancelledRequisitionAttachments(id, req.user.mobile_number);
+    return res.status(200).json({ success: true, cleanup_pending: failures.length > 0, failures });
+  } catch (error) {
+    console.error(`retryCancelledRequisitionAttachmentCleanup failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retry attachment cleanup.' });
   }
 }
 
@@ -1034,7 +1109,7 @@ async function getSubcontractorLedger(req, res) {
     const offset = (page - 1) * limit;
 
     let dbQuery = supabase
-      .from('subcontractor_balances')
+      .from('subcontractor_balance_summary')
       .select('*', { count: 'exact' });
 
     if (query.work_order_no) {
@@ -1092,37 +1167,22 @@ async function getSubcontractorLedgerEntries(req, res) {
   const { work_order_no, material_sub_head, material_details, search, date_from, date_to } = req.query || {};
 
   try {
-    let dbQuery = supabase
-      .from('subcontractor_ledger')
-      .select('*');
-
-    if (work_order_no) {
-      dbQuery = dbQuery.eq('work_order_no', work_order_no.trim());
-    }
-    if (material_sub_head) {
-      dbQuery = dbQuery.eq('material_sub_head', material_sub_head.trim());
-    }
-    if (material_details) {
-      dbQuery = dbQuery.eq('material_details', material_details.trim());
-    }
-    if (search) {
-      const s = search.trim();
-      dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
-    }
-    if (date_from) {
-      dbQuery = dbQuery.gte('created_at', `${date_from}T00:00:00+05:30`);
-    }
-    if (date_to) {
-      dbQuery = dbQuery.lte('created_at', `${date_to}T23:59:59.999+05:30`);
-    }
-
-    dbQuery = dbQuery.order('created_at', { ascending: false });
-
-    const { data: entries, error } = await dbQuery;
+    const { data: ledgerRows, error } = await supabase.rpc('get_subcontractor_ledger_entries', {
+      p_work_order_no: work_order_no?.trim() || null,
+      p_material_sub_head: material_sub_head?.trim() || null,
+      p_material_details: material_details?.trim() || null,
+      p_search: search?.trim() || null,
+      p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
+      p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
+    });
 
     if (error) throw error;
 
-    const rawEntries = entries || [];
+    const rawEntries = (ledgerRows || []).map(row => ({
+      ...(row.entry || {}),
+      opening_balance: Number(row.opening_balance || 0),
+      closing_balance: Number(row.closing_balance || 0)
+    }));
 
     // 1. Resolve user display names
     const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
@@ -1177,19 +1237,9 @@ async function getSubcontractorLedgerEntries(req, res) {
       }, {});
     }
 
-    // 5. Compute chronological running balance per (work_order_no, material_sub_head, material_details)
-    const runningBalances = {};
-    // Chronological order (oldest first)
-    const entriesAsc = [...rawEntries].reverse();
-    for (const e of entriesAsc) {
-      const key = `${e.work_order_no}|||${e.material_sub_head}|||${e.material_details}`;
-      runningBalances[key] = Number(((runningBalances[key] || 0) + Number(e.amount || 0)).toFixed(2));
-      e.running_balance = runningBalances[key];
-      e.credit_amount = Number(e.amount) > 0 ? Number(e.amount) : 0;
-      e.debit_amount = Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0;
-    }
-
-    // 6. Enrich entries (returned newest first)
+    // 5. Enrich entries (returned newest first). Running/opening/closing
+    // balances were calculated over the complete partition in PostgreSQL
+    // before the requested date window was applied.
     const enriched = rawEntries.map(e => {
       const reqInfo = reqMap[e.reference_id];
       const itemInfo = itemMap[e.reference_id];
@@ -1227,8 +1277,8 @@ async function getSubcontractorLedgerEntries(req, res) {
 async function getSubcontractorRequisitions(req, res) {
   try {
     const query = req.query || {};
-    const dateBasis = query.date_basis === 'approved' ? 'approved' : 'created';
-    const dateCol = dateBasis === 'approved' ? 'payment_date' : 'created_at';
+    const dateBasis = ['approved', 'paid'].includes(query.date_basis) ? query.date_basis : 'created';
+    const dateCol = dateBasis === 'approved' ? 'zo_actioned_at' : dateBasis === 'paid' ? 'payment_date' : 'created_at';
 
     let dbQuery = supabase
       .from('requisitions')
@@ -1240,6 +1290,8 @@ async function getSubcontractorRequisitions(req, res) {
     }
 
     if (dateBasis === 'approved') {
+      dbQuery = dbQuery.not('zo_actioned_at', 'is', null);
+    } else if (dateBasis === 'paid') {
       dbQuery = dbQuery.not('payment_date', 'is', null);
     }
 
@@ -1507,13 +1559,18 @@ async function searchProjectsBeneficiaries(req, res) {
     return res.status(200).json({ success: true, beneficiaries: [] });
   }
   const limit = Math.min(parseInt(req.query?.limit, 10) || 8, 20);
+  const searchBy = req.query?.search_by;
 
   try {
     let query = supabase
       .from('projects_beneficiary_master')
       .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, beneficiary_bank_id, last_used_at, indian_bank_master:beneficiary_bank_id (id, bank_name)');
 
-    if (/^\d+$/.test(prefix)) {
+    if (searchBy === 'name') {
+      query = query.ilike('beneficiary_name', `%${prefix}%`);
+    } else if (searchBy === 'ac_no') {
+      query = query.like('beneficiary_ac_no', `${prefix}%`);
+    } else if (/^\d+$/.test(prefix)) {
       query = query.like('beneficiary_ac_no', `${prefix}%`);
     } else {
       query = query.ilike('beneficiary_name', `%${prefix}%`);
@@ -1568,6 +1625,7 @@ module.exports = {
   payFromZoBalance,
   sendToAccounts,
   cancelRequisition,
+  retryCancelledRequisitionAttachmentCleanup,
   getMainHeadCapacity,
   getSubcontractorCapacity,
   getSubcontractorLedger,

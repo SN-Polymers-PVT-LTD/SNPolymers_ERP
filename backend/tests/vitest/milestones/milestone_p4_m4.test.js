@@ -38,6 +38,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
   let testMobile;
   let testWorkOrder;
   let uploadedRequisitionPath = null;
+  let uploadedRequisitionAttachmentId = null;
   let uploadedGstPath = null;
   let tempRequisitionId = null;
 
@@ -60,6 +61,11 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
     }
     if (uploadedGstPath) {
       await supabase.storage.from('gst-bills').remove([uploadedGstPath]);
+    }
+    // Delete attachment tracking rows (the requisition row inserted directly in Test 9
+    // never claimed them, so they'd otherwise be left dangling as 'pending')
+    if (uploadedRequisitionPath || uploadedGstPath) {
+      await supabase.from('requisition_attachments').delete().in('storage_path', [uploadedRequisitionPath, uploadedGstPath].filter(Boolean));
     }
     // Delete temp DB record
     if (tempRequisitionId) {
@@ -86,6 +92,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
   describe('File Upload Gating & Validation', () => {
     test('Test 2: Blocks uploads with non-PDF MIME types with 400', async () => {
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: { requisition_no: testReqNo },
         file: {
           fieldname: 'file',
@@ -104,6 +111,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
 
     test('Test 3: Blocks file uploads exceeding 5MB with 400', async () => {
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: { requisition_no: testReqNo },
         file: {
           fieldname: 'file',
@@ -122,6 +130,7 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
 
     test('Test 4: Blocks file uploads when requisition_no is missing with 400', async () => {
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: {},
         file: {
           fieldname: 'file',
@@ -140,8 +149,9 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
   });
 
   describe('Successful Upload Operations & Storage Privacy', () => {
-    test('Test 5: Uploads valid Requisition PDF successfully', async () => {
+    test('Test 5: Uploads valid Requisition PDF successfully, path is UUID-based, pending attachment row is created', async () => {
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: { requisition_no: testReqNo },
         file: {
           fieldname: 'file',
@@ -158,64 +168,83 @@ describe('Milestone P4-M4 — Requisitions File Upload & Storage', () => {
       expect(res.jsonData.success).toBe(true);
 
       uploadedRequisitionPath = res.jsonData.storagePath;
-      expect(uploadedRequisitionPath).toBe(`${testReqNo}.pdf`);
+      // No longer name-derived — a fresh UUID + .pdf, independent of requisition_no.
+      expect(uploadedRequisitionPath).toMatch(/^[0-9a-f-]{36}\.pdf$/);
       expect(typeof res.jsonData.signedUrl).toBe('string');
+      expect(typeof res.jsonData.attachmentId).toBe('string');
+      uploadedRequisitionAttachmentId = res.jsonData.attachmentId;
+
+      const { data: row, error } = await supabase
+        .from('requisition_attachments')
+        .select('bucket, storage_path, kind, uploaded_by, status, requisition_id')
+        .eq('attachment_id', uploadedRequisitionAttachmentId)
+        .single();
+      expect(error).toBeNull();
+      expect(row.bucket).toBe('requisition-pdfs');
+      expect(row.storage_path).toBe(uploadedRequisitionPath);
+      expect(row.kind).toBe('requisition_pdf');
+      expect(row.uploaded_by).toBe(testMobile);
+      expect(row.status).toBe('pending');
+      expect(row.requisition_id).toBeNull();
     });
 
-    test('Test 6: Blocks duplicate Requisition PDF upload with 409', async () => {
+    test('Test 6: A second upload for the same requisition_no produces an independent pending row (UUID paths never collide)', async () => {
       expect(uploadedRequisitionPath).not.toBeNull();
 
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: { requisition_no: testReqNo },
         file: {
           fieldname: 'file',
           originalname: `${testReqNo}.pdf`,
           mimetype: 'application/pdf',
-          buffer: Buffer.from('%PDF-1.4 mock pdf body'),
-          size: 23
+          buffer: Buffer.from('%PDF-1.4 mock pdf body, second upload'),
+          size: 38
         }
       };
       const res = mockRes();
       await uploadRequisitionPdf(req, res);
 
-      expect(res.statusCode).toBe(409);
-      expect(res.jsonData.success).toBe(false);
+      expect(res.statusCode).toBe(201);
+      expect(res.jsonData.success).toBe(true);
+      expect(res.jsonData.storagePath).not.toBe(uploadedRequisitionPath);
+      expect(res.jsonData.attachmentId).not.toBe(uploadedRequisitionAttachmentId);
+
+      // Clean up the second (throwaway) upload — the rest of the suite keeps using the
+      // first one (uploadedRequisitionPath / uploadedRequisitionAttachmentId).
+      await supabase.storage.from('requisition-pdfs').remove([res.jsonData.storagePath]);
+      await supabase.from('requisition_attachments').delete().eq('attachment_id', res.jsonData.attachmentId);
     });
 
-    test('Test 7: Uploads GST PDF successfully and overrides on duplicates (upsert)', async () => {
+    test('Test 7: Uploads GST PDF successfully with its own UUID path and pending attachment row', async () => {
       const req = {
+        user: { mobile_number: testMobile, role: 'admin' },
         body: { requisition_no: testReqNo },
         file: {
           fieldname: 'file',
           originalname: `${testReqNo}_gst.pdf`,
           mimetype: 'application/pdf',
-          buffer: Buffer.from('%PDF-1.4 mock gst pdf body v1'),
+          buffer: Buffer.from('%PDF-1.4 mock gst pdf body'),
           size: 26
         }
       };
-      const resGst1 = mockRes();
-      await uploadGstBillPdf(req, resGst1);
+      const res = mockRes();
+      await uploadGstBillPdf(req, res);
 
-      expect(resGst1.statusCode).toBe(201);
-      expect(resGst1.jsonData.success).toBe(true);
-      uploadedGstPath = resGst1.jsonData.storagePath;
-      expect(uploadedGstPath).toBe(`${testReqNo}_gst.pdf`);
+      expect(res.statusCode).toBe(201);
+      expect(res.jsonData.success).toBe(true);
+      uploadedGstPath = res.jsonData.storagePath;
+      expect(uploadedGstPath).toMatch(/^[0-9a-f-]{36}\.pdf$/);
 
-      const reqOverride = {
-        body: { requisition_no: testReqNo },
-        file: {
-          fieldname: 'file',
-          originalname: `${testReqNo}_gst.pdf`,
-          mimetype: 'application/pdf',
-          buffer: Buffer.from('%PDF-1.4 mock gst pdf body v2 (updated)'),
-          size: 38
-        }
-      };
-      const resGst2 = mockRes();
-      await uploadGstBillPdf(reqOverride, resGst2);
-
-      expect(resGst2.statusCode).toBe(201);
-      expect(resGst2.jsonData.success).toBe(true);
+      const { data: row, error } = await supabase
+        .from('requisition_attachments')
+        .select('bucket, kind, status')
+        .eq('attachment_id', res.jsonData.attachmentId)
+        .single();
+      expect(error).toBeNull();
+      expect(row.bucket).toBe('gst-bills');
+      expect(row.kind).toBe('gst_bill');
+      expect(row.status).toBe('pending');
     });
 
     test('Test 8: Verifies direct public access to files in the bucket is blocked', async () => {

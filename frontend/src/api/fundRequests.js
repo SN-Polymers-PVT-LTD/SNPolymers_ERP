@@ -17,13 +17,17 @@ export const getFundRequests = (params = {}) => {
 export const getFundRequestById = (id) =>
   authApi.get(`/fund-requests/${id}`);
 
-/** Create a new fund request (ZO only) */
-export const createFundRequest = (data) =>
+/** Create a new Fund Request draft (ZO only) */
+export const createFundRequestDraft = (data) =>
   authApi.post('/fund-requests', data);
 
-/** Approve or Hold a pending fund request (HO only) */
-export const actOnFundRequest = (id, data) =>
-  authApi.patch(`/fund-requests/${id}/action`, data);
+/** Update an unsubmitted Fund Request draft */
+export const updateFundRequestDraft = (id, data) =>
+  authApi.patch(`/fund-requests/${id}`, data);
+
+/** Reserve capacity and submit a draft to Accounts */
+export const submitFundRequest = (id) =>
+  authApi.post(`/fund-requests/${id}/submit`);
 
 /** Cancel a pending fund request (ZO only) */
 export const cancelFundRequest = (id) =>

@@ -23,7 +23,7 @@ const ExportDateRangeModal = ({ onConfirm, onClose }) => {
             <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-100">
               Export to Excel
             </h2>
-            <p className="text-[10px] text-slate-400 font-mono mt-0.5">FILTER DATA BY HO APPROVAL / ZO DATE</p>
+            <p className="text-[10px] text-slate-400 font-mono mt-0.5">FILTER DATA BY ACCOUNTS APPROVAL / ZO DATE</p>
           </div>
         </div>
 
