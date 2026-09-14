@@ -1254,9 +1254,7 @@ WO + subcontractor + subcontract work
 
 Repeated source lines remain separate for audit. A single requisition does not claim one source line as its exact allocation; cumulative capacity is enforced across the full Work Order + Subcontractor + Subcontract Work combination. If exact source allocation is later required, introduce a many-to-many allocation table rather than adding a single source-line FK to `requisitions`.
 
-The later Finance integration must validate that the referenced line is Final Approved and belongs to the same Work Order, Subcontractor, and Subcontract Work scope.
-
-The line reference is provenance only. It does not allocate or reserve the requisition amount against one source line. Contractor capacity remains pooled across all effective Final Approved BASE, ADDITION, and ADJUSTMENT contributions for the Work Order + Subcontractor + Subcontract Work scope.
+The later Finance integration must calculate pooled capacity only from Final Approved BASE, ADDITION, and ADJUSTMENT contributions belonging to the same Work Order + Subcontractor + Subcontract Work scope.
 
 Before a negative adjustment is Final Approved, the authoritative workflow/RPC must atomically verify:
 
@@ -2049,9 +2047,9 @@ The database foundation is complete only when all of the following are true.
 
 ---
 
-# 34. Corrective follow-up migration
+# 34. Corrective follow-up migrations
 
-Migration `077_subcontractor_foundation_corrections.sql` is the forward-only hardening follow-up to `076`. It removes the misleading single-line requisition provenance column, tightens generated-row identity and signed-adjustment structure, and adds source-oriented lookup indexes. Migration `076` remains immutable.
+Migration `077_subcontractor_foundation_corrections.sql` is the forward-only hardening follow-up to `076`. It removes the misleading single-line requisition provenance column, tightens signed-adjustment structure, and adds source-oriented lookup indexes. Migration `078_subcontract_source_identity_null_fix.sql` makes the generated source/work pairing constraint NULL-safe. Migrations `076` and `077` remain immutable.
 
 # 35. Follow-on work after this PR
 

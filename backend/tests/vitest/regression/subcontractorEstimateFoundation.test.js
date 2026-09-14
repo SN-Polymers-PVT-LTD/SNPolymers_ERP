@@ -224,4 +224,40 @@ describe('Subcontractor Estimate database foundation', () => {
     });
     expect(selfReferenceError).toBeTruthy();
   });
+
+  test('enforces NULL-safe Cost Estimate source/work identity pairing', async () => {
+    const malformedRows = [
+      { source_type: 'SUBCONTRACT_ESTIMATE', subcontract_work_id: null },
+      { source_type: null, subcontract_work_id: work.id },
+      { source_type: 'MANUAL', subcontract_work_id: work.id }
+    ];
+
+    for (const identity of malformedRows) {
+      const { error } = await supabase.from('project_cost_estimate_items').insert({
+        estimate_id: costEstimate.estimate_id,
+        material_main_head: 'Sub Contractor',
+        material_sub_head: `Identity ${suffix}`,
+        material_details: `Malformed ${suffix}`,
+        unit: 'Mtr', qty: 1, rate: 1, amount: 1,
+        ...identity
+      });
+      expect(error).toBeTruthy();
+    }
+
+    const { data: manualRow, error: manualError } = await supabase
+      .from('project_cost_estimate_items')
+      .insert({
+        estimate_id: costEstimate.estimate_id,
+        material_main_head: 'Material',
+        material_sub_head: `Identity ${suffix}`,
+        material_details: `Manual ${suffix}`,
+        unit: 'Nos', qty: 1, rate: 1, amount: 1,
+        source_type: null,
+        subcontract_work_id: null
+      })
+      .select()
+      .single();
+    if (manualError) throw manualError;
+    await supabase.from('project_cost_estimate_items').delete().eq('item_id', manualRow.item_id);
+  });
 });
