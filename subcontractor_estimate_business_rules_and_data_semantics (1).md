@@ -368,9 +368,10 @@ A Draft / Under Review / Revision Requested subcontract estimate must not contri
 
 All eligible Final Approved subcontractor estimate contributions are automatically imported into the Work Order's Cost Estimate.
 
-- If the Work Order has a Cost Estimate in `Draft` status, eligible contributions are automatically appended to that estimate.
-- If no Draft Cost Estimate exists, eligible contributions remain pending for Cost Estimate import.
-- When a Cost Estimate for that Work Order becomes `Draft`, all pending eligible contributions are automatically appended.
+- If the Work Order has a Cost Estimate in `Draft` or `Estimate Reopened` status, eligible contributions are automatically appended to that estimate.
+- If no editable Cost Estimate exists, eligible contributions remain pending for Cost Estimate import.
+- When a Cost Estimate for that Work Order becomes `Draft` or `Estimate Reopened`, all pending eligible contributions are automatically appended.
+- A Cost Estimate in `ZO Revision Requested` or `HO Revision Requested` does not receive new subcontract work rows.
 - The import is append-only at the contribution level and must be idempotent; the same Subcontractor Estimate line must never be imported more than once.
 - A contribution that has already been imported must not be re-imported merely because the Cost Estimate is reopened.
 
@@ -500,7 +501,7 @@ The visible Cost Estimate row is updated as one logical row.
 
 However, the underlying database must preserve the separate historical source contributions.
 
-Subcontractor contributions are appended automatically only while the Cost Estimate is in `Draft` status. Once the Cost Estimate reaches `Final Approved`, later eligible subcontractor contributions remain pending until the Cost Estimate is reopened and returns to `Draft`.
+Subcontractor contributions are appended automatically only while the Cost Estimate is in `Draft` or `Estimate Reopened` status. Once the Cost Estimate reaches `Final Approved`, later eligible subcontractor contributions remain pending until the Cost Estimate is reopened and enters `Estimate Reopened`.
 
 ---
 
@@ -592,9 +593,9 @@ A new Payment Requisition for Contractor C against that approved work cannot exc
 
 No separate measurement or executed-quantity cap is required by this design.
 
-Payment Requisitions must reference a specific approved `subcontract_estimate_line_id` for auditability and source attribution.
+Payment Requisitions identify the Work Order + Subcontractor + Subcontract Work scope. They draw from the pooled cumulative capacity and do not claim one source line as an exact allocation.
 
-The referenced line is not an independent payment bucket. The cumulative remaining monetary capacity is calculated across all Final Approved contributions for the corresponding:
+The cumulative remaining monetary capacity is calculated across all Final Approved contributions for the corresponding:
 
 ```text
 Work Order
@@ -604,7 +605,7 @@ Work Order
 
 less the monetary amounts already consumed or paid for that same combination.
 
-The referenced source line must belong to the same Work Order, Subcontractor, and Subcontract Work combination and must be Final Approved. A requisition must not be rejected merely because the individually referenced line has no remaining amount if other Final Approved contributions for the same combination still provide cumulative capacity.
+A future exact-allocation requirement must use a many-to-many requisition allocation table rather than a single source-line FK.
 
 ---
 
@@ -670,12 +671,6 @@ New records should use:
 work_order_no
 subcontractor_id
 subcontract_work_id
-```
-
-and, where applicable:
-
-```text
-subcontract_estimate_line_id
 ```
 
 Human-readable fields may still be stored as audit/display snapshots.
@@ -813,9 +808,9 @@ Approved source contributions are never destructively rewritten.
 
 ### Revisions
 
-Adjustments and additions create new contribution records.
+Adjustments and additions create new append-only contribution records. `BASE` and `ADDITION` rows use positive values. `ADJUSTMENT` rows are signed deltas against a previously Final Approved source line; approved rows are never mutated or deleted.
 
-Negative adjustment contributions are not allowed at this stage. A correction or change replaces the prior proposal through a new revision contribution; previously approved contributions remain immutable.
+Effective quantity and amount are the signed sums of approved BASE, ADDITION, and ADJUSTMENT contributions. Effective totals must remain non-negative, and a negative adjustment must not reduce capacity below active Finance reservations or settled payments.
 
 ### Finance
 
@@ -823,7 +818,7 @@ Payment capacity is monetary.
 
 No physical execution/measurement gate is introduced.
 
-Payment Requisitions retain a specific `subcontract_estimate_line_id` for provenance, while capacity remains pooled at the Work Order + Subcontractor + Subcontract Work level.
+Payment Requisitions identify the pooled Work Order + Subcontractor + Subcontract Work scope; exact source allocation, if later required, uses a many-to-many allocation table.
 
 ### Budget enforcement
 
@@ -923,9 +918,9 @@ Work Order
 + Subcontract Work
 ```
 
-Each Payment Requisition references a specific approved `subcontract_estimate_line_id` for provenance. It does not draw from an isolated source-line bucket; the cumulative contractor-specific balance is enforced across the full Work Order + Subcontractor + Subcontract Work combination.
+Each Payment Requisition identifies the Work Order + Subcontractor + Subcontract Work scope. It draws from the pooled cumulative contractor-specific balance; it does not claim one source line as an exact allocation. If exact source allocation is later required, use a many-to-many requisition allocation table.
 
-If a Final Approved subcontractor contribution is created while the Cost Estimate is not in `Draft`, it remains eligible but pending. It is automatically appended when the Work Order's Cost Estimate next enters `Draft`. If the Cost Estimate is already `Final Approved`, it must be reopened before pending contributions can be imported. Main Head capacity becomes usable only after the updated Cost Estimate is subsequently Final Approved.
+If a Final Approved subcontractor contribution is created while the Cost Estimate is not in `Draft` or `Estimate Reopened`, it remains eligible but pending. If the Cost Estimate is already `Final Approved`, it must be reopened; reopening enters `Estimate Reopened`, where pending contributions may be imported. Main Head capacity becomes usable only after the updated Cost Estimate is subsequently Final Approved.
 
 ---
 
@@ -952,15 +947,16 @@ No UI implementation should be treated as authoritative if it conflicts with the
 
 The following decisions are part of this implementation baseline:
 
-1. Eligible Final Approved subcontractor contributions are automatically appended to a Work Order Cost Estimate whenever that Cost Estimate is in `Draft` status.
-2. If no Draft Cost Estimate exists, contributions remain eligible and pending until one exists.
-3. Revisions replace prior proposals through new revision contributions; approved history is never overwritten.
-4. Negative adjustment contributions are not allowed at this stage.
+1. Eligible Final Approved subcontractor contributions are automatically appended to a Work Order Cost Estimate whenever that Cost Estimate is in `Draft` or `Estimate Reopened` status.
+2. If no editable Cost Estimate exists, contributions remain eligible and pending until one exists.
+3. `ZO Revision Requested` and `HO Revision Requested` Cost Estimates do not receive new subcontract work rows.
+4. Revisions use immutable BASE, ADDITION, and signed ADJUSTMENT contribution records; approved history is never overwritten.
 5. Contractor-specific capacity is cumulative across all Final Approved contributions for the Work Order + Subcontractor + Subcontract Work combination.
-6. Payment Requisitions reference a specific Final Approved `subcontract_estimate_line_id` for auditability, but draw monetary capacity from the cumulative Work Order + Subcontractor + Subcontract Work balance rather than from an isolated source-line bucket.
-7. Subcontractor approval alone does not increase usable Main Head capacity; the related Cost Estimate must be Final Approved first.
-8. `projects_beneficiary_master` remains the beneficiary table behind `subcontractor_master`.
-9. Existing pseudo-subcontractor Material Master rows are legacy and will be purged; compatibility write paths are not required.
+6. Payment Requisitions identify the pooled contractor/work scope; exact source allocation, if later required, uses a many-to-many allocation table.
+7. Negative adjustments must not reduce effective capacity below active Finance reservations or settled payments.
+8. Subcontractor approval alone does not increase usable Main Head capacity; the related Cost Estimate must be Final Approved first.
+9. `projects_beneficiary_master` remains the beneficiary table behind `subcontractor_master`.
+10. Existing pseudo-subcontractor Material Master rows are legacy and will be purged; compatibility write paths are not required.
 
 ---
 

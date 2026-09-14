@@ -1013,6 +1013,17 @@ globally.
 
 Idempotency within an active Cost Estimate will be enforced by the integration RPC later.
 
+Add source-oriented indexes for automatic import and adjustment lookup:
+
+```sql
+CREATE INDEX idx_cesc_source_line
+ON public.cost_estimate_subcontract_contributions(subcontract_estimate_line_id);
+
+CREATE INDEX idx_psel_adjusts_line
+ON public.project_subcontract_estimate_lines(adjusts_line_id)
+WHERE adjusts_line_id IS NOT NULL;
+```
+
 ## 13A. Automatic Cost Estimate import contract
 
 The foundation must support automatic import of eligible Final Approved subcontractor estimate lines.
@@ -1065,6 +1076,24 @@ ADD CONSTRAINT chk_pcei_source_type
 CHECK (
   source_type IS NULL
   OR source_type IN ('MANUAL', 'SUBCONTRACT_ESTIMATE')
+);
+```
+
+The source taxonomy and canonical work identity are paired:
+
+```sql
+ALTER TABLE public.project_cost_estimate_items
+ADD CONSTRAINT chk_pcei_subcontract_source_identity
+CHECK (
+  (
+    source_type = 'SUBCONTRACT_ESTIMATE'
+    AND subcontract_work_id IS NOT NULL
+  )
+  OR
+  (
+    (source_type IS NULL OR source_type = 'MANUAL')
+    AND subcontract_work_id IS NULL
+  )
 );
 ```
 
@@ -1215,30 +1244,15 @@ ON public.requisitions(
 WHERE subcontractor_id IS NOT NULL;
 ```
 
-## Add `subcontract_estimate_line_id`
+## Pooled requisition capacity
 
-Payment Requisitions must retain the specific approved source line used for auditability and source attribution:
-
-```sql
-ALTER TABLE public.requisitions
-  ADD COLUMN subcontract_estimate_line_id uuid;
-```
-
-Foreign key:
-
-```sql
-FOREIGN KEY (subcontract_estimate_line_id)
-REFERENCES public.project_subcontract_estimate_lines(line_id)
-ON DELETE RESTRICT;
-```
-
-The monetary capacity remains pooled for:
+Payment Requisitions identify the pooled contractor/work scope:
 
 ```text
 WO + subcontractor + subcontract work
 ```
 
-Repeated source lines remain separate for audit. The referenced source line is not an independent payment bucket; cumulative capacity is enforced across the full Work Order + Subcontractor + Subcontract Work combination.
+Repeated source lines remain separate for audit. A single requisition does not claim one source line as its exact allocation; cumulative capacity is enforced across the full Work Order + Subcontractor + Subcontract Work combination. If exact source allocation is later required, introduce a many-to-many allocation table rather than adding a single source-line FK to `requisitions`.
 
 The later Finance integration must validate that the referenced line is Final Approved and belongs to the same Work Order, Subcontractor, and Subcontract Work scope.
 
@@ -1657,7 +1671,6 @@ Verify a normal existing insert can still happen without providing:
 ```text
 subcontractor_id
 subcontract_work_id
-subcontract_estimate_line_id
 ```
 
 for:
@@ -2021,7 +2034,7 @@ The database foundation is complete only when all of the following are true.
 
 ### Finance preparation
 
-- Requisition can carry nullable `subcontractor_id` + `subcontract_work_id` + `subcontract_estimate_line_id`.
+- Requisition can carry nullable `subcontractor_id` + `subcontract_work_id`.
 - existing balance/ledger tables can carry the same nullable IDs.
 - old Finance logic remains functional.
 
@@ -2036,7 +2049,11 @@ The database foundation is complete only when all of the following are true.
 
 ---
 
-# 34. Follow-on work after this PR
+# 34. Corrective follow-up migration
+
+Migration `077_subcontractor_foundation_corrections.sql` is the forward-only hardening follow-up to `076`. It removes the misleading single-line requisition provenance column, tightens generated-row identity and signed-adjustment structure, and adds source-oriented lookup indexes. Migration `076` remains immutable.
+
+# 35. Follow-on work after this PR
 
 Only after this foundation is merged should implementation continue in this order:
 
@@ -2064,6 +2081,8 @@ Finance ledger/read-model/reporting update
         ↓
 Final cleanup / normalized production reset
 ```
+
+The PR 5/PR 6 boundary must be cut over atomically. The current legacy database hook credits `subcontractor_balances` when an HO approves a Cost Estimate `Sub Contractor` row using the legacy text identity. Generated aggregate rows must not become active while that hook is still authoritative; the legacy credit path must be disabled or replaced in the same deployment that enables the new Finance source/identity migration.
 
 ---
 

@@ -49,6 +49,10 @@ module.exports = {
       "table": "beneficiary_master",
       "definition": "CREATE INDEX idx_bm_beneficiary_name_trgm ON public.beneficiary_master USING gin (beneficiary_name gin_trgm_ops)"
     },
+    "idx_cesc_source_line": {
+      "table": "cost_estimate_subcontract_contributions",
+      "definition": "CREATE INDEX idx_cesc_source_line ON public.cost_estimate_subcontract_contributions USING btree (subcontract_estimate_line_id)"
+    },
     "idx_fund_requests_status": {
       "table": "fund_requests",
       "definition": "CREATE INDEX idx_fund_requests_status ON public.fund_requests USING btree (request_status) WHERE (request_status = 'Pending'::fund_request_status_enum)"
@@ -76,6 +80,10 @@ module.exports = {
     "idx_pse_work_order": {
       "table": "project_subcontract_estimates",
       "definition": "CREATE INDEX idx_pse_work_order ON public.project_subcontract_estimates USING btree (work_order_no)"
+    },
+    "idx_psel_adjusts_line": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_adjusts_line ON public.project_subcontract_estimate_lines USING btree (adjusts_line_id) WHERE (adjusts_line_id IS NOT NULL)"
     },
     "idx_psel_estimate": {
       "table": "project_subcontract_estimate_lines",

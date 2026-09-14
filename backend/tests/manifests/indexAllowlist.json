@@ -34,5 +34,7 @@
   "uq_pcei_generated_subcontract_work",
   "idx_requisitions_subcontract_scope",
   "idx_scb_relational_scope",
-  "idx_scl_relational_scope"
+  "idx_scl_relational_scope",
+  "idx_cesc_source_line",
+  "idx_psel_adjusts_line"
 ]

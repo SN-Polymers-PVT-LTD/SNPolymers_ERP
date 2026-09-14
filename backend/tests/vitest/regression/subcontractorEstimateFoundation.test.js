@@ -189,4 +189,39 @@ describe('Subcontractor Estimate database foundation', () => {
     });
     expect(duplicateItem.error).toBeTruthy();
   });
+
+  test('rejects malformed adjustments and source identity mismatches', async () => {
+    const cases = [
+      { entry_kind: 'BASE', adjusts_line_id: baseLine.line_id, qty: 1, rate: 1, amount: 1 },
+      { entry_kind: 'ADDITION', adjusts_line_id: baseLine.line_id, qty: 1, rate: 1, amount: 1 },
+      { entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLine.line_id, qty: 0, rate: 100, amount: 0 },
+      { entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLine.line_id, qty: -1, rate: -100, amount: 100 }
+    ];
+
+    for (const candidate of cases) {
+      const { error } = await supabase.from('project_subcontract_estimate_lines').insert({
+        subcontract_estimate_id: estimate.subcontract_estimate_id,
+        subcontractor_id: subcontractor.id,
+        subcontract_work_id: work.id,
+        created_by: actor,
+        ...candidate
+      });
+      expect(error).toBeTruthy();
+    }
+
+    const selfReferenceId = crypto.randomUUID();
+    const { error: selfReferenceError } = await supabase.from('project_subcontract_estimate_lines').insert({
+      line_id: selfReferenceId,
+      subcontract_estimate_id: estimate.subcontract_estimate_id,
+      subcontractor_id: subcontractor.id,
+      subcontract_work_id: work.id,
+      qty: -1,
+      rate: 100,
+      amount: -100,
+      created_by: actor,
+      entry_kind: 'ADJUSTMENT',
+      adjusts_line_id: selfReferenceId
+    });
+    expect(selfReferenceError).toBeTruthy();
+  });
 });

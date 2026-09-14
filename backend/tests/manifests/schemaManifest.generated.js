@@ -488,12 +488,6 @@ module.exports = {
           "udtName": "uuid",
           "nullable": true,
           "default": null
-        },
-        "subcontract_estimate_line_id": {
-          "type": "uuid",
-          "udtName": "uuid",
-          "nullable": true,
-          "default": null
         }
       }
     },
