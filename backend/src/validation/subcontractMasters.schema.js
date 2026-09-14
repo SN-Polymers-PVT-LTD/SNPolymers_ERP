@@ -2,6 +2,11 @@ const { z } = require('zod');
 
 const uuid = z.string().uuid('Invalid UUID format.');
 const nullableString = z.string().trim().optional().nullable();
+const blankToUndefined = (value) => value === '' ? undefined : value;
+const optionalEmail = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  z.string().trim().email().optional().nullable()
+);
 
 const listSchema = {
   query: z.object({
@@ -10,8 +15,8 @@ const listSchema = {
     search: z.string().trim().optional().default(''),
     sub_head: z.string().trim().optional().default(''),
     unit: z.string().trim().optional().default(''),
-    is_active: z.enum(['true', 'false']).optional(),
-    beneficiary_status: z.enum(['linked', 'unlinked']).optional(),
+    is_active: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional()),
+    beneficiary_status: z.preprocess(blankToUndefined, z.enum(['linked', 'unlinked']).optional()),
     sortBy: z.string().optional(),
     sortOrder: z.enum(['asc', 'desc']).optional().default('asc')
   })
@@ -46,7 +51,7 @@ const subcontractorCreateSchema = {
     subcontractor_name: z.string().trim().min(1),
     contact_person: nullableString,
     mobile: nullableString,
-    email: z.string().trim().email().optional().nullable(),
+    email: optionalEmail,
     address: nullableString,
     pan_no: nullableString,
     gst_no: nullableString,

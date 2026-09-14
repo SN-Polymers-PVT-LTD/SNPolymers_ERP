@@ -59,9 +59,13 @@ async function createSubcontractor(req, res) {
 
 async function updateSubcontractor(req, res) {
   try {
-    const beneficiary = await validateBeneficiary(req.body.primary_beneficiary_id);
-    if (beneficiary === false) return res.status(422).json({ success: false, message: 'Selected beneficiary does not exist.' });
-    const { data, error } = await supabase.from('subcontractor_master').update({ ...req.body, primary_beneficiary_id: beneficiary, updated_by: req.user.mobile_number }).eq('id', req.params.id).select(selectWithBeneficiary).maybeSingle();
+    const payload = { ...req.body, updated_by: req.user.mobile_number };
+    if (Object.hasOwn(req.body, 'primary_beneficiary_id')) {
+      const beneficiary = await validateBeneficiary(req.body.primary_beneficiary_id);
+      if (beneficiary === false) return res.status(422).json({ success: false, message: 'Selected beneficiary does not exist.' });
+      payload.primary_beneficiary_id = beneficiary;
+    }
+    const { data, error } = await supabase.from('subcontractor_master').update(payload).eq('id', req.params.id).select(selectWithBeneficiary).maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
     return res.json({ success: true, subcontractor: data, message: 'Subcontractor updated successfully.' });
