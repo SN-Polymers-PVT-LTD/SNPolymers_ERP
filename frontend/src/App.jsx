@@ -24,6 +24,8 @@ const PurchaseOptions = React.lazy(() => import('./pages/admin/PurchaseOptions')
 const FundReports = React.lazy(() => import('./pages/FundReports'));
 const FundRequests = React.lazy(() => import('./pages/FundRequests'));
 const MaterialMaster = React.lazy(() => import('./pages/MaterialMaster'));
+const SubcontractWorkMaster = React.lazy(() => import('./pages/SubcontractWorkMaster'));
+const SubcontractorMaster = React.lazy(() => import('./pages/SubcontractorMaster'));
 const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
@@ -121,6 +123,8 @@ function App() {
                 <Route path="/profile" element={<React.Suspense fallback={<AppChunkLoader />}><Profile /></React.Suspense>} />
                 <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
                 <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
+                <Route path="/subcontract-works" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractWorkMaster /></React.Suspense>} />
+                <Route path="/subcontractors" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractorMaster /></React.Suspense>} />
                 <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
                 <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
                 <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
