@@ -3,6 +3,7 @@ const { supabase } = require('../db/supabase');
 const SORT_FIELDS = new Set(['sub_head', 'material_details', 'unit', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
+const escapeFilterValue = (value) => String(value).replace(/\\/g, '\\\\').replace(/([,()])/g, '\\$1');
 
 async function getSubcontractWorks(req, res) {
   try {
@@ -14,7 +15,7 @@ async function getSubcontractWorks(req, res) {
     if (sub_head) query = query.eq('sub_head', sub_head);
     if (unit) query = query.eq('unit', unit);
     if (search) {
-      const p = `%${search}%`;
+      const p = `%${escapeFilterValue(search)}%`;
       query = query.or(`sub_head.ilike.${p},material_details.ilike.${p},unit.ilike.${p}`);
     }
     query = query.order(SORT_FIELDS.has(sortBy) ? sortBy : 'material_details', { ascending: sortOrder !== 'desc' }).range(offset, offset + limit - 1);
@@ -59,7 +60,7 @@ async function updateSubcontractWork(req, res) {
     if (referenced?.length) return res.status(409).json({ success: false, message: 'This subcontract work is already in use. Create a new work item and deactivate the old one instead.' });
   }
   const { data, error } = await supabase.from('subcontract_work_master').update({ ...req.body, updated_by: req.user.mobile_number }).eq('id', id).select().single();
-  if (error) return res.status(error.code === '23505' ? 409 : 500).json({ success: false, message: error.code === '23505' ? 'That subcontract work already exists.' : 'Failed to update subcontract work.' });
+  if (error) return res.status(['23505', '23514'].includes(error.code) ? 409 : 500).json({ success: false, message: ['23505', '23514'].includes(error.code) ? (error.code === '23514' ? 'This subcontract work is already in use. Create a new work item and deactivate the old one instead.' : 'That subcontract work already exists.') : 'Failed to update subcontract work.' });
   return res.json({ success: true, subcontractWork: data, message: 'Subcontract work updated successfully.' });
 }
 

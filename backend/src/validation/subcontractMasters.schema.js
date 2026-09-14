@@ -1,7 +1,10 @@
 const { z } = require('zod');
 
 const uuid = z.string().uuid('Invalid UUID format.');
-const nullableString = z.string().trim().optional().nullable();
+const nullableString = z.preprocess(
+  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
+  z.string().trim().optional().nullable()
+);
 const blankToUndefined = (value) => value === '' ? undefined : value;
 const optionalEmail = z.preprocess(
   (value) => typeof value === 'string' && value.trim() === '' ? null : value,

@@ -25,7 +25,7 @@ const FundReports = React.lazy(() => import('./pages/FundReports'));
 const FundRequests = React.lazy(() => import('./pages/FundRequests'));
 const MaterialMaster = React.lazy(() => import('./pages/MaterialMaster'));
 const SubcontractWorkMaster = React.lazy(() => import('./pages/SubcontractWorkMaster'));
-const SubcontractorMaster = React.lazy(() => import('./pages/SubcontractorMaster'));
+const SubcontractorMaster = React.lazy(() => import('./pages/SubcontractorMasterV2'));
 const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
