@@ -65,17 +65,85 @@ module.exports = {
       "table": "projects_master",
       "definition": "CREATE INDEX idx_projects_zo_user ON public.projects_master USING btree (zo_user_id)"
     },
+    "idx_pse_status": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_status ON public.project_subcontract_estimates USING btree (estimate_status)"
+    },
+    "idx_pse_updated_at": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_updated_at ON public.project_subcontract_estimates USING btree (updated_at DESC)"
+    },
+    "idx_pse_work_order": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_work_order ON public.project_subcontract_estimates USING btree (work_order_no)"
+    },
+    "idx_psel_estimate": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id)"
+    },
+    "idx_psel_estimate_party_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate_party_work ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, subcontractor_id, subcontract_work_id)"
+    },
+    "idx_psel_estimate_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate_work ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, subcontract_work_id)"
+    },
+    "idx_psel_subcontractor": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_subcontractor ON public.project_subcontract_estimate_lines USING btree (subcontractor_id)"
+    },
+    "idx_psel_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_work ON public.project_subcontract_estimate_lines USING btree (subcontract_work_id)"
+    },
     "idx_requisitions_status": {
       "table": "requisitions",
       "definition": "CREATE INDEX idx_requisitions_status ON public.requisitions USING btree (requisition_status) WHERE (requisition_status = 'Pending'::requisition_status_enum)"
+    },
+    "idx_requisitions_subcontract_scope": {
+      "table": "requisitions",
+      "definition": "CREATE INDEX idx_requisitions_subcontract_scope ON public.requisitions USING btree (work_order_no, subcontractor_id, subcontract_work_id) WHERE (subcontractor_id IS NOT NULL)"
     },
     "idx_requisitions_work_order": {
       "table": "requisitions",
       "definition": "CREATE INDEX idx_requisitions_work_order ON public.requisitions USING btree (work_order_no)"
     },
+    "idx_scb_relational_scope": {
+      "table": "subcontractor_balances",
+      "definition": "CREATE INDEX idx_scb_relational_scope ON public.subcontractor_balances USING btree (work_order_no, subcontractor_id, subcontract_work_id)"
+    },
+    "idx_scl_relational_scope": {
+      "table": "subcontractor_ledger",
+      "definition": "CREATE INDEX idx_scl_relational_scope ON public.subcontractor_ledger USING btree (work_order_no, subcontractor_id, subcontract_work_id)"
+    },
     "idx_sessions_user_login": {
       "table": "sessions",
       "definition": "CREATE INDEX idx_sessions_user_login ON public.sessions USING btree (user_id, login_at DESC)"
+    },
+    "idx_swm_active": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE INDEX idx_swm_active ON public.subcontract_work_master USING btree (is_active)"
+    },
+    "idx_swm_sub_head": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE INDEX idx_swm_sub_head ON public.subcontract_work_master USING btree (sub_head)"
+    },
+    "uq_pcei_generated_subcontract_work": {
+      "table": "project_cost_estimate_items",
+      "definition": "CREATE UNIQUE INDEX uq_pcei_generated_subcontract_work ON public.project_cost_estimate_items USING btree (estimate_id, subcontract_work_id) WHERE ((source_type)::text = 'SUBCONTRACT_ESTIMATE'::text)"
+    },
+    "uq_pse_one_live_estimate_per_wo": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE UNIQUE INDEX uq_pse_one_live_estimate_per_wo ON public.project_subcontract_estimates USING btree (work_order_no) WHERE (estimate_status <> ALL (ARRAY['Rejected by ZO'::estimate_status_enum, 'Rejected by HO'::estimate_status_enum]))"
+    },
+    "uq_serl_one_active_revision": {
+      "table": "subcontract_estimate_revision_log",
+      "definition": "CREATE UNIQUE INDEX uq_serl_one_active_revision ON public.subcontract_estimate_revision_log USING btree (subcontract_estimate_id) WHERE (resubmitted_at IS NULL)"
+    },
+    "uq_subcontract_work_master_identity": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE UNIQUE INDEX uq_subcontract_work_master_identity ON public.subcontract_work_master USING btree (lower(btrim((sub_head)::text)), lower(btrim((material_details)::text)), lower(btrim((unit)::text)))"
     }
   }
 };
