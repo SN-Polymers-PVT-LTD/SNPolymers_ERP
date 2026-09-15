@@ -97,6 +97,10 @@ module.exports = {
       "table": "project_subcontract_estimate_lines",
       "definition": "CREATE INDEX idx_psel_estimate_work ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, subcontract_work_id)"
     },
+    "idx_psel_final_approved_revision": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_final_approved_revision ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, final_approved_revision) WHERE (final_approved_revision IS NOT NULL)"
+    },
     "idx_psel_subcontractor": {
       "table": "project_subcontract_estimate_lines",
       "definition": "CREATE INDEX idx_psel_subcontractor ON public.project_subcontract_estimate_lines USING btree (subcontractor_id)"
@@ -104,6 +108,10 @@ module.exports = {
     "idx_psel_work": {
       "table": "project_subcontract_estimate_lines",
       "definition": "CREATE INDEX idx_psel_work ON public.project_subcontract_estimate_lines USING btree (subcontract_work_id)"
+    },
+    "idx_psewl_estimate_created_at": {
+      "table": "project_subcontract_estimate_workflow_log",
+      "definition": "CREATE INDEX idx_psewl_estimate_created_at ON public.project_subcontract_estimate_workflow_log USING btree (subcontract_estimate_id, created_at)"
     },
     "idx_requisitions_status": {
       "table": "requisitions",

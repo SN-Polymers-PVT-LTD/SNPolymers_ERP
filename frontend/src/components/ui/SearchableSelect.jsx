@@ -24,7 +24,8 @@ const SearchableSelect = ({
   containerClassName = '',
   size = 'md',
   disabled = false,
-  autoFocus = false
+  autoFocus = false,
+  onFocus
 }) => {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -124,7 +125,7 @@ const SearchableSelect = ({
         autoFocus={autoFocus}
         autoComplete="off"
         size={size}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { onFocus?.(); setOpen(true); }}
         onChange={(e) => { onChange?.(e.target.value); setOpen(true); }}
       />
 

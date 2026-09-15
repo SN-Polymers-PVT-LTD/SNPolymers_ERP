@@ -36,5 +36,7 @@
   "idx_scb_relational_scope",
   "idx_scl_relational_scope",
   "idx_cesc_source_line",
-  "idx_psel_adjusts_line"
+  "idx_psel_adjusts_line",
+  "idx_psewl_estimate_created_at",
+  "idx_psel_final_approved_revision"
 ]

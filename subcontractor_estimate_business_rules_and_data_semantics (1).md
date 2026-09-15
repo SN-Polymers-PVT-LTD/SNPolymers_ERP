@@ -808,7 +808,7 @@ Approved source contributions are never destructively rewritten.
 
 ### Revisions
 
-Adjustments and additions create new append-only contribution records. `BASE` and `ADDITION` rows use positive values. `ADJUSTMENT` rows are signed deltas against a previously Final Approved source line; approved rows are never mutated or deleted.
+Adjustments and additions create new append-only contribution records. `BASE` and `ADDITION` rows use positive values. `ADJUSTMENT` rows are signed deltas against a previously Final Approved source line; signed negative quantity/amount values are explicitly allowed for corrections or reductions. For an adjustment, the rate remains positive and the server derives the signed amount from the signed quantity and rate. Approved rows are never mutated or deleted.
 
 Effective quantity and amount are the signed sums of approved BASE, ADDITION, and ADJUSTMENT contributions. Effective totals must remain non-negative, and a negative adjustment must not reduce capacity below active Finance reservations or settled payments.
 
@@ -950,13 +950,14 @@ The following decisions are part of this implementation baseline:
 1. Eligible Final Approved subcontractor contributions are automatically appended to a Work Order Cost Estimate whenever that Cost Estimate is in `Draft` or `Estimate Reopened` status.
 2. If no editable Cost Estimate exists, contributions remain eligible and pending until one exists.
 3. `ZO Revision Requested` and `HO Revision Requested` Cost Estimates do not receive new subcontract work rows.
-4. Revisions use immutable BASE, ADDITION, and signed ADJUSTMENT contribution records; approved history is never overwritten.
+4. Revisions use immutable BASE, ADDITION, and signed ADJUSTMENT contribution records; approved history is never overwritten. Signed negative values are allowed for ADJUSTMENT rows only; BASE and ADDITION rows remain positive-only.
 5. Contractor-specific capacity is cumulative across all Final Approved contributions for the Work Order + Subcontractor + Subcontract Work combination.
 6. Payment Requisitions identify the pooled contractor/work scope; exact source allocation, if later required, uses a many-to-many allocation table.
-7. Negative adjustments must not reduce effective capacity below active Finance reservations or settled payments.
+7. Signed negative adjustments are allowed for ADJUSTMENT rows only. They must not reduce effective quantity or amount below zero, or effective monetary capacity below active Finance reservations or settled payments.
 8. Subcontractor approval alone does not increase usable Main Head capacity; the related Cost Estimate must be Final Approved first.
 9. `projects_beneficiary_master` remains the beneficiary table behind `subcontractor_master`.
 10. Existing pseudo-subcontractor Material Master rows are legacy and will be purged; compatibility write paths are not required.
+11. The earlier temporary prohibition on negative adjustment values is superseded. Phase 4B must support signed ADJUSTMENT contributions, including negative quantity/amount corrections, subject to effective-scope and Finance-consumption safeguards.
 
 ---
 

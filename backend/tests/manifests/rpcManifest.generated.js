@@ -284,15 +284,6 @@ module.exports = {
       ],
       "returns": "TABLE(entry jsonb, opening_balance numeric, closing_balance numeric)"
     },
-    "save_subcontract_estimate_draft_lines": {
-      "args": [
-        { "name": "p_estimate_id", "type": "uuid" },
-        { "name": "p_actor", "type": "character varying" },
-        { "name": "p_expected_updated_at", "type": "timestamp with time zone" },
-        { "name": "p_lines", "type": "jsonb" }
-      ],
-      "returns": "void"
-    },
     "increment_otp_attempts": {
       "args": [
         {
@@ -313,6 +304,27 @@ module.exports = {
     },
     "refresh_analytics_views": {
       "args": [],
+      "returns": "void"
+    },
+    "save_subcontract_estimate_draft_lines": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        },
+        {
+          "name": "p_lines",
+          "type": "jsonb"
+        }
+      ],
       "returns": "void"
     },
     "submit_fund_request_transact": {

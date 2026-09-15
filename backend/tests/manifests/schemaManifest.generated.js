@@ -2144,6 +2144,24 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "final_approved_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "final_approved_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "final_approved_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -2252,6 +2270,70 @@ module.exports = {
         "created_by": {
           "type": "character varying",
           "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "project_subcontract_estimate_workflow_log": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontract_estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "from_status": {
+          "type": "USER-DEFINED",
+          "udtName": "estimate_status_enum",
+          "nullable": false,
+          "default": null
+        },
+        "to_status": {
+          "type": "USER-DEFINED",
+          "udtName": "estimate_status_enum",
+          "nullable": false,
+          "default": null
+        },
+        "action": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "actor": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "actor_role": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "remarks": {
+          "type": "text",
+          "udtName": "text",
           "nullable": true,
           "default": null
         },

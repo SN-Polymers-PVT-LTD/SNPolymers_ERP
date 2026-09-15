@@ -23,6 +23,7 @@
     "project_subcontract_estimates",
     "project_subcontract_estimate_lines",
     "subcontract_estimate_revision_log",
-    "cost_estimate_subcontract_contributions"
+    "cost_estimate_subcontract_contributions",
+    "project_subcontract_estimate_workflow_log"
   ]
 }
