@@ -9,5 +9,6 @@
   "lock_estimate_quotations",
   "get_accounts_import_queue",
   "get_accounts_import_queue_export",
-  "get_subcontractor_ledger_entries"
+  "get_subcontractor_ledger_entries",
+  "save_subcontract_estimate_draft_lines"
 ]
