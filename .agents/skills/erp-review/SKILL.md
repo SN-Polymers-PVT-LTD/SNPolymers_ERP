@@ -1,3 +1,8 @@
+---
+name: erp-review
+description: Perform senior engineering reviews of SN Polymers ERP commits, branches, PRs, migrations, and implementation readiness. Use for review, audit, re-review, latest-commit checks, and readiness decisions.
+---
+
 # ERP Senior Review
 
 Use this skill for review or readiness assessment.

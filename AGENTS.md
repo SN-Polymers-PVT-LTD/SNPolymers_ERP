@@ -1,5 +1,7 @@
 # SN Polymers ERP — Agent Instructions
 
+Explicit user instructions take precedence over workflow guidance in repo skills. Skills provide defaults and verification discipline; they must not expand or block an explicitly scoped user request without a concrete safety or correctness reason.
+
 ## Purpose
 
 This repository is the production ERP for S. N. Polymers Pvt. Ltd. Treat this file as a map and operating contract. Before changing a subsystem, inspect the current implementation and read its business-rule documents.
@@ -68,6 +70,14 @@ npm run test:local
 ```
 
 When schema/RPC/indexes/migrations change, run DB contract tests and add valid/invalid regression coverage. For frontend changes, run the available build/test/lint commands and verify route permissions plus loading, empty, error, success, and pagination states.
+
+## Scoped instructions
+
+For backend-only work, prefer launching Codex with `--cd backend` so `backend/AGENTS.md` is active.
+
+For frontend-only work, prefer launching Codex with `--cd frontend` so `frontend/AGENTS.md` is active.
+
+For cross-stack work launched from the repository root, follow this root file plus the applicable repo skill, and inspect the backend/frontend instruction files when those layers are touched.
 
 ## Working style
 
