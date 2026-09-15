@@ -16,6 +16,8 @@ const createRequisitionSchema = {
     material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
     material_sub_head: z.string().trim().optional().nullable(),
     material_details: z.string().trim().optional().nullable(),
+    subcontractor_id: z.string().regex(uuidRegex, 'Invalid subcontractor ID.').optional().nullable(),
+    subcontract_work_id: z.string().regex(uuidRegex, 'Invalid subcontract work ID.').optional().nullable(),
     requisition_pdf_attachment_id: z.string({ required_error: 'requisition_pdf_attachment_id is required. Upload the PDF first.' })
       .regex(uuidRegex, 'Invalid requisition PDF attachment ID. Upload the PDF first.'),
     // Now the only human-readable filename source once storage paths are UUID-based
@@ -44,9 +46,9 @@ const createRequisitionSchema = {
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_attachment_id && data.gst_bill_pdf_attachment_id.trim() !== ''), {
     message: "gst_bill_pdf_attachment_id is required when GST Bill is 'Yes'.",
     path: ['gst_bill_pdf_attachment_id']
-  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
-    message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
-    path: ['material_sub_head']
+  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.subcontractor_id && data.subcontract_work_id), {
+    message: 'subcontractor_id and subcontract_work_id are required when material_main_head is Sub Contractor.',
+    path: ['subcontractor_id']
   })
 };
 

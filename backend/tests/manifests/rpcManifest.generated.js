@@ -181,6 +181,143 @@ module.exports = {
       ],
       "returns": "requisitions"
     },
+    "create_subcontract_requisition_secure": {
+      "args": [
+        {
+          "name": "p_requester_user_id",
+          "type": "character varying"
+        },
+        {
+          "name": "p_work_order_no",
+          "type": "character varying"
+        },
+        {
+          "name": "p_estimate_no",
+          "type": "character varying"
+        },
+        {
+          "name": "p_estimate_amount",
+          "type": "numeric"
+        },
+        {
+          "name": "p_state",
+          "type": "character varying"
+        },
+        {
+          "name": "p_district",
+          "type": "character varying"
+        },
+        {
+          "name": "p_area_code",
+          "type": "character varying"
+        },
+        {
+          "name": "p_department",
+          "type": "character varying"
+        },
+        {
+          "name": "p_site_details",
+          "type": "text"
+        },
+        {
+          "name": "p_requisition_no",
+          "type": "character varying"
+        },
+        {
+          "name": "p_material_main_head",
+          "type": "character varying"
+        },
+        {
+          "name": "p_requisition_pdf_url",
+          "type": "text"
+        },
+        {
+          "name": "p_original_filename",
+          "type": "character varying"
+        },
+        {
+          "name": "p_requisition_amount",
+          "type": "numeric"
+        },
+        {
+          "name": "p_gst_bill",
+          "type": "gst_bill_enum"
+        },
+        {
+          "name": "p_gst_bill_pdf_url",
+          "type": "text"
+        },
+        {
+          "name": "p_bank_details",
+          "type": "text"
+        },
+        {
+          "name": "p_expen_head_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_requisition_status",
+          "type": "requisition_status_enum"
+        },
+        {
+          "name": "p_created_by",
+          "type": "character varying"
+        },
+        {
+          "name": "p_material_sub_head",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_material_details",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_beneficiary_name",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ac_no",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_ifsc",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_bank_name",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_beneficiary_bank_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_zo_user_id",
+          "type": "character varying DEFAULT NULL::character varying"
+        },
+        {
+          "name": "p_requisition_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_gst_bill_pdf_attachment_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_subcontractor_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_subcontract_work_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        }
+      ],
+      "returns": "requisitions"
+    },
     "get_accounts_import_queue": {
       "args": [
         {
@@ -254,6 +391,23 @@ module.exports = {
         }
       ],
       "returns": "jsonb"
+    },
+    "get_subcontract_financial_consumption": {
+      "args": [
+        {
+          "name": "p_work_order_no",
+          "type": "character varying"
+        },
+        {
+          "name": "p_subcontractor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_subcontract_work_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "numeric"
     },
     "get_subcontractor_ledger_entries": {
       "args": [

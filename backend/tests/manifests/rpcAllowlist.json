@@ -4,6 +4,8 @@
   "approve_requisition_transact",
   "create_ra_final_bill_secure",
   "create_requisition_secure",
+  "create_subcontract_requisition_secure",
+  "get_subcontract_financial_consumption",
   "increment_otp_attempts",
   "refresh_analytics_views",
   "lock_estimate_quotations",

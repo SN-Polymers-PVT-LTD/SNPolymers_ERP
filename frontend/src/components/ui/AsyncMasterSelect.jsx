@@ -16,6 +16,7 @@ const AsyncMasterSelect = ({
   persistedOption,
   getOptionValue,
   getOptionLabel,
+  onSelectItem,
   placeholder,
   required = false,
   label,
@@ -101,6 +102,7 @@ const AsyncMasterSelect = ({
         }
         const item = option.item || options.find(candidate => getOptionValue(candidate) === option.value);
         setQuery(option.label);
+        onSelectItem?.(item);
         onChange(getOptionValue(item));
       }}
       options={displayOptions}

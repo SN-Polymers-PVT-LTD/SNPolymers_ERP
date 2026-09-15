@@ -38,12 +38,14 @@ async function resolveDisplayNames(mobiles) {
 async function createRequisition(req, res) {
   if (!validate(req, res, createRequisitionSchema)) return;
 
-  const {
+  let {
     work_order_no,
     requisition_no,
     material_main_head,
     material_sub_head,
     material_details,
+    subcontractor_id,
+    subcontract_work_id,
     requisition_pdf_attachment_id,
     gst_bill_pdf_attachment_id,
     original_filename,
@@ -203,39 +205,37 @@ async function createRequisition(req, res) {
     if (estimateErr) throw estimateErr;
     const estimateAmount = estimate ? Number(estimate.estimate_amount) : null;
 
-    // 4. Validate material_main_head exists in Material Master
-    const { data: materialExists, error: materialErr } = await supabase
-      .from('material_master')
-      .select('Material_Main_Head')
-      .eq('Material_Main_Head', material_main_head.trim())
-      .limit(1)
-      .maybeSingle();
-
-    if (materialErr) throw materialErr;
-    if (!materialExists) {
-      await cleanupUploadedFiles();
-      return res.status(400).json({
-        success: false,
-        message: `material_main_head '${material_main_head}' does not exist in Material Master.`
-      });
-    }
-
+    // 4. Resolve the canonical master identity. Sub Contractor requisitions
+    // no longer use display strings as identity; the snapshots below are
+    // sourced from the selected canonical work master.
     if (material_main_head.trim() === 'Sub Contractor') {
-      const { data: scExists, error: scErr } = await supabase
+      const [{ data: subcontractor, error: subcontractorError }, { data: work, error: workError }] = await Promise.all([
+        supabase.from('subcontractor_master').select('id, is_active').eq('id', subcontractor_id).maybeSingle(),
+        supabase.from('subcontract_work_master').select('id, sub_head, material_details, is_active').eq('id', subcontract_work_id).maybeSingle()
+      ]);
+      if (subcontractorError) throw subcontractorError;
+      if (workError) throw workError;
+      if (!subcontractor || !subcontractor.is_active) {
+        await cleanupUploadedFiles();
+        return res.status(422).json({ success: false, message: 'Selected subcontractor does not exist or is inactive.' });
+      }
+      if (!work || !work.is_active) {
+        await cleanupUploadedFiles();
+        return res.status(422).json({ success: false, message: 'Selected subcontract work does not exist or is inactive.' });
+      }
+      material_sub_head = work.sub_head;
+      material_details = work.material_details;
+    } else {
+      const { data: materialExists, error: materialErr } = await supabase
         .from('material_master')
-        .select('id')
-        .eq('Material_Main_Head', 'Sub Contractor')
-        .eq('Material_Sub_Head', material_sub_head?.trim())
-        .eq('Material_Details', material_details?.trim())
+        .select('Material_Main_Head')
+        .eq('Material_Main_Head', material_main_head.trim())
         .limit(1)
         .maybeSingle();
-      if (scErr) throw scErr;
-      if (!scExists) {
+      if (materialErr) throw materialErr;
+      if (!materialExists) {
         await cleanupUploadedFiles();
-        return res.status(400).json({
-          success: false,
-          message: `Subcontractor '${material_details}' under '${material_sub_head}' does not exist in Material Master.`
-        });
+        return res.status(400).json({ success: false, message: `material_main_head '${material_main_head}' does not exist in Material Master.` });
       }
     }
 
@@ -266,7 +266,8 @@ async function createRequisition(req, res) {
     const resolvedBeneficiaryId = upsertedBeneficiaryId || beneficiary_id || null;
 
     // 5. Call the transactional RPC create_requisition_secure to insert atomically with lock and budget check
-    const { data: newReq, error: rpcError } = await supabase.rpc('create_requisition_secure', {
+    const rpcName = material_main_head.trim() === 'Sub Contractor' ? 'create_subcontract_requisition_secure' : 'create_requisition_secure';
+    const rpcPayload = {
       p_requester_user_id: req.user.mobile_number,
       p_work_order_no: work_order_no.trim(),
       p_estimate_no: project.estimate_no,
@@ -298,7 +299,12 @@ async function createRequisition(req, res) {
       p_zo_user_id: zo_user_id,
       p_requisition_pdf_attachment_id: requisition_pdf_attachment_id,
       p_gst_bill_pdf_attachment_id: gst_bill === 'Yes' ? gst_bill_pdf_attachment_id : null
-    });
+    };
+    if (rpcName === 'create_subcontract_requisition_secure') {
+      rpcPayload.p_subcontractor_id = subcontractor_id;
+      rpcPayload.p_subcontract_work_id = subcontract_work_id;
+    }
+    const { data: newReq, error: rpcError } = await supabase.rpc(rpcName, rpcPayload);
 
     if (rpcError) {
       if (rpcError.code === 'ATT01' || rpcError.message?.includes('attachment is invalid or no longer pending')) {
@@ -337,6 +343,9 @@ async function createRequisition(req, res) {
           success: false,
           message: 'material_sub_head and material_details are required for a Sub Contractor requisition.'
         });
+      }
+      if (['P4B70', 'P4B71', 'P4B72'].includes(rpcError.code)) {
+        return res.status(422).json({ success: false, code: rpcError.code, message: rpcError.message });
       }
       if (rpcError.code === 'EST02' || rpcError.code === 'EST01') {
         return res.status(422).json({

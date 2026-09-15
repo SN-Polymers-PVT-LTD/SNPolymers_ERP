@@ -22,12 +22,13 @@ import {
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
 import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
 import { getZonalBalances } from '../api/zoBalancesApi';
+import { getSubcontractors, getSubcontractWorks } from '../api/subcontractMastersApi';
 import { getFundRequests } from '../api/fundRequests';
 import { getReturnRequests } from '../api/fundReturnsApi';
 import { exportCombinedExpenditureSheet } from '../utils/exportHelpers';
 import ProjectBeneficiarySuggestions from '../components/requisitions/ProjectBeneficiarySuggestions';
 import ExportExpenditureModal from '../components/requisitions/ExportExpenditureModal';
-import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SkeletonTable, SkeletonCard, Pagination, AsyncMasterSelect } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 // Helper for currency formatting
@@ -782,6 +783,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [materialHead, setMaterialHead] = useState('');
   const [materialSubHead, setMaterialSubHead] = useState('');
   const [materialDetails, setMaterialDetails] = useState('');
+  const [subcontractorId, setSubcontractorId] = useState('');
+  const [subcontractWorkId, setSubcontractWorkId] = useState('');
   const [reqAmount, setReqAmount] = useState('');
   const [gstBill, setGstBill] = useState('No');
   const [bankDetails, setBankDetails] = useState('');
@@ -1272,8 +1275,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       return;
     }
     if (materialHead === 'Sub Contractor') {
-      if (!materialSubHead || !materialDetails) {
-        setError('Please select a Sub Head and Subcontractor.');
+      if (!subcontractorId || !subcontractWorkId) {
+        setError('Please select a canonical subcontractor and subcontract work item.');
         return;
       }
       if (subcontractorCapacityMetrics && Number(reqAmount) > subcontractorCapacityMetrics.availableBalance) {
@@ -1331,6 +1334,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         material_main_head: materialHead.trim(),
         material_sub_head: materialHead === 'Sub Contractor' ? materialSubHead.trim() : undefined,
         material_details: materialHead === 'Sub Contractor' ? materialDetails.trim() : undefined,
+        subcontractor_id: materialHead === 'Sub Contractor' ? subcontractorId : undefined,
+        subcontract_work_id: materialHead === 'Sub Contractor' ? subcontractWorkId : undefined,
         requisition_pdf_attachment_id: requisitionPdfAttachmentId,
         original_filename: requisitionPdf?.name || null,
         requisition_amount: Number(reqAmount),
@@ -1575,6 +1580,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
               setMaterialHead(e.target.value);
               setMaterialSubHead('');
               setMaterialDetails('');
+              setSubcontractorId('');
+              setSubcontractWorkId('');
             }}
             required
             disabled={submitting || isLifecycleBlocked}
@@ -1593,37 +1600,29 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
           {materialHead === 'Sub Contractor' && (
             <>
-              <Select
-                label="Sub Head (Work Package)"
-                value={materialSubHead}
-                onChange={(e) => { setMaterialSubHead(e.target.value); setMaterialDetails(''); }}
+              <AsyncMasterSelect
+                label="Subcontractor"
+                value={subcontractorId}
+                onChange={setSubcontractorId}
+                fetchOptions={getSubcontractors}
+                getOptionValue={item => item.id}
+                getOptionLabel={item => item.subcontractor_name}
+                placeholder="Search active subcontractors…"
                 required
                 disabled={submitting}
-              >
-                <option value="">-- Select Sub Head --</option>
-                {subHeadOptions.map((sh) => (
-                  <option key={sh} value={sh}>{sh}</option>
-                ))}
-              </Select>
-
-              <Select
-                label="Subcontractor"
-                value={materialDetails}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setMaterialDetails(val);
-                  if (val && !beneficiaryName) {
-                    setBeneficiaryName(val);
-                  }
-                }}
+              />
+              <AsyncMasterSelect
+                label="Subcontract Work"
+                value={subcontractWorkId}
+                onChange={value => setSubcontractWorkId(value)}
+                fetchOptions={getSubcontractWorks}
+                getOptionValue={item => item.id}
+                getOptionLabel={item => `${item.sub_head} · ${item.material_details} · ${item.unit}`}
+                onSelectItem={item => { setMaterialSubHead(item.sub_head); setMaterialDetails(item.material_details); }}
+                placeholder="Search active subcontract work…"
                 required
-                disabled={submitting || !materialSubHead}
-              >
-                <option value="">-- Select Subcontractor --</option>
-                {materialDetailsOptions.map((md) => (
-                  <option key={md} value={md}>{md}</option>
-                ))}
-              </Select>
+                disabled={submitting}
+              />
             </>
           )}
 

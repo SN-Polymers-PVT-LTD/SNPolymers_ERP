@@ -295,4 +295,56 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
       await contender.end();
     }
   });
+
+  test('consumption primitive counts active reservations and payments once', async () => {
+    await requireLocalSupabase();
+    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    await client.connect();
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const workOrderNo = `WO-SUB-CONS-${suffix}`;
+    let actor;
+    let workId;
+    let contractorId;
+    try {
+      actor = (await client.query("SELECT mobile_number FROM public.authorised_users WHERE role = 'admin' AND is_active = true LIMIT 1")).rows[0].mobile_number;
+      workId = (await client.query(
+        "INSERT INTO public.subcontract_work_master (sub_head, material_details, unit, created_by) VALUES ($1, $2, 'Mtr', $3) RETURNING id",
+        [`Consumption Head ${suffix}`, `Consumption Work ${suffix}`, actor]
+      )).rows[0].id;
+      contractorId = (await client.query(
+        "INSERT INTO public.subcontractor_master (subcontractor_name, created_by) VALUES ($1, $2) RETURNING id",
+        [`Consumption Contractor ${suffix}`, actor]
+      )).rows[0].id;
+      await client.query(
+        `INSERT INTO public.subcontractor_balances
+          (work_order_no, material_sub_head, material_details, estimated_total, available_balance,
+           subcontractor_id, subcontract_work_id)
+         VALUES ($1, $2, $3, 300, 300, $4, $5)`,
+        [workOrderNo, `Consumption Head ${suffix}`, `Consumption Work ${suffix}`, contractorId, workId]
+      );
+      const insertLedger = (transactionType, amount, settlementStatus, referenceId) => client.query(
+        `INSERT INTO public.subcontractor_ledger
+          (work_order_no, material_sub_head, material_details, transaction_type, reference_type,
+           reference_id, amount, created_by, settlement_status, subcontractor_id, subcontract_work_id)
+         VALUES ($1, $2, $3, $4, 'REQUISITION', $5, $6, $7, $8, $9, $10)`,
+        [workOrderNo, `Consumption Head ${suffix}`, `Consumption Work ${suffix}`, transactionType,
+          referenceId, amount, actor, settlementStatus, contractorId, workId]
+      );
+      await insertLedger('REQUISITION_APPROVAL', -100, 'RESERVED', crypto.randomUUID());
+      await insertLedger('REQUISITION_APPROVAL', -30, 'SETTLED', crypto.randomUUID());
+      await insertLedger('REQUISITION_PAYMENT', -40, 'SETTLED', crypto.randomUUID());
+
+      const { rows } = await client.query(
+        'SELECT public.get_subcontract_financial_consumption($1, $2::uuid, $3::uuid) AS consumed',
+        [workOrderNo, contractorId, workId]
+      );
+      expect(Number(rows[0].consumed)).toBe(140);
+    } finally {
+      await client.query('DELETE FROM public.subcontractor_ledger WHERE work_order_no = $1', [workOrderNo]);
+      await client.query('DELETE FROM public.subcontractor_balances WHERE work_order_no = $1', [workOrderNo]);
+      await client.query('DELETE FROM public.subcontractor_master WHERE id = $1', [contractorId]).catch(() => {});
+      await client.query('DELETE FROM public.subcontract_work_master WHERE id = $1', [workId]).catch(() => {});
+      await client.end();
+    }
+  });
 });
