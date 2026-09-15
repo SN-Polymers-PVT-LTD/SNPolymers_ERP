@@ -26,6 +26,9 @@ const FundRequests = React.lazy(() => import('./pages/FundRequests'));
 const MaterialMaster = React.lazy(() => import('./pages/MaterialMaster'));
 const SubcontractWorkMaster = React.lazy(() => import('./pages/SubcontractWorkMaster'));
 const SubcontractorMaster = React.lazy(() => import('./pages/SubcontractorMaster'));
+const SubcontractEstimates = React.lazy(() => import('./pages/SubcontractEstimates'));
+const SubcontractEstimateForm = React.lazy(() => import('./pages/SubcontractEstimateForm'));
+const SubcontractEstimateView = React.lazy(() => import('./pages/SubcontractEstimateView'));
 const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
@@ -124,6 +127,10 @@ function App() {
                 <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
                 <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
+                  <Route path="/subcontract-estimates" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimates /></React.Suspense>} />
+                  <Route path="/subcontract-estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                  <Route path="/subcontract-estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateView /></React.Suspense>} />
+                  <Route path="/subcontract-estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
                   <Route path="/subcontract-works" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractWorkMaster /></React.Suspense>} />
                   <Route path="/subcontractors" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractorMaster /></React.Suspense>} />
                 </Route>

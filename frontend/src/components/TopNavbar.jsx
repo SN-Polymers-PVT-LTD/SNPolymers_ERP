@@ -71,7 +71,7 @@ const TopNavbar = () => {
               </svg>
             ),
             to: '/estimates',
-            isActive: ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p))
+            isActive: ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p))
           }
         ]
       : []),

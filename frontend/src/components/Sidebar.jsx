@@ -16,6 +16,7 @@ export const MobileHeader = () => {
   if (user) {
     // Group 1: Project Operations
     const projItems = [];
+    projItems.push({ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> });
     projItems.push({
       to: '/estimates',
       label: 'Cost Estimates',
@@ -527,7 +528,7 @@ const Sidebar = () => {
   }, [isExpanded, isCollapsed]);
 
   // 1. Detect active module
-  const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
+  const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
   const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
@@ -539,6 +540,11 @@ const Sidebar = () => {
 
   if (isProjectModule) {
     navItems.push(
+      {
+        to: '/subcontract-estimates',
+        label: 'Subcontract Estimates',
+        icon: <span className="text-xs">SE</span>
+      },
       {
         to: '/estimates',
         label: 'Cost Estimates',
