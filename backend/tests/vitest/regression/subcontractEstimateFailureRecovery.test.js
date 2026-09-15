@@ -106,10 +106,26 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
       ({ rows } = await client.query('SELECT zo_office_approve FROM public.project_subcontract_estimate_lines WHERE subcontract_estimate_id = $1', [estimateId]));
       expect(rows[0].zo_office_approve).toBeNull();
 
-      await client.query("UPDATE public.project_subcontract_estimate_lines SET zo_office_approve = 'Approve' WHERE subcontract_estimate_id = $1", [estimateId]);
+      const lineId = (await client.query(
+        'SELECT line_id FROM public.project_subcontract_estimate_lines WHERE subcontract_estimate_id = $1',
+        [estimateId]
+      )).rows[0].line_id;
+      await client.query(
+        `SELECT public.review_subcontract_estimate_rows(
+           $1, $2, 'ZO', $3::jsonb,
+           (SELECT updated_at FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1)
+         )`,
+        [estimateId, actor, JSON.stringify([{ line_id: lineId, approve_status: 'Approve' }])]
+      );
       await transition(client, 'ZO_APPROVE', await currentTimestamp(client));
       await transition(client, 'OPEN_HO_REVIEW', await currentTimestamp(client));
-      await client.query("UPDATE public.project_subcontract_estimate_lines SET ho_office_approve = 'Approve' WHERE subcontract_estimate_id = $1", [estimateId]);
+      await client.query(
+        `SELECT public.review_subcontract_estimate_rows(
+           $1, $2, 'HO', $3::jsonb,
+           (SELECT updated_at FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1)
+         )`,
+        [estimateId, actor, JSON.stringify([{ line_id: lineId, approve_status: 'Approve' }])]
+      );
       await transition(client, 'HO_APPROVE', await currentTimestamp(client));
 
       // Two HO reopen requests also serialize on the estimate row.
@@ -239,6 +255,44 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
       await client.query('DELETE FROM public.authorised_users WHERE mobile_number IN ($1, $2)', [actor, zoActor]);
       await client.query("SET session_replication_role = 'origin'");
       await client.end();
+    }
+  });
+
+  test('uses one shared advisory lock for a subcontract financial scope', async () => {
+    await requireLocalSupabase();
+    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const contender = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    await client.connect();
+    await contender.connect();
+    const scope = ['WO-SUB-LOCK-TEST', crypto.randomUUID(), crypto.randomUUID()];
+
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        'SELECT public.lock_subcontract_financial_scope($1, $2::uuid, $3::uuid)',
+        scope
+      );
+
+      await contender.query('BEGIN');
+      await contender.query("SET LOCAL statement_timeout = '250ms'");
+      await expect(contender.query(
+        'SELECT public.lock_subcontract_financial_scope($1, $2::uuid, $3::uuid)',
+        scope
+      )).rejects.toMatchObject({ code: '57014' });
+      await contender.query('ROLLBACK');
+
+      await client.query('COMMIT');
+      await contender.query('BEGIN');
+      await contender.query(
+        'SELECT public.lock_subcontract_financial_scope($1, $2::uuid, $3::uuid)',
+        scope
+      );
+      await contender.query('COMMIT');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      await contender.query('ROLLBACK').catch(() => {});
+      await client.end();
+      await contender.end();
     }
   });
 });
