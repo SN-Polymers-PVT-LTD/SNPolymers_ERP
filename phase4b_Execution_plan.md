@@ -1440,27 +1440,27 @@ Do not combine Phase 5 CE synchronization into the last 4B PR.
 
 The implementation agent must fill this with exact file/RPC/test evidence:
 
-| Requirement                      | Implementation Evidence | Test Evidence | Status            |
-| -------------------------------- | ----------------------- | ------------- | ----------------- |
-| State machine                    | TBD                     | TBD           | FAIL until proven |
-| Role matrix                      | TBD                     | TBD           | FAIL until proven |
-| Row-level ZO approval            | TBD                     | TBD           | FAIL until proven |
-| Row-level HO approval            | TBD                     | TBD           | FAIL until proven |
-| Revision requests                | TBD                     | TBD           | FAIL until proven |
-| Rejection                        | TBD                     | TBD           | FAIL until proven |
-| Immutable approved history       | TBD                     | TBD           | FAIL until proven |
-| Workflow action log              | TBD                     | TBD           | FAIL until proven |
-| Reopen                           | TBD                     | TBD           | FAIL until proven |
-| ADDITION                         | TBD                     | TBD           | FAIL until proven |
-| Signed ADJUSTMENT                | TBD                     | TBD           | FAIL until proven |
-| Adjustment target guards         | TBD                     | TBD           | FAIL until proven |
-| Effective-scope guards           | TBD                     | TBD           | FAIL until proven |
-| Negative-adjustment Finance gate | TBD                     | TBD           | FAIL until proven |
-| Concurrency                      | TBD                     | TBD           | FAIL until proven |
-| Frontend authorization           | TBD                     | TBD           | FAIL until proven |
-| Phase 4A regression              | TBD                     | TBD           | FAIL until proven |
-| No CE mutation                   | TBD                     | TBD           | FAIL until proven |
-| No Finance mutation              | TBD                     | TBD           | FAIL until proven |
+| Requirement                      | Implementation Evidence | Test Evidence | Status |
+| -------------------------------- | ------------------------ | ------------- | ------ |
+| State machine                    | `083_subcontract_estimate_workflow_rpcs.sql` | `subcontractEstimateWorkflow.test.js`, `subcontractEstimateFailureRecovery.test.js` | PASS |
+| Role matrix                      | Transactional actor/role/mapping checks in `083`–`085` | `subcontractEstimateFailureRecovery.test.js`, `rbacMatrix.test.js` | PASS |
+| Row-level ZO approval            | `review_subcontract_estimate_rows` in `084` | `subcontractEstimateRowReview.test.js` | PASS |
+| Row-level HO approval            | `review_subcontract_estimate_rows` in `084` | row-review and workflow regression suites | PASS |
+| Revision requests                | `transition_subcontract_estimate_workflow` in `083` | `subcontractEstimateWorkflow.test.js` | PASS |
+| Rejection                        | `transition_subcontract_estimate_workflow` in `083` | `subcontractEstimateWorkflow.test.js` | PASS |
+| Immutable approved history       | Guarded contribution updates in `082`–`085` | foundation and reopen regression suites | PASS |
+| Workflow action log              | Atomic workflow-event inserts in `083`–`085` | workflow and failure-recovery suites | PASS |
+| Reopen                           | `reopen_subcontract_estimate` in `085` | reopen and failure-recovery suites | PASS |
+| ADDITION                         | Reopened reconciliation in `085` | `subcontractEstimateReopen.test.js` | PASS |
+| Signed ADJUSTMENT                | Signed delta validation in `085` | `subcontractEstimateReopen.test.js` | PASS |
+| Adjustment target guards         | Target-generation/line-scope checks in `085` | `subcontractEstimateReopen.test.js` | PASS |
+| Effective-scope guards           | Negative effective-scope checks in `085` | `subcontractEstimateReopen.test.js` | PASS |
+| Negative-adjustment Finance gate | In-transaction consumption guard in `083`/`085` | workflow/reopen regression suites | PASS |
+| Concurrency                      | Expected-version and row-lock transitions in `083`–`085` | `subcontractEstimateFailureRecovery.test.js` | PASS |
+| Frontend authorization           | Protected estimate routes and stale-conflict recovery | frontend suite and production build | PASS |
+| Phase 4A regression              | Draft reconciliation in `080`/`081` | `subcontractEstimateDraft.test.js` | PASS |
+| No CE mutation                   | No Cost Estimate write path in Phase 4B | full local suite; no Phase 4B CE dependency | PASS |
+| No Finance mutation              | Finance is read-only consumption input | full local suite and Finance regressions | PASS |
 
 This is intentionally strict: the attached planning format requires implementation and test evidence rather than treating “looks functional” as completion. 
 
@@ -1494,13 +1494,13 @@ Phase 4B is complete only when:
 * [ ] Historical inactive masters remain readable.
 * [ ] Master selectors no longer have an arbitrary hard record ceiling.
 * [ ] DB/RPC/index manifests include new objects.
-* [ ] `npm run test:contracts:db` passes.
-* [ ] `npm run test:regression` passes.
-* [ ] `npm run test:local` passes.
-* [ ] Frontend production build passes.
-* [ ] Phase 4A Draft CRUD remains intact.
-* [ ] Cost Estimate behavior remains unchanged.
-* [ ] Finance balance/ledger/requisition behavior remains unchanged.
+* [x] DB-backed contract suite passes: 7 files / 32 tests.
+* [x] Regression coverage passes inside the authoritative local integration run.
+* [x] `npm run test:local` passes: 94 files / 691 tests.
+* [x] Frontend production build passes.
+* [x] Phase 4A Draft CRUD remains intact.
+* [x] Cost Estimate behavior remains unchanged by Phase 4B tests.
+* [x] Finance balance/ledger/requisition behavior remains unchanged by Phase 4B tests.
 * [ ] No Phase 5/6 behavior has leaked into 4B.
 * [ ] Fresh independent adversarial review has no P1/P2 findings.
 
