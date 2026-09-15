@@ -38,8 +38,8 @@ const SubcontractEstimateForm = () => {
     event.preventDefault();
     setError('');
     setSaving(true);
+    let current = estimate;
     try {
-      let current = estimate;
       if (!current) {
         const created = await createSubcontractEstimate({ work_order_no: workOrderNo });
         current = created.data.estimate;
@@ -52,7 +52,17 @@ const SubcontractEstimateForm = () => {
       setEstimate(response.data.estimate);
       setLines(response.data.estimate.project_subcontract_estimate_lines || []);
     } catch (e) {
-      setError(e.response?.data?.message || 'Failed to save estimate lines.');
+      if (e.response?.status === 409 && current?.subcontract_estimate_id) {
+        try {
+          const latest = await getSubcontractEstimate(current.subcontract_estimate_id);
+          setEstimate(latest.data.estimate);
+          setError('This estimate changed in another session. The latest server version is loaded; review your unsaved lines before retrying.');
+        } catch (reloadError) {
+          setError(reloadError.response?.data?.message || 'The estimate changed and could not be reloaded. Refresh before retrying.');
+        }
+      } else {
+        setError(e.response?.data?.message || 'Failed to save estimate lines.');
+      }
     } finally {
       setSaving(false);
     }

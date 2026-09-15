@@ -49,7 +49,12 @@ const SubcontractEstimateView = () => {
       setEstimate(response.data.estimate);
       setRemarkDialog({ action: null, value: '' });
       await load();
-    } catch (e) { setError(e.response?.data?.message || 'Workflow action failed.'); }
+    } catch (e) {
+      if (e.response?.status === 409) {
+        await load();
+        setError('This estimate changed in another session. The latest server version is loaded. Review it before retrying.');
+      } else setError(e.response?.data?.message || 'Workflow action failed.');
+    }
     finally { setSaving(false); }
   };
 
@@ -67,7 +72,12 @@ const SubcontractEstimateView = () => {
     try {
       const response = await reviewSubcontractEstimateRows(id, { stage, approvals, expected_updated_at: estimate.updated_at });
       setEstimate(response.data.estimate); await load();
-    } catch (e) { setError(e.response?.data?.message || 'Failed to save row decisions.'); }
+    } catch (e) {
+      if (e.response?.status === 409) {
+        await load();
+        setError('These decisions were based on an older estimate version. The latest server version is loaded.');
+      } else setError(e.response?.data?.message || 'Failed to save row decisions.');
+    }
     finally { setSaving(false); }
   };
 
