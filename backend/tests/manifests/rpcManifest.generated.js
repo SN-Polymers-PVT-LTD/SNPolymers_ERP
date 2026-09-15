@@ -302,8 +302,75 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "reconcile_subcontract_estimate_lines": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        },
+        {
+          "name": "p_lines",
+          "type": "jsonb"
+        }
+      ],
+      "returns": "void"
+    },
     "refresh_analytics_views": {
       "args": [],
+      "returns": "void"
+    },
+    "reopen_subcontract_estimate": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        }
+      ],
+      "returns": "void"
+    },
+    "review_subcontract_estimate_rows": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_stage",
+          "type": "character varying"
+        },
+        {
+          "name": "p_approvals",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        }
+      ],
       "returns": "void"
     },
     "save_subcontract_estimate_draft_lines": {
@@ -339,6 +406,52 @@ module.exports = {
         }
       ],
       "returns": "fund_requests"
+    },
+    "submit_reopened_subcontract_estimate": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        }
+      ],
+      "returns": "void"
+    },
+    "transition_subcontract_estimate_workflow": {
+      "args": [
+        {
+          "name": "p_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        },
+        {
+          "name": "p_action",
+          "type": "character varying"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_expected_updated_at",
+          "type": "timestamp with time zone"
+        },
+        {
+          "name": "p_deadline_hours",
+          "type": "integer DEFAULT 24"
+        }
+      ],
+      "returns": "void"
     }
   }
 };

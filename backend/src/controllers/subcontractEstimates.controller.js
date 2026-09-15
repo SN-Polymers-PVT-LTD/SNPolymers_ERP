@@ -138,6 +138,42 @@ async function saveDraftLines(req, res) {
 async function transitionWorkflow(req, res) {
   try {
     const { action, remarks, expected_updated_at, deadline_hours } = req.body;
+    if (action === 'REOPEN' || action === 'SUBMIT_REOPENED') {
+      const rpcName = action === 'REOPEN' ? 'reopen_subcontract_estimate' : 'submit_reopened_subcontract_estimate';
+      const rpcParams = action === 'REOPEN' ? {
+        p_estimate_id: req.params.id,
+        p_actor: req.user.mobile_number,
+        p_remarks: remarks || null,
+        p_expected_updated_at: expected_updated_at
+      } : {
+        p_estimate_id: req.params.id,
+        p_actor: req.user.mobile_number,
+        p_expected_updated_at: expected_updated_at
+      };
+      const { error } = await supabase.rpc(rpcName, rpcParams);
+      if (action === 'SUBMIT_REOPENED') {
+        if (error) {
+          const code = error.code || '';
+          if (code === 'P4B54') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
+          if (['P4B52', 'P4B55', 'P4B56'].includes(code)) return res.status(403).json({ success: false, message: error.message });
+          if (['P4B53', 'P4B57'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+          throw error;
+        }
+        const { data: submitted, error: submittedReadError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
+        if (submittedReadError) throw submittedReadError;
+        return res.json({ success: true, estimate: submitted, message: 'Estimate revision submitted successfully.' });
+      }
+      if (error) {
+        const code = error.code || '';
+        if (code === 'P4B33') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
+        if (['P4B30', 'P4B32', 'P4B34'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+        if (code === 'P4B31') return res.status(403).json({ success: false, message: error.message });
+        throw error;
+      }
+      const { data: reopened, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
+      if (readError) throw readError;
+      return res.json({ success: true, estimate: reopened, message: 'Estimate reopened successfully.' });
+    }
     const { error } = await supabase.rpc('transition_subcontract_estimate_workflow', {
       p_estimate_id: req.params.id,
       p_actor: req.user.mobile_number,
@@ -162,4 +198,54 @@ async function transitionWorkflow(req, res) {
   }
 }
 
-module.exports = { getSubcontractEstimates, getSubcontractEstimateSummary, getInit, createSubcontractEstimate, getSubcontractEstimate, saveDraftLines, transitionWorkflow, readerRoles };
+async function reconcileLines(req, res) {
+  try {
+    const { error } = await supabase.rpc('reconcile_subcontract_estimate_lines', {
+      p_estimate_id: req.params.id,
+      p_actor: req.user.mobile_number,
+      p_expected_updated_at: req.body.expected_updated_at,
+      p_lines: req.body.lines
+    });
+    if (error) {
+      const code = error.code || '';
+      if (code === 'P4B43') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
+      if (['P4B41', 'P4B44', 'P4B45'].includes(code)) return res.status(403).json({ success: false, message: error.message });
+      if (['P4B40', 'P4B42', 'P4B46', 'P4B47', 'P4B48', 'P4B49', 'P4B50', 'P4B51'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+      throw error;
+    }
+    const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
+    if (readError) throw readError;
+    return res.json({ success: true, estimate, message: 'Estimate revision lines saved successfully.' });
+  } catch (error) {
+    console.error(`reconcileSubcontractEstimateLines failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save subcontract estimate revision lines.' });
+  }
+}
+
+async function reviewRows(req, res) {
+  try {
+    const { stage, approvals, expected_updated_at } = req.body;
+    const { error } = await supabase.rpc('review_subcontract_estimate_rows', {
+      p_estimate_id: req.params.id,
+      p_actor: req.user.mobile_number,
+      p_stage: stage,
+      p_approvals: approvals,
+      p_expected_updated_at: expected_updated_at
+    });
+    if (error) {
+      const code = error.code || '';
+      if (code === 'P4B23') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
+      if (['P4B21', 'P4B24', 'P4B25'].includes(code)) return res.status(403).json({ success: false, message: error.message });
+      if (['P4B20', 'P4B22', 'P4B26', 'P4B27', 'P4B28'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+      throw error;
+    }
+    const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
+    if (readError) throw readError;
+    return res.json({ success: true, estimate, message: 'Row decisions saved successfully.' });
+  } catch (error) {
+    console.error(`reviewSubcontractEstimateRows failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to save subcontract estimate row decisions.' });
+  }
+}
+
+module.exports = { getSubcontractEstimates, getSubcontractEstimateSummary, getInit, createSubcontractEstimate, getSubcontractEstimate, saveDraftLines, reconcileLines, transitionWorkflow, reviewRows, readerRoles };
