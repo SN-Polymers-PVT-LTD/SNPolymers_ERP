@@ -13,4 +13,5 @@ router.get('/', requireRole(controller.readerRoles), validateRequest(schemas.lis
 router.post('/', requireRole(['je', 'admin']), validateRequest(schemas.createSchema), controller.createSubcontractEstimate);
 router.get('/:id', requireRole(controller.readerRoles), validateRequest(schemas.idSchema), controller.getSubcontractEstimate);
 router.put('/:id/lines', requireRole(['je', 'admin']), validateRequest(schemas.saveLinesSchema), controller.saveDraftLines);
+router.post('/:id/workflow', requireRole(controller.readerRoles), validateRequest(schemas.workflowSchema), controller.transitionWorkflow);
 module.exports = router;

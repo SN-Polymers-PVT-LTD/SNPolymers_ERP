@@ -29,5 +29,18 @@ module.exports = {
       expected_updated_at: z.string().datetime({ offset: true }),
       lines: z.array(lineSchema).max(1000)
     })
+  },
+  workflowSchema: {
+    params: z.object({ id: uuid }),
+    body: z.object({
+      action: z.enum([
+        'SUBMIT', 'RESUBMIT', 'OPEN_ZO_REVIEW', 'ZO_APPROVE',
+        'ZO_REQUEST_REVISION', 'ZO_REJECT', 'OPEN_HO_REVIEW',
+        'HO_APPROVE', 'HO_REQUEST_REVISION', 'HO_REJECT'
+      ]),
+      remarks: z.string().trim().max(2000).nullable().optional(),
+      expected_updated_at: z.string().datetime({ offset: true }),
+      deadline_hours: z.coerce.number().int().min(1).max(168).optional()
+    })
   }
 };
