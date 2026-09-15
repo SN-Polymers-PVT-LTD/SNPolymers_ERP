@@ -26,7 +26,7 @@ async function canAccessEstimate(estimate, user, write = false) {
   return allowed === null || allowed.includes(estimate.work_order_no);
 }
 
-const detailSelect = `*, project_subcontract_estimate_lines:project_subcontract_estimate_lines(*, subcontractor:subcontractor_master(id, subcontractor_name, mobile, email, is_active), subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active))`;
+const detailSelect = `*, project_subcontract_estimate_lines:project_subcontract_estimate_lines(*, subcontractor:subcontractor_master(id, subcontractor_name, mobile, email, is_active), subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)), project_subcontract_estimate_workflow_log(*)`;
 
 async function getSubcontractEstimates(req, res) {
   try {
