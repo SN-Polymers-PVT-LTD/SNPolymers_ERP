@@ -5,10 +5,10 @@ const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 const schemas = require('../../../src/validation/subcontractMasters.schema');
 const requireRole = require('../../../src/middleware/requireRole');
 const mockRes = require('../../helpers/mockRes');
-const { getSubcontractors } = require('../../../src/controllers/subcontractors.controller');
+const { getSubcontractors, createSubcontractor, updateSubcontractor, updateSubcontractorStatus } = require('../../../src/controllers/subcontractors.controller');
 
 describe('Subcontract master contracts', () => {
-  let suffix; let actor; let work; let duplicateContractor; let contractor; let estimate; let beneficiary; let workOrder;
+  let suffix; let actor; let work; let duplicateContractor; let contractor; let apiContractor; let estimate; let beneficiary; let workOrder;
 
   beforeAll(async () => {
     await requireLocalSupabase();
@@ -34,6 +34,7 @@ describe('Subcontract master contracts', () => {
     if (estimate?.subcontract_estimate_id) await supabase.from('project_subcontract_estimate_lines').delete().eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     if (estimate?.subcontract_estimate_id) await supabase.from('project_subcontract_estimates').delete().eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     if (contractor?.id) await supabase.from('subcontractor_master').delete().eq('id', contractor.id);
+    if (apiContractor?.id) await supabase.from('subcontractor_master').delete().eq('id', apiContractor.id);
     if (beneficiary?.id && contractor?.id) await supabase.from('subcontractor_master').update({ primary_beneficiary_id: null }).eq('id', contractor.id);
     if (duplicateContractor?.id) await supabase.from('subcontractor_master').delete().eq('id', duplicateContractor.id);
     if (work?.id) await supabase.from('subcontract_work_master').delete().eq('id', work.id);
@@ -83,6 +84,46 @@ describe('Subcontract master contracts', () => {
     expect(res.statusCode).toBe(200);
     expect(res.jsonData.success).toBe(true);
     expect(Array.isArray(res.jsonData.subcontractors)).toBe(true);
+  });
+
+  test('controller create/update/status contracts preserve and explicitly clear beneficiary links', async () => {
+    const createRes = mockRes();
+    await createSubcontractor({ user: { mobile_number: actor }, body: { subcontractor_name: `API Contractor ${suffix}` } }, createRes);
+    expect(createRes.statusCode).toBe(201);
+    apiContractor = createRes.jsonData.subcontractor;
+    expect(apiContractor.primary_beneficiary_id).toBeNull();
+
+    const invalidRes = mockRes();
+    await createSubcontractor({ user: { mobile_number: actor }, body: { subcontractor_name: `Invalid ${suffix}`, primary_beneficiary_id: crypto.randomUUID() } }, invalidRes);
+    expect(invalidRes.statusCode).toBe(422);
+
+    if (beneficiary?.id) {
+      const linkedRes = mockRes();
+      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { primary_beneficiary_id: beneficiary.id } }, linkedRes);
+      expect(linkedRes.statusCode).toBe(200);
+      expect(linkedRes.jsonData.subcontractor.primary_beneficiary_id).toBe(beneficiary.id);
+
+      const preserveRes = mockRes();
+      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { contact_person: 'Preserved beneficiary' } }, preserveRes);
+      expect(preserveRes.statusCode).toBe(200);
+      expect(preserveRes.jsonData.subcontractor.primary_beneficiary_id).toBe(beneficiary.id);
+
+      const clearRes = mockRes();
+      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { primary_beneficiary_id: null } }, clearRes);
+      expect(clearRes.statusCode).toBe(200);
+      expect(clearRes.jsonData.subcontractor.primary_beneficiary_id).toBeNull();
+    }
+
+    const statusRes = mockRes();
+    await updateSubcontractorStatus({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { is_active: false } }, statusRes);
+    expect(statusRes.statusCode).toBe(200);
+    expect(statusRes.jsonData.subcontractor.is_active).toBe(false);
+  });
+
+  test('non-admin update is rejected by the route role contract', () => {
+    let statusCode;
+    requireRole(['admin'])({ user: { role: 'je' } }, { status: code => ({ json: () => { statusCode = code; } }) }, () => {});
+    expect(statusCode).toBe(403);
   });
 
   test('referenced work identity cannot be changed at the database boundary', async () => {
