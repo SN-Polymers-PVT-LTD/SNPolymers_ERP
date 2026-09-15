@@ -794,7 +794,14 @@ async function notifyJeRevisionRequested(estimate, revisionLog) {
       `Please review the remarks and resubmit the revised estimate on the IDBP dashboard.`;
 
     const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     const data = await response.json();
     if (!data.ok) {
       console.warn(`[TELEGRAM ALERTS] Failed to send message to JE ${jeUser.display_name} (${jeUser.telegram_chat_id.trim()}): ${data.description}`);
