@@ -128,9 +128,11 @@ function App() {
                 <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
                   <Route path="/subcontract-estimates" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimates /></React.Suspense>} />
-                  <Route path="/subcontract-estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
                   <Route path="/subcontract-estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateView /></React.Suspense>} />
-                  <Route path="/subcontract-estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                  <Route element={<ProtectedRoute allowedRoles={['je', 'admin']} />}>
+                    <Route path="/subcontract-estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                    <Route path="/subcontract-estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                  </Route>
                   <Route path="/subcontract-works" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractWorkMaster /></React.Suspense>} />
                   <Route path="/subcontractors" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractorMaster /></React.Suspense>} />
                 </Route>

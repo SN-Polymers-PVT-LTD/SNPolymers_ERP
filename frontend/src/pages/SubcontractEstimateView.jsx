@@ -1,6 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button } from '../components/ui';
-import SubcontractEstimateForm from './SubcontractEstimateForm';
-const SubcontractEstimateView = () => { const { id } = useParams(); const navigate = useNavigate(); return <div><div className="mb-4 flex justify-end"><Button variant="secondary" onClick={() => navigate(`/subcontract-estimates/${id}/edit`)}>Open Draft Editor</Button></div><SubcontractEstimateForm /></div>; };
+import { Button, Table, TableHeader, TableBody, TableRow, TableCell, Badge } from '../components/ui';
+import { getSubcontractEstimate } from '../api/subcontractEstimatesApi';
+import { useAuth } from '../components/AuthContext';
+
+const money = (value) => `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const SubcontractEstimateView = () => {
+  const { id } = useParams(); const navigate = useNavigate(); const { user } = useAuth(); const [estimate, setEstimate] = useState(null); const [error, setError] = useState('');
+  useEffect(() => { getSubcontractEstimate(id).then(r => setEstimate(r.data.estimate)).catch(e => setError(e.response?.data?.message || 'Failed to load estimate.')); }, [id]);
+  const canEdit = ['je', 'admin'].includes(user?.role) && estimate?.estimate_status === 'Draft';
+  if (error) return <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</div>;
+  if (!estimate) return <div className="text-sm text-slate-400">Loading estimate…</div>;
+  const lines = estimate.project_subcontract_estimate_lines || [];
+  return <div className="space-y-6"><div className="flex items-center justify-between border-b border-white/5 pb-5"><div><span className="text-[10px] uppercase tracking-widest text-amber-500">Projects Module</span><h1 className="text-3xl font-extrabold text-slate-100">Subcontract Estimate</h1></div>{canEdit && <Button onClick={() => navigate(`/subcontract-estimates/${id}/edit`)}>Edit Draft</Button>}</div><div className="grid grid-cols-2 gap-4 rounded-xl bg-white/[0.03] p-5 md:grid-cols-4"><div><span className="text-xs text-slate-500">Work Order</span><div className="font-mono text-white">{estimate.work_order_no}</div></div><div><span className="text-xs text-slate-500">Status</span><div><Badge variant="slate">{estimate.estimate_status}</Badge></div></div><div><span className="text-xs text-slate-500">Revision</span><div className="text-white">{estimate.estimate_revision}</div></div><div><span className="text-xs text-slate-500">Server Total</span><div className="font-bold text-amber-300">{money(estimate.estimate_amount)}</div></div></div><Table containerClassName="min-w-[1050px]"><TableHeader><TableRow hover={false}><TableCell isHeader>Subcontractor</TableCell><TableCell isHeader>Work</TableCell><TableCell isHeader>Sub Head</TableCell><TableCell isHeader>Unit</TableCell><TableCell isHeader>Qty</TableCell><TableCell isHeader>Rate</TableCell><TableCell isHeader>Amount</TableCell><TableCell isHeader>Rate Reference</TableCell><TableCell isHeader>Remarks</TableCell></TableRow></TableHeader><TableBody>{lines.map(line => <TableRow key={line.line_id}><TableCell>{line.subcontractor?.subcontractor_name || 'Historical subcontractor'}</TableCell><TableCell>{line.subcontract_work?.material_details || 'Historical work'}</TableCell><TableCell>{line.subcontract_work?.sub_head || '—'}</TableCell><TableCell>{line.subcontract_work?.unit || '—'}</TableCell><TableCell>{line.qty}</TableCell><TableCell>{money(line.rate)}</TableCell><TableCell>{money(line.amount)}</TableCell><TableCell>{line.rate_reference || '—'}</TableCell><TableCell>{line.remarks || '—'}</TableCell></TableRow>)}{!lines.length && <TableRow><TableCell colSpan={9}>No Draft lines.</TableCell></TableRow>}</TableBody></Table></div>;
+};
 export default SubcontractEstimateView;

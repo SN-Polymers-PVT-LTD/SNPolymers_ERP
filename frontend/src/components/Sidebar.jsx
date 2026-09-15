@@ -16,7 +16,7 @@ export const MobileHeader = () => {
   if (user) {
     // Group 1: Project Operations
     const projItems = [];
-    projItems.push({ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> });
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) projItems.push({ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> });
     projItems.push({
       to: '/estimates',
       label: 'Cost Estimates',
@@ -540,11 +540,7 @@ const Sidebar = () => {
 
   if (isProjectModule) {
     navItems.push(
-      {
-        to: '/subcontract-estimates',
-        label: 'Subcontract Estimates',
-        icon: <span className="text-xs">SE</span>
-      },
+      ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [{ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> }] : []),
       {
         to: '/estimates',
         label: 'Cost Estimates',
