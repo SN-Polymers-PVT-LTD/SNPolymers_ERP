@@ -4,9 +4,11 @@ const { supabase } = require('../../../src/db/supabase');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 const schemas = require('../../../src/validation/subcontractMasters.schema');
 const requireRole = require('../../../src/middleware/requireRole');
+const mockRes = require('../../helpers/mockRes');
+const { getSubcontractors } = require('../../../src/controllers/subcontractors.controller');
 
 describe('Subcontract master contracts', () => {
-  let suffix; let actor; let work; let duplicateWork; let contractor; let estimate; let beneficiary; let workOrder;
+  let suffix; let actor; let work; let duplicateContractor; let contractor; let estimate; let beneficiary; let workOrder;
 
   beforeAll(async () => {
     await requireLocalSupabase();
@@ -33,7 +35,7 @@ describe('Subcontract master contracts', () => {
     if (estimate?.subcontract_estimate_id) await supabase.from('project_subcontract_estimates').delete().eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     if (contractor?.id) await supabase.from('subcontractor_master').delete().eq('id', contractor.id);
     if (beneficiary?.id && contractor?.id) await supabase.from('subcontractor_master').update({ primary_beneficiary_id: null }).eq('id', contractor.id);
-    if (duplicateWork?.id) await supabase.from('subcontract_work_master').delete().eq('id', duplicateWork.id);
+    if (duplicateContractor?.id) await supabase.from('subcontractor_master').delete().eq('id', duplicateContractor.id);
     if (work?.id) await supabase.from('subcontract_work_master').delete().eq('id', work.id);
     if (workOrder) await supabase.from('projects_master').delete().eq('work_order_no', workOrder);
   });
@@ -62,16 +64,25 @@ describe('Subcontract master contracts', () => {
     expect(workDuplicate.error?.code).toBe('23505');
     const { data, error } = await supabase.from('subcontractor_master').insert({ subcontractor_name: `Contractor ${suffix}`, created_by: actor }).select().single();
     if (error) throw error;
-    duplicateWork = data;
+    duplicateContractor = data;
   });
 
   test('inactive rows are hidden from active queries and can be explicitly selected', async () => {
-    const { error } = await supabase.from('subcontractor_master').update({ is_active: false }).eq('id', duplicateWork.id);
+    const { error } = await supabase.from('subcontractor_master').update({ is_active: false }).eq('id', duplicateContractor.id);
     if (error) throw error;
-    const active = await supabase.from('subcontractor_master').select('id').eq('id', duplicateWork.id).eq('is_active', true);
+    const active = await supabase.from('subcontractor_master').select('id').eq('id', duplicateContractor.id).eq('is_active', true);
     expect(active.data).toHaveLength(0);
-    const all = await supabase.from('subcontractor_master').select('id').eq('id', duplicateWork.id).eq('is_active', false);
+    const all = await supabase.from('subcontractor_master').select('id').eq('id', duplicateContractor.id).eq('is_active', false);
     expect(all.data).toHaveLength(1);
+  });
+
+  test('controller list returns subcontractors with the real beneficiary projection', async () => {
+    const req = { user: { role: 'admin' }, query: { search: `Contractor, ${suffix}`, page: 1, limit: 10 } };
+    const res = mockRes();
+    await getSubcontractors(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.jsonData.success).toBe(true);
+    expect(Array.isArray(res.jsonData.subcontractors)).toBe(true);
   });
 
   test('referenced work identity cannot be changed at the database boundary', async () => {

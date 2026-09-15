@@ -3,9 +3,9 @@ const { supabase } = require('../db/supabase');
 const SORT_FIELDS = new Set(['subcontractor_name', 'contact_person', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-const beneficiaryFields = 'id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_id, beneficiary_bank_name, is_active';
+const beneficiaryFields = 'id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_id, beneficiary_bank_name';
 const selectWithBeneficiary = `*, primary_beneficiary:projects_beneficiary_master(${beneficiaryFields})`;
-const escapeFilterValue = (value) => String(value).replace(/\\/g, '\\\\').replace(/([,()])/g, '\\$1');
+const quoteFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
 async function getSubcontractors(req, res) {
   try {
@@ -17,7 +17,7 @@ async function getSubcontractors(req, res) {
     if (beneficiary_status === 'linked') query = query.not('primary_beneficiary_id', 'is', null);
     if (beneficiary_status === 'unlinked') query = query.is('primary_beneficiary_id', null);
     if (search) {
-      const p = `%${escapeFilterValue(search)}%`;
+      const p = quoteFilterValue(`%${search}%`);
       query = query.or(`subcontractor_name.ilike.${p},contact_person.ilike.${p},mobile.ilike.${p},email.ilike.${p},pan_no.ilike.${p},gst_no.ilike.${p}`);
     }
     query = query.order(SORT_FIELDS.has(sortBy) ? sortBy : 'subcontractor_name', { ascending: sortOrder !== 'desc' }).range(offset, offset + limit - 1);

@@ -3,7 +3,7 @@ const { supabase } = require('../db/supabase');
 const SORT_FIELDS = new Set(['sub_head', 'material_details', 'unit', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-const escapeFilterValue = (value) => String(value).replace(/\\/g, '\\\\').replace(/([,()])/g, '\\$1');
+const quoteFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 
 async function getSubcontractWorks(req, res) {
   try {
@@ -15,7 +15,7 @@ async function getSubcontractWorks(req, res) {
     if (sub_head) query = query.eq('sub_head', sub_head);
     if (unit) query = query.eq('unit', unit);
     if (search) {
-      const p = `%${escapeFilterValue(search)}%`;
+      const p = quoteFilterValue(`%${search}%`);
       query = query.or(`sub_head.ilike.${p},material_details.ilike.${p},unit.ilike.${p}`);
     }
     query = query.order(SORT_FIELDS.has(sortBy) ? sortBy : 'material_details', { ascending: sortOrder !== 'desc' }).range(offset, offset + limit - 1);
