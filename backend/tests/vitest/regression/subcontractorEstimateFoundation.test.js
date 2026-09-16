@@ -155,7 +155,7 @@ describe('Subcontractor Estimate database foundation', () => {
     expect(unchanged).toMatchObject({ qty: 400, rate: 100, amount: 40000, entry_kind: 'BASE' });
   });
 
-  test('requires adjustment references and blocks duplicate generated work rows', async () => {
+  test('requires adjustment references and protects generated work rows', async () => {
     const badAdjustment = await supabase.from('project_subcontract_estimate_lines').insert({
       subcontract_estimate_id: estimate.subcontract_estimate_id,
       subcontractor_id: subcontractor.id,
@@ -176,18 +176,7 @@ describe('Subcontractor Estimate database foundation', () => {
       unit: 'Mtr', qty: 500, rate: 111.5, amount: 55750,
       source_type: 'SUBCONTRACT_ESTIMATE', subcontract_work_id: work.id
     }).select().single();
-    if (firstItem.error) throw firstItem.error;
-    costItem = firstItem.data;
-
-    const duplicateItem = await supabase.from('project_cost_estimate_items').insert({
-      estimate_id: costEstimate.estimate_id,
-      material_main_head: 'Sub Contractor',
-      material_sub_head: `Foundation ${suffix}`,
-      material_details: `Pipe ${suffix}`,
-      unit: 'Mtr', qty: 1, rate: 1, amount: 1,
-      source_type: 'SUBCONTRACT_ESTIMATE', subcontract_work_id: work.id
-    });
-    expect(duplicateItem.error).toBeTruthy();
+    expect(firstItem.error?.code).toBe('P5E07');
   });
 
   test('rejects malformed adjustments and source identity mismatches', async () => {

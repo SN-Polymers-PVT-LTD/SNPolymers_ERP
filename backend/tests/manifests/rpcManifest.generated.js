@@ -557,6 +557,19 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "sync_subcontract_contributions_to_cost_estimate": {
+      "args": [
+        {
+          "name": "p_cost_estimate_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor",
+          "type": "character varying"
+        }
+      ],
+      "returns": "void"
+    },
     "transition_subcontract_estimate_workflow": {
       "args": [
         {

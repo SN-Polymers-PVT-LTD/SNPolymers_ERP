@@ -10,6 +10,7 @@ const {
   resolveDisplayNames,
   uuidRegex
 } = require('./estimates.helpers');
+const { syncEditableCostEstimateForWorkOrder } = require('../services/subcontractCostEstimateSync.service');
 
 /**
  * POST /api/v1/auth/estimates/:id/submit
@@ -97,6 +98,17 @@ async function submitEstimate(req, res) {
     // Completeness validation
     const errors = [];
     items.forEach((item, index) => {
+      if (item.source_type === 'SUBCONTRACT_ESTIMATE') {
+        const generatedErrors = [];
+        if (!item.subcontract_work_id) generatedErrors.push('subcontract_work_id');
+        if (Number(item.qty) < 0) generatedErrors.push('qty');
+        if (Number(item.rate) < 0) generatedErrors.push('rate');
+        if (Number(item.amount) < 0) generatedErrors.push('amount');
+        if (generatedErrors.length > 0) {
+          errors.push({ item_id: item.item_id, item_index: index, missing_fields: generatedErrors });
+        }
+        return;
+      }
       const missing_fields = [];
       if (!item.material_main_head || String(item.material_main_head).trim() === '') missing_fields.push('material_main_head');
       if (!item.material_sub_head || String(item.material_sub_head).trim() === '') missing_fields.push('material_sub_head');
@@ -645,6 +657,11 @@ async function requestRevision(req, res) {
       .single();
 
     if (updateError) throw updateError;
+
+    await syncEditableCostEstimateForWorkOrder(
+      updatedEstimate.work_order_no,
+      req.user.mobile_number
+    );
 
     // Trigger Telegram notification to JE asynchronously
     const { notifyJeRevisionRequested } = require('../services/telegram.service');

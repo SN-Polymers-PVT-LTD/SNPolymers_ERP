@@ -12,6 +12,7 @@ const {
   HO_HISTORY_STATUSES,
   uuidRegex
 } = require('./estimates.helpers');
+const { syncSubcontractContributionsToCostEstimate } = require('../services/subcontractCostEstimateSync.service');
 
 /**
  * POST /api/v1/auth/estimates
@@ -88,6 +89,11 @@ async function createEstimate(req, res) {
       .single();
 
     if (insertError) throw insertError;
+
+    await syncSubcontractContributionsToCostEstimate(
+      newEstimate.estimate_id,
+      req.user.mobile_number
+    );
 
     return res.status(201).json({
       success: true,

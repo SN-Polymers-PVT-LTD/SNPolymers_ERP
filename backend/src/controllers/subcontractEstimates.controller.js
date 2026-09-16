@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const { syncEditableCostEstimateForWorkOrder } = require('../services/subcontractCostEstimateSync.service');
 
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
@@ -172,6 +173,15 @@ async function transitionWorkflow(req, res) {
       if (['P4B11', 'P4B14', 'P4B15'].includes(code)) return res.status(403).json({ success: false, message: error.message });
       if (['P4B10', 'P4B16', 'P4B17', 'P4B18', 'P4B29'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
       throw error;
+    }
+    if (action === 'HO_APPROVE') {
+      const { data: sourceEstimate, error: sourceReadError } = await supabase
+        .from('project_subcontract_estimates')
+        .select('work_order_no')
+        .eq('subcontract_estimate_id', req.params.id)
+        .single();
+      if (sourceReadError) throw sourceReadError;
+      await syncEditableCostEstimateForWorkOrder(sourceEstimate.work_order_no, req.user.mobile_number);
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
     if (readError) throw readError;
