@@ -9,7 +9,7 @@ import { getSubcontractors, createSubcontractor, updateSubcontractor, updateSubc
 const empty = { subcontractor_name: '', contact_person: '', mobile: '', email: '', address: '', pan_no: '', gst_no: '', primary_beneficiary_id: null };
 const beneficiaryLabel = (b) => b ? `${b.beneficiary_name} · A/C ${b.beneficiary_ac_no}` : '';
 
-export default function SubcontractorMasterV2() {
+export default function SubcontractorMaster() {
   const { user } = useAuth(); const admin = user?.role === 'admin'; const canCreate = admin || user?.role === 'je'; const qc = useQueryClient();
   const [search, setSearch] = useState(''); const [debounced, setDebounced] = useState(''); const [page, setPage] = useState(1); const [active, setActive] = useState(admin ? '' : 'true'); const [beneficiaryStatus, setBeneficiaryStatus] = useState(''); const [modal, setModal] = useState(null); const [form, setForm] = useState(empty); const [beneficiarySearch, setBeneficiarySearch] = useState(''); const [message, setMessage] = useState(''); const [error, setError] = useState('');
   useEffect(() => { const t = setTimeout(() => { setDebounced(search); setPage(1); }, 400); return () => clearTimeout(t); }, [search]);
