@@ -32,6 +32,8 @@ async function cleanup(client, f) {
   await client.query("SET session_replication_role = 'replica'");
   await client.query('DELETE FROM public.subcontractor_ledger WHERE work_order_no = $1', [f.workOrderNo]);
   await client.query('DELETE FROM public.requisitions WHERE work_order_no = $1', [f.workOrderNo]);
+  await client.query('DELETE FROM public.requisition_attachments WHERE requisition_id IN (SELECT requisition_id FROM public.requisitions WHERE work_order_no = $1) OR uploaded_by = $2', [f.workOrderNo, f.actor]);
+  await client.query('DELETE FROM public.subcontractor_balances WHERE work_order_no = $1', [f.workOrderNo]);
   await client.query('DELETE FROM public.project_cost_estimate_items WHERE estimate_id = $1', [f.ceId]);
   await client.query('DELETE FROM public.project_cost_estimates WHERE estimate_id = $1', [f.ceId]);
   await client.query('DELETE FROM public.project_subcontract_estimate_lines WHERE subcontract_estimate_id = $1', [f.seId]);
@@ -139,6 +141,76 @@ describe('Phase 6 canonical subcontract finance', () => {
     expect(rows[0].beneficiary_id).toBe(f.beneficiaryId);
     expect(rows[0].subcontractor_id).toBe(f.contractorId);
     expect(rows[0].subcontract_work_id).toBe(f.workId);
+  });
+
+  test('canonical create atomically commits requisition and pending attachments', async () => {
+    const requisitionPath = `p6-attachments/${crypto.randomUUID()}.pdf`;
+    const gstPath = `p6-attachments/${crypto.randomUUID()}-gst.pdf`;
+    const { rows: attachments } = await client.query(
+      `INSERT INTO public.requisition_attachments
+        (bucket, storage_path, kind, uploaded_by, status)
+       VALUES
+        ('requisition-pdfs', $1, 'requisition_pdf', $3, 'pending'),
+        ('gst-bills', $2, 'gst_bill', $3, 'pending')
+       RETURNING attachment_id`,
+      [requisitionPath, gstPath, f.actor]
+    );
+    const requisitionNo = `REQ-P6-ATTACH-${crypto.randomUUID()}`;
+    const { rows } = await client.query(
+      `SELECT * FROM public.create_subcontract_requisition_secure(
+        $1, $2, 'CE', 1000, 'State', 'District', 'P6', 'Dept', 'P6 site', $3,
+        'Sub Contractor', $4, 'p6-attach.pdf', 100, 'Yes', $5,
+        'P6 bank', 'P6 remarks', 'Pending', $1, 'P6 Work', 'P6 Details',
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL, $6, $7, $8, $9
+      )`,
+      [f.actor, f.workOrderNo, requisitionNo, requisitionPath, gstPath,
+        attachments[0].attachment_id, attachments[1].attachment_id, f.contractorId, f.workId]
+    );
+    expect(rows[0].requisition_id).toBeTruthy();
+    const claimed = await client.query(
+      `SELECT attachment_id, requisition_id, status, committed_at
+       FROM public.requisition_attachments
+       WHERE attachment_id = ANY($1::uuid[]) ORDER BY attachment_id`,
+      [attachments.map(row => row.attachment_id)]
+    );
+    expect(claimed.rows).toHaveLength(2);
+    expect(claimed.rows.every(row => row.requisition_id === rows[0].requisition_id)).toBe(true);
+    expect(claimed.rows.every(row => row.status === 'committed' && row.committed_at)).toBe(true);
+  });
+
+  test('legacy release rejects missing or insufficient reserved balance atomically', async () => {
+    const materialSubHead = `P6 Legacy Head ${crypto.randomUUID()}`;
+    const materialDetails = `P6 Legacy Details ${crypto.randomUUID()}`;
+    await client.query(
+      `INSERT INTO public.subcontractor_balances
+        (work_order_no, material_main_head, material_sub_head, material_details,
+         estimated_total, paid_total, available_balance)
+       VALUES ($1, 'Sub Contractor', $2, $3, 100, 50, 50)`,
+      [f.workOrderNo, materialSubHead, materialDetails]
+    );
+    const { rows } = await client.query(
+      `INSERT INTO public.requisitions
+        (requester_user_id, work_order_no, estimate_no, estimate_amount, state,
+         district, area_code, department, site_details, requisition_no,
+         material_main_head, material_sub_head, material_details,
+         requisition_pdf_url, requisition_amount, gst_bill, bank_details,
+         requisition_status, approved_amount, approved_balance_amount, created_by)
+       VALUES ($1, $2, 'CE', 1000, 'State', 'District', 'P6', 'Dept', 'P6 site', $3,
+               'Sub Contractor', $4, $5, 'p6-legacy.pdf', 80, 'No', 'P6 bank',
+               'Approved', 50, 30, $1)
+       RETURNING requisition_id`,
+      [f.actor, f.workOrderNo, `REQ-P6-LEGACY-${crypto.randomUUID()}`, materialSubHead, materialDetails]
+    );
+    await expect(client.query(
+      'SELECT public.release_requisition_commitment_transact($1, 80, $2)',
+      [rows[0].requisition_id, f.actor]
+    )).rejects.toMatchObject({ code: 'BAL01' });
+    const ledger = await client.query(
+      `SELECT COUNT(*)::int AS count FROM public.subcontractor_ledger
+       WHERE reference_id = $1 AND transaction_type = 'REQUISITION_RELEASE'`,
+      [rows[0].requisition_id]
+    );
+    expect(ledger.rows[0].count).toBe(0);
   });
 });
 

@@ -129,6 +129,8 @@ DECLARE
   v_beneficiary uuid;
   v_beneficiary_row public.projects_beneficiary_master%ROWTYPE;
   v_capacity record;
+  v_req_attachment public.requisition_attachments;
+  v_gst_attachment public.requisition_attachments;
 BEGIN
   IF p_subcontractor_id IS NULL OR p_subcontract_work_id IS NULL THEN
     RAISE EXCEPTION 'Canonical subcontractor and subcontract work IDs are required.' USING ERRCODE = 'P4B70';
@@ -156,6 +158,32 @@ BEGIN
     SELECT * INTO v_beneficiary_row FROM public.projects_beneficiary_master WHERE id = v_beneficiary;
     IF NOT FOUND THEN RAISE EXCEPTION 'Selected beneficiary does not exist.' USING ERRCODE = 'P6F02'; END IF;
   END IF;
+  IF p_requisition_pdf_attachment_id IS NOT NULL THEN
+    SELECT * INTO v_req_attachment
+    FROM public.requisition_attachments
+    WHERE attachment_id = p_requisition_pdf_attachment_id
+      AND kind = 'requisition_pdf'
+      AND bucket = 'requisition-pdfs'
+      AND status = 'pending'::public.requisition_attachment_status_enum
+      AND uploaded_by = p_created_by
+    FOR UPDATE;
+    IF NOT FOUND OR v_req_attachment.storage_path IS DISTINCT FROM p_requisition_pdf_url THEN
+      RAISE EXCEPTION 'Requisition PDF attachment is invalid or no longer pending.' USING ERRCODE = 'ATT01';
+    END IF;
+  END IF;
+  IF p_gst_bill_pdf_attachment_id IS NOT NULL THEN
+    SELECT * INTO v_gst_attachment
+    FROM public.requisition_attachments
+    WHERE attachment_id = p_gst_bill_pdf_attachment_id
+      AND kind = 'gst_bill'
+      AND bucket = 'gst-bills'
+      AND status = 'pending'::public.requisition_attachment_status_enum
+      AND uploaded_by = p_created_by
+    FOR UPDATE;
+    IF NOT FOUND OR v_gst_attachment.storage_path IS DISTINCT FROM p_gst_bill_pdf_url THEN
+      RAISE EXCEPTION 'GST bill attachment is invalid or no longer pending.' USING ERRCODE = 'ATT01';
+    END IF;
+  END IF;
   IF EXISTS (SELECT 1 FROM public.projects_master WHERE work_order_no = btrim(p_work_order_no) AND status = 'Closed') THEN
     RAISE EXCEPTION 'Cannot create requisitions for a closed Work Order.' USING ERRCODE = 'PR001';
   END IF;
@@ -177,6 +205,20 @@ BEGIN
     COALESCE(p_beneficiary_ac_no, v_beneficiary_row.beneficiary_ac_no), COALESCE(p_beneficiary_ifsc, v_beneficiary_row.beneficiary_ifsc), COALESCE(p_beneficiary_bank_name, v_beneficiary_row.beneficiary_bank_name), COALESCE(p_beneficiary_bank_id, v_beneficiary_row.beneficiary_bank_id),
     p_zo_user_id, p_subcontractor_id, p_subcontract_work_id
   ) RETURNING * INTO v_req;
+  IF p_requisition_pdf_attachment_id IS NOT NULL THEN
+    UPDATE public.requisition_attachments
+    SET requisition_id = v_req.requisition_id,
+        status = 'committed'::public.requisition_attachment_status_enum,
+        committed_at = now()
+    WHERE attachment_id = p_requisition_pdf_attachment_id;
+  END IF;
+  IF p_gst_bill_pdf_attachment_id IS NOT NULL THEN
+    UPDATE public.requisition_attachments
+    SET requisition_id = v_req.requisition_id,
+        status = 'committed'::public.requisition_attachment_status_enum,
+        committed_at = now()
+    WHERE attachment_id = p_gst_bill_pdf_attachment_id;
+  END IF;
   RETURN v_req;
 END;
 $$;
@@ -257,6 +299,9 @@ BEGIN
     IF v_rows = 1 THEN
       UPDATE public.subcontractor_balances SET paid_total = paid_total - p_release_amount, available_balance = available_balance + p_release_amount, updated_at = now()
       WHERE work_order_no = v_req.work_order_no AND material_main_head = 'Sub Contractor' AND material_sub_head = v_req.material_sub_head AND material_details = v_req.material_details AND paid_total >= p_release_amount;
+      IF NOT FOUND THEN
+        RAISE EXCEPTION 'Subcontractor commitment release exceeds the reserved balance.' USING ERRCODE = 'BAL01';
+      END IF;
     END IF;
     RETURN v_rows = 1;
   END IF;
