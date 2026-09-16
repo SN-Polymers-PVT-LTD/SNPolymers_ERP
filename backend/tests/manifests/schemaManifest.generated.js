@@ -1773,6 +1773,12 @@ module.exports = {
           "nullable": false,
           "default": "gen_random_uuid()"
         },
+        "identity_locked_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
         "sub_head": {
           "type": "character varying",
           "udtName": "varchar",

@@ -34,7 +34,12 @@ const SubcontractEstimateForm = () => {
   const total = useMemo(() => lines.reduce((sum, line) => sum + currencyAmount(line), 0), [lines]);
   const update = (index, key, value) => setLines(rows => rows.map((row, i) => i === index ? { ...row, [key]: value } : row));
   const historical = line => line.final_approved_revision != null;
-  const targetOptions = lines.filter(historical).map(line => ({ value: line.line_id, label: `${line.subcontractor?.subcontractor_name || 'Subcontractor'} · ${line.subcontract_work?.material_details || 'Work'} · ${line.amount}` }));
+  const targetOptions = lines.filter(historical).map(line => ({ value: line.line_id, subcontractor_id: line.subcontractor_id, subcontract_work_id: line.subcontract_work_id, label: `${line.subcontractor?.subcontractor_name || 'Subcontractor'} · ${line.subcontract_work?.material_details || 'Work'} · ${line.amount}` }));
+  const updateTarget = (index, targetId) => setLines(rows => rows.map((row, i) => {
+    if (i !== index) return row;
+    const target = targetOptions.find(option => option.value === targetId);
+    return { ...row, adjusts_line_id: targetId || null, subcontractor_id: target?.subcontractor_id || row.subcontractor_id, subcontract_work_id: target?.subcontract_work_id || row.subcontract_work_id };
+  }));
 
   const save = async (event) => {
     event.preventDefault();
@@ -81,10 +86,10 @@ const SubcontractEstimateForm = () => {
       {lines.map((line, index) => {
         const locked = historical(line);
         return <div key={line.line_id || `new-${index}`} className="grid grid-cols-1 gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-4 md:grid-cols-7">
-          <AsyncMasterSelect value={line.subcontractor_id || ''} disabled={locked} onChange={value => update(index, 'subcontractor_id', value)} fetchOptions={getSubcontractors} persistedOption={line.subcontractor} getOptionValue={item => item.id} getOptionLabel={item => item.subcontractor_name} placeholder="Search subcontractors…" required />
-          <AsyncMasterSelect value={line.subcontract_work_id || ''} disabled={locked} onChange={value => update(index, 'subcontract_work_id', value)} fetchOptions={getSubcontractWorks} persistedOption={line.subcontract_work} getOptionValue={item => item.id} getOptionLabel={item => `${item.material_details} · ${item.unit}`} placeholder="Search subcontract work…" required />
+          <AsyncMasterSelect value={line.subcontractor_id || ''} disabled={locked || (line.entry_kind === 'ADJUSTMENT' && Boolean(line.adjusts_line_id))} onChange={value => update(index, 'subcontractor_id', value)} fetchOptions={getSubcontractors} persistedOption={line.subcontractor} getOptionValue={item => item.id} getOptionLabel={item => item.subcontractor_name} placeholder="Search subcontractors…" required />
+          <AsyncMasterSelect value={line.subcontract_work_id || ''} disabled={locked || (line.entry_kind === 'ADJUSTMENT' && Boolean(line.adjusts_line_id))} onChange={value => update(index, 'subcontract_work_id', value)} fetchOptions={getSubcontractWorks} persistedOption={line.subcontract_work} getOptionValue={item => item.id} getOptionLabel={item => `${item.material_details} · ${item.unit}`} placeholder="Search subcontract work…" required />
           {reconciliationAuthoring && revisionAuthoring && !locked ? <Select value={line.entry_kind || 'ADDITION'} onChange={e => update(index, 'entry_kind', e.target.value)} options={[{ value: 'ADDITION', label: 'Addition' }, { value: 'ADJUSTMENT', label: 'Adjustment' }]} /> : <Input value={line.entry_kind || 'BASE'} disabled />}
-          {reconciliationAuthoring && revisionAuthoring && !locked && line.entry_kind === 'ADJUSTMENT' ? <Select value={line.adjusts_line_id || ''} onChange={e => update(index, 'adjusts_line_id', e.target.value || null)} options={[{ value: '', label: 'Select target' }, ...targetOptions]} required /> : <div />}
+          {reconciliationAuthoring && revisionAuthoring && !locked && line.entry_kind === 'ADJUSTMENT' ? <Select value={line.adjusts_line_id || ''} onChange={e => updateTarget(index, e.target.value)} options={[{ value: '', label: 'Select target' }, ...targetOptions]} required /> : <div />}
           <Input type="number" step="0.0001" min={line.entry_kind === 'ADJUSTMENT' ? undefined : '0.0001'} placeholder="Qty" value={line.qty} disabled={locked} onChange={e => update(index, 'qty', e.target.value)} required />
           <Input type="number" step="0.0001" min="0.0001" placeholder="Rate" value={line.rate} disabled={locked} onChange={e => update(index, 'rate', e.target.value)} required />
           <Input placeholder="Rate reference" value={line.rate_reference || ''} disabled={locked} onChange={e => update(index, 'rate_reference', e.target.value)} />

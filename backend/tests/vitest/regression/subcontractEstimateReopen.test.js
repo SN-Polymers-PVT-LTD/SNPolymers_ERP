@@ -93,6 +93,7 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -1, rate: 100, entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLineId }]), 'P4B52');
 
       await transition('SUBMIT');
+      expect((await client.query('SELECT je_user_id FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0].je_user_id).toBeNull();
       await transition('OPEN_ZO_REVIEW');
       await client.query(`UPDATE public.project_subcontract_estimate_lines SET zo_office_approve = 'Approve' WHERE line_id = $1`, [baseLineId]);
       await transition('ZO_APPROVE');
@@ -104,6 +105,17 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       await reopen();
       const { rows: reopened } = await client.query(`SELECT estimate_revision, estimate_status, estimate_amount, last_approved_amount FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1`, [estimateId]);
       expect(reopened[0]).toMatchObject({ estimate_revision: before[0].estimate_revision + 1, estimate_status: 'Estimate Reopened', estimate_amount: before[0].estimate_amount, last_approved_amount: before[0].last_approved_amount });
+
+      // Rejecting a reopened revision rejects only that attempt. The prior
+      // approved baseline remains in the same lineage and can be reopened.
+      await client.query(`SELECT public.submit_reopened_subcontract_estimate($1, $2, (SELECT updated_at FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1))`, [estimateId, actor]);
+      await transition('OPEN_ZO_REVIEW');
+      await transition('ZO_APPROVE');
+      await transition('OPEN_HO_REVIEW');
+      await transition('HO_REJECT', 'Reject this revision');
+      expect((await client.query('SELECT estimate_status FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0].estimate_status).toBe('Rejected by HO');
+      await reopen('Reopen the rejected revision');
+      expect((await client.query('SELECT estimate_revision, estimate_status FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0]).toMatchObject({ estimate_revision: before[0].estimate_revision + 2, estimate_status: 'Estimate Reopened' });
       await expectError(() => reopen('second reopen'), 'P4B34');
 
       // Reopened estimates use the dedicated resubmission path; ordinary
@@ -127,9 +139,9 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       const adjustmentId = deltaRows.find(row => row.entry_kind === 'ADJUSTMENT').line_id;
       await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -1, rate: 100, entry_kind: 'ADJUSTMENT', adjusts_line_id: adjustmentId }]), 'P4B49');
 
-      // Keep monetary scope nonnegative while making effective quantity negative;
-      // the Final Approval trigger must reject the latter.
-      await reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -20, rate: 10, entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLineId }]);
+      // A zero effective quantity with nonzero money is not a valid weighted-
+      // rate scope; only the exact (0 qty, 0 amount) cancellation is valid.
+      await reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -10, rate: 50, entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLineId }]);
       await client.query(`SELECT public.submit_reopened_subcontract_estimate($1, $2, (SELECT updated_at FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1))`, [estimateId, actor]);
       await transition('OPEN_ZO_REVIEW');
       const { rows: currentLines } = await client.query(`SELECT line_id FROM public.project_subcontract_estimate_lines WHERE subcontract_estimate_id = $1 AND final_approved_revision IS NULL`, [estimateId]);
