@@ -17,6 +17,7 @@ import {
   deleteGstBillPdf,
   getMainHeadCapacity,
   getSubcontractorCapacity,
+  getSubcontractFinanceCapacity,
   getIndianBanks
 } from '../api/requisitionsApi';
 import { computeRequisitionAdvisoryRemaining } from '../utils/businessRules/requisitions';
@@ -980,24 +981,25 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
 
   useEffect(() => {
     let isCurrent = true;
-    if (materialHead !== 'Sub Contractor' || !selectedWO || !materialSubHead || !materialDetails) {
+    if (materialHead !== 'Sub Contractor' || !selectedWO || !subcontractorId || !subcontractWorkId) {
       setSubcontractorCapacityMetrics(null);
       return;
     }
     setLoadingSubcontractorCapacity(true);
-    getSubcontractorCapacity(selectedWO, materialSubHead, materialDetails)
+    getSubcontractFinanceCapacity(selectedWO, subcontractorId, subcontractWorkId)
       .then(res => {
         if (!isCurrent) return;
         if (res.data) {
+          const c = res.data.capacity || {};
           setSubcontractorCapacityMetrics({
-            estimatedTotal: Number(res.data.estimatedTotal),
-            paidTotal: Number(res.data.paidTotal),
-            availableBalance: Number(res.data.availableBalance),
-            estimateLifecycle: res.data.estimateLifecycle || null
+            approvedCapacity: Number(c.approved_capacity || 0),
+            reservedAmount: Number(c.reserved_amount || 0),
+            paidOrSettledAmount: Number(c.paid_or_settled_amount || 0),
+            consumedAmount: Number(c.consumed_amount || 0),
+            availableContractorCapacity: Number(c.available_contractor_capacity || 0),
+            availableCostEstimateCapacity: Number(c.available_cost_estimate_capacity || 0),
+            effectiveAvailableCapacity: Number(c.effective_available_capacity || 0)
           });
-          if (res.data.estimateLifecycle?.requisitionsBlocked) {
-            setEstimateLifecycle(res.data.estimateLifecycle);
-          }
         }
       })
       .catch(err => {
@@ -1013,7 +1015,7 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     return () => {
       isCurrent = false;
     };
-  }, [materialHead, selectedWO, materialSubHead, materialDetails]);
+  }, [materialHead, selectedWO, subcontractorId, subcontractWorkId]);
 
   const subHeadOptions = Array.from(new Set(subContractorItems.map(i => i.material_sub_head).filter(Boolean)));
   const materialDetailsOptions = Array.from(new Set(
@@ -1279,8 +1281,8 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         setError('Please select a canonical subcontractor and subcontract work item.');
         return;
       }
-      if (subcontractorCapacityMetrics && Number(reqAmount) > subcontractorCapacityMetrics.availableBalance) {
-        setError(`Requisition Amount exceeds the Remaining Subcontractor Ledger Balance (₹${subcontractorCapacityMetrics.availableBalance.toLocaleString('en-IN')}) for '${materialDetails}'.`);
+      if (subcontractorCapacityMetrics && Number(reqAmount) > subcontractorCapacityMetrics.effectiveAvailableCapacity) {
+        setError(`Requisition Amount exceeds the effective subcontract finance capacity (₹${subcontractorCapacityMetrics.effectiveAvailableCapacity.toLocaleString('en-IN')}).`);
         return;
       }
     }
@@ -1721,11 +1723,11 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
           )}
 
           {/* Subcontractor Ledger Balance Display */}
-          {materialHead === 'Sub Contractor' && materialSubHead && materialDetails && (
+          {materialHead === 'Sub Contractor' && subcontractorId && subcontractWorkId && (
             <div className={`rounded-2xl border ${isLifecycleBlocked ? 'border-amber-500/30 bg-amber-950/20' : 'border-indigo-500/20 bg-indigo-500/5'} p-4 space-y-2`}>
               <div className="flex items-center justify-between">
                 <p className={`text-[9px] font-bold uppercase tracking-widest ${isLifecycleBlocked ? 'text-amber-400' : 'text-indigo-400'}`}>
-                  Subcontractor Ledger Balance ({materialDetails})
+                  Subcontract Finance Capacity
                 </p>
                 {isLifecycleBlocked && (
                   <Badge variant="amber" className="text-[9px]">
@@ -1740,12 +1742,18 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
                 </div>
               ) : subcontractorCapacityMetrics ? (
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="text-slate-400">Estimated Total:</div>
-                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.estimatedTotal)}</div>
-                  <div className="text-slate-400">Paid So Far:</div>
-                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.paidTotal)}</div>
-                  <div className="text-slate-400">Remaining Balance:</div>
-                  <div className="text-emerald-400 font-mono font-bold text-right">{formatCurrency(subcontractorCapacityMetrics.availableBalance)}</div>
+                  <div className="text-slate-400">Approved Contractor Capacity:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.approvedCapacity)}</div>
+                  <div className="text-slate-400">Reserved:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.reservedAmount)}</div>
+                  <div className="text-slate-400">Paid / Settled:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.paidOrSettledAmount)}</div>
+                  <div className="text-slate-400">Contractor Remaining:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.availableContractorCapacity)}</div>
+                  <div className="text-slate-400">CE Work Remaining:</div>
+                  <div className="text-slate-200 font-mono text-right">{formatCurrency(subcontractorCapacityMetrics.availableCostEstimateCapacity)}</div>
+                  <div className="text-slate-400">Effective Available:</div>
+                  <div className="text-emerald-400 font-mono font-bold text-right">{formatCurrency(subcontractorCapacityMetrics.effectiveAvailableCapacity)}</div>
                 </div>
               ) : (
                 <p className="text-[9px] text-red-400">Failed to load balance details.</p>

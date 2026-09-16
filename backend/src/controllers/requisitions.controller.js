@@ -2,7 +2,7 @@
 
 const crypto = require('crypto');
 const { supabase } = require('../db/supabase');
-const { computeMainHeadCapacity, computeSubcontractorCapacity } = require('../services/mainHeadCapacity.service');
+const { computeMainHeadCapacity, computeSubcontractorCapacity, computeSubcontractFinanceCapacity } = require('../services/mainHeadCapacity.service');
 const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary } = require('../services/beneficiaryMaster.service');
 const validate = require('../validation/validate');
@@ -344,7 +344,7 @@ async function createRequisition(req, res) {
           message: 'material_sub_head and material_details are required for a Sub Contractor requisition.'
         });
       }
-      if (['P4B70', 'P4B71', 'P4B72'].includes(rpcError.code)) {
+      if (['P4B70', 'P4B71', 'P4B72', 'P6F01', 'P6F02', 'P6F05'].includes(rpcError.code)) {
         return res.status(422).json({ success: false, code: rpcError.code, message: rpcError.message });
       }
       if (rpcError.code === 'EST02' || rpcError.code === 'EST01') {
@@ -756,7 +756,7 @@ async function actOnRequisition(req, res) {
         if (rpcErr.code === 'BUD04' || rpcErr.message?.includes('exceeds the remaining Subcontractor Ledger balance')) {
           return res.status(422).json({ success: false, message: rpcErr.message });
         }
-        if (rpcErr.code === 'P4B19' || rpcErr.message?.includes('exceeds the Final Approved subcontract authorization')) {
+        if (['P4B19', 'P6F03', 'P6F04'].includes(rpcErr.code) || rpcErr.message?.includes('exceeds the Final Approved subcontract authorization') || rpcErr.message?.includes('remaining Cost Estimate work capacity')) {
           return res.status(422).json({ success: false, message: rpcErr.message, code: rpcErr.code });
         }
         throw rpcErr;
@@ -1099,6 +1099,21 @@ async function getSubcontractorCapacity(req, res) {
   } catch (error) {
     console.error(`getSubcontractorCapacity failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger capacity.' });
+  }
+}
+
+/** GET /requisitions/subcontract-finance-capacity — canonical Phase 6 read model. */
+async function getSubcontractFinanceCapacity(req, res) {
+  const { work_order_no, subcontractor_id, subcontract_work_id } = req.query;
+  if (!work_order_no || !uuidRegex.test(String(subcontractor_id || '')) || !uuidRegex.test(String(subcontract_work_id || ''))) {
+    return res.status(400).json({ success: false, message: 'work_order_no, subcontractor_id, and subcontract_work_id are required and must be valid UUIDs.' });
+  }
+  try {
+    const capacity = await computeSubcontractFinanceCapacity(work_order_no, subcontractor_id, subcontract_work_id);
+    return res.status(200).json({ success: true, capacity });
+  } catch (error) {
+    console.error(`getSubcontractFinanceCapacity failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to retrieve subcontract finance capacity.' });
   }
 }
 
@@ -1640,6 +1655,7 @@ module.exports = {
   retryCancelledRequisitionAttachmentCleanup,
   getMainHeadCapacity,
   getSubcontractorCapacity,
+  getSubcontractFinanceCapacity,
   getSubcontractorLedger,
   getSubcontractorLedgerEntries,
   getSubcontractorRequisitions,

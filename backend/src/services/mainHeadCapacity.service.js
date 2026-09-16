@@ -138,7 +138,28 @@ async function computeSubcontractorCapacity(workOrderNo, materialSubHead, materi
   };
 }
 
+/** Canonical Phase 6 capacity. The database RPC is the only formula owner. */
+async function computeSubcontractFinanceCapacity(workOrderNo, subcontractorId, subcontractWorkId) {
+  const { data, error } = await supabase.rpc('get_subcontract_finance_capacity', {
+    p_work_order_no: workOrderNo,
+    p_subcontractor_id: subcontractorId,
+    p_subcontract_work_id: subcontractWorkId
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || {
+    approved_capacity: 0,
+    reserved_amount: 0,
+    paid_or_settled_amount: 0,
+    consumed_amount: 0,
+    available_contractor_capacity: 0,
+    available_cost_estimate_capacity: 0,
+    effective_available_capacity: 0
+  };
+}
+
 module.exports = {
   computeMainHeadCapacity,
-  computeSubcontractorCapacity
+  computeSubcontractorCapacity,
+  computeSubcontractFinanceCapacity
 };

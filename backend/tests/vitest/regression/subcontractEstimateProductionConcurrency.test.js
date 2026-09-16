@@ -44,11 +44,14 @@ async function createFixture(client, suffix, requisitionAmount = 700) {
     [workOrderNo, `COST-P4B-${suffix}`, actor]
   );
   await client.query(
+    `SELECT set_config('app.phase5_sync', 'on', false)`
+  );
+  await client.query(
     `INSERT INTO public.project_cost_estimate_items
       (estimate_id, material_main_head, material_sub_head, material_details,
-       unit, qty, rate, amount)
-     VALUES ($1, 'Sub Contractor', $2, $3, 'Mtr', 10, 100, 1000)`,
-    [costEstimates[0].estimate_id, `P4B Race Head ${suffix}`, `P4B Race Work ${suffix}`]
+       unit, qty, rate, amount, source_type, subcontract_work_id)
+     VALUES ($1, 'Sub Contractor', $2, $3, 'Mtr', 10, 100, 1000, 'SUBCONTRACT_ESTIMATE', $4)`,
+    [costEstimates[0].estimate_id, `P4B Race Head ${suffix}`, `P4B Race Work ${suffix}`, subcontractWorkId]
   );
   await client.query(
     `INSERT INTO public.subcontractor_balances
