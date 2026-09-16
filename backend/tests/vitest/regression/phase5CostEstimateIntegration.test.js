@@ -1,8 +1,10 @@
 import { describe, expect, test, beforeAll, afterAll } from 'vitest';
 
 const crypto = require('crypto');
+const mockRes = require('../../helpers/mockRes');
 const { createPgClient } = require('../../../scripts/lib/pg-connect');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
+const { submitEstimate } = require('../../../src/controllers/estimates.workflow.controller');
 
 const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
@@ -158,5 +160,31 @@ describe('Phase 5 Cost Estimate subcontract integration', () => {
     await db.query(`SELECT public.sync_subcontract_contributions_to_cost_estimate($1, $2)`, [costEstimate.estimate_id, actor]);
     const row = (await db.query(`SELECT qty, amount FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type = 'SUBCONTRACT_ESTIMATE'`, [costEstimate.estimate_id])).rows[0];
     expect(row).toMatchObject({ qty: '3.0000', amount: '125.00' });
+  });
+
+  test('strictly syncs pending approved scope before submitting a Draft Cost Estimate', async () => {
+    await db.query(`INSERT INTO public.project_subcontract_estimate_lines
+      (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate, amount,
+       entry_kind, adjusts_line_id, zo_office_approve, ho_office_approve,
+       final_approved_revision, final_approved_at, final_approved_by, created_by)
+      VALUES ($1, $2, $3, 5, 50, 250, 'ADDITION', NULL, 'Approve', 'Approve', 0, now(), $4, $4)`,
+      [sourceEstimate.subcontract_estimate_id, contractorB.id, work.id, actor]);
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Draft' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`UPDATE public.project_cost_estimate_items
+      SET rate_reference = 'P5 fixture'
+      WHERE estimate_id = $1 AND source_type IS NULL`, [costEstimate.estimate_id]);
+
+    const response = mockRes();
+    await submitEstimate({
+      params: { id: costEstimate.estimate_id },
+      user: { mobile_number: actor, role: 'admin' }
+    }, response);
+
+    expect(response.statusCode).toBe(200);
+    const generated = (await db.query(`SELECT qty, amount
+      FROM public.project_cost_estimate_items
+      WHERE estimate_id = $1 AND source_type = 'SUBCONTRACT_ESTIMATE'`, [costEstimate.estimate_id])).rows[0];
+    expect(generated).toMatchObject({ qty: '8.0000', amount: '375.00' });
+    expect((await db.query(`SELECT estimate_status FROM public.project_cost_estimates WHERE estimate_id = $1`, [costEstimate.estimate_id])).rows[0].estimate_status).toBe('Submitted');
   });
 });

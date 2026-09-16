@@ -10,7 +10,10 @@ const {
   resolveDisplayNames,
   uuidRegex
 } = require('./estimates.helpers');
-const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
+const {
+  syncSubcontractContributionsToCostEstimate,
+  syncEditableCostEstimateForWorkOrderBestEffort
+} = require('../services/subcontractCostEstimateSync.service');
 
 /**
  * POST /api/v1/auth/estimates/:id/submit
@@ -36,6 +39,15 @@ async function submitEstimate(req, res) {
 
     if (!SUBMITTABLE_STATUSES.includes(estimate.estimate_status)) {
       return res.status(403).json({ success: false, message: 'Estimate cannot be submitted in its current status.' });
+    }
+
+    // A best-effort sync may have failed after the latest approved subcontract
+    // contribution. Before an editable Cost Estimate leaves Draft/Reopened,
+    // perform one strict synchronization so approved scope cannot be omitted
+    // from the submitted estimate. Revision-request states intentionally do
+    // not import new subcontract scope until the estimate is editable again.
+    if ([ESTIMATE_STATUS.DRAFT, ESTIMATE_STATUS.ESTIMATE_REOPENED].includes(estimate.estimate_status)) {
+      await syncSubcontractContributionsToCostEstimate(id, req.user.mobile_number);
     }
 
     // Verify that no other active estimate exists for this work order
