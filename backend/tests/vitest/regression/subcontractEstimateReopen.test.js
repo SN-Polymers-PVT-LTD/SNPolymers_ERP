@@ -114,6 +114,11 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       await transition('OPEN_HO_REVIEW');
       await transition('HO_REJECT', 'Reject this revision');
       expect((await client.query('SELECT estimate_status FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0].estimate_status).toBe('Rejected by HO');
+      await expectError(() => client.query(
+        `INSERT INTO public.project_subcontract_estimates (work_order_no, created_by, last_modified_by)
+         VALUES ($1, $2, $2)`,
+        [workOrderNo, actor]
+      ), 'P4B58');
       await reopen('Reopen the rejected revision');
       expect((await client.query('SELECT estimate_revision, estimate_status FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0]).toMatchObject({ estimate_revision: before[0].estimate_revision + 2, estimate_status: 'Estimate Reopened' });
       await expectError(() => reopen('second reopen'), 'P4B34');

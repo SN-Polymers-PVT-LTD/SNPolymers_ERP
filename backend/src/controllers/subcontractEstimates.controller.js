@@ -69,7 +69,14 @@ async function getInit(req, res) {
     if (error) throw error;
     const { data: active, error: activeError } = await supabase.from('project_subcontract_estimates').select('work_order_no').not('estimate_status', 'in', '("Rejected by ZO","Rejected by HO")');
     if (activeError) throw activeError;
-    const blocked = new Set((active || []).map(row => row.work_order_no));
+    const { data: approvedLines, error: approvedLinesError } = await supabase.from('project_subcontract_estimate_lines').select('subcontract_estimate_id').not('final_approved_revision', 'is', null);
+    if (approvedLinesError) throw approvedLinesError;
+    const approvedEstimateIds = [...new Set((approvedLines || []).map(row => row.subcontract_estimate_id))];
+    const { data: approvedHistory, error: approvedHistoryError } = approvedEstimateIds.length
+      ? await supabase.from('project_subcontract_estimates').select('work_order_no').in('subcontract_estimate_id', approvedEstimateIds)
+      : { data: [], error: null };
+    if (approvedHistoryError) throw approvedHistoryError;
+    const blocked = new Set([...(active || []), ...(approvedHistory || [])].map(row => row.work_order_no));
     return res.json({ success: true, availableWorkOrders: (projects || []).filter(row => !blocked.has(row.work_order_no)) });
   } catch (error) {
     console.error(`getSubcontractEstimateInit failed: ${error.message}`);
@@ -88,7 +95,7 @@ async function createSubcontractEstimate(req, res) {
     if (allowed !== null && !allowed.includes(work_order_no)) return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
     const { data, error } = await supabase.from('project_subcontract_estimates').insert({ work_order_no, estimate_status: 'Draft', estimate_revision: 0, estimate_amount: 0, je_remarks: remarks, created_by: req.user.mobile_number, last_modified_by: req.user.mobile_number }).select().single();
     if (error) {
-      if (error.code === '23505') return res.status(409).json({ success: false, message: 'A live subcontract estimate already exists for this Work Order.' });
+      if (error.code === '23505' || error.code === 'P4B58') return res.status(409).json({ success: false, message: error.message || 'A subcontract estimate lineage already exists for this Work Order.', code: error.code });
       throw error;
     }
     return res.status(201).json({ success: true, estimate: data, message: 'Subcontract estimate created successfully.' });
@@ -186,7 +193,7 @@ async function transitionWorkflow(req, res) {
       const code = error.code || '';
       if (code === 'P4B13') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
       if (['P4B11', 'P4B14', 'P4B15'].includes(code)) return res.status(403).json({ success: false, message: error.message });
-      if (['P4B10', 'P4B16', 'P4B17', 'P4B18'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+      if (['P4B10', 'P4B16', 'P4B17', 'P4B18', 'P4B29'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
       throw error;
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
