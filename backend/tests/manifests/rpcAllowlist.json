@@ -12,7 +12,6 @@
   "get_accounts_import_queue",
   "get_accounts_import_queue_export",
   "get_subcontractor_ledger_entries",
-  "save_subcontract_estimate_draft_lines",
   "transition_subcontract_estimate_workflow",
   "review_subcontract_estimate_rows",
   "reopen_subcontract_estimate",

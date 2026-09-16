@@ -119,29 +119,6 @@ async function getSubcontractEstimate(req, res) {
   }
 }
 
-async function saveDraftLines(req, res) {
-  try {
-    const { data: estimate, error: fetchError } = await supabase.from('project_subcontract_estimates').select('subcontract_estimate_id, work_order_no, estimate_status').eq('subcontract_estimate_id', req.params.id).maybeSingle();
-    if (fetchError) throw fetchError;
-    if (!estimate) return res.status(404).json({ success: false, message: 'Subcontract estimate not found.' });
-    if (!(await canAccessEstimate(estimate, req.user, true))) return res.status(403).json({ success: false, message: 'Access denied.' });
-    const { error } = await supabase.rpc('save_subcontract_estimate_draft_lines', { p_estimate_id: req.params.id, p_actor: req.user.mobile_number, p_expected_updated_at: req.body.expected_updated_at, p_lines: req.body.lines });
-    if (error) {
-      const code = error.code || '';
-      if (code === 'PSE09') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
-      if (['PSE03', 'PSE05', 'PSE06'].includes(code)) return res.status(403).json({ success: false, message: error.message });
-      if (['PSE07', 'PSE08', 'PSE01', 'PSE02'].includes(code)) return res.status(422).json({ success: false, message: error.message });
-      throw error;
-    }
-    const { data: refreshed, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
-    if (readError) throw readError;
-    return res.json({ success: true, estimate: refreshed, message: 'Draft lines saved successfully.' });
-  } catch (error) {
-    console.error(`saveSubcontractEstimateLines failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to save subcontract estimate Draft lines.' });
-  }
-}
-
 async function transitionWorkflow(req, res) {
   try {
     const { action, remarks, expected_updated_at, deadline_hours } = req.body;
@@ -222,10 +199,10 @@ async function reconcileLines(req, res) {
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
     if (readError) throw readError;
-    return res.json({ success: true, estimate, message: 'Estimate revision lines saved successfully.' });
+    return res.json({ success: true, estimate, message: 'Estimate lines saved successfully.' });
   } catch (error) {
     console.error(`reconcileSubcontractEstimateLines failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to save subcontract estimate revision lines.' });
+    return res.status(500).json({ success: false, message: 'Failed to save subcontract estimate lines.' });
   }
 }
 
@@ -255,4 +232,4 @@ async function reviewRows(req, res) {
   }
 }
 
-module.exports = { getSubcontractEstimates, getSubcontractEstimateSummary, getInit, createSubcontractEstimate, getSubcontractEstimate, saveDraftLines, reconcileLines, transitionWorkflow, reviewRows, readerRoles };
+module.exports = { getSubcontractEstimates, getSubcontractEstimateSummary, getInit, createSubcontractEstimate, getSubcontractEstimate, reconcileLines, transitionWorkflow, reviewRows, readerRoles };

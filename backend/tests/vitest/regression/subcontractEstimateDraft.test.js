@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const { supabase } = require('../../../src/db/supabase');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 
-describe('Subcontractor Estimate Phase 4A Draft RPC', () => {
+describe('Subcontractor Estimate canonical reconciliation RPC', () => {
   let suffix; let actor; let workOrder; let otherWorkOrder; let work; let contractor; let estimate; let otherEstimate;
 
   beforeAll(async () => {
@@ -44,7 +44,7 @@ describe('Subcontractor Estimate Phase 4A Draft RPC', () => {
   });
 
   test('reconciles Draft lines and recalculates the server total', async () => {
-    const first = await supabase.rpc('save_subcontract_estimate_draft_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: estimate.updated_at, p_lines: [{ subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125, amount: 999, created_by: 'spoofed' }] });
+    const first = await supabase.rpc('reconcile_subcontract_estimate_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: estimate.updated_at, p_lines: [{ subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125, amount: 999, created_by: 'spoofed' }] });
     expect(first.error).toBeNull();
     const refreshed = await supabase.from('project_subcontract_estimates').select('estimate_amount, updated_at').eq('subcontract_estimate_id', estimate.subcontract_estimate_id).single();
     expect(refreshed.error).toBeNull();
@@ -53,8 +53,8 @@ describe('Subcontractor Estimate Phase 4A Draft RPC', () => {
   });
 
   test('rejects a stale full-state save without changing lines', async () => {
-    const stale = await supabase.rpc('save_subcontract_estimate_draft_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: '2000-01-01T00:00:00.000Z', p_lines: [] });
-    expect(stale.error?.code).toBe('PSE09');
+    const stale = await supabase.rpc('reconcile_subcontract_estimate_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: '2000-01-01T00:00:00.000Z', p_lines: [] });
+    expect(stale.error?.code).toBe('P4B43');
     const lines = await supabase.from('project_subcontract_estimate_lines').select('qty, rate').eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     expect(lines.data).toHaveLength(1);
     expect(lines.data[0]).toMatchObject({ qty: 4, rate: 125 });
@@ -62,11 +62,11 @@ describe('Subcontractor Estimate Phase 4A Draft RPC', () => {
 
   test('preserves optional line metadata and rejects cross-estimate line ids', async () => {
     const line = await supabase.from('project_subcontract_estimate_lines').select('line_id').eq('subcontract_estimate_id', estimate.subcontract_estimate_id).single();
-    const saved = await supabase.rpc('save_subcontract_estimate_draft_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: estimate.updated_at, p_lines: [{ line_id: line.data.line_id, subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125, rate_reference: 'SOR', remarks: 'updated' }] });
+    const saved = await supabase.rpc('reconcile_subcontract_estimate_lines', { p_estimate_id: estimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: estimate.updated_at, p_lines: [{ line_id: line.data.line_id, subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125, rate_reference: 'SOR', remarks: 'updated' }] });
     expect(saved.error).toBeNull();
     const current = await supabase.from('project_subcontract_estimate_lines').select('rate_reference, remarks').eq('line_id', line.data.line_id).single();
     expect(current.data).toMatchObject({ rate_reference: 'SOR', remarks: 'updated' });
-    const crossEstimate = await supabase.rpc('save_subcontract_estimate_draft_lines', { p_estimate_id: otherEstimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: otherEstimate.updated_at, p_lines: [{ line_id: line.data.line_id, subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125 }] });
-    expect(crossEstimate.error?.code).toBe('PSE08');
+    const crossEstimate = await supabase.rpc('reconcile_subcontract_estimate_lines', { p_estimate_id: otherEstimate.subcontract_estimate_id, p_actor: actor, p_expected_updated_at: otherEstimate.updated_at, p_lines: [{ line_id: line.data.line_id, subcontractor_id: contractor.id, subcontract_work_id: work.id, qty: 4, rate: 125 }] });
+    expect(crossEstimate.error?.code).toBe('P4B50');
   });
 });

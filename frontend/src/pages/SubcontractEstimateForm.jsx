@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AsyncMasterSelect, Button, Input, Select } from '../components/ui';
-import { createSubcontractEstimate, getSubcontractEstimate, getSubcontractEstimateInit, reconcileSubcontractEstimateLines, saveSubcontractEstimateLines } from '../api/subcontractEstimatesApi';
+import { createSubcontractEstimate, getSubcontractEstimate, getSubcontractEstimateInit, reconcileSubcontractEstimateLines } from '../api/subcontractEstimatesApi';
 import { getSubcontractors, getSubcontractWorks } from '../api/subcontractMastersApi';
 
 const blankLine = (entry_kind = 'BASE') => ({ subcontractor_id: '', subcontract_work_id: '', qty: '', rate: '', rate_reference: '', remarks: '', entry_kind, adjusts_line_id: null });
@@ -54,9 +54,8 @@ const SubcontractEstimateForm = () => {
         setEstimate(current);
         navigate(`/subcontract-estimates/${current.subcontract_estimate_id}/edit`, { replace: true });
       }
-      const saveLines = current.estimate_status === 'Draft' ? saveSubcontractEstimateLines : reconcileSubcontractEstimateLines;
       const payloadLines = current.estimate_status === 'Draft' ? lines : lines.filter(line => !historical(line));
-      const response = await saveLines(current.subcontract_estimate_id, { expected_updated_at: current.updated_at, lines: payloadLines });
+      const response = await reconcileSubcontractEstimateLines(current.subcontract_estimate_id, { expected_updated_at: current.updated_at, lines: payloadLines });
       setEstimate(response.data.estimate);
       setLines(response.data.estimate.project_subcontract_estimate_lines || []);
     } catch (e) {
