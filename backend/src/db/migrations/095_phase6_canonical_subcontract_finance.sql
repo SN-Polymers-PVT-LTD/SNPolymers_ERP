@@ -128,6 +128,7 @@ DECLARE
   v_primary uuid;
   v_beneficiary uuid;
   v_beneficiary_row public.projects_beneficiary_master%ROWTYPE;
+  v_capacity record;
 BEGIN
   IF p_subcontractor_id IS NULL OR p_subcontract_work_id IS NULL THEN
     RAISE EXCEPTION 'Canonical subcontractor and subcontract work IDs are required.' USING ERRCODE = 'P4B70';
@@ -139,14 +140,12 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.subcontract_work_master WHERE id = p_subcontract_work_id AND is_active) THEN
     RAISE EXCEPTION 'Selected subcontract work does not exist or is inactive.' USING ERRCODE = 'P4B72';
   END IF;
-  IF NOT EXISTS (
-    SELECT 1 FROM public.project_subcontract_estimates e
-    JOIN public.project_subcontract_estimate_lines l ON l.subcontract_estimate_id = e.subcontract_estimate_id
-    WHERE btrim(e.work_order_no) = btrim(p_work_order_no) AND l.subcontractor_id = p_subcontractor_id
-      AND l.subcontract_work_id = p_subcontract_work_id AND l.final_approved_revision IS NOT NULL
-      AND l.amount > 0
-  ) THEN
-    RAISE EXCEPTION 'No positive Final Approved subcontract scope exists for this contractor and work.' USING ERRCODE = 'P6F01';
+  SELECT * INTO v_capacity
+  FROM public.get_subcontract_finance_capacity(
+    p_work_order_no, p_subcontractor_id, p_subcontract_work_id
+  );
+  IF COALESCE(v_capacity.approved_capacity, 0) <= 0 THEN
+    RAISE EXCEPTION 'No positive effective Final Approved subcontract scope exists for this contractor and work.' USING ERRCODE = 'P6F01';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.project_cost_estimates WHERE btrim(work_order_no) = btrim(p_work_order_no) AND estimate_status = 'Final Approved') THEN
     RAISE EXCEPTION 'No Final Approved cost estimate found for this Work Order.' USING ERRCODE = 'EST01';
@@ -189,6 +188,7 @@ CREATE OR REPLACE FUNCTION public.approve_requisition_transact(
 DECLARE
   v_req public.requisitions;
   v_cap record;
+  v_ce_id uuid;
 BEGIN
   SELECT * INTO v_req FROM public.requisitions WHERE requisition_id = p_requisition_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Requisition not found.' USING ERRCODE = 'P0002'; END IF;
@@ -197,6 +197,20 @@ BEGIN
     RETURN public.approve_requisition_transact_unlocked(p_requisition_id, p_approved_amount, p_actioned_by, p_remarks_approved_authority);
   END IF;
   PERFORM public.lock_subcontract_financial_scopes(v_req.work_order_no, v_req.subcontractor_id, v_req.subcontract_work_id);
+  -- A Final Approved Cost Estimate is the pooled Finance authorization.  A
+  -- SHARE lock makes this approval serialize with reopenEstimate's UPDATE of
+  -- the same header: Finance either sees the approved CE before reopen, or
+  -- sees no approved CE after reopen, never an interleaved state.
+  SELECT estimate_id INTO v_ce_id
+  FROM public.project_cost_estimates
+  WHERE btrim(work_order_no) = btrim(v_req.work_order_no)
+    AND estimate_status = 'Final Approved'
+  ORDER BY estimate_revision DESC
+  LIMIT 1
+  FOR SHARE;
+  IF v_ce_id IS NULL THEN
+    RAISE EXCEPTION 'No Final Approved cost estimate found for this Work Order.' USING ERRCODE = 'EST01';
+  END IF;
   SELECT * INTO v_cap FROM public.get_subcontract_finance_capacity(v_req.work_order_no, v_req.subcontractor_id, v_req.subcontract_work_id);
   IF p_approved_amount > v_cap.available_contractor_capacity THEN
     RAISE EXCEPTION 'Approval exceeds the Final Approved subcontract authorization.' USING ERRCODE = 'P4B19';

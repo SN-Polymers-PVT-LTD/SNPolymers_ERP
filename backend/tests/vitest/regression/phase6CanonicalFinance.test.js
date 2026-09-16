@@ -87,6 +87,43 @@ describe('Phase 6 canonical subcontract finance', () => {
     await expect(client.query('SELECT public.approve_requisition_transact($1, 500, $2, $3)', [id, f.actor, 'P6 pooled overflow'])).rejects.toMatchObject({ code: 'P6F04' });
   });
 
+  test('creation rejects a contractor whose effective approved scope is zero', async () => {
+    const { rows: contractors } = await client.query(
+      `INSERT INTO public.subcontractor_master (subcontractor_name, created_by)
+       VALUES ($1, $2) RETURNING id`,
+      [`P6 Zero ${f.workOrderNo}`, f.actor]
+    );
+    const zeroContractorId = contractors[0].id;
+    f.extraContractorIds.push(zeroContractorId);
+    const { rows: base } = await client.query(
+      `INSERT INTO public.project_subcontract_estimate_lines
+        (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate,
+         amount, entry_kind, zo_office_approve, ho_office_approve,
+         final_approved_revision, final_approved_at, final_approved_by, created_by)
+       VALUES ($1, $2, $3, 1, 100, 100, 'BASE', 'Approve', 'Approve', 0, now(), $4, $4)
+       RETURNING line_id`,
+      [f.seId, zeroContractorId, f.workId, f.actor]
+    );
+    await client.query(
+      `INSERT INTO public.project_subcontract_estimate_lines
+        (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate,
+         amount, entry_kind, adjusts_line_id, zo_office_approve, ho_office_approve,
+         final_approved_revision, final_approved_at, final_approved_by, created_by)
+       VALUES ($1, $2, $3, -1, 100, -100, 'ADJUSTMENT', $4, 'Approve', 'Approve', 0, now(), $5, $5)`,
+      [f.seId, zeroContractorId, f.workId, base[0].line_id, f.actor]
+    );
+
+    await expect(client.query(
+      `SELECT * FROM public.create_subcontract_requisition_secure(
+        $1, $2, 'CE', 1000, 'State', 'District', 'P6', 'Dept', 'P6 site', $3,
+        'Sub Contractor', 'p6-zero.pdf', 'p6-zero.pdf', 100, 'No', NULL,
+        'P6 bank', 'P6 remarks', 'Pending', $1, 'P6 Work', 'P6 Details',
+        NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $4, $5
+      )`,
+      [f.actor, f.workOrderNo, `REQ-P6-ZERO-${crypto.randomUUID()}`, zeroContractorId, f.workId]
+    )).rejects.toMatchObject({ code: 'P6F01' });
+  });
+
   test('payment replaces reservation in consumption instead of double counting', async () => {
     const { rows } = await client.query("SELECT requisition_id FROM public.requisitions WHERE work_order_no = $1 AND requisition_status = 'Approved' LIMIT 1", [f.workOrderNo]);
     await client.query('SELECT public.mark_subcontractor_requisition_settled($1, now(), $2)', [rows[0].requisition_id, f.actor]);
@@ -103,4 +140,84 @@ describe('Phase 6 canonical subcontract finance', () => {
     expect(rows[0].subcontractor_id).toBe(f.contractorId);
     expect(rows[0].subcontract_work_id).toBe(f.workId);
   });
+});
+
+describe('Phase 6 pooled subcontract finance concurrency', () => {
+  test('two contractors cannot concurrently consume the same pooled CE capacity', async () => {
+    const setup = await createPgClient(DB_URL);
+    const clientA = await createPgClient(DB_URL);
+    const clientB = await createPgClient(DB_URL);
+    await setup.connect();
+    await clientA.connect();
+    await clientB.connect();
+    const f = await fixture(setup, crypto.randomUUID().slice(0, 8));
+    try {
+      const { rows: contractors } = await setup.query(
+        `INSERT INTO public.subcontractor_master (subcontractor_name, created_by)
+         VALUES ($1, $2) RETURNING id`,
+        [`P6 Concurrent Second ${f.workOrderNo}`, f.actor]
+      );
+      const secondContractorId = contractors[0].id;
+      f.extraContractorIds.push(secondContractorId);
+      await setup.query(
+        `INSERT INTO public.project_subcontract_estimate_lines
+          (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate,
+           amount, entry_kind, zo_office_approve, ho_office_approve,
+           final_approved_revision, final_approved_at, final_approved_by, created_by)
+         VALUES ($1, $2, $3, 10, 100, 1000, 'BASE', 'Approve', 'Approve', 0, now(), $4, $4)`,
+        [f.seId, secondContractorId, f.workId, f.actor]
+      );
+      const firstReq = await requisition(setup, f, `REQ-P6-CONCURRENT-A-${crypto.randomUUID()}`, 700);
+      const secondReq = await requisition(setup, f, `REQ-P6-CONCURRENT-B-${crypto.randomUUID()}`, 700, secondContractorId);
+
+      await clientA.query('BEGIN');
+      // Hold the same production pooled lock so the second real approval call
+      // is guaranteed to overlap and wait, without leaving the test itself
+      // waiting for a transaction that cannot commit until the wait finishes.
+      await clientA.query(
+        'SELECT public.lock_subcontract_financial_scope_pooled($1, $2)',
+        [f.workOrderNo, f.workId]
+      );
+      const firstApproval = clientA.query(
+        'SELECT public.approve_requisition_transact($1, 700, $2, $3)',
+        [firstReq, f.actor, 'Concurrent A']
+      );
+      await new Promise(resolve => setTimeout(resolve, 50));
+      await clientB.query('BEGIN');
+      const secondApproval = clientB.query(
+        'SELECT public.approve_requisition_transact($1, 700, $2, $3)',
+        [secondReq, f.actor, 'Concurrent B']
+      );
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await clientA.query('COMMIT');
+      const outcomes = await Promise.allSettled([firstApproval, secondApproval]);
+      const successes = outcomes.filter(result => result.status === 'fulfilled');
+      const failures = outcomes.filter(result => result.status === 'rejected');
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(1);
+      expect(failures[0].reason).toMatchObject({ code: 'P6F04' });
+      await clientB.query('ROLLBACK');
+      const ledger = await setup.query(
+        `SELECT COUNT(*)::int AS count, COALESCE(SUM(abs(amount)), 0)::numeric AS total
+         FROM public.subcontractor_ledger
+         WHERE work_order_no = $1 AND transaction_type = 'REQUISITION_APPROVAL'`,
+        [f.workOrderNo]
+      );
+      expect(ledger.rows[0]).toMatchObject({ count: 1, total: '700.00' });
+      const requisitions = await setup.query(
+        `SELECT requisition_id, requisition_status FROM public.requisitions
+         WHERE requisition_id IN ($1, $2) ORDER BY requisition_id`,
+        [firstReq, secondReq]
+      );
+      expect(requisitions.rows.filter(row => row.requisition_status === 'Approved')).toHaveLength(1);
+      expect(requisitions.rows.filter(row => row.requisition_status === 'Pending')).toHaveLength(1);
+    } finally {
+      await clientA.query('ROLLBACK').catch(() => {});
+      await clientB.query('ROLLBACK').catch(() => {});
+      await cleanup(setup, f);
+      await setup.end();
+      await clientA.end();
+      await clientB.end();
+    }
+  }, 120000);
 });
