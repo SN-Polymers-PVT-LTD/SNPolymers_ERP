@@ -337,7 +337,7 @@ async function submitRowApprovals(req, res) {
     // Verify all items exist and belong to this estimate
     const { data: dbItems, error: itemsFetchError } = await supabase
       .from('project_cost_estimate_items')
-      .select('item_id, zo_office_approve, ho_office_approve, zo_remarks, ho_remarks, source_of_purchase')
+      .select('item_id, zo_office_approve, ho_office_approve, zo_remarks, ho_remarks, source_of_purchase, source_type')
       .eq('estimate_id', id)
       .in('item_id', itemIds);
 
@@ -379,7 +379,7 @@ async function submitRowApprovals(req, res) {
     const canUpdateSource = ['ho', 'admin'].includes(effectiveRole);
     if (canUpdateSource) {
       for (const app of approvals) {
-        if ('source_of_purchase' in app) {
+        if ('source_of_purchase' in app && dbItemMap[app.item_id].source_type !== 'SUBCONTRACT_ESTIMATE') {
           const { error: updateSourceErr } = await supabase
             .from('project_cost_estimate_items')
             .update({ source_of_purchase: (app.source_of_purchase && app.source_of_purchase !== '') ? app.source_of_purchase : null })

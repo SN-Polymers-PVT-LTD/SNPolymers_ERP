@@ -23,7 +23,28 @@ async function syncEditableCostEstimateForWorkOrder(workOrderNo, actor) {
   return true;
 }
 
+async function syncEditableCostEstimateForWorkOrderBestEffort(workOrderNo, actor, context) {
+  try {
+    return await syncEditableCostEstimateForWorkOrder(workOrderNo, actor);
+  } catch (error) {
+    console.error(`Deferred subcontract Cost Estimate sync${context ? ` after ${context}` : ''}: ${error.message}`);
+    return false;
+  }
+}
+
+async function syncSubcontractContributionsToCostEstimateBestEffort(costEstimateId, actor, context) {
+  try {
+    await syncSubcontractContributionsToCostEstimate(costEstimateId, actor);
+    return true;
+  } catch (error) {
+    console.error(`Deferred subcontract Cost Estimate sync${context ? ` after ${context}` : ''}: ${error.message}`);
+    return false;
+  }
+}
+
 module.exports = {
   syncSubcontractContributionsToCostEstimate,
-  syncEditableCostEstimateForWorkOrder
+  syncEditableCostEstimateForWorkOrder,
+  syncEditableCostEstimateForWorkOrderBestEffort,
+  syncSubcontractContributionsToCostEstimateBestEffort
 };

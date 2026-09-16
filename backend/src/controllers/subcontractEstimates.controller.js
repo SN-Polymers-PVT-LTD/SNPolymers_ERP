@@ -1,5 +1,5 @@
 const { supabase } = require('../db/supabase');
-const { syncEditableCostEstimateForWorkOrder } = require('../services/subcontractCostEstimateSync.service');
+const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
 
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
@@ -181,7 +181,7 @@ async function transitionWorkflow(req, res) {
         .eq('subcontract_estimate_id', req.params.id)
         .single();
       if (sourceReadError) throw sourceReadError;
-      await syncEditableCostEstimateForWorkOrder(sourceEstimate.work_order_no, req.user.mobile_number);
+      await syncEditableCostEstimateForWorkOrderBestEffort(sourceEstimate.work_order_no, req.user.mobile_number, 'subcontract estimate HO approval');
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
     if (readError) throw readError;

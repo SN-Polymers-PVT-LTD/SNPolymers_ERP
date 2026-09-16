@@ -130,4 +130,33 @@ describe('Phase 5 Cost Estimate subcontract integration', () => {
     await expect(db.query(`UPDATE public.project_cost_estimate_items SET amount = amount + 1 WHERE item_id = $1`, [row.item_id])).rejects.toMatchObject({ code: 'P5E07' });
     await expect(db.query(`DELETE FROM public.project_cost_estimate_items WHERE item_id = $1`, [row.item_id])).rejects.toMatchObject({ code: 'P5E07' });
   });
+
+  test('generated rows remain reviewable through ZO and HO without legacy credit', async () => {
+    const { rows: [row] } = await db.query(`SELECT item_id FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type = 'SUBCONTRACT_ESTIMATE'`, [costEstimate.estimate_id]);
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Under ZO Review' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.submit_row_approvals($1, $2::jsonb, 'ZO', $3)`, [
+      costEstimate.estimate_id, JSON.stringify([{ item_id: row.item_id, approve_status: 'Approve', remarks: 'ZO checked', source_of_purchase: null }]), actor
+    ]);
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Under HO Review' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.submit_row_approvals($1, $2::jsonb, 'HO', $3)`, [
+      costEstimate.estimate_id, JSON.stringify([{ item_id: row.item_id, approve_status: 'Approve', remarks: 'HO checked', source_of_purchase: null }]), actor
+    ]);
+    const result = (await db.query(`SELECT zo_office_approve, ho_office_approve FROM public.project_cost_estimate_items WHERE item_id = $1`, [row.item_id])).rows[0];
+    expect(result).toMatchObject({ zo_office_approve: 'Approve', ho_office_approve: 'Approve' });
+    expect((await db.query(`SELECT count(*)::int AS count FROM public.subcontractor_ledger WHERE reference_id = $1 AND transaction_type = 'ESTIMATE_ITEM_APPROVAL'`, [row.item_id])).rows[0].count).toBe(0);
+  });
+
+  test('reopening an approved CE imports newly approved subcontract scope', async () => {
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Final Approved' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`INSERT INTO public.project_subcontract_estimate_lines
+      (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate, amount,
+       entry_kind, zo_office_approve, ho_office_approve, final_approved_revision,
+       final_approved_at, final_approved_by, created_by)
+      VALUES ($1, $2, $3, 1, 25, 25, 'ADDITION', 'Approve', 'Approve', 1, now(), $4, $4)`,
+      [sourceEstimate.subcontract_estimate_id, contractorB.id, work.id, actor]);
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Estimate Reopened' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.sync_subcontract_contributions_to_cost_estimate($1, $2)`, [costEstimate.estimate_id, actor]);
+    const row = (await db.query(`SELECT qty, amount FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type = 'SUBCONTRACT_ESTIMATE'`, [costEstimate.estimate_id])).rows[0];
+    expect(row).toMatchObject({ qty: '3.0000', amount: '125.00' });
+  });
 });

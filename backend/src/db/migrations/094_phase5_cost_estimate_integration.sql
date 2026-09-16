@@ -18,7 +18,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF current_setting('app.phase5_sync', true) IS DISTINCT FROM 'on' THEN
+  IF current_setting('app.phase5_sync', true) IS DISTINCT FROM 'on'
+     AND current_setting('app.phase5_review', true) IS DISTINCT FROM 'on' THEN
     IF TG_OP = 'DELETE' AND OLD.source_type = 'SUBCONTRACT_ESTIMATE' THEN
       RAISE EXCEPTION 'Generated subcontract Cost Estimate rows are system-owned' USING ERRCODE = 'P5E07';
     END IF;
@@ -234,6 +235,7 @@ DECLARE
   v_clean_sub_head varchar;
   v_clean_details varchar;
 BEGIN
+  PERFORM set_config('app.phase5_review', 'on', true);
   SELECT role INTO v_user_role FROM public.authorised_users
   WHERE mobile_number = p_modified_by AND is_active = true;
   IF NOT FOUND THEN RAISE EXCEPTION 'Unauthorized: User is inactive or does not exist.'; END IF;

@@ -10,7 +10,7 @@ const {
   resolveDisplayNames,
   uuidRegex
 } = require('./estimates.helpers');
-const { syncEditableCostEstimateForWorkOrder } = require('../services/subcontractCostEstimateSync.service');
+const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
 
 /**
  * POST /api/v1/auth/estimates/:id/submit
@@ -658,11 +658,6 @@ async function requestRevision(req, res) {
 
     if (updateError) throw updateError;
 
-    await syncEditableCostEstimateForWorkOrder(
-      updatedEstimate.work_order_no,
-      req.user.mobile_number
-    );
-
     // Trigger Telegram notification to JE asynchronously
     const { notifyJeRevisionRequested } = require('../services/telegram.service');
     notifyJeRevisionRequested(updatedEstimate, logEntry).catch(err => {
@@ -860,6 +855,12 @@ async function reopenEstimate(req, res) {
       .single();
 
     if (updateError) throw updateError;
+
+    await syncEditableCostEstimateForWorkOrderBestEffort(
+      updatedEstimate.work_order_no,
+      req.user.mobile_number,
+      'Cost Estimate reopen'
+    );
 
     // Trigger Telegram notification to JE asynchronously
     const { notifyJeRevisionRequested } = require('../services/telegram.service');
