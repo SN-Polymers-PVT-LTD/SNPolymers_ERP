@@ -192,4 +192,34 @@ describe('Phase 4B production-path financial scope serialization', () => {
       await ho.end(); await finance.end();
     }
   });
+
+  test('a committed HO reduction rejects a later Finance approval above the reduced authorization', async () => {
+    await requireLocalSupabase();
+    const ho = await createPgClient(DB_URL);
+    const finance = await createPgClient(DB_URL);
+    await ho.connect(); await finance.connect();
+    const fixture = await createFixture(ho, crypto.randomUUID().replace(/-/g, '').slice(0, 8));
+    try {
+      const expected = (await ho.query('SELECT updated_at::text AS updated_at FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [fixture.estimateId])).rows[0].updated_at;
+      await ho.query(
+        `SELECT public.transition_subcontract_estimate_workflow($1, $2, 'HO_APPROVE', NULL, $3, 24)`,
+        [fixture.estimateId, fixture.actor, expected]
+      );
+
+      await expect(finance.query(
+        `SELECT public.approve_requisition_transact($1, 700, $2, 'Finance after committed HO reduction')`,
+        [fixture.requisitionId, fixture.actor]
+      )).rejects.toMatchObject({ code: 'P4B19' });
+
+      const requisition = (await finance.query('SELECT requisition_status, approved_amount FROM public.requisitions WHERE requisition_id = $1', [fixture.requisitionId])).rows[0];
+      const ledger = (await finance.query('SELECT count(*)::int AS count FROM public.subcontractor_ledger WHERE reference_id = $1', [fixture.requisitionId])).rows[0];
+      const state = (await finance.query('SELECT estimate_status, last_approved_amount FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [fixture.estimateId])).rows[0];
+      expect(state).toMatchObject({ estimate_status: 'Final Approved', last_approved_amount: '600.00' });
+      expect(requisition).toMatchObject({ requisition_status: 'Pending', approved_amount: null });
+      expect(ledger.count).toBe(0);
+    } finally {
+      await cleanup(finance, fixture);
+      await ho.end(); await finance.end();
+    }
+  });
 });

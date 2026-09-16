@@ -756,6 +756,9 @@ async function actOnRequisition(req, res) {
         if (rpcErr.code === 'BUD04' || rpcErr.message?.includes('exceeds the remaining Subcontractor Ledger balance')) {
           return res.status(422).json({ success: false, message: rpcErr.message });
         }
+        if (rpcErr.code === 'P4B19' || rpcErr.message?.includes('exceeds the Final Approved subcontract authorization')) {
+          return res.status(422).json({ success: false, message: rpcErr.message, code: rpcErr.code });
+        }
         throw rpcErr;
       }
       updated = approvedReq;

@@ -210,7 +210,7 @@ async function reconcileLines(req, res) {
       const code = error.code || '';
       if (code === 'P4B43') return res.status(409).json({ success: false, message: 'Estimate changed since it was loaded. Reload and try again.' });
       if (['P4B41', 'P4B44', 'P4B45'].includes(code)) return res.status(403).json({ success: false, message: error.message });
-      if (['P4B40', 'P4B42', 'P4B46', 'P4B47', 'P4B48', 'P4B49', 'P4B50', 'P4B51'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
+      if (['P4B40', 'P4B42', 'P4B46', 'P4B47', 'P4B48', 'P4B49', 'P4B50', 'P4B51', 'P4B52'].includes(code)) return res.status(422).json({ success: false, message: error.message, code });
       throw error;
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
