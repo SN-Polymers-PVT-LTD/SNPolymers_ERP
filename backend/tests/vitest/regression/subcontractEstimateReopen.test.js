@@ -87,6 +87,11 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
         }
       };
 
+      // Revision zero is BASE-only at the RPC boundary; callers cannot opt
+      // into signed delta kinds before the first Final Approval.
+      await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: 1, rate: 100, entry_kind: 'ADDITION' }]), 'P4B52');
+      await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -1, rate: 100, entry_kind: 'ADJUSTMENT', adjusts_line_id: baseLineId }]), 'P4B52');
+
       await transition('SUBMIT');
       await transition('OPEN_ZO_REVIEW');
       await client.query(`UPDATE public.project_subcontract_estimate_lines SET zo_office_approve = 'Approve' WHERE line_id = $1`, [baseLineId]);
@@ -100,6 +105,10 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       const { rows: reopened } = await client.query(`SELECT estimate_revision, estimate_status, estimate_amount, last_approved_amount FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1`, [estimateId]);
       expect(reopened[0]).toMatchObject({ estimate_revision: before[0].estimate_revision + 1, estimate_status: 'Estimate Reopened', estimate_amount: before[0].estimate_amount, last_approved_amount: before[0].last_approved_amount });
       await expectError(() => reopen('second reopen'), 'P4B34');
+
+      // Reopened estimates use the dedicated resubmission path; ordinary
+      // Draft SUBMIT is invalid in Estimate Reopened.
+      await expectError(() => transition('SUBMIT'), 'P4B15');
 
       await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: 1, rate: 100, entry_kind: 'BASE' }]), 'P4B47');
       await expectError(() => reconcile([{ subcontractor_id: contractors[0].id, subcontract_work_id: works[0].id, qty: -1, rate: 100, entry_kind: 'ADJUSTMENT', adjusts_line_id: crypto.randomUUID() }]), 'P4B49');
