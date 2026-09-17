@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import SearchableSelect from './SearchableSelect';
 
 const PAGE_SIZE = 20;
@@ -14,8 +14,8 @@ const AsyncMasterSelect = ({
   onChange,
   fetchOptions,
   persistedOption,
-  getOptionValue,
-  getOptionLabel,
+  getOptionValue = (item) => item?.id,
+  getOptionLabel = (item) => item?.label || item?.name || '',
   onSelectItem,
   placeholder,
   required = false,
@@ -23,7 +23,7 @@ const AsyncMasterSelect = ({
   disabled = false
 }) => {
   const [query, setQuery] = useState('');
-  const [options, setOptions] = useState([]);
+  const [options, setOptions] = useState(() => (persistedOption ? [persistedOption] : []));
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,16 +36,7 @@ const AsyncMasterSelect = ({
     item
   });
 
-  const mergeOptions = (rows, nextPage) => {
-    const merged = nextPage === 1 ? rows : [...options, ...rows];
-    if (persistedOption && !merged.some(item => getOptionValue(item) === getOptionValue(persistedOption))) {
-      merged.unshift(persistedOption);
-    }
-    const unique = merged.filter((item, index, all) => all.findIndex(candidate => getOptionValue(candidate) === getOptionValue(item)) === index);
-    setOptions(unique);
-  };
-
-  const fetchPage = async (nextPage, nextQuery = query) => {
+  const fetchPage = useCallback(async (nextPage, nextQuery = '') => {
     const id = ++requestId.current;
     setLoading(true);
     try {
@@ -58,20 +49,26 @@ const AsyncMasterSelect = ({
       if (id !== requestId.current) return;
       const key = response.data?.subcontractors ? 'subcontractors' : 'subcontractWorks';
       const rows = response.data?.[key] || [];
-      mergeOptions(rows, nextPage);
+      setOptions(current => {
+        const merged = nextPage === 1 ? rows : [...current, ...rows];
+        if (persistedOption && !merged.some(item => getOptionValue(item) === getOptionValue(persistedOption))) {
+          merged.unshift(persistedOption);
+        }
+        return merged.filter((item, index, all) => all.findIndex(candidate => getOptionValue(candidate) === getOptionValue(item)) === index);
+      });
       const pagination = response.data?.pagination || {};
       setPage(nextPage);
       setHasMore(nextPage < (pagination.totalPages || 1));
     } finally {
       if (id === requestId.current) setLoading(false);
     }
-  };
+  }, [fetchOptions, persistedOption, getOptionValue]);
 
   useEffect(() => {
     if (!focused) return undefined;
     const timer = setTimeout(() => fetchPage(1, query), 350);
     return () => clearTimeout(timer);
-  }, [query, focused]);
+  }, [query, focused, fetchPage]);
 
   useEffect(() => {
     if (!persistedOption) return;
@@ -79,9 +76,10 @@ const AsyncMasterSelect = ({
       if (current.some(item => getOptionValue(item) === getOptionValue(persistedOption))) return current;
       return [persistedOption, ...current];
     });
-  }, [persistedOption]);
+  }, [persistedOption, getOptionValue]);
 
   const selected = options.find(item => getOptionValue(item) === value);
+  const selectedOption = selected ? toOption(selected) : null;
   const displayOptions = options.map(toOption);
   if (hasMore) displayOptions.push({ value: LOAD_MORE_VALUE, label: loading ? 'Loading more…' : 'Load more results…' });
 
@@ -89,11 +87,11 @@ const AsyncMasterSelect = ({
     <SearchableSelect
       label={label}
       required={required}
-      value={selected ? selected.label : query}
+      value={selectedOption ? selectedOption.label : query}
       onFocus={() => setFocused(true)}
       onChange={(nextQuery) => {
         setQuery(nextQuery);
-        if (selected && nextQuery !== selected.label) onChange('');
+        if (selectedOption && nextQuery !== selectedOption.label) onChange('');
       }}
       onSelect={(option) => {
         if (option.value === LOAD_MORE_VALUE) {

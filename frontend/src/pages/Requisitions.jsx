@@ -16,7 +16,6 @@ import {
   deleteRequisitionPdf,
   deleteGstBillPdf,
   getMainHeadCapacity,
-  getSubcontractorCapacity,
   getSubcontractFinanceCapacity,
   getIndianBanks
 } from '../api/requisitionsApi';
@@ -851,7 +850,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
   const [loadingMainHeads, setLoadingMainHeads] = useState(false);
   const [capacityMetrics, setCapacityMetrics] = useState(null);
   const [loadingCapacity, setLoadingCapacity] = useState(false);
-  const [subContractorItems, setSubContractorItems] = useState([]);
   const [subcontractorCapacityMetrics, setSubcontractorCapacityMetrics] = useState(null);
   const [loadingSubcontractorCapacity, setLoadingSubcontractorCapacity] = useState(false);
   const [estimateLifecycle, setEstimateLifecycle] = useState(null);
@@ -862,7 +860,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     if (!selectedWO) {
       setAllowedMainHeads([]);
       setCapacityMetrics(null);
-      setSubContractorItems([]);
       setEstimateLifecycle(null);
       return;
     }
@@ -878,7 +875,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     if (!latestEst) {
       setAllowedMainHeads([]);
       setCapacityMetrics(null);
-      setSubContractorItems([]);
       setEstimateLifecycle(null);
       return;
     }
@@ -909,7 +905,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
     if (latestEst.estimate_status !== 'Final Approved') {
       setAllowedMainHeads([]);
       setCapacityMetrics(null);
-      setSubContractorItems([]);
       return;
     }
 
@@ -922,8 +917,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
         if (res.data?.items) {
           const distinctHeads = Array.from(new Set(res.data.items.map(item => item.material_main_head).filter(Boolean)));
           setAllowedMainHeads(distinctHeads);
-          const scItems = res.data.items.filter(item => item.material_main_head === 'Sub Contractor');
-          setSubContractorItems(scItems);
         }
       })
       .catch(err => {
@@ -1016,11 +1009,6 @@ const RequisitionFormModal = ({ projects, estimates, onClose, onSave, requisitio
       isCurrent = false;
     };
   }, [materialHead, selectedWO, subcontractorId, subcontractWorkId]);
-
-  const subHeadOptions = Array.from(new Set(subContractorItems.map(i => i.material_sub_head).filter(Boolean)));
-  const materialDetailsOptions = Array.from(new Set(
-    subContractorItems.filter(i => i.material_sub_head === materialSubHead).map(i => i.material_details).filter(Boolean)
-  ));
 
   // Auto-lookup project geographical and estimate data during render
   const projectMetadata = (() => {
