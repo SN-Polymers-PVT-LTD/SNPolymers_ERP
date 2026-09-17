@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import authApi from '../api/authApi';
+import { getSubcontractEstimates } from '../api/subcontractEstimatesApi';
 import { Badge, Button, Pagination, Select, Table, TableBody, TableCell, TableHeader, TableRow } from '../components/ui';
 import { useAuth } from '../components/AuthContext';
 
@@ -50,7 +50,7 @@ const SubcontractEstimates = () => {
   useEffect(() => {
     setLoading(true);
     setError('');
-    authApi.get('/subcontract-estimates', { params: { page, limit: 20, ...(status ? { status } : {}) } })
+    getSubcontractEstimates({ page, limit: 20, ...(status ? { status } : {}) })
       .then(response => setData(response.data))
       .catch(e => setError(e.response?.data?.message || 'Failed to load subcontract estimates.'))
       .finally(() => setLoading(false));
