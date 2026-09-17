@@ -39,26 +39,42 @@ CREATE INDEX IF NOT EXISTS idx_swm_sub_head ON public.subcontract_work_master(su
 CREATE TABLE IF NOT EXISTS public.subcontractor_master (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   subcontractor_name varchar NOT NULL,
-  contact_person varchar,
-  mobile varchar,
-  email varchar,
-  address text,
-  pan_no varchar,
-  gst_no varchar,
-  primary_beneficiary_id uuid,
   is_active boolean NOT NULL DEFAULT true,
   created_by varchar NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_by varchar,
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT fk_scm_primary_beneficiary FOREIGN KEY (primary_beneficiary_id)
-    REFERENCES public.projects_beneficiary_master(id) ON DELETE SET NULL,
   CONSTRAINT fk_scm_created_by FOREIGN KEY (created_by)
     REFERENCES public.authorised_users(mobile_number) ON DELETE RESTRICT,
   CONSTRAINT fk_scm_updated_by FOREIGN KEY (updated_by)
     REFERENCES public.authorised_users(mobile_number) ON DELETE RESTRICT,
   CONSTRAINT chk_scm_name_nonempty CHECK (btrim(subcontractor_name) <> '')
 );
+
+CREATE TABLE IF NOT EXISTS public.subcontractor_work_assignments (
+  assignment_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_order_no varchar NOT NULL REFERENCES public.projects_master(work_order_no) ON DELETE RESTRICT,
+  subcontractor_id uuid NOT NULL REFERENCES public.subcontractor_master(id) ON DELETE RESTRICT,
+  subcontract_work_id uuid NOT NULL REFERENCES public.subcontract_work_master(id) ON DELETE RESTRICT,
+  unit varchar NOT NULL,
+  qty numeric(18,4) NOT NULL DEFAULT 0,
+  rate numeric(18,4) NOT NULL DEFAULT 0,
+  rate_reference varchar,
+  amount numeric(18,2) GENERATED ALWAYS AS (round(qty * rate, 2)) STORED,
+  is_active boolean NOT NULL DEFAULT true,
+  created_by varchar NOT NULL REFERENCES public.authorised_users(mobile_number) ON DELETE RESTRICT,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_by varchar REFERENCES public.authorised_users(mobile_number) ON DELETE RESTRICT,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_swa_qty_positive CHECK (qty > 0),
+  CONSTRAINT chk_swa_rate_positive CHECK (rate > 0),
+  CONSTRAINT chk_swa_unit_nonempty CHECK (btrim(unit) <> ''),
+  CONSTRAINT chk_swa_rate_reference CHECK (rate_reference IS NULL OR length(btrim(rate_reference)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_swa_subcontractor ON public.subcontractor_work_assignments(subcontractor_id);
+CREATE INDEX IF NOT EXISTS idx_swa_work_order ON public.subcontractor_work_assignments(work_order_no);
+CREATE INDEX IF NOT EXISTS idx_swa_work ON public.subcontractor_work_assignments(subcontract_work_id);
 
 CREATE TABLE IF NOT EXISTS public.project_subcontract_estimates (
   subcontract_estimate_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -302,8 +318,8 @@ FOR EACH ROW EXECUTE FUNCTION public.set_subcontractor_estimate_updated_at();
 
 GRANT ALL ON TABLE public.subcontract_work_master TO service_role;
 GRANT ALL ON TABLE public.subcontractor_master TO service_role;
+GRANT ALL ON TABLE public.subcontractor_work_assignments TO service_role;
 GRANT ALL ON TABLE public.project_subcontract_estimates TO service_role;
 GRANT ALL ON TABLE public.project_subcontract_estimate_lines TO service_role;
 GRANT ALL ON TABLE public.subcontract_estimate_revision_log TO service_role;
 GRANT ALL ON TABLE public.cost_estimate_subcontract_contributions TO service_role;
-

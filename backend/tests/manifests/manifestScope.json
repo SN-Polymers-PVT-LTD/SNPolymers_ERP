@@ -20,6 +20,7 @@
     "subcontractor_ledger",
     "subcontract_work_master",
     "subcontractor_master",
+    "subcontractor_work_assignments",
     "project_subcontract_estimates",
     "project_subcontract_estimate_lines",
     "subcontract_estimate_revision_log",

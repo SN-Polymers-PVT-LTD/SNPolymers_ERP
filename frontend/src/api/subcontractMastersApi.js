@@ -11,3 +11,5 @@ export const getSubcontractor = (id) => authApi.get(`/subcontractors/${id}`);
 export const createSubcontractor = (data) => authApi.post('/subcontractors', data);
 export const updateSubcontractor = (id, data) => authApi.put(`/subcontractors/${id}`, data);
 export const updateSubcontractorStatus = (id, is_active) => authApi.patch(`/subcontractors/${id}/status`, { is_active });
+export const getSubcontractorAssignments = (params) => authApi.get('/subcontractors/assignments', { params });
+export const createSubcontractorAssignment = (data) => authApi.post('/subcontractors/assignments', data);

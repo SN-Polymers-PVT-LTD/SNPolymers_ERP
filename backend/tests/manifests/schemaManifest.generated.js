@@ -1843,45 +1843,91 @@ module.exports = {
           "nullable": false,
           "default": null
         },
-        "contact_person": {
+        "is_active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
           "type": "character varying",
           "udtName": "varchar",
           "nullable": true,
           "default": null
         },
-        "mobile": {
-          "type": "character varying",
-          "udtName": "varchar",
-          "nullable": true,
-          "default": null
-        },
-        "email": {
-          "type": "character varying",
-          "udtName": "varchar",
-          "nullable": true,
-          "default": null
-        },
-        "address": {
-          "type": "text",
-          "udtName": "text",
-          "nullable": true,
-          "default": null
-        },
-        "pan_no": {
-          "type": "character varying",
-          "udtName": "varchar",
-          "nullable": true,
-          "default": null
-        },
-        "gst_no": {
-          "type": "character varying",
-          "udtName": "varchar",
-          "nullable": true,
-          "default": null
-        },
-        "primary_beneficiary_id": {
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "subcontractor_work_assignments": {
+      "columns": {
+        "assignment_id": {
           "type": "uuid",
           "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "unit": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "qty": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate_reference": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
           "nullable": true,
           "default": null
         },

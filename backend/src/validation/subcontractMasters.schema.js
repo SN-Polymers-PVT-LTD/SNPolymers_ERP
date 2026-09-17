@@ -6,10 +6,6 @@ const nullableString = z.preprocess(
   z.string().trim().optional().nullable()
 );
 const blankToUndefined = (value) => value === '' ? undefined : value;
-const optionalEmail = z.preprocess(
-  (value) => typeof value === 'string' && value.trim() === '' ? null : value,
-  z.string().trim().email().optional().nullable()
-);
 
 const listSchema = {
   query: z.object({
@@ -19,7 +15,6 @@ const listSchema = {
     sub_head: z.string().trim().optional().default(''),
     unit: z.string().trim().optional().default(''),
     is_active: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional()),
-    beneficiary_status: z.preprocess(blankToUndefined, z.enum(['linked', 'unlinked']).optional()),
     sortBy: z.string().optional(),
     sortOrder: z.enum(['asc', 'desc']).optional().default('asc')
   })
@@ -51,20 +46,35 @@ const statusSchema = {
 
 const subcontractorCreateSchema = {
   body: z.object({
-    subcontractor_name: z.string().trim().min(1),
-    contact_person: nullableString,
-    mobile: nullableString,
-    email: optionalEmail,
-    address: nullableString,
-    pan_no: nullableString,
-    gst_no: nullableString,
-    primary_beneficiary_id: uuid.optional().nullable()
+    subcontractor_name: z.string().trim().min(1)
   })
 };
 
 const subcontractorUpdateSchema = {
   params: z.object({ id: uuid }),
   body: subcontractorCreateSchema.body.extend({ is_active: z.boolean().optional() })
+};
+
+const assignmentListSchema = {
+  query: z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(1000).default(20),
+    work_order_no: z.string().trim().optional().default(''),
+    subcontractor_id: uuid.optional(),
+    is_active: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional())
+  })
+};
+
+const assignmentCreateSchema = {
+  body: z.object({
+    work_order_no: z.string().trim().min(1),
+    subcontractor_id: uuid,
+    subcontract_work_id: uuid,
+    unit: z.string().trim().min(1),
+    qty: z.coerce.number().positive(),
+    rate: z.coerce.number().positive(),
+    rate_reference: nullableString
+  })
 };
 
 module.exports = {
@@ -77,5 +87,7 @@ module.exports = {
   subcontractorIdSchema: idSchema,
   subcontractorCreateSchema,
   subcontractorUpdateSchema,
-  subcontractorStatusSchema: statusSchema
+  subcontractorStatusSchema: statusSchema,
+  assignmentListSchema,
+  assignmentCreateSchema
 };

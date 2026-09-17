@@ -13,14 +13,12 @@ async function fixture(client, suffix) {
   const { rows: contractors } = await client.query(`INSERT INTO public.subcontractor_master (subcontractor_name, created_by) VALUES ($1, $2) RETURNING id`, [`P6 Contractor ${suffix}`, actor]);
   const workId = works[0].id;
   const contractorId = contractors[0].id;
-  const { rows: beneficiaries } = await client.query(`INSERT INTO public.projects_beneficiary_master (beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, created_by, updated_by) VALUES ($1, $2, 'P6AB000001', $3, $3) RETURNING id`, [`P6 Beneficiary ${suffix}`, `98${suffix}1234`, actor]);
-  await client.query(`UPDATE public.subcontractor_master SET primary_beneficiary_id = $1 WHERE id = $2`, [beneficiaries[0].id, contractorId]);
   const { rows: ce } = await client.query(`INSERT INTO public.project_cost_estimates (work_order_no, estimate_no, area_code, zonal_office_no, estimate_amount, estimate_status, created_by, last_modified_by) VALUES ($1, $2, 'P6', 'P6-ZO', 1000, 'Final Approved', $3, $3) RETURNING estimate_id`, [workOrderNo, `CE-P6-${suffix}`, actor]);
   await client.query(`SELECT set_config('app.phase5_sync', 'on', false)`);
   await client.query(`INSERT INTO public.project_cost_estimate_items (estimate_id, material_main_head, material_sub_head, material_details, unit, qty, rate, amount, source_type, subcontract_work_id) VALUES ($1, 'Sub Contractor', $2, $3, 'Mtr', 10, 100, 1000, 'SUBCONTRACT_ESTIMATE', $4)`, [ce[0].estimate_id, `P6 Work ${suffix}`, `P6 Details ${suffix}`, workId]);
   const { rows: se } = await client.query(`INSERT INTO public.project_subcontract_estimates (work_order_no, estimate_revision, estimate_amount, estimate_status, created_by, last_modified_by) VALUES ($1, 0, 1000, 'Final Approved', $2, $2) RETURNING subcontract_estimate_id`, [workOrderNo, actor]);
   await client.query(`INSERT INTO public.project_subcontract_estimate_lines (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate, amount, entry_kind, zo_office_approve, ho_office_approve, final_approved_revision, final_approved_at, final_approved_by, created_by) VALUES ($1, $2, $3, 10, 100, 1000, 'BASE', 'Approve', 'Approve', 0, now(), $4, $4)`, [se[0].subcontract_estimate_id, contractorId, workId, actor]);
-  return { actor, workOrderNo, workId, contractorId, beneficiaryId: beneficiaries[0].id, ceId: ce[0].estimate_id, seId: se[0].subcontract_estimate_id, extraContractorIds: [] };
+  return { actor, workOrderNo, workId, contractorId, ceId: ce[0].estimate_id, seId: se[0].subcontract_estimate_id, extraContractorIds: [] };
 }
 
 async function requisition(client, f, number, amount, contractorId = f.contractorId) {
@@ -41,7 +39,6 @@ async function cleanup(client, f) {
   await client.query('DELETE FROM public.subcontractor_master WHERE id = $1', [f.contractorId]);
   for (const id of f.extraContractorIds || []) await client.query('DELETE FROM public.subcontractor_master WHERE id = $1', [id]);
   await client.query('DELETE FROM public.subcontract_work_master WHERE id = $1', [f.workId]);
-  await client.query('DELETE FROM public.projects_beneficiary_master WHERE id = $1', [f.beneficiaryId]);
   await client.query('DELETE FROM public.projects_master WHERE work_order_no = $1', [f.workOrderNo]);
   await client.query('DELETE FROM public.authorised_users WHERE mobile_number = $1', [f.actor]);
   await client.query("SET session_replication_role = 'origin'");
@@ -136,9 +133,9 @@ describe('Phase 6 canonical subcontract finance', () => {
     expect(Number(capacity[0].paid_or_settled_amount)).toBe(600);
   });
 
-  test('canonical create defaults beneficiary from subcontractor master', async () => {
+  test('canonical create preserves requisition-level beneficiary selection', async () => {
     const { rows } = await client.query(`SELECT * FROM public.create_subcontract_requisition_secure($1, $2, 'CE', 1000, 'State', 'District', 'P6', 'Dept', 'P6 site', $3, 'Sub Contractor', 'p6-create.pdf', 'p6-create.pdf', 100, 'No', NULL, 'P6 bank', 'P6 remarks', 'Pending', $1, 'P6 Work', 'P6 Details', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $4, $5)`, [f.actor, f.workOrderNo, `REQ-P6-CREATE-${crypto.randomUUID()}`, f.contractorId, f.workId]);
-    expect(rows[0].beneficiary_id).toBe(f.beneficiaryId);
+    expect(rows[0].beneficiary_id).toBeNull();
     expect(rows[0].subcontractor_id).toBe(f.contractorId);
     expect(rows[0].subcontract_work_id).toBe(f.workId);
   });

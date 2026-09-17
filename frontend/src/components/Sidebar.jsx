@@ -36,8 +36,7 @@ export const MobileHeader = () => {
       )
     });
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
-      projItems.push({ to: '/subcontract-works', label: 'Subcontract Work Master', icon: <span className="text-xs">SW</span> });
-      projItems.push({ to: '/subcontractors', label: 'Subcontractor Master', icon: <span className="text-xs">SC</span> });
+      projItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
     }
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       projItems.push({
@@ -528,7 +527,7 @@ const Sidebar = () => {
   }, [isExpanded, isCollapsed]);
 
   // 1. Detect active module
-  const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
+  const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress', '/subcontract-masters', '/subcontract-works', '/subcontractors'].some(p => currentPath.startsWith(p));
   const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
@@ -560,6 +559,10 @@ const Sidebar = () => {
         )
       }
     );
+
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
+    }
 
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       navItems.push({
@@ -626,10 +629,6 @@ const Sidebar = () => {
             </svg>
         )
       },
-      ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [
-        { to: '/subcontract-works', label: 'Subcontract Work Master', icon: <span className="text-xs">SW</span> },
-        { to: '/subcontractors', label: 'Subcontractor Master', icon: <span className="text-xs">SC</span> }
-      ] : []),
         {
           to: '/estimated-bills',
           label: 'Estimated Bills',

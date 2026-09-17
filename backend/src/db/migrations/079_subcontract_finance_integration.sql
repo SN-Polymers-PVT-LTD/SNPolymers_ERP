@@ -125,7 +125,6 @@ CREATE OR REPLACE FUNCTION public.create_subcontract_requisition_secure(
 ) RETURNS public.requisitions LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_req public.requisitions;
-  v_primary uuid;
   v_beneficiary uuid;
   v_beneficiary_row public.projects_beneficiary_master%ROWTYPE;
   v_capacity record;
@@ -152,8 +151,7 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM public.project_cost_estimates WHERE btrim(work_order_no) = btrim(p_work_order_no) AND estimate_status = 'Final Approved') THEN
     RAISE EXCEPTION 'No Final Approved cost estimate found for this Work Order.' USING ERRCODE = 'EST01';
   END IF;
-  SELECT primary_beneficiary_id INTO v_primary FROM public.subcontractor_master WHERE id = p_subcontractor_id;
-  v_beneficiary := COALESCE(p_beneficiary_id, v_primary);
+  v_beneficiary := p_beneficiary_id;
   IF v_beneficiary IS NOT NULL THEN
     SELECT * INTO v_beneficiary_row FROM public.projects_beneficiary_master WHERE id = v_beneficiary;
     IF NOT FOUND THEN RAISE EXCEPTION 'Selected beneficiary does not exist.' USING ERRCODE = 'P6F02'; END IF;

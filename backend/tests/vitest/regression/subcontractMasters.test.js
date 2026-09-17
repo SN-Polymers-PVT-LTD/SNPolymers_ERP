@@ -8,7 +8,7 @@ const mockRes = require('../../helpers/mockRes');
 const { getSubcontractors, createSubcontractor, updateSubcontractor, updateSubcontractorStatus } = require('../../../src/controllers/subcontractors.controller');
 
 describe('Subcontract master contracts', () => {
-  let suffix; let actor; let work; let duplicateContractor; let contractor; let apiContractor; let estimate; let beneficiary; let workOrder;
+  let suffix; let actor; let work; let duplicateContractor; let contractor; let apiContractor; let estimate; let workOrder; let assignments = [];
 
   beforeAll(async () => {
     await requireLocalSupabase();
@@ -22,32 +22,26 @@ describe('Subcontract master contracts', () => {
     const { data: workRow, error: workError } = await supabase.from('subcontract_work_master').insert({ sub_head: `Master ${suffix}`, material_details: `Pipe ${suffix}`, unit: 'Mtr', created_by: actor }).select().single();
     if (workError) throw workError;
     work = workRow;
-    const { data: contractorRow, error: contractorError } = await supabase.from('subcontractor_master').insert({ subcontractor_name: `Contractor ${suffix}`, email: '', contact_person: '', created_by: actor }).select().single();
+    const { data: contractorRow, error: contractorError } = await supabase.from('subcontractor_master').insert({ subcontractor_name: `Contractor ${suffix}`, created_by: actor }).select().single();
     if (contractorError) throw contractorError;
     contractor = contractorRow;
-    const { data: beneficiaryRow, error: beneficiaryError } = await supabase.from('projects_beneficiary_master').select('id').limit(1).maybeSingle();
-    if (beneficiaryError) throw beneficiaryError;
-    beneficiary = beneficiaryRow;
   });
 
   afterAll(async () => {
+    if (assignments.length) await supabase.from('subcontractor_work_assignments').delete().in('assignment_id', assignments.map(row => row.assignment_id));
     if (estimate?.subcontract_estimate_id) await supabase.from('project_subcontract_estimate_lines').delete().eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     if (estimate?.subcontract_estimate_id) await supabase.from('project_subcontract_estimates').delete().eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
     if (contractor?.id) await supabase.from('subcontractor_master').delete().eq('id', contractor.id);
     if (apiContractor?.id) await supabase.from('subcontractor_master').delete().eq('id', apiContractor.id);
-    if (beneficiary?.id && contractor?.id) await supabase.from('subcontractor_master').update({ primary_beneficiary_id: null }).eq('id', contractor.id);
     if (duplicateContractor?.id) await supabase.from('subcontractor_master').delete().eq('id', duplicateContractor.id);
     if (work?.id) await supabase.from('subcontract_work_master').delete().eq('id', work.id);
     if (workOrder) await supabase.from('projects_master').delete().eq('work_order_no', workOrder);
   });
 
   test('normalizes blank filters, optional strings, email, and invalid UUIDs', () => {
-    const parsed = schemas.subcontractorListSchema.query.parse({ is_active: '', beneficiary_status: '' });
+    const parsed = schemas.subcontractorListSchema.query.parse({ is_active: '' });
     expect(parsed.is_active).toBeUndefined();
-    expect(parsed.beneficiary_status).toBeUndefined();
-    const create = schemas.subcontractorCreateSchema.body.parse({ subcontractor_name: 'X', email: '', contact_person: '', mobile: '', address: '', pan_no: '', gst_no: '' });
-    expect(create.email).toBeNull();
-    expect(create.contact_person).toBeNull();
+    expect(schemas.subcontractorCreateSchema.body.parse({ subcontractor_name: 'X' })).toEqual({ subcontractor_name: 'X' });
     expect(schemas.subcontractorIdSchema.params.safeParse({ id: 'not-a-uuid' }).success).toBe(false);
   });
 
@@ -77,42 +71,22 @@ describe('Subcontract master contracts', () => {
     expect(all.data).toHaveLength(1);
   });
 
-  test('controller list returns subcontractors with the real beneficiary projection', async () => {
+  test('controller list returns subcontractors without master beneficiary or KYC fields', async () => {
     const req = { user: { role: 'admin' }, query: { search: `Contractor, ${suffix}`, page: 1, limit: 10 } };
     const res = mockRes();
     await getSubcontractors(req, res);
     expect(res.statusCode).toBe(200);
     expect(res.jsonData.success).toBe(true);
     expect(Array.isArray(res.jsonData.subcontractors)).toBe(true);
+    expect(res.jsonData.subcontractors.every(row => !Object.hasOwn(row, 'primary_beneficiary_id'))).toBe(true);
   });
 
-  test('controller create/update/status contracts preserve and explicitly clear beneficiary links', async () => {
+  test('controller create/update/status contracts use only the Excel contractor identity fields', async () => {
     const createRes = mockRes();
     await createSubcontractor({ user: { mobile_number: actor }, body: { subcontractor_name: `API Contractor ${suffix}` } }, createRes);
     expect(createRes.statusCode).toBe(201);
     apiContractor = createRes.jsonData.subcontractor;
-    expect(apiContractor.primary_beneficiary_id).toBeNull();
-
-    const invalidRes = mockRes();
-    await createSubcontractor({ user: { mobile_number: actor }, body: { subcontractor_name: `Invalid ${suffix}`, primary_beneficiary_id: crypto.randomUUID() } }, invalidRes);
-    expect(invalidRes.statusCode).toBe(422);
-
-    if (beneficiary?.id) {
-      const linkedRes = mockRes();
-      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { primary_beneficiary_id: beneficiary.id } }, linkedRes);
-      expect(linkedRes.statusCode).toBe(200);
-      expect(linkedRes.jsonData.subcontractor.primary_beneficiary_id).toBe(beneficiary.id);
-
-      const preserveRes = mockRes();
-      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { contact_person: 'Preserved beneficiary' } }, preserveRes);
-      expect(preserveRes.statusCode).toBe(200);
-      expect(preserveRes.jsonData.subcontractor.primary_beneficiary_id).toBe(beneficiary.id);
-
-      const clearRes = mockRes();
-      await updateSubcontractor({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { primary_beneficiary_id: null } }, clearRes);
-      expect(clearRes.statusCode).toBe(200);
-      expect(clearRes.jsonData.subcontractor.primary_beneficiary_id).toBeNull();
-    }
+    expect(apiContractor).not.toHaveProperty('primary_beneficiary_id');
 
     const statusRes = mockRes();
     await updateSubcontractorStatus({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { is_active: false } }, statusRes);
@@ -124,6 +98,19 @@ describe('Subcontract master contracts', () => {
     let statusCode;
     requireRole(['admin'])({ user: { role: 'je' } }, { status: code => ({ json: () => { statusCode = code; } }) }, () => {});
     expect(statusCode).toBe(403);
+  });
+
+  test('Works Undertaken stores Excel row values and permits repeated source rows', async () => {
+    const rows = [
+      { work_order_no: workOrder, subcontractor_id: contractor.id, subcontract_work_id: work.id, unit: work.unit, qty: 2, rate: 125.5, rate_reference: 'LOCAL', created_by: actor },
+      { work_order_no: workOrder, subcontractor_id: contractor.id, subcontract_work_id: work.id, unit: work.unit, qty: 3, rate: 125.5, rate_reference: 'LOCAL', created_by: actor }
+    ];
+    const { data, error } = await supabase.from('subcontractor_work_assignments').insert(rows).select();
+    if (error) throw error;
+    assignments = data;
+    expect(data).toHaveLength(2);
+    expect(Number(data[0].amount)).toBe(251);
+    expect(Number(data[1].amount)).toBe(376.5);
   });
 
   test('referenced work identity cannot be changed at the database boundary', async () => {

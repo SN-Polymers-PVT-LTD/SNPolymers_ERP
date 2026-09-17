@@ -9,6 +9,8 @@ const router = express.Router();
 router.use(verifyJwt);
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 router.get('/', requireRole(readerRoles), validateRequest(schemas.subcontractorListSchema), controller.getSubcontractors);
+router.get('/assignments', requireRole(readerRoles), validateRequest(schemas.assignmentListSchema), controller.getSubcontractorAssignments);
+router.post('/assignments', requireRole(['je', 'admin']), validateRequest(schemas.assignmentCreateSchema), controller.createSubcontractorAssignment);
 router.get('/:id', requireRole(readerRoles), validateRequest(schemas.subcontractorIdSchema), controller.getSubcontractorById);
 router.post('/', requireRole(['je', 'admin']), validateRequest(schemas.subcontractorCreateSchema), controller.createSubcontractor);
 router.put('/:id', requireRole(['admin']), validateRequest(schemas.subcontractorUpdateSchema), controller.updateSubcontractor);

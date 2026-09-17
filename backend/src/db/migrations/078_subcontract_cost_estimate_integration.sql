@@ -328,3 +328,4 @@ $$;
 
 REVOKE ALL ON FUNCTION public.submit_row_approvals(uuid, jsonb, text, varchar) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_row_approvals(uuid, jsonb, text, varchar) TO service_role;
+
