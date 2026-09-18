@@ -1,24 +1,9 @@
 const { supabase } = require('../db/supabase');
 const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
+const { visibleWorkOrders } = require('../helpers/workOrderAccess');
 
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
-
-async function visibleWorkOrders(user) {
-  if (user.role === 'admin' || user.role === 'ho') return null;
-  if (user.role === 'je') {
-    const { data, error } = await supabase.from('work_order_mappings').select('work_order_no').eq('je_user_id', user.mobile_number).eq('is_active', true);
-    if (error) throw error;
-    return (data || []).map(row => row.work_order_no);
-  }
-  const { data: jeRows, error: jeError } = await supabase.from('je_zo_mappings').select('je_user_id').eq('zo_user_id', user.mobile_number).eq('is_active', true);
-  if (jeError) throw jeError;
-  const jeIds = (jeRows || []).map(row => row.je_user_id);
-  if (!jeIds.length) return [];
-  const { data, error } = await supabase.from('work_order_mappings').select('work_order_no').in('je_user_id', jeIds).eq('is_active', true);
-  if (error) throw error;
-  return [...new Set((data || []).map(row => row.work_order_no))];
-}
 
 async function canAccessEstimate(estimate, user, write = false) {
   if (user.role === 'admin') return true;

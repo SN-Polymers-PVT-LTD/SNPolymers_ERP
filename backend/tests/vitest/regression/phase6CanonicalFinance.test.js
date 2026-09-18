@@ -209,6 +209,39 @@ describe('Phase 6 canonical subcontract finance', () => {
     );
     expect(ledger.rows[0].count).toBe(0);
   });
+
+  test('canonical release restores capacity and is idempotent', async () => {
+    const id = await requisition(client, f, `REQ-P6-REL-${crypto.randomUUID()}`, 300);
+    await client.query('SELECT public.approve_requisition_transact($1, 300, $2, $3)', [id, f.actor, 'P6 approved for release']);
+
+    const { rows: afterApprove } = await client.query('SELECT * FROM public.get_subcontract_finance_capacity($1, $2, $3)', [f.workOrderNo, f.contractorId, f.workId]);
+    expect(Number(afterApprove[0].reserved_amount)).toBe(300);
+    expect(Number(afterApprove[0].effective_available_capacity)).toBe(100);
+
+    const first = await client.query('SELECT public.release_requisition_commitment_transact($1, 300, $2)', [id, f.actor]);
+    expect(first.rows[0].release_requisition_commitment_transact).toBe(true);
+
+    const ledger = await client.query(
+      'SELECT transaction_type, reference_type, reference_id, amount, settlement_status FROM public.subcontractor_ledger WHERE reference_id = $1 ORDER BY transaction_type',
+      [id]
+    );
+    expect(ledger.rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ transaction_type: 'REQUISITION_APPROVAL', settlement_status: 'RELEASED' }),
+      expect.objectContaining({ transaction_type: 'REQUISITION_RELEASE', settlement_status: 'RELEASED' })
+    ]));
+
+    const { rows: afterRelease } = await client.query('SELECT * FROM public.get_subcontract_finance_capacity($1, $2, $3)', [f.workOrderNo, f.contractorId, f.workId]);
+    expect(Number(afterRelease[0].reserved_amount)).toBe(0);
+    expect(Number(afterRelease[0].consumed_amount)).toBe(600);
+    expect(Number(afterRelease[0].effective_available_capacity)).toBe(400);
+
+    const second = await client.query('SELECT public.release_requisition_commitment_transact($1, 300, $2)', [id, f.actor]);
+    expect(second.rows[0].release_requisition_commitment_transact).toBe(false);
+
+    const { rows: afterRetry } = await client.query('SELECT * FROM public.get_subcontract_finance_capacity($1, $2, $3)', [f.workOrderNo, f.contractorId, f.workId]);
+    expect(Number(afterRetry[0].reserved_amount)).toBe(0);
+    expect(Number(afterRetry[0].effective_available_capacity)).toBe(400);
+  });
 });
 
 describe('Phase 6 pooled subcontract finance concurrency', () => {

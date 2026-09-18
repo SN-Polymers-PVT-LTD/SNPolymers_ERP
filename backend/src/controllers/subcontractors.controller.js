@@ -1,26 +1,33 @@
 const { supabase } = require('../db/supabase');
+const { visibleWorkOrders } = require('../helpers/workOrderAccess');
 
 const SORT_FIELDS = new Set(['subcontractor_name', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
 const selectWithAssignments = '*, subcontractor_work_assignments:subcontractor_work_assignments(*, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit))';
-const quoteFilterValue = (value) => `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+
+function filterAssignmentsByAllowed(subcontractor, allowed) {
+  if (!subcontractor || allowed === null) return subcontractor;
+  const assignments = (subcontractor.subcontractor_work_assignments || []).filter(a => allowed.includes(a.work_order_no));
+  return { ...subcontractor, subcontractor_work_assignments: assignments };
+}
 
 async function getSubcontractors(req, res) {
   try {
     const { page = 1, limit = 10, search = '', is_active, sortBy = 'subcontractor_name', sortOrder = 'asc' } = req.query;
+    const allowed = await visibleWorkOrders(req.user);
     const offset = (page - 1) * limit;
     let query = supabase.from('subcontractor_master').select(selectWithAssignments, { count: 'exact' });
     if (!isAdmin(req)) query = query.eq('is_active', true);
     else if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
     if (search) {
-      const p = quoteFilterValue(`%${search}%`);
-      query = query.ilike('subcontractor_name', p);
+      query = query.ilike('subcontractor_name', `%${search}%`);
     }
     query = query.order(SORT_FIELDS.has(sortBy) ? sortBy : 'subcontractor_name', { ascending: sortOrder !== 'desc' }).range(offset, offset + limit - 1);
     const { data, count, error } = await query;
     if (error) throw error;
-    return res.json({ success: true, subcontractors: data || [], pagination: { totalItems: count || 0, page, limit, totalPages: Math.max(1, Math.ceil((count || 0) / limit)) } });
+    const sanitized = (data || []).map(row => filterAssignmentsByAllowed(row, allowed));
+    return res.json({ success: true, subcontractors: sanitized, pagination: { totalItems: count || 0, page, limit, totalPages: Math.max(1, Math.ceil((count || 0) / limit)) } });
   } catch (error) {
     console.error(`getSubcontractors failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve subcontractors.' });
@@ -29,11 +36,12 @@ async function getSubcontractors(req, res) {
 
 async function getSubcontractorById(req, res) {
   if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
+  const allowed = await visibleWorkOrders(req.user);
   const { data, error } = await supabase.from('subcontractor_master').select(selectWithAssignments).eq('id', req.params.id).maybeSingle();
   if (error) return res.status(500).json({ success: false, message: 'Failed to retrieve subcontractor.' });
   if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
   if (!isAdmin(req) && !data.is_active) return res.status(403).json({ success: false, message: 'Access denied. Inactive subcontractor.' });
-  return res.json({ success: true, subcontractor: data });
+  return res.json({ success: true, subcontractor: filterAssignmentsByAllowed(data, allowed) });
 }
 
 async function createSubcontractor(req, res) {
@@ -69,8 +77,17 @@ async function updateSubcontractorStatus(req, res) {
 async function getSubcontractorAssignments(req, res) {
   try {
     const { page = 1, limit = 20, work_order_no = '', subcontractor_id = '', is_active } = req.query;
+    const allowed = await visibleWorkOrders(req.user);
+    if (allowed !== null && work_order_no && !allowed.includes(work_order_no)) {
+      return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+    }
+
     let query = supabase.from('subcontractor_work_assignments').select('*, subcontractor:subcontractor_master(id, subcontractor_name, is_active), subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)', { count: 'exact' });
-    if (work_order_no) query = query.eq('work_order_no', work_order_no);
+    if (work_order_no) {
+      query = query.eq('work_order_no', work_order_no);
+    } else if (allowed !== null) {
+      query = query.in('work_order_no', allowed.length ? allowed : ['__none__']);
+    }
     if (subcontractor_id) query = query.eq('subcontractor_id', subcontractor_id);
     if (!isAdmin(req)) query = query.eq('is_active', true);
     else if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
@@ -86,6 +103,11 @@ async function getSubcontractorAssignments(req, res) {
 
 async function createSubcontractorAssignment(req, res) {
   const { work_order_no, subcontractor_id, subcontract_work_id, unit, qty, rate, rate_reference } = req.body;
+  const allowed = await visibleWorkOrders(req.user);
+  if (allowed !== null && !allowed.includes(work_order_no)) {
+    return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+  }
+
   const [{ data: subcontractor, error: subcontractorError }, { data: work, error: workError }] = await Promise.all([
     supabase.from('subcontractor_master').select('id, is_active').eq('id', subcontractor_id).maybeSingle(),
     supabase.from('subcontract_work_master').select('id, unit, is_active').eq('id', subcontract_work_id).maybeSingle()
