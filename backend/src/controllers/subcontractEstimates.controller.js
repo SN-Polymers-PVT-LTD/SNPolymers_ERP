@@ -39,7 +39,12 @@ async function getSubcontractEstimateSummary(req, res) {
     const { data, error } = await query;
     if (error) throw error;
     const rows = data || [];
-    return res.json({ success: true, summary: { total: rows.length, draft: rows.filter(row => row.estimate_status === 'Draft').length, totalAmount: rows.reduce((sum, row) => sum + Number(row.estimate_amount || 0), 0) } });
+    const total = rows.length;
+    const draft = rows.filter(row => row.estimate_status === 'Draft').length;
+    const active = rows.filter(row => !['Final Approved', 'Rejected by ZO', 'Rejected by HO'].includes(row.estimate_status)).length;
+    const submitted = rows.filter(row => ['Submitted', 'Under ZO Review', 'Under HO Review'].includes(row.estimate_status)).length;
+    const totalAmount = rows.reduce((sum, row) => sum + Number(row.estimate_amount || 0), 0);
+    return res.json({ success: true, summary: { total, draft, active, submitted, totalAmount } });
   } catch (error) {
     console.error(`getSubcontractEstimateSummary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve subcontract estimate summary.' });

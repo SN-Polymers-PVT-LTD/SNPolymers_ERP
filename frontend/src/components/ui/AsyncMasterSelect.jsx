@@ -20,7 +20,9 @@ const AsyncMasterSelect = ({
   placeholder,
   required = false,
   label,
-  disabled = false
+  disabled = false,
+  size = 'md',
+  emptyMessage
 }) => {
   const [query, setQuery] = useState('');
   const [options, setOptions] = useState(() => (persistedOption ? [persistedOption] : []));
@@ -85,6 +87,7 @@ const AsyncMasterSelect = ({
 
   return (
     <SearchableSelect
+      size={size}
       label={label}
       required={required}
       value={selectedOption ? selectedOption.label : query}
@@ -106,6 +109,7 @@ const AsyncMasterSelect = ({
       options={displayOptions}
       placeholder={placeholder}
       disabled={disabled}
+      emptyMessage={emptyMessage}
       helperText={loading ? 'Searching…' : undefined}
     />
   );

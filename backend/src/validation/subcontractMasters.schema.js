@@ -14,6 +14,7 @@ const listSchema = {
     search: z.string().trim().optional().default(''),
     sub_head: z.string().trim().optional().default(''),
     unit: z.string().trim().optional().default(''),
+    subcontractor_id: uuid.optional(),
     is_active: z.preprocess(blankToUndefined, z.enum(['true', 'false']).optional()),
     sortBy: z.string().optional(),
     sortOrder: z.enum(['asc', 'desc']).optional().default('asc')
@@ -46,13 +47,18 @@ const statusSchema = {
 
 const subcontractorCreateSchema = {
   body: z.object({
-    subcontractor_name: z.string().trim().min(1)
+    subcontractor_name: z.string().trim().min(1),
+    work_ids: z.array(uuid).optional()
   })
 };
 
 const subcontractorUpdateSchema = {
   params: z.object({ id: uuid }),
-  body: subcontractorCreateSchema.body.extend({ is_active: z.boolean().optional() })
+  body: z.object({
+    subcontractor_name: z.string().trim().min(1).optional(),
+    is_active: z.boolean().optional(),
+    work_ids: z.array(uuid).optional()
+  })
 };
 
 const assignmentListSchema = {

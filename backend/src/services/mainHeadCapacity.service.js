@@ -37,36 +37,23 @@ async function computeMainHeadCapacity(workOrderNo, materialMainHead) {
       : null
   };
 
-  let mainHeadEstimate = 0;
-  let cumulativeApproved = 0;
+  const { data: capData, error: capError } = await supabase.rpc('get_main_head_capacity', {
+    p_work_order_no: trimmedWo,
+    p_material_main_head: trimmedHead,
+    p_exclude_requisition_id: null
+  });
 
-  if (latestEstimate && latestEstimate.estimate_status === 'Final Approved') {
-    const { data: itemData, error: itemError } = await supabase
-      .from('project_cost_estimate_items')
-      .select('amount')
-      .eq('estimate_id', latestEstimate.estimate_id)
-      .eq('material_main_head', trimmedHead);
+  if (capError) throw capError;
 
-    if (itemError) throw itemError;
-
-    mainHeadEstimate = (itemData || []).reduce((sum, item) => sum + Number(item.amount), 0);
-  }
-
-  const { data: approvedReqs, error: approvedError } = await supabase
-    .from('requisitions')
-    .select('approved_amount')
-    .eq('work_order_no', trimmedWo)
-    .eq('material_main_head', trimmedHead)
-    .eq('requisition_status', 'Approved');
-
-  if (approvedError) throw approvedError;
-
-  cumulativeApproved = (approvedReqs || []).reduce((sum, r) => sum + Number(r.approved_amount), 0);
+  const cap = Array.isArray(capData) ? capData[0] : capData;
+  const mainHeadEstimate = Number(cap?.main_head_estimate || 0);
+  const cumulativeApproved = Number(cap?.cumulative_approved || 0);
+  const remainingCapacity = Number(cap?.remaining_capacity || 0);
 
   return {
     mainHeadEstimate,
     cumulativeApproved,
-    remainingCapacity: mainHeadEstimate - cumulativeApproved,
+    remainingCapacity,
     estimateLifecycle
   };
 }

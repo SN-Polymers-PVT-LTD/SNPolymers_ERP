@@ -1164,51 +1164,150 @@ async function getSubcontractFinanceCapacity(req, res) {
 async function getSubcontractorLedger(req, res) {
   try {
     const query = req.query || {};
-    const page = Math.max(parseInt(query.page) || 1, 1);
-    let limit = parseInt(query.limit) || 20;
+    const page = Math.max(parseInt(query.page, 10) || 1, 1);
+    let limit = parseInt(query.limit, 10) || 20;
     if (limit < 1) limit = 20;
     limit = Math.min(limit, 100);
     const offset = (page - 1) * limit;
 
-    let dbQuery = supabase
-      .from('subcontractor_balance_summary')
-      .select('*', { count: 'exact' });
-
-    if (query.work_order_no) {
-      dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
-    }
-
-    if (query.search) {
-      const s = query.search.trim().replace(/[,()]/g, ' ').trim();
-      if (s) {
-        dbQuery = dbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
+    // 1. Authorization: Work Order restriction check
+    const allowed = await visibleWorkOrders(req.user);
+    if (allowed !== null) {
+      if (query.work_order_no) {
+        if (!allowed.includes(query.work_order_no.trim())) {
+          return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+        }
+      } else if (allowed.length === 0) {
+        return res.status(200).json({
+          success: true,
+          contractors: [],
+          balances: [],
+          pagination: { page: 1, limit, total: 0, totalPages: 1 }
+        });
       }
     }
 
-    dbQuery = dbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
+    // 2. Query canonical summary RPC
+    const pSubcontractorId = query.subcontractor_id && uuidRegex.test(query.subcontractor_id) ? query.subcontractor_id : null;
+    const { data: canonicalRows, error } = await supabase.rpc('get_canonical_subcontractor_summary', {
+      p_work_order_no: query.work_order_no ? query.work_order_no.trim() : null,
+      p_subcontractor_id: pSubcontractorId,
+      p_search: query.search?.trim() || null
+    });
 
-    const { data: balances, count, error } = await dbQuery;
     if (error) throw error;
 
-    const workOrderNos = [...new Set((balances || []).map(b => b.work_order_no))];
-    let projectMap = {};
-    if (workOrderNos.length > 0) {
-      const { data: projects } = await supabase
-        .from('projects_master')
-        .select('work_order_no, department, site_details')
-        .in('work_order_no', workOrderNos);
-      projectMap = (projects || []).reduce((acc, p) => { acc[p.work_order_no] = p; return acc; }, {});
+    let contractors = canonicalRows || [];
+
+    // 3. Filter scopes for restricted users
+    if (allowed !== null) {
+      contractors = contractors.map(c => {
+        const accessibleScopes = (c.scopes || []).filter(s => allowed.includes(s.work_order_no));
+        if (accessibleScopes.length === 0) return null;
+        const total_approved = accessibleScopes.reduce((sum, s) => sum + Number(s.approved_scope || 0), 0);
+        const total_reserved = accessibleScopes.reduce((sum, s) => sum + Number(s.reserved || 0), 0);
+        const total_paid = accessibleScopes.reduce((sum, s) => sum + Number(s.paid || 0), 0);
+        const total_remaining = accessibleScopes.reduce((sum, s) => sum + Number(s.remaining || 0), 0);
+        const scope_count = accessibleScopes.reduce((sum, s) => sum + (s.works?.length || 0), 0);
+        return {
+          ...c,
+          total_approved: Number(total_approved.toFixed(2)),
+          total_reserved: Number(total_reserved.toFixed(2)),
+          total_paid: Number(total_paid.toFixed(2)),
+          total_remaining: Number(total_remaining.toFixed(2)),
+          work_order_count: accessibleScopes.length,
+          scope_count,
+          scopes: accessibleScopes
+        };
+      }).filter(Boolean);
     }
 
-    const enriched = (balances || []).map(b => ({
-      ...b,
-      project: projectMap[b.work_order_no] || null
-    }));
+    // 4. Flatten balances for backwards-compatibility
+    const flatBalances = [];
+    for (const c of contractors) {
+      for (const s of (c.scopes || [])) {
+        for (const w of (s.works || [])) {
+          flatBalances.push({
+            subcontractor_id: c.subcontractor_id,
+            subcontractor_name: c.subcontractor_name,
+            work_order_no: s.work_order_no,
+            department: s.department,
+            site_details: s.site_details,
+            project: { department: s.department, site_details: s.site_details },
+            material_sub_head: w.sub_head,
+            material_details: w.material_details,
+            subcontract_work_id: w.subcontract_work_id,
+            unit: w.unit,
+            estimated_total: Number(w.approved_scope || 0),
+            total_paid: Number(w.paid || 0),
+            reserved_amount: Number(w.reserved || 0),
+            remaining_balance: Number(w.remaining || 0),
+            available_balance: Number(w.remaining || 0),
+            is_active: c.is_active
+          });
+        }
+      }
+    }
+
+    if (contractors.length === 0) {
+      let legacyDbQuery = supabase
+        .from('subcontractor_balance_summary')
+        .select('*', { count: 'exact' });
+
+      if (query.work_order_no) {
+        legacyDbQuery = legacyDbQuery.eq('work_order_no', query.work_order_no.trim());
+      } else if (allowed !== null) {
+        legacyDbQuery = legacyDbQuery.in('work_order_no', allowed);
+      }
+
+      if (query.search) {
+        const s = query.search.trim().replace(/[,()]/g, ' ').trim();
+        if (s) {
+          legacyDbQuery = legacyDbQuery.or(`material_details.ilike.%${s}%,material_sub_head.ilike.%${s}%,work_order_no.ilike.%${s}%`);
+        }
+      }
+
+      legacyDbQuery = legacyDbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
+
+      const { data: legacyBalances, count, error: legacyErr } = await legacyDbQuery;
+      if (legacyErr) throw legacyErr;
+
+      const workOrderNos = [...new Set((legacyBalances || []).map(b => b.work_order_no))];
+      let projectMap = {};
+      if (workOrderNos.length > 0) {
+        const { data: projects } = await supabase
+          .from('projects_master')
+          .select('work_order_no, department, site_details')
+          .in('work_order_no', workOrderNos);
+        projectMap = (projects || []).reduce((acc, p) => { acc[p.work_order_no] = p; return acc; }, {});
+      }
+
+      const enriched = (legacyBalances || []).map(b => ({
+        ...b,
+        project: projectMap[b.work_order_no] || null
+      }));
+
+      return res.status(200).json({
+        success: true,
+        contractors: [],
+        balances: enriched,
+        pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+      });
+    }
+
+    const total = contractors.length;
+    const pagedContractors = contractors.slice(offset, offset + limit);
 
     return res.status(200).json({
       success: true,
-      balances: enriched,
-      pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+      contractors: pagedContractors,
+      balances: flatBalances.slice(offset, offset + limit),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(Math.ceil(total / limit), 1)
+      }
     });
   } catch (error) {
     console.error(`getSubcontractorLedger failed: ${error.message}`);
@@ -1222,13 +1321,58 @@ async function getSubcontractorLedger(req, res) {
  * (estimate item HO approval), debit (requisition approval), and administrative
  * adjustment, newest first, with actor names, requisition numbers, remarks,
  * credit/debit breakdown, and chronological running balances.
- * Supports filtering by work_order_no, material_sub_head, material_details,
- * search term, and date range.
+ * Supports filtering by subcontractor_id, work_order_no, subcontract_work_id,
+ * material_sub_head, material_details, search term, and date range.
  */
 async function getSubcontractorLedgerEntries(req, res) {
-  const { work_order_no, material_sub_head, material_details, search, date_from, date_to } = req.query || {};
+  const { work_order_no, material_sub_head, material_details, subcontractor_id, subcontract_work_id, search, date_from, date_to } = req.query || {};
 
   try {
+    // 1. Authorization: Work Order restriction check
+    const allowed = await visibleWorkOrders(req.user);
+    if (allowed !== null) {
+      if (work_order_no) {
+        if (!allowed.includes(work_order_no.trim())) {
+          return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+        }
+      }
+    }
+
+    // 2. If canonical subcontractor_id provided, use canonical RPC
+    if (subcontractor_id && uuidRegex.test(subcontractor_id)) {
+      const { data: canonicalRows, error } = await supabase.rpc('get_canonical_subcontractor_ledger_entries', {
+        p_subcontractor_id: subcontractor_id,
+        p_work_order_no: work_order_no?.trim() || null,
+        p_subcontract_work_id: subcontract_work_id && uuidRegex.test(subcontract_work_id) ? subcontract_work_id : null,
+        p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
+        p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
+      });
+
+      if (error) throw error;
+
+      let rawEntries = (canonicalRows || []).map(row => ({
+        ...(row.entry || {}),
+        scope_opening_balance: Number(row.scope_opening_balance || 0),
+        scope_closing_balance: Number(row.scope_closing_balance || 0)
+      }));
+
+      // Filter by visible work orders if user is restricted and no specific WO filter
+      if (allowed !== null) {
+        rawEntries = rawEntries.filter(e => allowed.includes(e.work_order_no));
+      }
+
+      const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
+
+      const enriched = rawEntries.map(e => ({
+        ...e,
+        created_by_name: userMap[e.created_by] || e.created_by,
+        reference_doc_no: e.requisition_no || (e.reference_type ? `${e.reference_type}: ${e.reference_id?.slice(0, 8)}` : null)
+      }));
+
+      return res.status(200).json({ success: true, entries: enriched });
+    }
+
+    // 3. Fallback to legacy RPC for non-canonical queries
     const { data: ledgerRows, error } = await supabase.rpc('get_subcontractor_ledger_entries', {
       p_work_order_no: work_order_no?.trim() || null,
       p_material_sub_head: material_sub_head?.trim() || null,
@@ -1240,11 +1384,15 @@ async function getSubcontractorLedgerEntries(req, res) {
 
     if (error) throw error;
 
-    const rawEntries = (ledgerRows || []).map(row => ({
+    let rawEntries = (ledgerRows || []).map(row => ({
       ...(row.entry || {}),
       opening_balance: Number(row.opening_balance || 0),
       closing_balance: Number(row.closing_balance || 0)
     }));
+
+    if (allowed !== null) {
+      rawEntries = rawEntries.filter(e => allowed.includes(e.work_order_no));
+    }
 
     // 1. Resolve user display names
     const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
@@ -1299,9 +1447,7 @@ async function getSubcontractorLedgerEntries(req, res) {
       }, {});
     }
 
-    // 5. Enrich entries (returned newest first). Running/opening/closing
-    // balances were calculated over the complete partition in PostgreSQL
-    // before the requested date window was applied.
+    // 5. Enrich entries (returned newest first)
     const enriched = rawEntries.map(e => {
       const reqInfo = reqMap[e.reference_id];
       const itemInfo = itemMap[e.reference_id];
@@ -1342,13 +1488,35 @@ async function getSubcontractorRequisitions(req, res) {
     const dateBasis = ['approved', 'paid'].includes(query.date_basis) ? query.date_basis : 'created';
     const dateCol = dateBasis === 'approved' ? 'zo_actioned_at' : dateBasis === 'paid' ? 'payment_date' : 'created_at';
 
+    // 1. Authorization: Work Order restriction check
+    const allowed = await visibleWorkOrders(req.user);
+    if (allowed !== null) {
+      if (query.work_order_no) {
+        if (!allowed.includes(query.work_order_no.trim())) {
+          return res.status(403).json({ success: false, message: 'You are not assigned to this Work Order.' });
+        }
+      } else if (allowed.length === 0) {
+        return res.status(200).json({ success: true, requisitions: [] });
+      }
+    }
+
     let dbQuery = supabase
       .from('requisitions')
-      .select('*')
+      .select('*, subcontractor:subcontractor_id (id, subcontractor_name), subcontract_work:subcontract_work_id (id, sub_head, material_details, unit)')
       .eq('material_main_head', 'Sub Contractor');
 
     if (query.work_order_no) {
       dbQuery = dbQuery.eq('work_order_no', query.work_order_no.trim());
+    } else if (allowed !== null) {
+      dbQuery = dbQuery.in('work_order_no', allowed);
+    }
+
+    if (query.subcontractor_id && uuidRegex.test(query.subcontractor_id)) {
+      dbQuery = dbQuery.eq('subcontractor_id', query.subcontractor_id);
+    }
+
+    if (query.subcontract_work_id && uuidRegex.test(query.subcontract_work_id)) {
+      dbQuery = dbQuery.eq('subcontract_work_id', query.subcontract_work_id);
     }
 
     if (dateBasis === 'approved') {
@@ -1373,6 +1541,9 @@ async function getSubcontractorRequisitions(req, res) {
     if (query.search) {
       const term = query.search.toLowerCase();
       filtered = filtered.filter(r =>
+        r.subcontractor?.subcontractor_name?.toLowerCase().includes(term) ||
+        r.subcontract_work?.sub_head?.toLowerCase().includes(term) ||
+        r.subcontract_work?.material_details?.toLowerCase().includes(term) ||
         r.material_sub_head?.toLowerCase().includes(term) ||
         r.material_details?.toLowerCase().includes(term) ||
         r.work_order_no?.toLowerCase().includes(term) ||

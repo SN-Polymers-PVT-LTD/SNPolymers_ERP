@@ -4,7 +4,7 @@ const { visibleWorkOrders } = require('../helpers/workOrderAccess');
 const SORT_FIELDS = new Set(['subcontractor_name', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
-const selectWithAssignments = '*, subcontractor_work_assignments:subcontractor_work_assignments(*, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit))';
+const selectWithCapabilities = '*, capabilities:subcontractor_work_capabilities(id, subcontract_work_id, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)), subcontractor_work_assignments:subcontractor_work_assignments(*, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit))';
 
 function filterAssignmentsByAllowed(subcontractor, allowed) {
   if (!subcontractor || allowed === null) return subcontractor;
@@ -17,7 +17,7 @@ async function getSubcontractors(req, res) {
     const { page = 1, limit = 10, search = '', is_active, sortBy = 'subcontractor_name', sortOrder = 'asc' } = req.query;
     const allowed = await visibleWorkOrders(req.user);
     const offset = (page - 1) * limit;
-    let query = supabase.from('subcontractor_master').select(selectWithAssignments, { count: 'exact' });
+    let query = supabase.from('subcontractor_master').select(selectWithCapabilities, { count: 'exact' });
     if (!isAdmin(req)) query = query.eq('is_active', true);
     else if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
     if (search) {
@@ -37,7 +37,7 @@ async function getSubcontractors(req, res) {
 async function getSubcontractorById(req, res) {
   if (!isUuid(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid UUID format.' });
   const allowed = await visibleWorkOrders(req.user);
-  const { data, error } = await supabase.from('subcontractor_master').select(selectWithAssignments).eq('id', req.params.id).maybeSingle();
+  const { data, error } = await supabase.from('subcontractor_master').select(selectWithCapabilities).eq('id', req.params.id).maybeSingle();
   if (error) return res.status(500).json({ success: false, message: 'Failed to retrieve subcontractor.' });
   if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
   if (!isAdmin(req) && !data.is_active) return res.status(403).json({ success: false, message: 'Access denied. Inactive subcontractor.' });
@@ -46,9 +46,35 @@ async function getSubcontractorById(req, res) {
 
 async function createSubcontractor(req, res) {
   try {
-    const { data, error } = await supabase.from('subcontractor_master').insert({ subcontractor_name: req.body.subcontractor_name, created_by: req.user.mobile_number }).select(selectWithAssignments).single();
+    const { subcontractor_name, work_ids = [] } = req.body;
+    const { data: created, error } = await supabase
+      .from('subcontractor_master')
+      .insert({ subcontractor_name, created_by: req.user.mobile_number })
+      .select('id')
+      .single();
     if (error) throw error;
-    return res.status(201).json({ success: true, subcontractor: data, message: 'Subcontractor created successfully.' });
+
+    if (Array.isArray(work_ids) && work_ids.length > 0) {
+      const uniqueWorkIds = [...new Set(work_ids)];
+      const capabilityRows = uniqueWorkIds.map(wid => ({
+        subcontractor_id: created.id,
+        subcontract_work_id: wid,
+        created_by: req.user.mobile_number
+      }));
+      const { error: capError } = await supabase
+        .from('subcontractor_work_capabilities')
+        .insert(capabilityRows);
+      if (capError) console.error(`Error inserting capabilities for contractor ${created.id}: ${capError.message}`);
+    }
+
+    const { data: fullContractor, error: fetchError } = await supabase
+      .from('subcontractor_master')
+      .select(selectWithCapabilities)
+      .eq('id', created.id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    return res.status(201).json({ success: true, subcontractor: fullContractor, message: 'Subcontractor created successfully.' });
   } catch (error) {
     console.error(`createSubcontractor failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to create subcontractor.' });
@@ -57,10 +83,43 @@ async function createSubcontractor(req, res) {
 
 async function updateSubcontractor(req, res) {
   try {
-    const { data, error } = await supabase.from('subcontractor_master').update({ subcontractor_name: req.body.subcontractor_name, updated_by: req.user.mobile_number }).eq('id', req.params.id).select(selectWithAssignments).maybeSingle();
+    const { id } = req.params;
+    const { subcontractor_name, is_active, work_ids } = req.body;
+
+    const updatePayload = { updated_by: req.user.mobile_number };
+    if (subcontractor_name !== undefined) updatePayload.subcontractor_name = subcontractor_name;
+    if (is_active !== undefined) updatePayload.is_active = is_active;
+
+    const { data: updated, error } = await supabase
+      .from('subcontractor_master')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('id')
+      .maybeSingle();
     if (error) throw error;
-    if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
-    return res.json({ success: true, subcontractor: data, message: 'Subcontractor updated successfully.' });
+    if (!updated) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
+
+    if (Array.isArray(work_ids)) {
+      await supabase.from('subcontractor_work_capabilities').delete().eq('subcontractor_id', id);
+      const uniqueWorkIds = [...new Set(work_ids)];
+      if (uniqueWorkIds.length > 0) {
+        const rows = uniqueWorkIds.map(wid => ({
+          subcontractor_id: id,
+          subcontract_work_id: wid,
+          created_by: req.user.mobile_number
+        }));
+        await supabase.from('subcontractor_work_capabilities').insert(rows);
+      }
+    }
+
+    const { data: fullContractor, error: fetchError } = await supabase
+      .from('subcontractor_master')
+      .select(selectWithCapabilities)
+      .eq('id', id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    return res.json({ success: true, subcontractor: fullContractor, message: 'Subcontractor updated successfully.' });
   } catch (error) {
     console.error(`updateSubcontractor failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update subcontractor.' });
@@ -68,10 +127,20 @@ async function updateSubcontractor(req, res) {
 }
 
 async function updateSubcontractorStatus(req, res) {
-  const { data, error } = await supabase.from('subcontractor_master').update({ is_active: req.body.is_active, updated_by: req.user.mobile_number }).eq('id', req.params.id).select(selectWithAssignments).maybeSingle();
-  if (error) return res.status(500).json({ success: false, message: 'Failed to update subcontractor status.' });
-  if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
-  return res.json({ success: true, subcontractor: data, message: 'Subcontractor status updated.' });
+  try {
+    const { data, error } = await supabase
+      .from('subcontractor_master')
+      .update({ is_active: req.body.is_active, updated_by: req.user.mobile_number })
+      .eq('id', req.params.id)
+      .select(selectWithCapabilities)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
+    return res.json({ success: true, subcontractor: data, message: 'Subcontractor status updated.' });
+  } catch (error) {
+    console.error(`updateSubcontractorStatus failed: ${error.message}`);
+    return res.status(500).json({ success: false, message: 'Failed to update subcontractor status.' });
+  }
 }
 
 async function getSubcontractorAssignments(req, res) {

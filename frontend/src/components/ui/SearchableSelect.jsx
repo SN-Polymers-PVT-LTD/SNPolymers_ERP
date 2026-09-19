@@ -25,7 +25,8 @@ const SearchableSelect = ({
   size = 'md',
   disabled = false,
   autoFocus = false,
-  onFocus
+  onFocus,
+  emptyMessage = 'No matches.'
 }) => {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -140,7 +141,7 @@ const SearchableSelect = ({
           }}
         >
           {filtered.length === 0 && !onCreate && (
-            <p className="px-4 py-3 text-xs text-slate-500">No matches.</p>
+            <p className="px-4 py-3 text-xs text-slate-500">{emptyMessage}</p>
           )}
           {filtered.map(opt => (
             <button

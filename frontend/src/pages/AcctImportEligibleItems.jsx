@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
 import { getImportEligibleItems, dismissImportEligibleItem } from '../api/acctRequisitionsApi';
 
 const STATUS_VARIANTS = { 'On Hold': 'orange', Rejected: 'red', 'Pending Review': 'indigo' };
@@ -16,6 +16,8 @@ const STATUS_OPTIONS = [
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
+
+const PAGE_SIZE = 20;
 
 /**
  * Standalone housekeeping view over the same accumulating On
@@ -34,36 +36,64 @@ const AcctImportEligibleItems = () => {
 
   const [error, setError] = useState('');
   const [dismissingItemId, setDismissingItemId] = useState(null);
+  const [page, setPage] = useState(1);
   const [particularsFilter, setParticularsFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const queryKey = ['acctImportEligibleItems', particularsFilter, statusFilter];
+  const queryKey = ['acctImportEligibleItems', { particularsFilter, statusFilter, page }];
 
-  const { data: eligibleItems = [], isLoading, error: queryError } = useQuery({
+  const { data: queueResponse, isLoading, error: queryError } = useQuery({
     queryKey,
-    queryFn: async () => (await getImportEligibleItems({
-      limit: 100,
-      particulars: particularsFilter || undefined,
-      status: statusFilter || undefined
-    })).data?.items || [],
+    queryFn: async () => {
+      const res = await getImportEligibleItems({
+        page,
+        limit: PAGE_SIZE,
+        particulars: particularsFilter || undefined,
+        status: statusFilter || undefined
+      });
+      const items = res.data?.items || [];
+      const pagination = res.data?.pagination || {
+        page,
+        limit: PAGE_SIZE,
+        total: items.length,
+        totalPages: Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+      };
+      return { items, pagination };
+    },
     enabled: isAccountsUser
   });
+
+  const eligibleItems = queueResponse?.items || [];
+  const pagination = queueResponse?.pagination || { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 };
 
   const displayError = error || queryError?.response?.data?.message || queryError?.message || '';
 
   // Optimistic remove: dismissing takes the item out of this list for good,
   // so drop it from the cache immediately instead of waiting on a round trip
-  // + refetch, and put it back if the request actually fails. Must target the
-  // same filter-parametrized queryKey the list is currently rendered from —
-  // a static key here would silently miss whichever filtered view is active.
+  // + refetch, and put it back if the request actually fails.
+  const removeItemOptimistically = (itemId) => {
+    const previous = queryClient.getQueryData(queryKey);
+    queryClient.setQueryData(queryKey, (old) => {
+      if (!old) return old;
+      if (Array.isArray(old)) {
+        return old.filter((i) => i.id !== itemId);
+      }
+      return {
+        ...old,
+        items: (old.items || []).filter((i) => i.id !== itemId)
+      };
+    });
+    return previous;
+  };
+
   const handleDismiss = async (item) => {
     setError('');
     const itemId = item.id;
     setDismissingItemId(itemId);
-    const previous = queryClient.getQueryData(queryKey);
-    queryClient.setQueryData(queryKey, (old) => (old || []).filter((i) => i.id !== itemId));
+    const previous = removeItemOptimistically(itemId);
     try {
       await dismissImportEligibleItem(itemId, item.item_type);
+      queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
     } catch (err) {
       queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to dismiss line item.');
@@ -107,14 +137,20 @@ const AcctImportEligibleItems = () => {
           type="text"
           placeholder="Search particulars..."
           value={particularsFilter}
-          onChange={(e) => setParticularsFilter(e.target.value)}
+          onChange={(e) => {
+            setParticularsFilter(e.target.value);
+            setPage(1);
+          }}
           size="sm"
           containerClassName="sm:w-64"
         />
         <Select
           options={STATUS_OPTIONS}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           size="sm"
           containerClassName="sm:w-48"
         />
@@ -122,7 +158,11 @@ const AcctImportEligibleItems = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setParticularsFilter(''); setStatusFilter(''); }}
+            onClick={() => {
+              setParticularsFilter('');
+              setStatusFilter('');
+              setPage(1);
+            }}
           >
             Reset Filters
           </Button>
@@ -216,6 +256,13 @@ const AcctImportEligibleItems = () => {
               ))}
             </TableBody>
           </Table>
+          <Pagination
+            currentPage={page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            showLabel={true}
+            onPageChange={setPage}
+          />
         </div>
       )}
     </>

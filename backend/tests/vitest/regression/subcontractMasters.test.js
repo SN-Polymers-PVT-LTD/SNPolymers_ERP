@@ -14,6 +14,7 @@ const {
   getSubcontractorAssignments,
   createSubcontractorAssignment
 } = require('../../../src/controllers/subcontractors.controller');
+const { getSubcontractWorks } = require('../../../src/controllers/subcontractWorks.controller');
 
 describe('Subcontract master contracts', () => {
   let suffix;
@@ -148,6 +149,7 @@ describe('Subcontract master contracts', () => {
     const parsed = schemas.subcontractorListSchema.query.parse({ is_active: '' });
     expect(parsed.is_active).toBeUndefined();
     expect(schemas.subcontractorCreateSchema.body.parse({ subcontractor_name: 'X' })).toEqual({ subcontractor_name: 'X' });
+    expect(schemas.subcontractorCreateSchema.body.parse({ subcontractor_name: 'X', work_ids: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'] })).toEqual({ subcontractor_name: 'X', work_ids: ['a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'] });
     expect(schemas.subcontractorIdSchema.params.safeParse({ id: 'not-a-uuid' }).success).toBe(false);
   });
 
@@ -198,6 +200,100 @@ describe('Subcontract master contracts', () => {
     await updateSubcontractorStatus({ params: { id: apiContractor.id }, user: { mobile_number: actor }, body: { is_active: false } }, statusRes);
     expect(statusRes.statusCode).toBe(200);
     expect(statusRes.jsonData.subcontractor.is_active).toBe(false);
+  });
+
+  test('createSubcontractor associates multiple work capabilities without requiring Work Order or commercial fields', async () => {
+    // Create two test works
+    const { data: w1 } = await supabase.from('subcontract_work_master').insert({
+      sub_head: `Cap Head 1 ${suffix}`,
+      material_details: `Cap Work 1 ${suffix}`,
+      unit: 'mtr',
+      created_by: actor
+    }).select().single();
+    const { data: w2 } = await supabase.from('subcontract_work_master').insert({
+      sub_head: `Cap Head 2 ${suffix}`,
+      material_details: `Cap Work 2 ${suffix}`,
+      unit: 'sqm',
+      created_by: actor
+    }).select().single();
+
+    const createRes = mockRes();
+    await createSubcontractor({
+      user: { mobile_number: actor },
+      body: {
+        subcontractor_name: `Capability Contractor ${suffix}`,
+        work_ids: [w1.id, w2.id]
+      }
+    }, createRes);
+
+    expect(createRes.statusCode).toBe(201);
+    const newContractor = createRes.jsonData.subcontractor;
+    expect(newContractor.subcontractor_name).toBe(`Capability Contractor ${suffix}`);
+    expect(newContractor.capabilities).toHaveLength(2);
+    expect(newContractor.capabilities.map(c => c.subcontract_work_id).sort()).toEqual([w1.id, w2.id].sort());
+
+    // Verify in database
+    const { data: dbCaps } = await supabase
+      .from('subcontractor_work_capabilities')
+      .select('*')
+      .eq('subcontractor_id', newContractor.id);
+    expect(dbCaps).toHaveLength(2);
+
+    // Filter works by subcontractor_id
+    const filterRes = mockRes();
+    await getSubcontractWorks({
+      query: { subcontractor_id: newContractor.id }
+    }, filterRes);
+    expect(filterRes.statusCode).toBe(200);
+    expect(filterRes.jsonData.subcontractWorks).toHaveLength(2);
+    expect(filterRes.jsonData.subcontractWorks.map(w => w.id).sort()).toEqual([w1.id, w2.id].sort());
+
+    // Update capabilities: remove w1, add w3
+    const { data: w3 } = await supabase.from('subcontract_work_master').insert({
+      sub_head: `Cap Head 3 ${suffix}`,
+      material_details: `Cap Work 3 ${suffix}`,
+      unit: 'nos',
+      created_by: actor
+    }).select().single();
+
+    const updateRes = mockRes();
+    await updateSubcontractor({
+      params: { id: newContractor.id },
+      user: { mobile_number: actor },
+      body: {
+        subcontractor_name: `Capability Contractor Updated ${suffix}`,
+        work_ids: [w2.id, w3.id]
+      }
+    }, updateRes);
+    expect(updateRes.statusCode).toBe(200);
+    expect(updateRes.jsonData.subcontractor.capabilities).toHaveLength(2);
+    expect(updateRes.jsonData.subcontractor.capabilities.map(c => c.subcontract_work_id).sort()).toEqual([w2.id, w3.id].sort());
+
+    // Duplicate work_ids in request are deduplicated safely
+    const dupRes = mockRes();
+    await updateSubcontractor({
+      params: { id: newContractor.id },
+      user: { mobile_number: actor },
+      body: {
+        subcontractor_name: `Capability Contractor Updated ${suffix}`,
+        work_ids: [w3.id, w3.id]
+      }
+    }, dupRes);
+    expect(dupRes.statusCode).toBe(200);
+    expect(dupRes.jsonData.subcontractor.capabilities).toHaveLength(1);
+    expect(dupRes.jsonData.subcontractor.capabilities[0].subcontract_work_id).toBe(w3.id);
+
+    // Shared capabilities: another subcontractor can also have w3 capability
+    const sharedRes = mockRes();
+    await createSubcontractor({
+      user: { mobile_number: actor },
+      body: {
+        subcontractor_name: `Shared Contractor ${suffix}`,
+        work_ids: [w3.id]
+      }
+    }, sharedRes);
+    expect(sharedRes.statusCode).toBe(201);
+    expect(sharedRes.jsonData.subcontractor.capabilities).toHaveLength(1);
   });
 
   test('non-admin update is rejected by the route role contract', () => {

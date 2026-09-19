@@ -404,31 +404,36 @@ export async function exportSubcontractorBalancesToExcel(balances, metadata = {}
 
   const tableHeaders = [
     "Sl. No.",
+    "Subcontractor",
     "Work Order No.",
     "Department",
     "Site Details",
-    "Subcontractor",
     "Sub Head",
-    "Estimated Total (INR)",
+    "Work Type / Details",
+    "Approved Scope (INR)",
+    "Reserved (INR)",
     "Paid So Far (INR)",
     "Remaining Balance (INR)",
     "Utilization (%)"
   ];
 
   const dataRows = balances.map((b, index) => {
-    const est = Number(b.estimated_total || 0);
-    const paid = Number(b.paid_total || 0);
-    const rem = Number(b.available_balance || 0);
-    const util = est > 0 ? ((paid / est) * 100).toFixed(1) + '%' : '0.0%';
+    const est = Number(b.approved_scope ?? b.estimated_total ?? 0);
+    const reserved = Number(b.reserved_amount ?? b.reserved ?? 0);
+    const paid = Number(b.paid ?? b.paid_total ?? b.total_paid ?? 0);
+    const rem = Number(b.remaining ?? b.remaining_balance ?? b.available_balance ?? 0);
+    const util = est > 0 ? (((paid + reserved) / est) * 100).toFixed(1) + '%' : '0.0%';
 
     return [
       index + 1,
+      b.subcontractor_name || b.material_details || '—',
       b.work_order_no || '',
-      b.project?.department || '',
-      b.project?.site_details || '',
-      b.material_details || '',
+      b.department || b.project?.department || '',
+      b.site_details || b.project?.site_details || '',
       b.material_sub_head || '',
+      b.material_details || '',
       est,
+      reserved,
       paid,
       rem,
       util

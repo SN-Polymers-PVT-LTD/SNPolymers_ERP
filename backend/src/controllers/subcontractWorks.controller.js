@@ -18,6 +18,16 @@ async function getSubcontractWorks(req, res) {
       const p = quoteFilterValue(`%${search}%`);
       query = query.or(`sub_head.ilike.${p},material_details.ilike.${p},unit.ilike.${p}`);
     }
+    if (req.query.subcontractor_id && isUuid(req.query.subcontractor_id)) {
+      const { data: caps, error: capError } = await supabase
+        .from('subcontractor_work_capabilities')
+        .select('subcontract_work_id')
+        .eq('subcontractor_id', req.query.subcontractor_id);
+      if (capError) throw capError;
+      const allowedIds = (caps || []).map(c => c.subcontract_work_id);
+      query = query.in('id', allowedIds.length ? allowedIds : ['00000000-0000-0000-0000-000000000000']);
+    }
+
     query = query.order(SORT_FIELDS.has(sortBy) ? sortBy : 'material_details', { ascending: sortOrder !== 'desc' }).range(offset, offset + limit - 1);
     const { data, count, error } = await query;
     if (error) throw error;
