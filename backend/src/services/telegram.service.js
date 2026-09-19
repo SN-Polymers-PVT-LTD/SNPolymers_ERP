@@ -794,7 +794,14 @@ async function notifyJeRevisionRequested(estimate, revisionLog) {
       `Please review the remarks and resubmit the revised estimate on the IDBP dashboard.`;
 
     const url = `${TELEGRAM_API_BASE}/sendMessage?chat_id=${encodeURIComponent(jeUser.telegram_chat_id.trim())}&text=${encodeURIComponent(messageText)}&parse_mode=HTML`;
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     const data = await response.json();
     if (!data.ok) {
       console.warn(`[TELEGRAM ALERTS] Failed to send message to JE ${jeUser.display_name} (${jeUser.telegram_chat_id.trim()}): ${data.description}`);
@@ -2408,6 +2415,177 @@ async function notifyAcctBankBalanceAdjusted(bankName, direction, delta, newBala
   }
 }
 
+/**
+ * Resolves active ZO recipients (with telegram_chat_id) responsible for a Work Order.
+ * Checks work_order_mappings -> je_zo_mappings -> authorised_users.
+ * Falls back to JE mapping or all active ZO users.
+ */
+async function getZoUsersForWorkOrder(workOrderNo, jeUserId = null) {
+  try {
+    let zoMobiles = [];
+    if (workOrderNo) {
+      const { data: womData, error: womErr } = await supabase
+        .from('work_order_mappings')
+        .select('je_user_id')
+        .eq('work_order_no', workOrderNo)
+        .eq('is_active', true);
+
+      if (!womErr && womData && womData.length > 0) {
+        const jeIds = womData.map(r => r.je_user_id).filter(Boolean);
+        if (jeIds.length > 0) {
+          const { data: jzmData, error: jzmErr } = await supabase
+            .from('je_zo_mappings')
+            .select('zo_user_id')
+            .in('je_user_id', jeIds)
+            .eq('is_active', true);
+
+          if (!jzmErr && jzmData && jzmData.length > 0) {
+            zoMobiles = [...new Set(jzmData.map(r => r.zo_user_id).filter(Boolean))];
+          }
+        }
+      }
+    }
+
+    if (zoMobiles.length === 0 && jeUserId) {
+      const { data: mapping } = await supabase
+        .from('je_zo_mappings')
+        .select('zo_user_id')
+        .eq('je_user_id', jeUserId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (mapping?.zo_user_id) {
+        zoMobiles = [mapping.zo_user_id];
+      }
+    }
+
+    if (zoMobiles.length > 0) {
+      const { data: zoUsers, error: zoErr } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id')
+        .in('mobile_number', zoMobiles)
+        .eq('role', 'zo')
+        .eq('is_active', true)
+        .not('telegram_chat_id', 'is', null);
+
+      if (!zoErr && zoUsers && zoUsers.length > 0) {
+        const valid = zoUsers.filter(u => u.telegram_chat_id && u.telegram_chat_id.trim() !== '');
+        if (valid.length > 0) return valid;
+      }
+    }
+
+    // Fallback: all active ZO users with telegram chat IDs
+    return await getRoleRecipients('zo');
+  } catch (err) {
+    console.warn(`[TELEGRAM ALERTS] getZoUsersForWorkOrder error: ${err.message}`);
+    return await getRoleRecipients('zo');
+  }
+}
+
+/**
+ * Sends a notification to the respective ZO when a subcontract estimate is submitted or resubmitted.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of the submitting actor
+ * @param {string} actorRole - Role of the submitting actor ('je' / 'admin')
+ * @param {string|null} remarks - Remarks if any
+ */
+async function notifyZoSubcontractEstimateSubmitted(estimate, actorMobile, actorRole = 'je', remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getZoUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || actorMobile);
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No ZO recipients found with telegram_chat_id for WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const actorName = await getDisplayName(actorMobile);
+    const revision = estimate?.estimate_revision ?? 0;
+    const isResubmit = revision > 0 || estimate?.estimate_status === 'Submitted' && estimate?.updated_at !== estimate?.created_at;
+    const headerTitle = isResubmit ? '📋 <b>Subcontract Estimate Resubmitted</b>' : '📋 <b>New Subcontract Estimate Submitted</b>';
+
+    let messageText =
+      `${headerTitle}\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Projected Total:</b> ₹${fmtInr(estimate?.estimate_amount)}\n` +
+      `<b>Submitted By:</b> ${escapeHtml(actorName)} (${escapeHtml(actorRole)})\n`;
+
+    if (remarks && remarks.trim()) {
+      messageText += `<b>Remarks:</b> ${escapeHtml(remarks.trim())}\n`;
+    }
+    messageText += `\nPlease review this subcontract estimate on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyZoSubcontractEstimateSubmitted failed: ${error.message}`);
+  }
+}
+
+/**
+ * Sends a notification to HO when a subcontract estimate is approved by ZO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of the approving ZO actor
+ * @param {string|null} remarks - Approval remarks if any
+ */
+async function notifyHoSubcontractEstimateApproved(estimate, actorMobile, remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getRoleRecipients('ho');
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No HO recipients found with telegram_chat_id for estimate ${estimate?.subcontract_estimate_id}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const zoName = await getDisplayName(actorMobile);
+    const revision = estimate?.estimate_revision ?? 0;
+
+    let messageText =
+      `📋 <b>Subcontract Estimate Approved by ZO</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Approved Zonal Total:</b> ₹${fmtInr(estimate?.estimate_amount)}\n` +
+      `<b>Approved By ZO:</b> ${escapeHtml(zoName)}\n`;
+
+    if (remarks && remarks.trim()) {
+      messageText += `<b>ZO Remarks:</b> ${escapeHtml(remarks.trim())}\n`;
+    }
+    messageText += `\nPlease review and finalize this subcontract estimate on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyHoSubcontractEstimateApproved failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   escapeHtml,
   sendOtp,
@@ -2445,5 +2623,8 @@ module.exports = {
   notifyHoAcctItemResubmitted,
   notifyAcctBankBalanceInsufficient,
   notifyAcctBulkNeftExported,
-  notifyAcctBankBalanceAdjusted
+  notifyAcctBankBalanceAdjusted,
+  getZoUsersForWorkOrder,
+  notifyZoSubcontractEstimateSubmitted,
+  notifyHoSubcontractEstimateApproved
 };

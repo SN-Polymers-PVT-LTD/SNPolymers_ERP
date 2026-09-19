@@ -10,6 +10,10 @@ const {
   resolveDisplayNames,
   uuidRegex
 } = require('./estimates.helpers');
+const {
+  syncSubcontractContributionsToCostEstimate,
+  syncEditableCostEstimateForWorkOrderBestEffort
+} = require('../services/subcontractCostEstimateSync.service');
 
 /**
  * POST /api/v1/auth/estimates/:id/submit
@@ -37,6 +41,15 @@ async function submitEstimate(req, res) {
       return res.status(403).json({ success: false, message: 'Estimate cannot be submitted in its current status.' });
     }
 
+    // A best-effort sync may have failed after the latest approved subcontract
+    // contribution. Before an editable Cost Estimate leaves Draft/Reopened,
+    // perform one strict synchronization so approved scope cannot be omitted
+    // from the submitted estimate. Revision-request states intentionally do
+    // not import new subcontract scope until the estimate is editable again.
+    if ([ESTIMATE_STATUS.DRAFT, ESTIMATE_STATUS.ESTIMATE_REOPENED].includes(estimate.estimate_status)) {
+      await syncSubcontractContributionsToCostEstimate(id, req.user.mobile_number);
+    }
+
     // Verify that no other active estimate exists for this work order
     const { data: otherActive, error: otherActiveErr } = await supabase
       .from('project_cost_estimates')
@@ -61,8 +74,15 @@ async function submitEstimate(req, res) {
 
     if (itemsError) throw itemsError;
 
+    const isInactiveGeneratedItem = item =>
+      item.source_type === 'SUBCONTRACT_ESTIMATE' &&
+      Number(item.qty || 0) === 0 &&
+      Number(item.amount || 0) === 0;
+
+    const activeItems = (items || []).filter(item => !isInactiveGeneratedItem(item));
+
     // Zero-item check
-    if (!items || items.length === 0) {
+    if (!activeItems || activeItems.length === 0) {
       return res.status(422).json({
         success: false,
         message: 'Estimate must contain at least one line item.'
@@ -84,7 +104,7 @@ async function submitEstimate(req, res) {
       });
     }
 
-    const totalEstimateAmount = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalEstimateAmount = activeItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const workOrderValue = Number(project.work_order_value) || 0;
 
     if (totalEstimateAmount > workOrderValue) {
@@ -96,7 +116,18 @@ async function submitEstimate(req, res) {
 
     // Completeness validation
     const errors = [];
-    items.forEach((item, index) => {
+    activeItems.forEach((item, index) => {
+      if (item.source_type === 'SUBCONTRACT_ESTIMATE') {
+        const generatedErrors = [];
+        if (!item.subcontract_work_id) generatedErrors.push('subcontract_work_id');
+        if (Number(item.qty) < 0) generatedErrors.push('qty');
+        if (Number(item.rate) < 0) generatedErrors.push('rate');
+        if (Number(item.amount) < 0) generatedErrors.push('amount');
+        if (generatedErrors.length > 0) {
+          errors.push({ item_id: item.item_id, item_index: index, missing_fields: generatedErrors });
+        }
+        return;
+      }
       const missing_fields = [];
       if (!item.material_main_head || String(item.material_main_head).trim() === '') missing_fields.push('material_main_head');
       if (!item.material_sub_head || String(item.material_sub_head).trim() === '') missing_fields.push('material_sub_head');
@@ -843,6 +874,12 @@ async function reopenEstimate(req, res) {
       .single();
 
     if (updateError) throw updateError;
+
+    await syncEditableCostEstimateForWorkOrderBestEffort(
+      updatedEstimate.work_order_no,
+      req.user.mobile_number,
+      'Cost Estimate reopen'
+    );
 
     // Trigger Telegram notification to JE asynchronously
     const { notifyJeRevisionRequested } = require('../services/telegram.service');

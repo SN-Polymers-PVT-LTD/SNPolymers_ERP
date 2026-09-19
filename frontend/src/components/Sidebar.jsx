@@ -16,6 +16,7 @@ export const MobileHeader = () => {
   if (user) {
     // Group 1: Project Operations
     const projItems = [];
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) projItems.push({ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> });
     projItems.push({
       to: '/estimates',
       label: 'Cost Estimates',
@@ -34,6 +35,9 @@ export const MobileHeader = () => {
         </svg>
       )
     });
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      projItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
+    }
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       projItems.push({
         to: '/daily-progress',
@@ -523,7 +527,7 @@ const Sidebar = () => {
   }, [isExpanded, isCollapsed]);
 
   // 1. Detect active module
-  const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
+  const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress', '/subcontract-masters', '/subcontract-works', '/subcontractors'].some(p => currentPath.startsWith(p));
   const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
@@ -535,6 +539,7 @@ const Sidebar = () => {
 
   if (isProjectModule) {
     navItems.push(
+      ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [{ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> }] : []),
       {
         to: '/estimates',
         label: 'Cost Estimates',
@@ -554,6 +559,10 @@ const Sidebar = () => {
         )
       }
     );
+
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
+    }
 
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       navItems.push({
@@ -618,8 +627,8 @@ const Sidebar = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          )
-        },
+        )
+      },
         {
           to: '/estimated-bills',
           label: 'Estimated Bills',

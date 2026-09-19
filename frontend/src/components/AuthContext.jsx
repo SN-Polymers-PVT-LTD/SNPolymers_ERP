@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import authApi from '../api/authApi';
 
 const AuthContext = createContext(null);
@@ -7,6 +8,7 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   const checkAuth = async () => {
     try {
@@ -29,6 +31,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     const handleAuthFailure = async () => {
+      queryClient.clear();
       setUser(null);
       try {
         await authApi.post('/logout');
@@ -44,9 +47,10 @@ export const AuthProvider = ({ children }) => {
     return () => {
       window.removeEventListener('auth-failure', handleAuthFailure);
     };
-  }, []);
+  }, [queryClient]);
 
   const login = (userData) => {
+    queryClient.clear();
     setUser(userData);
   };
 
@@ -56,6 +60,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout request failed:', error);
     } finally {
+      queryClient.clear();
       setUser(null);
     }
   };

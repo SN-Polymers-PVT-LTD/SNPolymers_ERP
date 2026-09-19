@@ -1365,133 +1365,47 @@ async function importLineItem(req, res) {
   }
 }
 
-/** Restore a dismissed, unimported submitted Fund Request to the queue. */
+/**
+ * POST /acct-requisitions/import-eligible-items/fund-request/:id/restore
+ * DEPRECATED: Dismiss is now a terminal rejection for Fund Requests.
+ * Restoring dismissed Fund Requests is disallowed.
+ */
 async function restoreFundRequestImport(req, res) {
-  const { id } = req.params;
-  if (!uuidRegex.test(id)) return res.status(400).json({ success: false, message: 'Invalid Fund Request ID.' });
-  try {
-    const { data, error } = await supabase
-      .from('fund_requests')
-      .update({ accounts_import_dismissed: false, updated_at: new Date().toISOString() })
-      .eq('fund_request_id', id)
-      .eq('request_status', 'Pending')
-      .is('accounts_line_item_id', null)
-      .eq('accounts_import_dismissed', true)
-      .select()
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return res.status(409).json({ success: false, message: 'Only dismissed, unimported Pending Fund Requests can be restored.' });
-    return res.status(200).json({ success: true, fundRequest: data, message: 'Fund Request restored to the Accounts import queue.' });
-  } catch (error) {
-    console.error(`restoreFundRequestImport failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to restore Fund Request.' });
-  }
+  return res.status(410).json({
+    success: false,
+    message: 'Restoring dismissed items is deprecated. Dismissal is a terminal rejection.'
+  });
 }
 
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
- * Soft-hides an eligible item from the import list without touching its
- * real data.
+ * Terminal rejection for Payment Requisitions and Fund Requests, or dismisses
+ * an eligible line item, propagating terminal rejection to any source record.
  */
 async function dismissImportEligibleItem(req, res) {
   const { itemId } = req.params;
-  const itemType = req.query?.item_type || req.body?.item_type;
+  const itemType = req.query?.item_type || req.body?.item_type || null;
 
   try {
-    let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
-    let isFundReq = itemType === 'FUND_REQUEST';
+    const { data, error } = await supabase.rpc('dismiss_accounts_import_item_transact', {
+      p_item_id: itemId,
+      p_item_type: itemType,
+      p_actor: req.user?.mobile_number || req.user?.id || 'SYSTEM'
+    });
 
-    if (!isPaymentReq && !isFundReq) {
-      const { data: maybeReq } = await supabase
-        .from('requisitions')
-        .select('requisition_id')
-        .eq('requisition_id', itemId)
-        .eq('payment_destination', 'ACCOUNTS')
-        .is('accounts_line_item_id', null)
-        .maybeSingle();
-      if (maybeReq) {
-        isPaymentReq = true;
-      } else {
-        const { data: maybeFr } = await supabase
-          .from('fund_requests')
-          .select('fund_request_id')
-          .eq('fund_request_id', itemId)
-          .is('accounts_line_item_id', null)
-          .maybeSingle();
-        if (maybeFr) isFundReq = true;
-      }
-    }
-
-    if (isPaymentReq) {
-      const { data, error } = await supabase
-        .from('requisitions')
-        .update({
-          accounts_import_dismissed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('requisition_id', itemId)
-        .eq('payment_destination', 'ACCOUNTS')
-        .is('accounts_line_item_id', null)
-        .eq('accounts_import_dismissed', false)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
+    if (error) {
+      if (
+        error.code === 'P0002' ||
+        error.code === 'STA01' ||
+        error.message?.includes('already imported or dismissed') ||
+        error.message?.includes('Item does not exist')
+      ) {
         return res.status(409).json({
           success: false,
           message: 'Item does not exist, or is already imported or dismissed.'
         });
       }
-
-      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
-    }
-
-    if (isFundReq) {
-      const { data, error } = await supabase
-        .from('fund_requests')
-        .update({
-          accounts_import_dismissed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('fund_request_id', itemId)
-        .is('accounts_line_item_id', null)
-        .eq('request_status', 'Pending')
-        .eq('accounts_import_dismissed', false)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
-        return res.status(409).json({
-          success: false,
-          message: 'Item does not exist, or is already imported or dismissed.'
-        });
-      }
-
-      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
-    }
-
-    const { data, error } = await supabase
-      .from('acct_requisition_line_items')
-      .update({
-        import_dismissed: true,
-        import_dismissed_at: new Date().toISOString(),
-        import_dismissed_by: req.user.mobile_number,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', itemId)
-      .is('imported_to_sheet_id', null)
-      .eq('import_dismissed', false)
-      .select()
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) {
-      return res.status(409).json({
-        success: false,
-        message: 'Item does not exist, or is already imported or dismissed.'
-      });
+      throw error;
     }
 
     return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
