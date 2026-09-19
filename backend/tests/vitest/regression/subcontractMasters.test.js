@@ -296,9 +296,9 @@ describe('Subcontract master contracts', () => {
     expect(sharedRes.jsonData.subcontractor.capabilities).toHaveLength(1);
   });
 
-  test('non-admin update is rejected by the route role contract', () => {
+  test('non-permitted update is rejected by the route role contract', () => {
     let statusCode;
-    requireRole(['admin'])({ user: { role: 'je' } }, { status: code => ({ json: () => { statusCode = code; } }) }, () => {});
+    requireRole(['admin', 'je'])({ user: { role: 'zo' } }, { status: code => ({ json: () => { statusCode = code; } }) }, () => {});
     expect(statusCode).toBe(403);
   });
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '../components/AuthContext';
+import { useTheme } from '../components/ThemeContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination, Badge } from '../components/ui';
 import {
@@ -12,14 +13,16 @@ import {
 
 export default function SubcontractorMaster() {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const admin = user?.role === 'admin';
   const canCreate = admin || user?.role === 'je';
+  const canManageStatus = admin || user?.role === 'je';
   const qc = useQueryClient();
 
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [page, setPage] = useState(1);
-  const [active, setActive] = useState(admin ? '' : 'true');
+  const [active, setActive] = useState(canManageStatus ? '' : 'true');
   const [modal, setModal] = useState(null); // 'create' | 'edit' | null
   const [editingSubcontractor, setEditingSubcontractor] = useState(null);
   const [name, setName] = useState('');
@@ -170,7 +173,7 @@ export default function SubcontractorMaster() {
             placeholder="Search by contractor name or work type..."
           />
         </div>
-        {admin && (
+        {canManageStatus && (
           <select
             className="rounded-xl bg-slate-900 border border-white/10 px-3.5 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
             value={active}
@@ -250,7 +253,7 @@ export default function SubcontractorMaster() {
                           Edit
                         </Button>
                       )}
-                      {admin && (
+                      {canManageStatus && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -289,22 +292,22 @@ export default function SubcontractorMaster() {
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <label className={`block text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   Qualified Work Types ({selectedWorkIds.length} selected)
                 </label>
                 <div className="flex gap-2 text-xs">
                   <button
                     type="button"
                     onClick={selectAllFilteredWorks}
-                    className="text-indigo-400 hover:text-indigo-300 transition"
+                    className={`font-semibold transition ${isDark ? 'text-indigo-400 hover:text-indigo-300' : 'text-indigo-600 hover:text-indigo-800'}`}
                   >
                     Select All
                   </button>
-                  <span className="text-slate-600">|</span>
+                  <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>|</span>
                   <button
                     type="button"
                     onClick={deselectAllFilteredWorks}
-                    className="text-slate-400 hover:text-slate-300 transition"
+                    className={`font-semibold transition ${isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-500 hover:text-slate-800'}`}
                   >
                     Deselect All
                   </button>
@@ -317,13 +320,17 @@ export default function SubcontractorMaster() {
                   placeholder="Filter available work types..."
                   value={workSearch}
                   onChange={e => setWorkSearch(e.target.value)}
-                  className="w-full rounded-lg bg-slate-900/90 border border-white/10 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full glass-input rounded-xl px-3.5 py-2 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition"
                 />
               </div>
 
-              <div className="border border-white/10 rounded-xl bg-slate-950/60 max-h-60 overflow-y-auto divide-y divide-white/5 p-1">
+              <div className={`rounded-xl max-h-60 overflow-y-auto divide-y p-1 transition-colors ${
+                isDark
+                  ? 'border border-white/10 bg-slate-950/60 divide-white/5'
+                  : 'border border-slate-200 bg-slate-50/80 divide-slate-200/80 shadow-inner'
+              }`}>
                 {filteredWorks.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-slate-500">
+                  <div className={`p-4 text-center text-xs ${isDark ? 'text-slate-500' : 'text-slate-500 font-medium'}`}>
                     No matching work types found in Work Master.
                   </div>
                 ) : (
@@ -333,23 +340,37 @@ export default function SubcontractorMaster() {
                       <label
                         key={work.id}
                         className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer transition select-none ${
-                          isChecked ? 'bg-indigo-500/10 hover:bg-indigo-500/15' : 'hover:bg-white/[0.03]'
+                          isChecked
+                            ? isDark
+                              ? 'bg-indigo-500/15 hover:bg-indigo-500/20'
+                              : 'bg-indigo-50/90 hover:bg-indigo-100/70 border border-indigo-200/70'
+                            : isDark
+                              ? 'hover:bg-white/[0.04]'
+                              : 'hover:bg-slate-200/50'
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleWorkSelection(work.id)}
-                          className="mt-0.5 rounded border-white/20 bg-slate-900 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
+                          className={`mt-0.5 rounded focus:ring-indigo-500 h-4 w-4 cursor-pointer transition ${
+                            isDark
+                              ? 'border-white/20 bg-slate-900 text-indigo-600'
+                              : 'border-slate-300 bg-white text-indigo-600 accent-indigo-600'
+                          }`}
                         />
                         <div className="flex-1 text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-white">{work.material_details}</span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-slate-300">
+                            <span className={`font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{work.material_details}</span>
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                              isDark
+                                ? 'bg-white/10 text-slate-300'
+                                : 'bg-slate-200 text-slate-700 font-medium border border-slate-300/60'
+                            }`}>
                               {work.unit}
                             </span>
                           </div>
-                          <p className="text-[11px] text-indigo-300/80 mt-0.5 font-medium">
+                          <p className={`text-[11px] mt-0.5 font-medium ${isDark ? 'text-indigo-300' : 'text-indigo-600'}`}>
                             Sub Head: {work.sub_head}
                           </p>
                         </div>
@@ -358,14 +379,14 @@ export default function SubcontractorMaster() {
                   })
                 )}
               </div>
-              <p className="text-[11px] text-slate-400 mt-1.5">
+              <p className={`text-[11px] mt-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Work types determine which subcontract scopes this contractor can be selected for in Subcontract Estimates.
               </p>
             </div>
 
-            {error && <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2.5 text-xs text-rose-300">{error}</div>}
+            {error && <div className="rounded-lg bg-rose-500/10 border border-rose-500/20 p-2.5 text-xs text-rose-500 dark:text-rose-300">{error}</div>}
 
-            <div className="flex justify-end gap-2.5 pt-3 border-t border-white/10">
+            <div className={`flex justify-end gap-2.5 pt-3 border-t ${isDark ? 'border-white/10' : 'border-slate-200'}`}>
               <Button type="button" variant="secondary" onClick={() => setModal(null)}>
                 Cancel
               </Button>

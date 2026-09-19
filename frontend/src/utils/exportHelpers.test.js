@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, beforeEach, vi } from 'vitest';
 import {
   expandCompletedFundReturn,
   fullLedgerRequisitionHeaders,
@@ -58,5 +58,66 @@ describe('full subcontractor ledger requisition export contract', () => {
     expect(row[fullLedgerRequisitionHeaders.indexOf('Payment Office')]).toBe('HO Office');
     expect(row[fullLedgerRequisitionHeaders.indexOf('Effective Liability (INR)')]).toBe(30000);
     expect(row[fullLedgerRequisitionHeaders.indexOf('Paid Amount (INR)')]).toBe(30000);
+  });
+});
+
+const mockAppendSheet = vi.fn();
+const mockWriteFile = vi.fn();
+
+vi.mock('xlsx', () => ({
+  utils: {
+    book_new: () => ({ SheetNames: [], Sheets: {} }),
+    aoa_to_sheet: (aoa) => ({ aoa }),
+    book_append_sheet: (...args) => mockAppendSheet(...args)
+  },
+  writeFile: (...args) => mockWriteFile(...args)
+}));
+
+describe('exportAllSubcontractorLedgersToExcel', () => {
+  beforeEach(() => {
+    mockAppendSheet.mockClear();
+    mockWriteFile.mockClear();
+  });
+
+  test('includes Requisitions sheet when requisitions array is non-empty', async () => {
+    const { exportAllSubcontractorLedgersToExcel } = await import('./exportHelpers');
+
+    await exportAllSubcontractorLedgersToExcel(
+      [{ ledger_id: 1, work_order_no: 'WO-001', amount: -1000 }],
+      [{ work_order_no: 'WO-001', approved_scope: 10000 }],
+      [{
+        requisition_no: 'REQ-001',
+        work_order_no: 'WO-001',
+        material_details: 'Vendor A',
+        material_sub_head: 'Civil',
+        requisition_status: 'Approved',
+        payment_status: 'PAID',
+        requisition_amount: 1000,
+        approved_amount: 1000,
+        paid_amount: 1000
+      }]
+    );
+
+    const sheetNames = mockAppendSheet.mock.calls.map((call) => call[2]);
+    expect(sheetNames).toContain('Ledger Transactions');
+    expect(sheetNames).toContain('Balances Summary');
+    expect(sheetNames).toContain('Requisitions');
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+  });
+
+  test('omits Requisitions sheet when requisitions array is empty', async () => {
+    const { exportAllSubcontractorLedgersToExcel } = await import('./exportHelpers');
+
+    await exportAllSubcontractorLedgersToExcel(
+      [{ ledger_id: 1, work_order_no: 'WO-001', amount: -1000 }],
+      [{ work_order_no: 'WO-001', approved_scope: 10000 }],
+      []
+    );
+
+    const sheetNames = mockAppendSheet.mock.calls.map((call) => call[2]);
+    expect(sheetNames).toContain('Ledger Transactions');
+    expect(sheetNames).toContain('Balances Summary');
+    expect(sheetNames).not.toContain('Requisitions');
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,6 +3,7 @@ const { visibleWorkOrders } = require('../helpers/workOrderAccess');
 
 const SORT_FIELDS = new Set(['subcontractor_name', 'created_at', 'updated_at']);
 const isAdmin = (req) => req.user?.role === 'admin';
+const canManageSubcontractors = (req) => ['admin', 'je'].includes(req.user?.role);
 const isUuid = (id) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(id);
 const selectWithCapabilities = '*, capabilities:subcontractor_work_capabilities(id, subcontract_work_id, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)), subcontractor_work_assignments:subcontractor_work_assignments(*, subcontract_work:subcontract_work_master(id, sub_head, material_details, unit))';
 
@@ -18,8 +19,8 @@ async function getSubcontractors(req, res) {
     const allowed = await visibleWorkOrders(req.user);
     const offset = (page - 1) * limit;
     let query = supabase.from('subcontractor_master').select(selectWithCapabilities, { count: 'exact' });
-    if (!isAdmin(req)) query = query.eq('is_active', true);
-    else if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
+    if (!canManageSubcontractors(req)) query = query.eq('is_active', true);
+    else if (is_active !== undefined && is_active !== '') query = query.eq('is_active', is_active === 'true');
     if (search) {
       query = query.ilike('subcontractor_name', `%${search}%`);
     }
@@ -40,7 +41,7 @@ async function getSubcontractorById(req, res) {
   const { data, error } = await supabase.from('subcontractor_master').select(selectWithCapabilities).eq('id', req.params.id).maybeSingle();
   if (error) return res.status(500).json({ success: false, message: 'Failed to retrieve subcontractor.' });
   if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
-  if (!isAdmin(req) && !data.is_active) return res.status(403).json({ success: false, message: 'Access denied. Inactive subcontractor.' });
+  if (!canManageSubcontractors(req) && !data.is_active) return res.status(403).json({ success: false, message: 'Access denied. Inactive subcontractor.' });
   return res.json({ success: true, subcontractor: filterAssignmentsByAllowed(data, allowed) });
 }
 

@@ -26,6 +26,7 @@ const SearchableSelect = ({
   disabled = false,
   autoFocus = false,
   onFocus,
+  onBlur,
   emptyMessage = 'No matches.'
 }) => {
   const [open, setOpen] = useState(false);
@@ -127,6 +128,7 @@ const SearchableSelect = ({
         autoComplete="off"
         size={size}
         onFocus={() => { onFocus?.(); setOpen(true); }}
+        onBlur={(e) => { onBlur?.(e); }}
         onChange={(e) => { onChange?.(e.target.value); setOpen(true); }}
       />
 

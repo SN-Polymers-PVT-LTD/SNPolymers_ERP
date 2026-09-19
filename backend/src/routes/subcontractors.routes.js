@@ -13,6 +13,6 @@ router.get('/assignments', requireRole(readerRoles), validateRequest(schemas.ass
 router.post('/assignments', requireRole(['je', 'admin']), validateRequest(schemas.assignmentCreateSchema), controller.createSubcontractorAssignment);
 router.get('/:id', requireRole(readerRoles), validateRequest(schemas.subcontractorIdSchema), controller.getSubcontractorById);
 router.post('/', requireRole(['je', 'admin']), validateRequest(schemas.subcontractorCreateSchema), controller.createSubcontractor);
-router.put('/:id', requireRole(['admin']), validateRequest(schemas.subcontractorUpdateSchema), controller.updateSubcontractor);
-router.patch('/:id/status', requireRole(['admin']), validateRequest(schemas.subcontractorStatusSchema), controller.updateSubcontractorStatus);
+router.put('/:id', requireRole(['admin', 'je']), validateRequest(schemas.subcontractorUpdateSchema), controller.updateSubcontractor);
+router.patch('/:id/status', requireRole(['admin', 'je']), validateRequest(schemas.subcontractorStatusSchema), controller.updateSubcontractorStatus);
 module.exports = router;

@@ -234,7 +234,7 @@ const SubcontractorLedger = () => {
   const handleExportFullLedger = async () => {
     try {
       setIsExporting(true);
-      const [entriesRes, balancesRes] = await Promise.all([
+      const [entriesRes, balancesRes, requisitionsRes] = await Promise.all([
         getSubcontractorLedgerEntries({
           work_order_no: workOrderFilter || undefined,
           search: debouncedSearch || undefined,
@@ -245,12 +245,20 @@ const SubcontractorLedger = () => {
           work_order_no: workOrderFilter || undefined,
           search: debouncedSearch || undefined,
           export: 'true'
+        }),
+        getSubcontractorRequisitions({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          date_basis: dateBasis,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined
         })
       ]);
       const entries = entriesRes.data?.entries || [];
       const allBalances = balancesRes.data?.balances || balancesRes.data?.contractors?.flatMap((c) => c.balances || []) || [];
+      const exportRequisitions = requisitionsRes.data?.requisitions || [];
 
-      await exportAllSubcontractorLedgersToExcel(entries, allBalances, requisitions, {
+      await exportAllSubcontractorLedgersToExcel(entries, allBalances, exportRequisitions, {
         workOrderFilter,
         searchFilter: debouncedSearch,
         dateBasis,

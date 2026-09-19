@@ -478,9 +478,17 @@ body.light .bg-slate-900\/20,
 body.light .bg-slate-900\/10,
 body.light .bg-slate-900\/5,
 body.light .bg-slate-950,
-body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/95,
 body.light .bg-slate-950\/90,
+body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/70,
+body.light .bg-slate-950\/60,
+body.light .bg-slate-950\/50,
 body.light .bg-slate-950\/40,
+body.light .bg-slate-950\/30,
+body.light .bg-slate-950\/20,
+body.light .bg-slate-950\/10,
+body.light .bg-slate-950\/5,
 body.light .bg-slate-800,
 body.light .bg-slate-800\/80,
 body.light .bg-slate-800\/50,
@@ -572,6 +580,18 @@ body.light .glass-input:focus {
 body.light input::placeholder,
 body.light textarea::placeholder {
   color: #64748b !important;
+}
+
+/* Checkbox overrides in Light Mode */
+body.light input[type="checkbox"] {
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  accent-color: #4f46e5;
+}
+
+body.light input[type="checkbox"]:checked {
+  background-color: #4f46e5 !important;
+  border-color: #4f46e5 !important;
 }
 
 /* Floating navigation & sidebar glass overrides */
@@ -720,9 +740,12 @@ body.light .bg-indigo-500\/20 {
   background-color: rgba(99, 102, 241, 0.12) !important;
 }
 
+body.light .text-indigo-200,
 body.light .text-indigo-300,
+body.light .text-indigo-300\/80,
 body.light .text-indigo-400,
 body.light .text-indigo-500,
+body.light .dark\:text-indigo-200,
 body.light .dark\:text-indigo-300,
 body.light .dark\:text-indigo-400 {
   color: #3730a3 !important;
@@ -877,8 +900,17 @@ body.light .bg-slate-900\/10,
 body.light .bg-slate-900\/5,
 body.light .bg-slate-900,
 body.light .bg-slate-950,
-body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/95,
 body.light .bg-slate-950\/90,
+body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/70,
+body.light .bg-slate-950\/60,
+body.light .bg-slate-950\/50,
+body.light .bg-slate-950\/40,
+body.light .bg-slate-950\/30,
+body.light .bg-slate-950\/20,
+body.light .bg-slate-950\/10,
+body.light .bg-slate-950\/5,
 body.light .bg-neutral-950,
 body.light .dark\:bg-neutral-950,
 body.light .bg-\[\#0d131f\],

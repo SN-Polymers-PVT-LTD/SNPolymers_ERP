@@ -1,6 +1,7 @@
 const { supabase } = require('../db/supabase');
 const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
 const { visibleWorkOrders } = require('../helpers/workOrderAccess');
+const { notifyZoSubcontractEstimateSubmitted, notifyHoSubcontractEstimateApproved } = require('../services/telegram.service');
 
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
@@ -12,7 +13,7 @@ async function canAccessEstimate(estimate, user, write = false) {
   return allowed === null || allowed.includes(estimate.work_order_no);
 }
 
-const detailSelect = `*, project_subcontract_estimate_lines:project_subcontract_estimate_lines(*, subcontractor:subcontractor_master(id, subcontractor_name, is_active), subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)), project_subcontract_estimate_workflow_log(*)`;
+const detailSelect = `*, project_subcontract_estimate_lines:project_subcontract_estimate_lines(*, subcontractor:subcontractor_master(id, subcontractor_name, is_active), subcontract_work:subcontract_work_master(id, sub_head, material_details, unit, is_active)), project_subcontract_estimate_workflow_log(*, actor_user:authorised_users!actor(display_name)), subcontract_estimate_revision_log(*)`;
 
 async function getSubcontractEstimates(req, res) {
   try {
@@ -136,6 +137,9 @@ async function transitionWorkflow(req, res) {
         }
         const { data: submitted, error: submittedReadError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
         if (submittedReadError) throw submittedReadError;
+        notifyZoSubcontractEstimateSubmitted(submitted, req.user.mobile_number, req.user.role, remarks).catch(err => {
+          console.error(`[TELEGRAM ALERTS] notifyZoSubcontractEstimateSubmitted failed: ${err.message}`);
+        });
         return res.json({ success: true, estimate: submitted, message: 'Estimate revision submitted successfully.' });
       }
       if (error) {
@@ -175,6 +179,17 @@ async function transitionWorkflow(req, res) {
     }
     const { data: estimate, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
     if (readError) throw readError;
+
+    if (['SUBMIT', 'RESUBMIT'].includes(action)) {
+      notifyZoSubcontractEstimateSubmitted(estimate, req.user.mobile_number, req.user.role, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyZoSubcontractEstimateSubmitted failed: ${err.message}`);
+      });
+    } else if (action === 'ZO_APPROVE') {
+      notifyHoSubcontractEstimateApproved(estimate, req.user.mobile_number, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyHoSubcontractEstimateApproved failed: ${err.message}`);
+      });
+    }
+
     return res.json({ success: true, estimate, message: 'Workflow action completed successfully.' });
   } catch (error) {
     console.error(`transitionSubcontractEstimateWorkflow failed: ${error.message}`);
