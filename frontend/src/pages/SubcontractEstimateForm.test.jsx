@@ -329,4 +329,124 @@ describe('SubcontractEstimateForm', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/subcontract-estimates/est-uuid-42');
     });
   });
+
+  it('identifies rows needing correction vs protected rows, displays stage remarks, and tracks session corrections', async () => {
+    const user = userEvent.setup();
+    mockParams = { id: 'est-rev-1' };
+
+    mockGetSubcontractEstimate.mockResolvedValueOnce({
+      data: {
+        estimate: {
+          subcontract_estimate_id: 'est-rev-1',
+          work_order_no: 'WO-101',
+          estimate_status: 'ZO Revision Requested',
+          estimate_revision: 1,
+          zo_remarks: 'Please lower pipe rate to 350',
+          ho_remarks: 'HO previous remark',
+          updated_at: '2026-09-19T10:00:00Z',
+          project_subcontract_estimate_lines: [
+            {
+              line_id: 'line-rejected',
+              subcontractor_id: 'sub-alpha',
+              subcontractor: sampleSubcontractors[0],
+              subcontract_work_id: 'work-pipe',
+              subcontract_work: sampleSubcontractors[0].capabilities[0].subcontract_work,
+              qty: '10',
+              rate: '500',
+              amount: '5000',
+              entry_kind: 'BASE',
+              zo_office_approve: 'Not Approve',
+              zo_remarks: 'Rate too high, max is 350'
+            },
+            {
+              line_id: 'line-approved',
+              subcontractor_id: 'sub-beta',
+              subcontractor: sampleSubcontractors[1],
+              subcontract_work_id: 'work-welding',
+              subcontract_work: sampleSubcontractors[1].capabilities[0].subcontract_work,
+              qty: '5',
+              rate: '100',
+              amount: '500',
+              entry_kind: 'BASE',
+              zo_office_approve: 'Approve',
+              zo_remarks: 'Acceptable'
+            }
+          ]
+        }
+      }
+    });
+
+    renderForm();
+
+    // Verify stage remarks in banner (ZO remarks, no fallback to HO)
+    await waitFor(() => {
+      expect(screen.getByText('ZO Revision Remarks:')).toBeInTheDocument();
+      expect(screen.getByText('Please lower pipe rate to 350')).toBeInTheDocument();
+      expect(screen.queryByText('HO previous remark')).not.toBeInTheDocument();
+    });
+
+    // Verify row statuses
+    expect(screen.getByText('Requires Correction')).toBeInTheDocument();
+    expect(screen.getByText(/ZO: Rate too high, max is 350/i)).toBeInTheDocument();
+    expect(screen.getByText('Protected')).toBeInTheDocument();
+
+    // Edit the rate on the rejected line
+    const rateInputs = screen.getAllByPlaceholderText('Rate');
+    await user.clear(rateInputs[0]);
+    await user.type(rateInputs[0], '350');
+
+    // (Corrected) indicator should appear for line-rejected
+    await waitFor(() => {
+      expect(screen.getByText('(Corrected)')).toBeInTheDocument();
+    });
+  });
+
+  it('allows editing HO-rejected row in HO Revision Requested even if ZO approved it', async () => {
+    mockParams = { id: 'est-ho-rev' };
+
+    mockGetSubcontractEstimate.mockResolvedValueOnce({
+      data: {
+        estimate: {
+          subcontract_estimate_id: 'est-ho-rev',
+          work_order_no: 'WO-101',
+          estimate_status: 'HO Revision Requested',
+          estimate_revision: 1,
+          zo_remarks: 'ZO approved earlier',
+          ho_remarks: 'HO rejected rate on welding',
+          updated_at: '2026-09-19T10:00:00Z',
+          project_subcontract_estimate_lines: [
+            {
+              line_id: 'line-ho-rejected',
+              subcontractor_id: 'sub-beta',
+              subcontractor: sampleSubcontractors[1],
+              subcontract_work_id: 'work-welding',
+              subcontract_work: sampleSubcontractors[1].capabilities[0].subcontract_work,
+              qty: '5',
+              rate: '100',
+              amount: '500',
+              entry_kind: 'BASE',
+              zo_office_approve: 'Approve', // Passed ZO
+              ho_office_approve: 'Not Approve', // But rejected by HO!
+              ho_remarks: 'Rate exceeds HO standard schedule'
+            }
+          ]
+        }
+      }
+    });
+
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText('HO Revision Remarks:')).toBeInTheDocument();
+      expect(screen.getByText('HO rejected rate on welding')).toBeInTheDocument();
+    });
+
+    // Row should show "Requires Correction" with HO remark
+    expect(screen.getByText('Requires Correction')).toBeInTheDocument();
+    expect(screen.getByText(/HO: Rate exceeds HO standard schedule/i)).toBeInTheDocument();
+
+    // Line inputs must NOT be disabled (backend permits correction of HO-rejected row)
+    const rateInput = screen.getByPlaceholderText('Rate');
+    expect(rateInput).not.toBeDisabled();
+  });
 });

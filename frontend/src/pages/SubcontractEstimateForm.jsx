@@ -86,29 +86,49 @@ const SubcontractEstimateForm = () => {
     label: `${line.subcontractor?.subcontractor_name || 'Subcontractor'} · ${line.subcontract_work?.material_details || 'Work'} · ₹${currencyAmount(line)}`
   }));
 
-  const update = (index, key, value) => setLines(rows => rows.map((row, i) => i === index ? { ...row, [key]: value } : row));
-  const updateKind = (index, value) => setLines(rows => rows.map((row, i) => i === index ? {
-    ...row,
-    entry_kind: value,
-    adjusts_line_id: value === 'ADJUSTMENT' ? row.adjusts_line_id : null
-  } : row));
+  // Track lines modified in the current editing session (Correction #1)
+  const [sessionEditedLines, setSessionEditedLines] = useState({});
 
-  const updateTarget = (index, targetId) => setLines(rows => rows.map((row, i) => {
-    if (i !== index) return row;
-    const target = targetOptions.find(option => option.value === targetId);
-    const targetSub = subcontractors.find(s => s.id === target?.subcontractor_id) || target?.subcontractor;
-    const targetWork = (targetSub?.capabilities || [])
-      .map(c => c.subcontract_work)
-      .find(w => w?.id === target?.subcontract_work_id) || target?.subcontract_work;
-    return {
+  const markLineEdited = (index) => {
+    setSessionEditedLines(prev => ({ ...prev, [index]: true }));
+  };
+
+  // Filter state for lines in revision mode ('all' | 'needs_correction' | 'protected')
+  const [formFilter, setFormFilter] = useState('all');
+
+  const update = (index, key, value) => {
+    markLineEdited(index);
+    setLines(rows => rows.map((row, i) => i === index ? { ...row, [key]: value } : row));
+  };
+
+  const updateKind = (index, value) => {
+    markLineEdited(index);
+    setLines(rows => rows.map((row, i) => i === index ? {
       ...row,
-      adjusts_line_id: targetId || null,
-      subcontractor_id: target?.subcontractor_id || row.subcontractor_id,
-      subcontractor: targetSub || row.subcontractor,
-      subcontract_work_id: target?.subcontract_work_id || row.subcontract_work_id,
-      subcontract_work: targetWork || row.subcontract_work
-    };
-  }));
+      entry_kind: value,
+      adjusts_line_id: value === 'ADJUSTMENT' ? row.adjusts_line_id : null
+    } : row));
+  };
+
+  const updateTarget = (index, targetId) => {
+    markLineEdited(index);
+    setLines(rows => rows.map((row, i) => {
+      if (i !== index) return row;
+      const target = targetOptions.find(option => option.value === targetId);
+      const targetSub = subcontractors.find(s => s.id === target?.subcontractor_id) || target?.subcontractor;
+      const targetWork = (targetSub?.capabilities || [])
+        .map(c => c.subcontract_work)
+        .find(w => w?.id === target?.subcontract_work_id) || target?.subcontract_work;
+      return {
+        ...row,
+        adjusts_line_id: targetId || null,
+        subcontractor_id: target?.subcontractor_id || row.subcontractor_id,
+        subcontractor: targetSub || row.subcontractor,
+        subcontract_work_id: target?.subcontract_work_id || row.subcontract_work_id,
+        subcontract_work: targetWork || row.subcontract_work
+      };
+    }));
+  };
 
   const handleSaveError = (e, current) => {
     if (e.response?.status === 409 && current?.subcontract_estimate_id) {
@@ -140,6 +160,7 @@ const SubcontractEstimateForm = () => {
     const updated = response.data.estimate;
     setEstimate(updated);
     setLines(updated.project_subcontract_estimate_lines || []);
+    setSessionEditedLines({});
     return updated;
   };
 
@@ -359,11 +380,17 @@ const SubcontractEstimateForm = () => {
       {isRevisionRequested && (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 space-y-1">
           <div className="text-xs font-bold uppercase tracking-wider text-amber-400">
-            ⚠️ Revision Requested ({status})
+            ⚠️ {status === 'HO Revision Requested' ? 'HO Revision Requested' : 'ZO Revision Requested'}
           </div>
           <div className="text-sm text-slate-200">
-            <span className="font-semibold text-amber-300">Revision Remarks: </span>
-            <span>{estimate?.zo_remarks || estimate?.ho_remarks || 'Please revise the estimate lines as requested.'}</span>
+            <span className="font-semibold text-amber-300">
+              {status === 'HO Revision Requested' ? 'HO Revision Remarks: ' : 'ZO Revision Remarks: '}
+            </span>
+            <span>
+              {status === 'HO Revision Requested'
+                ? estimate?.ho_remarks || 'Please revise the estimate lines as requested by HO.'
+                : estimate?.zo_remarks || 'Please revise the estimate lines as requested by ZO.'}
+            </span>
           </div>
         </div>
       )}
@@ -391,6 +418,50 @@ const SubcontractEstimateForm = () => {
           </Button>
         </div>
 
+        {/* Quick Review Filter in Revision Mode */}
+        {isRevisionRequested && (
+          <div className="flex flex-wrap items-center gap-2 mb-4 p-3 rounded-xl border border-white/5 bg-white/[0.02]">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-2">Filter View:</span>
+            <button
+              type="button"
+              onClick={() => setFormFilter('all')}
+              className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                formFilter === 'all'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'
+              }`}
+            >
+              All Lines ({lines.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormFilter('needs_correction')}
+              className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                formFilter === 'needs_correction'
+                  ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                  : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'
+              }`}
+            >
+              Requires Correction ({
+                lines.filter(l => (status === 'HO Revision Requested' ? l.ho_office_approve === 'Not Approve' : l.zo_office_approve === 'Not Approve')).length
+              })
+            </button>
+            <button
+              type="button"
+              onClick={() => setFormFilter('protected')}
+              className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors ${
+                formFilter === 'protected'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-white/5 text-slate-400 border border-white/5 hover:bg-white/10'
+              }`}
+            >
+              Protected ({
+                lines.filter(l => historical(l) || (l.ho_office_approve === 'Approve' || ((status === 'ZO Revision Requested' || status === 'Estimate Reopened') && l.zo_office_approve === 'Approve'))).length
+              })
+            </button>
+          </div>
+        )}
+
         <div className={`overflow-x-auto rounded-xl border ${isDark ? 'border-white/5 bg-slate-950/20' : 'border-slate-200/70 bg-slate-50/50'}`}>
           <table className="w-full text-left border-collapse min-w-[1250px]">
             <thead>
@@ -404,6 +475,7 @@ const SubcontractEstimateForm = () => {
                 <th className="py-3 px-3 w-32 text-right">Rate (₹)</th>
                 <th className="py-3 px-3 w-36">Rate Ref</th>
                 <th className="py-3 px-3 min-w-[180px]">Remarks</th>
+                {isRevisionRequested && <th className="py-3 px-3 w-52">Review Status</th>}
                 <th className="py-3 px-3 w-32 text-right">Amount (₹)</th>
                 <th className="py-3 px-3 w-20 text-center">Action</th>
               </tr>
@@ -412,14 +484,31 @@ const SubcontractEstimateForm = () => {
               {lines.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={showAdjustTarget ? 11 : 10}
+                    colSpan={(showAdjustTarget ? 11 : 10) + (isRevisionRequested ? 1 : 0)}
                     className="py-12 text-center text-slate-500 text-sm font-medium"
                   >
                     No subcontract line items added yet. Click &ldquo;+ Add Line&rdquo; to add one.
                   </td>
                 </tr>
               ) : (
-                lines.map((line, index) => {
+                lines
+                  .map((line, index) => ({ line, index }))
+                  .filter(({ line }) => {
+                    const locked = historical(line) || (
+                      line.ho_office_approve === 'Approve' ||
+                      ((status === 'ZO Revision Requested' || status === 'Estimate Reopened') &&
+                        line.zo_office_approve === 'Approve')
+                    );
+                    if (!isRevisionRequested || formFilter === 'all') return true;
+                    if (formFilter === 'protected') return locked;
+                    if (formFilter === 'needs_correction') {
+                      return !locked && (status === 'HO Revision Requested'
+                        ? line.ho_office_approve === 'Not Approve'
+                        : line.zo_office_approve === 'Not Approve');
+                    }
+                    return true;
+                  })
+                  .map(({ line, index }) => {
                   // Final-approved history is immutable. A ZO-approved row
                   // is protected in a ZO revision; an HO-approved row is
                   // protected in an HO revision. JE can still correct an
@@ -499,6 +588,7 @@ const SubcontractEstimateForm = () => {
                               setSearchQueries(prev => ({ ...prev, [index]: typed }));
                               // If typed text diverges from the current committed contractor name, clear the selection and cascaded work
                               if (resolvedSub && typed.trim().toLowerCase() !== resolvedSub.subcontractor_name.toLowerCase()) {
+                                markLineEdited(index);
                                 setLines(rows => rows.map((row, i) => i === index ? {
                                   ...row,
                                   subcontractor_id: '',
@@ -517,6 +607,7 @@ const SubcontractEstimateForm = () => {
                               });
                             }}
                             onSelect={(opt) => {
+                              markLineEdited(index);
                               setSearchQueries(prev => {
                                 const copy = { ...prev };
                                 delete copy[index];
@@ -546,6 +637,7 @@ const SubcontractEstimateForm = () => {
                             value={line.subcontract_work_id || ''}
                             disabled={locked || (line.entry_kind === 'ADJUSTMENT' && Boolean(line.adjusts_line_id)) || !line.subcontractor_id || qualifiedWorks.length === 0}
                             onChange={e => {
+                              markLineEdited(index);
                               const selectedWorkId = e.target.value;
                               const selectedWork = qualifiedWorks.find(w => w.id === selectedWorkId);
                               setLines(rows => rows.map((row, i) => i === index ? {
@@ -637,6 +729,40 @@ const SubcontractEstimateForm = () => {
                           onChange={e => update(index, 'remarks', e.target.value)}
                         />
                       </td>
+                      {isRevisionRequested && (
+                        <td className="py-2.5 px-3">
+                          {locked ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Protected
+                            </span>
+                          ) : (status === 'HO Revision Requested' ? line.ho_office_approve === 'Not Approve' : line.zo_office_approve === 'Not Approve') ? (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                  Requires Correction
+                                </span>
+                                {sessionEditedLines[index] && (
+                                  <span className="text-[9px] font-bold uppercase text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded">
+                                    (Corrected)
+                                  </span>
+                                )}
+                              </div>
+                              {status === 'HO Revision Requested' && line.ho_remarks && (
+                                <p className="text-[10px] text-rose-300 italic font-sans max-w-[190px] break-words">
+                                  HO: {line.ho_remarks}
+                                </p>
+                              )}
+                              {status !== 'HO Revision Requested' && line.zo_remarks && (
+                                <p className="text-[10px] text-rose-300 italic font-sans max-w-[190px] break-words">
+                                  ZO: {line.zo_remarks}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 font-mono text-xs">—</span>
+                          )}
+                        </td>
+                      )}
                       <td className={`py-2.5 px-3 font-mono font-bold text-right whitespace-nowrap ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                         ₹{currencyAmount(line).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>

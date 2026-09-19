@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import SubcontractEstimateView from './SubcontractEstimateView';
@@ -39,6 +39,7 @@ describe('SubcontractEstimateView', () => {
   });
 
   it('renders actor display_name in Workflow History when present, and falls back to mobile number', async () => {
+    const user = userEvent.setup();
     mockGetSubcontractEstimate.mockResolvedValue({
       data: {
         estimate: {
@@ -80,6 +81,10 @@ describe('SubcontractEstimateView', () => {
         <SubcontractEstimateView />
       </MemoryRouter>
     );
+
+    // Switch to History tab
+    const historyTab = await screen.findByRole('button', { name: /History & Audit Log/i });
+    await user.click(historyTab);
 
     await waitFor(() => {
       expect(screen.getByText('Workflow History')).toBeInTheDocument();
@@ -127,10 +132,10 @@ describe('SubcontractEstimateView', () => {
       expect(screen.getAllByText(/ZO Revision Requested/i).length).toBeGreaterThanOrEqual(2);
     });
 
-    expect(screen.getByText('Please lower the plumbing rates')).toBeInTheDocument();
+    expect(screen.getAllByText('Please lower the plumbing rates').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('auto-saves row decisions when ZO requests revision', async () => {
+  it('auto-saves row decisions when ZO requests revision with modal remarks interaction', async () => {
     const user = userEvent.setup();
     const initialEstimate = {
       subcontract_estimate_id: 'est-123',
@@ -201,22 +206,33 @@ describe('SubcontractEstimateView', () => {
     const decisionSelect = screen.getByRole('combobox');
     await user.selectOptions(decisionSelect, 'Not Approve');
 
-    // Fill in required row remarks
-    const rowRemarksInput = screen.getByPlaceholderText('Required reason');
-    await user.type(rowRemarksInput, 'Rate exceeds maximum cap');
+    // Click remarks input to open focused remarks modal
+    const remarksInput = screen.getByPlaceholderText(/click to enter required reason/i);
+    await user.click(remarksInput);
+
+    // Modal opens
+    await waitFor(() => {
+      expect(screen.getByText(/Review Remarks \(ZO\)/i)).toBeInTheDocument();
+    });
+
+    const modalTextarea = screen.getByPlaceholderText(/Enter rejection reason or audit instruction…/i);
+    await user.type(modalTextarea, 'Rate exceeds maximum cap');
+
+    const saveRemarksBtn = screen.getByRole('button', { name: /save remarks/i });
+    await user.click(saveRemarksBtn);
 
     // Click "Request Revision" header button
     const requestRevBtn = screen.getByRole('button', { name: /request revision/i });
     await user.click(requestRevBtn);
 
-    // Modal should appear
+    // Confirmation dialog appears
     await waitFor(() => {
       expect(screen.getByText('Mandatory remarks')).toBeInTheDocument();
     });
 
-    // Fill in modal remarks
-    const modalTextarea = screen.getByPlaceholderText('Enter the reason for this workflow action');
-    await user.type(modalTextarea, 'Pls review line items');
+    // Fill in header modal remarks
+    const headerModalTextarea = screen.getByPlaceholderText('Enter the reason for this workflow action');
+    await user.type(headerModalTextarea, 'Pls review line items');
 
     // Confirm modal
     const confirmBtn = screen.getByRole('button', { name: /confirm/i });
@@ -243,5 +259,149 @@ describe('SubcontractEstimateView', () => {
         expected_updated_at: '2026-09-19T10:01:00.000Z'
       });
     });
+  });
+
+  it('displays ZO and HO decisions and remarks separately without cross-stage fallbacks', async () => {
+    mockUser = { role: 'ho', mobile_number: '+919876543210' };
+    const estimateWithBothRemarks = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 1,
+      estimate_amount: 8000,
+      estimate_status: 'Final Approved',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      zo_remarks: 'ZO header approval note',
+      ho_remarks: 'HO final authorization note',
+      zo_approved_by: 'zo-user-1',
+      ho_approved_by: 'ho-user-1',
+      zo_approval_date: '2026-09-18T10:00:00.000Z',
+      ho_approval_date: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-1',
+          subcontractor_id: 'sub-1',
+          subcontract_work_id: 'work-1',
+          subcontractor: { subcontractor_name: 'Plumbing Experts', is_active: true },
+          subcontract_work: { material_details: 'CPVC Fitting', unit: 'Mtr', is_active: true },
+          qty: 20,
+          rate: 400,
+          amount: 8000,
+          entry_kind: 'BASE',
+          zo_office_approve: 'Approve',
+          zo_remarks: 'ZO line audit verified',
+          ho_office_approve: 'Approve',
+          ho_remarks: 'HO line rate confirmed'
+        }
+      ]
+    };
+
+    mockGetSubcontractEstimate.mockResolvedValue({
+      data: { estimate: estimateWithBothRemarks }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('CPVC Fitting')).toBeInTheDocument();
+    });
+
+    // Verify ZO and HO remarks appear separately in their table columns
+    expect(screen.getByText('ZO line audit verified')).toBeInTheDocument();
+    expect(screen.getByText('HO line rate confirmed')).toBeInTheDocument();
+
+    // Verify ZO and HO header cards display their distinct remarks
+    expect(screen.getByText('ZO header approval note')).toBeInTheDocument();
+    expect(screen.getByText('HO final authorization note')).toBeInTheDocument();
+  });
+
+  it('filters current lines by stage decision (All / Approve / Not Approve / Pending)', async () => {
+    const user = userEvent.setup();
+    const multiLineEstimate = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 0,
+      estimate_amount: 15000,
+      estimate_status: 'Under ZO Review',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-1',
+          subcontractor: { subcontractor_name: 'Sub A', is_active: true },
+          subcontract_work: { material_details: 'Line Approved', unit: 'Mtr' },
+          qty: 10,
+          rate: 500,
+          amount: 5000,
+          entry_kind: 'BASE',
+          zo_office_approve: 'Approve',
+          zo_remarks: null
+        },
+        {
+          line_id: 'line-2',
+          subcontractor: { subcontractor_name: 'Sub B', is_active: true },
+          subcontract_work: { material_details: 'Line Rejected', unit: 'Nos' },
+          qty: 5,
+          rate: 1000,
+          amount: 5000,
+          entry_kind: 'BASE',
+          zo_office_approve: 'Not Approve',
+          zo_remarks: 'Too expensive'
+        },
+        {
+          line_id: 'line-3',
+          subcontractor: { subcontractor_name: 'Sub C', is_active: true },
+          subcontract_work: { material_details: 'Line Pending', unit: 'Job' },
+          qty: 1,
+          rate: 5000,
+          amount: 5000,
+          entry_kind: 'BASE',
+          zo_office_approve: null,
+          zo_remarks: null
+        }
+      ]
+    };
+
+    mockGetSubcontractEstimate.mockResolvedValue({
+      data: { estimate: multiLineEstimate }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Line Approved')).toBeInTheDocument();
+      expect(screen.getByText('Line Rejected')).toBeInTheDocument();
+      expect(screen.getByText('Line Pending')).toBeInTheDocument();
+    });
+
+    // Filter to 'Approve'
+    const approveFilterBtn = screen.getByRole('button', { name: 'Approve' });
+    await user.click(approveFilterBtn);
+
+    expect(screen.getByText('Line Approved')).toBeInTheDocument();
+    expect(screen.queryByText('Line Rejected')).not.toBeInTheDocument();
+    expect(screen.queryByText('Line Pending')).not.toBeInTheDocument();
+
+    // Filter to 'Not Approve'
+    const notApproveFilterBtn = screen.getByRole('button', { name: 'Not Approve' });
+    await user.click(notApproveFilterBtn);
+
+    expect(screen.queryByText('Line Approved')).not.toBeInTheDocument();
+    expect(screen.getByText('Line Rejected')).toBeInTheDocument();
+    expect(screen.queryByText('Line Pending')).not.toBeInTheDocument();
+
+    // Filter to 'Pending'
+    const pendingFilterBtn = screen.getByRole('button', { name: 'Pending' });
+    await user.click(pendingFilterBtn);
+
+    expect(screen.queryByText('Line Approved')).not.toBeInTheDocument();
+    expect(screen.queryByText('Line Rejected')).not.toBeInTheDocument();
+    expect(screen.getByText('Line Pending')).toBeInTheDocument();
   });
 });
