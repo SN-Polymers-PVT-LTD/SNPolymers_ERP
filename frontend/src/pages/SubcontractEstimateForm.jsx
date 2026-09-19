@@ -251,7 +251,7 @@ const SubcontractEstimateForm = () => {
     setShowConfirmSubmit(false);
     setError('');
     setSubmitting(true);
-    let savedEstimate = null;
+    let savedEstimate;
 
     try {
       savedEstimate = await performSave();
@@ -543,7 +543,7 @@ const SubcontractEstimateForm = () => {
                     qualifiedWorks.unshift(line.subcontract_work);
                   }
 
-                  let workOptions = [];
+                  let workOptions;
                   if (!line.subcontractor_id) {
                     workOptions = [{ value: '', label: 'Select subcontractor first' }];
                   } else if (qualifiedWorks.length === 0) {
