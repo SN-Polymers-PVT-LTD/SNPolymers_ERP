@@ -301,15 +301,14 @@ const SubcontractEstimateView = () => {
     try {
       let currentEstimate = estimate;
 
-      // Auto-save row decisions before revision request or rejection (as tested)
-      if (canReview && ['ZO_REQUEST_REVISION', 'ZO_REJECT', 'HO_REQUEST_REVISION', 'HO_REJECT'].includes(action)) {
-        const approvals = currentLines
-          .filter((line) => decisions[line.line_id])
-          .map((line) => ({
-            line_id: line.line_id,
-            approve_status: decisions[line.line_id],
-            remarks: remarks[line.line_id] || null
-          }));
+      // Persist unsaved decisions before every review-stage transition. Header
+      // approval therefore validates the same persisted state the reviewer
+      // sees, and uses the returned optimistic-concurrency version.
+      if (canReview && [
+        'ZO_APPROVE', 'ZO_REQUEST_REVISION', 'ZO_REJECT',
+        'HO_APPROVE', 'HO_REQUEST_REVISION', 'HO_REJECT'
+      ].includes(action)) {
+        const approvals = changedReviewApprovals();
 
         if (approvals.length > 0) {
           const reviewResponse = await reviewSubcontractEstimateRows(id, {
@@ -358,19 +357,29 @@ const SubcontractEstimateView = () => {
     [currentLines, decisions]
   );
 
+  const changedReviewApprovals = () =>
+    currentLines.flatMap((line) => {
+      const decision = decisions[line.line_id];
+      const lineDecision = stage === 'HO' ? line.ho_office_approve : line.zo_office_approve;
+      const lineRemarks = stage === 'HO' ? line.ho_remarks : line.zo_remarks;
+      const nextRemarks = remarks[line.line_id] || null;
+      const savedRemarks = lineRemarks || null;
+
+      if (!decision || (decision === lineDecision && nextRemarks === savedRemarks)) return [];
+      return [{
+        line_id: line.line_id,
+        approve_status: decision,
+        remarks: nextRemarks
+      }];
+    });
+
   const saveDecisions = async () => {
     if (missingDecisionRemarks) {
       setError('Please provide remarks for each line marked Not Approve before saving decisions.');
       return;
     }
 
-    const approvals = currentLines
-      .filter((line) => decisions[line.line_id])
-      .map((line) => ({
-        line_id: line.line_id,
-        approve_status: decisions[line.line_id],
-        remarks: remarks[line.line_id] || null
-      }));
+    const approvals = changedReviewApprovals();
 
     if (approvals.length === 0) {
       setError('Please select a decision for at least one row before saving.');

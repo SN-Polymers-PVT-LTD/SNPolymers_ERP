@@ -261,6 +261,70 @@ describe('SubcontractEstimateView', () => {
     });
   });
 
+  it('saves the final pending ZO decision before approving the header', async () => {
+    const user = userEvent.setup();
+    const initialEstimate = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 0,
+      estimate_amount: 5000,
+      estimate_status: 'Under ZO Review',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-1',
+          subcontractor: { subcontractor_name: 'ABC Corp', is_active: true },
+          subcontract_work: { material_details: 'Pipe Laying', unit: 'Mtr', is_active: true },
+          qty: 10,
+          rate: 500,
+          amount: 5000,
+          entry_kind: 'BASE',
+          zo_office_approve: null,
+          zo_remarks: null
+        }
+      ]
+    };
+    const savedEstimate = {
+      ...initialEstimate,
+      updated_at: '2026-09-19T10:01:00.000Z',
+      project_subcontract_estimate_lines: [{
+        ...initialEstimate.project_subcontract_estimate_lines[0],
+        zo_office_approve: 'Approve'
+      }]
+    };
+
+    mockGetSubcontractEstimate.mockResolvedValue({ data: { estimate: initialEstimate } });
+    mockReviewSubcontractEstimateRows.mockResolvedValue({ data: { estimate: savedEstimate } });
+    mockTransitionSubcontractEstimateWorkflow.mockResolvedValue({
+      data: { estimate: { ...savedEstimate, estimate_status: 'ZO Approved', updated_at: '2026-09-19T10:02:00.000Z' } }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Pipe Laying')).toBeInTheDocument();
+    });
+    await user.selectOptions(screen.getByRole('combobox'), 'Approve');
+    await user.click(screen.getByRole('button', { name: 'Approve Header' }));
+
+    await waitFor(() => {
+      expect(mockReviewSubcontractEstimateRows).toHaveBeenCalledWith('est-123', {
+        stage: 'ZO',
+        approvals: [{ line_id: 'line-1', approve_status: 'Approve', remarks: null }],
+        expected_updated_at: '2026-09-19T10:00:00.000Z'
+      });
+      expect(mockTransitionSubcontractEstimateWorkflow).toHaveBeenCalledWith('est-123', {
+        action: 'ZO_APPROVE',
+        remarks: null,
+        expected_updated_at: '2026-09-19T10:01:00.000Z'
+      });
+    });
+  });
+
   it('displays ZO and HO decisions and remarks separately without cross-stage fallbacks', async () => {
     mockUser = { role: 'ho', mobile_number: '+919876543210' };
     const estimateWithBothRemarks = {
@@ -540,4 +604,3 @@ describe('SubcontractEstimateView', () => {
     expect(saveRowDecisionsBtn).toBeEnabled();
   });
 });
-
