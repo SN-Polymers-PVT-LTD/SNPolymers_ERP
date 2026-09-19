@@ -284,6 +284,37 @@ describe('Subcontractor Ledger Canonical Payment Statement & Pagination Isolatio
       expect(Number(latest.scope_running_balance)).toBe(5000);
       expect(Number(earlier.scope_running_balance)).toBe(3000);
     });
+
+    test('searching for the second requisition preserves cumulative_paid over the full scope history', async () => {
+      // Setup:
+      // req1: 3000 (first payment)
+      // req2: 2000 (second payment, cumulative paid = 5000)
+      // When searching specifically for req2, only req2 should be displayed,
+      // but its cumulative_paid must be 5000 (3000 + 2000), not truncated to 2000.
+      const req = {
+        user: { role: 'admin', mobile_number: adminUser.mobile_number },
+        query: {
+          subcontractor_id: contractorA.id,
+          work_order_no: workOrder,
+          subcontract_work_id: works[0].id,
+          search: req2.requisition_no
+        }
+      };
+      const res = mockRes();
+      await getSubcontractorLedgerEntries(req, res);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.jsonData.success).toBe(true);
+      const entries = res.jsonData.entries;
+      expect(entries.length).toBe(1);
+
+      const [entry] = entries;
+      expect(entry.requisition_no).toBe(req2.requisition_no);
+      expect(Number(entry.paid_amount)).toBe(2000);
+      expect(Number(entry.cumulative_paid)).toBe(5000);
+      expect(Number(entry.scope_running_balance)).toBe(5000);
+      expect(Number(entry.scope_closing_balance)).toBe(5000);
+    });
   });
 
   describe('2. Pagination Scope Isolation & Non-Truncation', () => {
