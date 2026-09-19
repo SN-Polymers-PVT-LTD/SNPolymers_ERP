@@ -206,6 +206,32 @@ BEGIN
     p_estimate_id, p_actor, p_action, p_remarks, p_expected_updated_at, p_deadline_hours
   );
 
+  -- Header approvals describe the current header-review cycle. They are
+  -- intentionally independent from retained row decisions and remarks.
+  IF p_action IN ('SUBMIT', 'RESUBMIT') THEN
+    UPDATE public.project_subcontract_estimates
+    SET zo_approved_by = NULL,
+        zo_approval_date = NULL,
+        ho_approved_by = NULL,
+        ho_approval_date = NULL
+    WHERE subcontract_estimate_id = p_estimate_id;
+  ELSIF p_action = 'ZO_APPROVE' THEN
+    UPDATE public.project_subcontract_estimates
+    SET zo_approved_by = p_actor,
+        zo_approval_date = now()
+    WHERE subcontract_estimate_id = p_estimate_id;
+  ELSIF p_action = 'ZO_REQUEST_REVISION' THEN
+    UPDATE public.project_subcontract_estimates
+    SET zo_approved_by = NULL,
+        zo_approval_date = NULL
+    WHERE subcontract_estimate_id = p_estimate_id;
+  ELSIF p_action = 'HO_REQUEST_REVISION' THEN
+    UPDATE public.project_subcontract_estimates
+    SET ho_approved_by = NULL,
+        ho_approval_date = NULL
+    WHERE subcontract_estimate_id = p_estimate_id;
+  END IF;
+
   IF p_action IN ('SUBMIT', 'RESUBMIT') THEN
     UPDATE public.project_subcontract_estimate_lines line
     SET zo_office_approve = saved.zo_office_approve::public.row_approval_enum,
@@ -271,6 +297,13 @@ BEGIN
     p_estimate_id, p_actor, p_expected_updated_at
   );
 
+  UPDATE public.project_subcontract_estimates
+  SET zo_approved_by = NULL,
+      zo_approval_date = NULL,
+      ho_approved_by = NULL,
+      ho_approval_date = NULL
+  WHERE subcontract_estimate_id = p_estimate_id;
+
   UPDATE public.project_subcontract_estimate_lines line
   SET zo_office_approve = saved.zo_office_approve::public.row_approval_enum,
       zo_remarks = saved.zo_remarks,
@@ -288,6 +321,47 @@ BEGIN
 END;
 $$;
 
+-- REOPEN is a separate RPC, not a transition action. Wrap it so header-cycle
+-- metadata is cleared while Final Approved row history remains untouched.
+ALTER FUNCTION public.reopen_subcontract_estimate(uuid, varchar, text, timestamptz)
+  RENAME TO reopen_subcontract_estimate_phase1_legacy;
+
+CREATE OR REPLACE FUNCTION public.reopen_subcontract_estimate(
+  p_estimate_id uuid,
+  p_actor varchar,
+  p_remarks text,
+  p_expected_updated_at timestamptz
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  PERFORM public.reopen_subcontract_estimate_phase1_legacy(
+    p_estimate_id, p_actor, p_remarks, p_expected_updated_at
+  );
+
+  UPDATE public.project_subcontract_estimates
+  SET zo_approved_by = NULL,
+      zo_approval_date = NULL,
+      ho_approved_by = NULL,
+      ho_approval_date = NULL
+  WHERE subcontract_estimate_id = p_estimate_id;
+END;
+$$;
+
+-- Renaming preserves grants. Legacy functions are private implementation
+-- details and must not bypass the public retention/metadata wrappers.
+REVOKE ALL ON FUNCTION public.reconcile_subcontract_estimate_lines_phase1_legacy(uuid, varchar, timestamptz, jsonb)
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.transition_subcontract_estimate_workflow_phase1_legacy(uuid, varchar, varchar, text, timestamptz, integer)
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.submit_reopened_subcontract_estimate_phase1_legacy(uuid, varchar, timestamptz)
+  FROM PUBLIC, anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.reopen_subcontract_estimate_phase1_legacy(uuid, varchar, text, timestamptz)
+  FROM PUBLIC, anon, authenticated, service_role;
+
 REVOKE ALL ON FUNCTION public.reconcile_subcontract_estimate_lines(uuid, varchar, timestamptz, jsonb)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reconcile_subcontract_estimate_lines(uuid, varchar, timestamptz, jsonb)
@@ -300,8 +374,14 @@ REVOKE ALL ON FUNCTION public.submit_reopened_subcontract_estimate(uuid, varchar
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_reopened_subcontract_estimate(uuid, varchar, timestamptz)
   TO service_role;
+REVOKE ALL ON FUNCTION public.reopen_subcontract_estimate(uuid, varchar, text, timestamptz)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reopen_subcontract_estimate(uuid, varchar, text, timestamptz)
+  TO service_role;
 
 COMMENT ON FUNCTION public.reconcile_subcontract_estimate_lines(uuid, varchar, timestamptz, jsonb)
   IS 'Phase 1 wrapper: server-compares proposed lines and preserves decisions only for unchanged rows.';
 COMMENT ON FUNCTION public.transition_subcontract_estimate_workflow(uuid, varchar, varchar, text, timestamptz, integer)
   IS 'Phase 1 wrapper: submissions preserve existing current-row decisions; corrected rows were reset by reconciliation.';
+COMMENT ON FUNCTION public.reopen_subcontract_estimate(uuid, varchar, text, timestamptz)
+  IS 'Phase 1 wrapper: reopen clears current header approval metadata without changing Final Approved history.';

@@ -13,7 +13,7 @@ The recommended repair is narrow: preserve decisions and remarks for unchanged, 
 
 Phase 1 validation passed 10 backend regression files and 41 tests, plus 4 affected frontend form tests. The remaining open review finding is unbounded detail-history payload (P3). Ambiguous business decisions remain limited to reopened non-final inheritance and adjustment-target review scope.
 
-Phase 1 follow-up adds migration 088. It revokes all direct execution grants on the renamed Phase 1 legacy functions, leaving only the public wrappers callable by service_role. Regression coverage verifies anon/authenticated cannot execute the legacy functions, that a direct RESUBMIT preserves a rejection rather than bypassing ZO, and that reopened additions cannot Final Approve without a new HO decision.
+Before deployment, the Phase 1 follow-up was folded into unapplied migration 087 and migration 088 was removed. Migration 087 revokes all direct execution grants on renamed legacy functions, leaving only public wrappers callable by service_role. It also keeps header-stage metadata truthful: submit/resubmit clear current-cycle ZO/HO actors and dates, ZO approval stamps the ZO actor/date, revision requests clear only the invalidated stage, and reopen clears both header stages without changing retained row decisions or Final Approved provenance. Regression coverage verifies ordinary API roles cannot execute legacy functions, a direct RESUBMIT cannot bypass a new HO decision, and reopened additions cannot Final Approve without HO approval.
 
 ## 2. Source inventory and effective SQL migration map
 

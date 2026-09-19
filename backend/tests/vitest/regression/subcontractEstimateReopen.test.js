@@ -105,6 +105,8 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       await reopen();
       const { rows: reopened } = await client.query(`SELECT estimate_revision, estimate_status, estimate_amount, last_approved_amount FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1`, [estimateId]);
       expect(reopened[0]).toMatchObject({ estimate_revision: before[0].estimate_revision + 1, estimate_status: 'Estimate Reopened', estimate_amount: before[0].estimate_amount, last_approved_amount: before[0].last_approved_amount });
+      const { rows: reopenedMetadata } = await client.query(`SELECT zo_approved_by, zo_approval_date, ho_approved_by, ho_approval_date FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1`, [estimateId]);
+      expect(reopenedMetadata[0]).toMatchObject({ zo_approved_by: null, zo_approval_date: null, ho_approved_by: null, ho_approval_date: null });
 
       // Rejecting a reopened revision rejects only that attempt. The prior
       // approved baseline remains in the same lineage and can be reopened.

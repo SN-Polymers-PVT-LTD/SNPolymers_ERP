@@ -18,11 +18,14 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
         "'public.transition_subcontract_estimate_workflow_phase1_legacy(uuid, character varying, character varying, text, timestamp with time zone, integer)'::regprocedure, 'EXECUTE') AS authenticated_transition, " +
         "has_function_privilege('authenticated', " +
         "'public.submit_reopened_subcontract_estimate_phase1_legacy(uuid, character varying, timestamp with time zone)'::regprocedure, 'EXECUTE') AS authenticated_reopened"
+        + ", has_function_privilege('authenticated', " +
+        "'public.reopen_subcontract_estimate_phase1_legacy(uuid, character varying, text, timestamp with time zone)'::regprocedure, 'EXECUTE') AS authenticated_reopen"
       );
       expect(rows[0]).toEqual({
         anon_reconcile: false,
         authenticated_transition: false,
-        authenticated_reopened: false
+        authenticated_reopened: false,
+        authenticated_reopen: false
       });
     } finally {
       await client.end();
@@ -44,6 +47,7 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
       const workId = (await client.query("INSERT INTO public.subcontract_work_master (sub_head, material_details, unit, created_by) VALUES ($1, $2, 'Mtr', $3) RETURNING id", ['P1 Head ' + suffix, 'P1 Work ' + suffix, actor])).rows[0].id;
       const contractorId = (await client.query('INSERT INTO public.subcontractor_master (subcontractor_name, created_by) VALUES ($1, $2) RETURNING id', ['P1 Contractor ' + suffix, actor])).rows[0].id;
       const estimateId = (await client.query('INSERT INTO public.project_subcontract_estimates (work_order_no, created_by, last_modified_by) VALUES ($1, $2, $2) RETURNING subcontract_estimate_id', [workOrder, actor])).rows[0].subcontract_estimate_id;
+      await client.query('UPDATE public.project_subcontract_estimates SET zo_approved_by = $2, zo_approval_date = now(), ho_approved_by = $2, ho_approval_date = now() WHERE subcontract_estimate_id = $1', [estimateId, actor]);
       const lineRows = (await client.query('INSERT INTO public.project_subcontract_estimate_lines (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate, amount, created_by) VALUES ($1, $2, $3, 10, 100, 1000, $4), ($1, $2, $3, 20, 100, 2000, $4) RETURNING line_id, qty', [estimateId, contractorId, workId, actor])).rows;
       const [a, b] = lineRows.sort((left, right) => Number(left.qty) - Number(right.qty));
 
@@ -56,6 +60,7 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
       ];
       const reconcile = async (payload, expected = null) => client.query('SELECT public.reconcile_subcontract_estimate_lines($1, $2, $3, $4::jsonb)', [estimateId, actor, expected || await timestamp(), JSON.stringify(payload)]);
       const rows = async () => (await client.query('SELECT line_id, qty, zo_office_approve, zo_remarks, ho_office_approve, ho_remarks FROM public.project_subcontract_estimate_lines WHERE subcontract_estimate_id = $1 ORDER BY qty', [estimateId])).rows;
+      const header = async () => (await client.query('SELECT zo_approved_by, zo_approval_date, ho_approved_by, ho_approval_date FROM public.project_subcontract_estimates WHERE subcontract_estimate_id = $1', [estimateId])).rows[0];
       const expectCode = async (fn, code) => {
         await client.query('SAVEPOINT phase1_error');
         try {
@@ -67,12 +72,17 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
       };
 
       await transition('SUBMIT');
+      expect(await header()).toMatchObject({
+        zo_approved_by: null, zo_approval_date: null,
+        ho_approved_by: null, ho_approval_date: null
+      });
       await transition('OPEN_ZO_REVIEW');
       await review('ZO', [
         { line_id: a.line_id, approve_status: 'Approve', remarks: 'A ZO approved' },
         { line_id: b.line_id, approve_status: 'Not Approve', remarks: 'Correct B quantity' }
       ]);
       await transition('ZO_REQUEST_REVISION', 'Correct B');
+      expect(await header()).toMatchObject({ zo_approved_by: null, zo_approval_date: null });
 
       // A no-change save retains approval/rejection decisions and remarks.
       await reconcile(lines(20));
@@ -90,12 +100,19 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
       await transition('OPEN_ZO_REVIEW');
       await review('ZO', [{ line_id: b.line_id, approve_status: 'Approve', remarks: 'B ZO approved' }]);
       await transition('ZO_APPROVE');
+      expect((await header()).zo_approved_by).toBe(actor);
+      expect((await header()).zo_approval_date).toBeTruthy();
       await transition('OPEN_HO_REVIEW');
       await review('HO', [
         { line_id: a.line_id, approve_status: 'Approve', remarks: 'A HO approved' },
         { line_id: b.line_id, approve_status: 'Not Approve', remarks: 'Correct B rate' }
       ]);
       await transition('HO_REQUEST_REVISION', 'Correct B rate');
+      expect(await header()).toMatchObject({
+        zo_approved_by: actor,
+        ho_approved_by: null,
+        ho_approval_date: null
+      });
 
       // A direct resubmit cannot turn B's retained HO rejection into an
       // approval. Its retained ZO approval can complete ZO, but Final
