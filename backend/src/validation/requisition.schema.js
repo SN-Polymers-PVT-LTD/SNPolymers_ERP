@@ -45,7 +45,13 @@ const createRequisitionSchema = {
   }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.subcontractor_id && data.subcontract_work_id), {
     message: 'subcontractor_id and subcontract_work_id are required when material_main_head is Sub Contractor.',
     path: ['subcontractor_id']
-  })
+  }).refine(
+    data => Boolean(data.beneficiary_id) || Boolean(data.beneficiary_name && data.beneficiary_ac_no && data.beneficiary_ifsc && data.beneficiary_bank_id),
+    {
+      message: 'Either a beneficiary_id or complete beneficiary details (name, account number, IFSC, and bank ID) must be provided.',
+      path: ['beneficiary_name']
+    }
+  )
 };
 
 const upsertProjectsBeneficiarySchema = {

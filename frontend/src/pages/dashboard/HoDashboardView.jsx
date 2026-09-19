@@ -85,7 +85,7 @@ const HoDashboardView = () => {
 
   // 4. Fetch all projects and project health data (which includes latest_progress from project_health_mv)
   const projectsQ = useQuery({
-    queryKey: ['dashboardProjects'],
+    queryKey: ['dashboardProjects', user?.mobile_number || user?.id],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;

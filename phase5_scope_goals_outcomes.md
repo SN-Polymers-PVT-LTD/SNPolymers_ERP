@@ -90,7 +90,7 @@ qty = 0
 amount = 0
 ```
 
-the work is considered fully cancelled and should not remain as an active generated Cost Estimate line.
+the work is considered fully cancelled. To preserve audit provenance and foreign-key integrity in `cost_estimate_subcontract_contributions`, the generated Cost Estimate row is retained internally as a zero-valued projection tombstone (`qty = 0`, `rate = 0`, `amount = 0`). Such tombstones are inactive and must not remain as active generated Cost Estimate lines.
 
 ---
 
@@ -198,7 +198,7 @@ It must:
 - calculate eligible approved contributions from canonical source data;
 - upsert generated Cost Estimate rows;
 - reconcile provenance;
-- remove generated rows whose effective scope is exactly zero;
+- When effective scope reaches exactly zero, retain the generated Cost Estimate row as an internal zero-valued projection tombstone to preserve provenance and foreign-key integrity. Such tombstones must be excluded from active editing, review decisions, active item counts, and user-facing Cost Estimate presentation;
 - reject inconsistent or ambiguous states;
 - leave no partial synchronization on failure.
 
@@ -256,7 +256,7 @@ Phase 5 is complete when:
 5. Generated rows cannot be manually edited.
 6. Every generated row has auditable source-line provenance.
 7. Reopen/final-approval cycles update existing generated rows idempotently.
-8. Zero effective scope removes the active generated row cleanly.
+8. Zero effective scope removes the row from the active Cost Estimate workflow while retaining its internal provenance tombstone.
 9. Unapproved revisions never affect the Cost Estimate.
 10. Legacy Finance cannot interpret generated work-level rows as contractor-level capacity.
 11. Existing manual Cost Estimate behavior remains unchanged.

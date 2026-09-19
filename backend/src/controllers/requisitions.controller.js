@@ -5,6 +5,7 @@ const { supabase } = require('../db/supabase');
 const { computeMainHeadCapacity, computeSubcontractorCapacity, computeSubcontractFinanceCapacity } = require('../services/mainHeadCapacity.service');
 const { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } = require('../services/indianBanks.service');
 const { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary } = require('../services/beneficiaryMaster.service');
+const { visibleWorkOrders } = require('../helpers/workOrderAccess');
 const validate = require('../validation/validate');
 const {
   createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
@@ -137,7 +138,31 @@ async function createRequisition(req, res) {
       });
     }
 
-    // 1a. Validate beneficiary_bank_id and resolve bank name snapshot
+    // 1a. If beneficiary_id is supplied, resolve authoritative snapshot from master
+    if (beneficiary_id) {
+      const { data: beneficiary, error: benErr } = await supabase
+        .from('projects_beneficiary_master')
+        .select('id, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_id, beneficiary_bank_name')
+        .eq('id', beneficiary_id)
+        .maybeSingle();
+
+      if (benErr) throw benErr;
+      if (!beneficiary) {
+        await cleanupUploadedFiles();
+        return res.status(422).json({
+          success: false,
+          message: 'Selected beneficiary does not exist.'
+        });
+      }
+
+      beneficiary_name = beneficiary.beneficiary_name;
+      beneficiary_ac_no = beneficiary.beneficiary_ac_no;
+      beneficiary_ifsc = beneficiary.beneficiary_ifsc;
+      beneficiary_bank_id = beneficiary.beneficiary_bank_id;
+      beneficiary_bank_name = beneficiary.beneficiary_bank_name;
+    }
+
+    // 1a-2. Validate beneficiary_bank_id and resolve bank name snapshot
     let resolvedBankName, validatedBankId;
     try {
       ({ validatedBankId, resolvedBankName } = await resolveBeneficiaryBank(beneficiary_bank_id, beneficiary_bank_name));
@@ -1109,7 +1134,17 @@ async function getSubcontractFinanceCapacity(req, res) {
     return res.status(400).json({ success: false, message: 'work_order_no, subcontractor_id, and subcontract_work_id are required and must be valid UUIDs.' });
   }
   try {
-    const capacity = await computeSubcontractFinanceCapacity(work_order_no, subcontractor_id, subcontract_work_id);
+    const cleanWorkOrderNo = work_order_no.trim();
+    const allowed = await visibleWorkOrders(req.user);
+
+    if (allowed !== null && !allowed.includes(cleanWorkOrderNo)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not assigned to this Work Order.'
+      });
+    }
+
+    const capacity = await computeSubcontractFinanceCapacity(cleanWorkOrderNo, subcontractor_id, subcontract_work_id);
     return res.status(200).json({ success: true, capacity });
   } catch (error) {
     console.error(`getSubcontractFinanceCapacity failed: ${error.message}`);

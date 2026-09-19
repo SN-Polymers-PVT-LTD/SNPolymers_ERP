@@ -20,7 +20,7 @@ const JeDashboardView = () => {
 
   // 1. Fetch Projects assigned to JE
   const projectsQ = useQuery({
-    queryKey: ['dashboardProjects'],
+    queryKey: ['dashboardProjects', user?.mobile_number || user?.id],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;

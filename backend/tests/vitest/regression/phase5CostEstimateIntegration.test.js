@@ -187,4 +187,90 @@ describe('Phase 5 Cost Estimate subcontract integration', () => {
     expect(generated).toMatchObject({ qty: '8.0000', amount: '375.00' });
     expect((await db.query(`SELECT estimate_status FROM public.project_cost_estimates WHERE estimate_id = $1`, [costEstimate.estimate_id])).rows[0].estimate_status).toBe('Submitted');
   });
+
+  test('zero-scope tombstone is retained in DB/provenance when effective scope drops to zero', async () => {
+    // Zero out the subcontract scope for work: add adjustment of -8, -375 against previous addition
+    const { rows: [targetLine] } = await db.query(`SELECT line_id FROM public.project_subcontract_estimate_lines
+      WHERE subcontract_estimate_id = $1 AND entry_kind = 'ADDITION'
+      ORDER BY created_at DESC LIMIT 1`, [sourceEstimate.subcontract_estimate_id]);
+
+    await db.query(`INSERT INTO public.project_subcontract_estimate_lines
+      (subcontract_estimate_id, subcontractor_id, subcontract_work_id, qty, rate, amount,
+       entry_kind, adjusts_line_id, zo_office_approve, ho_office_approve, final_approved_revision,
+       final_approved_at, final_approved_by, created_by)
+      VALUES ($1, $2, $3, -8, 46.875, -375, 'ADJUSTMENT', $4, 'Approve', 'Approve', 1, now(), $5, $5)`,
+      [sourceEstimate.subcontract_estimate_id, contractorB.id, work.id, targetLine.line_id, actor]);
+
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Draft' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.sync_subcontract_contributions_to_cost_estimate($1, $2)`, [costEstimate.estimate_id, actor]);
+
+    const tombstone = (await db.query(`SELECT item_id, qty, rate, amount, source_type, zo_office_approve, ho_office_approve
+      FROM public.project_cost_estimate_items
+      WHERE estimate_id = $1 AND source_type = 'SUBCONTRACT_ESTIMATE'`, [costEstimate.estimate_id])).rows[0];
+
+    expect(tombstone).toBeDefined();
+    expect(tombstone).toMatchObject({
+      qty: '0.0000',
+      rate: '0.0000',
+      amount: '0.00',
+      source_type: 'SUBCONTRACT_ESTIMATE',
+      zo_office_approve: null,
+      ho_office_approve: null
+    });
+
+    const provCount = (await db.query(`SELECT count(*)::int AS count
+      FROM public.cost_estimate_subcontract_contributions
+      WHERE cost_estimate_item_id = $1`, [tombstone.item_id])).rows[0].count;
+    expect(provCount).toBeGreaterThan(0);
+  });
+
+  test('zero-scope tombstone does not count as undecided during ZO review', async () => {
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Under ZO Review' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+
+    // Find manual item and decide it
+    const { rows: [manualItem] } = await db.query(`SELECT item_id FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type IS NULL`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.submit_row_approvals($1, $2::jsonb, 'ZO', $3)`, [
+      costEstimate.estimate_id, JSON.stringify([{ item_id: manualItem.item_id, approve_status: 'Approve', remarks: 'ZO manual approved', source_of_purchase: null }]), actor
+    ]);
+
+    // Tombstone has zo_office_approve = NULL; submit_zo_review should succeed because migration 080 excludes tombstones
+    await db.query(`SELECT public.submit_zo_review($1, $2, 'ZO review remarks')`, [costEstimate.estimate_id, actor]);
+
+    const { rows: [ce] } = await db.query(`SELECT estimate_status, zo_approved_by FROM public.project_cost_estimates WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    expect(ce.estimate_status).toBe('ZO Approved');
+    expect(ce.zo_approved_by).toBe(actor);
+  });
+
+  test('zero-scope tombstone does not count as undecided/inconsistent during HO review', async () => {
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Under HO Review' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+
+    // Decide manual item for HO
+    const { rows: [manualItem] } = await db.query(`SELECT item_id FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type IS NULL`, [costEstimate.estimate_id]);
+    await db.query(`SELECT public.submit_row_approvals($1, $2::jsonb, 'HO', $3)`, [
+      costEstimate.estimate_id, JSON.stringify([{ item_id: manualItem.item_id, approve_status: 'Approve', remarks: 'HO manual approved', source_of_purchase: null }]), actor
+    ]);
+
+    // Tombstone ho_office_approve is NULL and zo_office_approve is NULL.
+    // submit_ho_review should succeed without flagging undecided or inconsistency
+    await db.query(`SELECT public.submit_ho_review($1, $2, 'HO review remarks')`, [costEstimate.estimate_id, actor]);
+
+    const { rows: [ce] } = await db.query(`SELECT estimate_status, ho_approved_by FROM public.project_cost_estimates WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    expect(ce.estimate_status).toBe('Final Approved');
+    expect(ce.ho_approved_by).toBe(actor);
+  });
+
+  test('an estimate containing only tombstones cannot be submitted as having active line items', async () => {
+    // Delete the manual item so only the zero-scope tombstone remains
+    await db.query(`UPDATE public.project_cost_estimates SET estimate_status = 'Draft' WHERE estimate_id = $1`, [costEstimate.estimate_id]);
+    await db.query(`DELETE FROM public.project_cost_estimate_items WHERE estimate_id = $1 AND source_type IS NULL`, [costEstimate.estimate_id]);
+
+    const response = mockRes();
+    await submitEstimate({
+      params: { id: costEstimate.estimate_id },
+      user: { mobile_number: actor, role: 'admin' }
+    }, response);
+
+    expect(response.statusCode).toBe(422);
+    expect(response.jsonData.message).toMatch(/must contain at least one line item/i);
+  });
 });

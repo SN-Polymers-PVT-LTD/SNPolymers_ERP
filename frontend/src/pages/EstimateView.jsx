@@ -92,7 +92,11 @@ const EstimateView = () => {
   });
 
   const estimate = estimateData?.estimate;
-  const items = useMemo(() => estimateData?.items || [], [estimateData?.items]);
+  const items = useMemo(() => {
+    return (estimateData?.items || []).filter(
+      item => !(item.source_type === 'SUBCONTRACT_ESTIMATE' && Number(item.qty || 0) === 0 && Number(item.amount || 0) === 0)
+    );
+  }, [estimateData?.items]);
   const summary = estimateData?.summary;
   const revisions = useMemo(() => estimateData?.revisions || [], [estimateData?.revisions]);
   const purchaseOptions = useMemo(() => estimateData?.purchaseOptions || [], [estimateData?.purchaseOptions]);

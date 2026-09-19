@@ -181,7 +181,11 @@ const EstimateForm = () => {
             });
           }
 
-          const enrichedItems = (estItems || []).map((item) => {
+          const visibleEstItems = (estItems || []).filter(
+            item => !(item.source_type === 'SUBCONTRACT_ESTIMATE' && Number(item.qty || 0) === 0 && Number(item.amount || 0) === 0)
+          );
+
+          const enrichedItems = visibleEstItems.map((item) => {
             const subHeads = item.material_main_head ? (subHeadMap[item.material_main_head] || []) : [];
             const key = `${item.material_main_head}|||${item.material_sub_head}`;
             const mats = (item.material_main_head && item.material_sub_head) ? (materialMap[key] || []) : [];

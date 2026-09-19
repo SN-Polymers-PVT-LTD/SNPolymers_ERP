@@ -74,8 +74,15 @@ async function submitEstimate(req, res) {
 
     if (itemsError) throw itemsError;
 
+    const isInactiveGeneratedItem = item =>
+      item.source_type === 'SUBCONTRACT_ESTIMATE' &&
+      Number(item.qty || 0) === 0 &&
+      Number(item.amount || 0) === 0;
+
+    const activeItems = (items || []).filter(item => !isInactiveGeneratedItem(item));
+
     // Zero-item check
-    if (!items || items.length === 0) {
+    if (!activeItems || activeItems.length === 0) {
       return res.status(422).json({
         success: false,
         message: 'Estimate must contain at least one line item.'
@@ -97,7 +104,7 @@ async function submitEstimate(req, res) {
       });
     }
 
-    const totalEstimateAmount = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalEstimateAmount = activeItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const workOrderValue = Number(project.work_order_value) || 0;
 
     if (totalEstimateAmount > workOrderValue) {
@@ -109,7 +116,7 @@ async function submitEstimate(req, res) {
 
     // Completeness validation
     const errors = [];
-    items.forEach((item, index) => {
+    activeItems.forEach((item, index) => {
       if (item.source_type === 'SUBCONTRACT_ESTIMATE') {
         const generatedErrors = [];
         if (!item.subcontract_work_id) generatedErrors.push('subcontract_work_id');
