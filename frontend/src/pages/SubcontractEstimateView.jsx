@@ -79,6 +79,7 @@ const SubcontractEstimateView = () => {
 
   // Tab State: 'current' (Current Working Estimate) | 'history' (History & Audit Log)
   const [activeTab, setActiveTab] = useState('current');
+  const [userSelectedTab, setUserSelectedTab] = useState(false);
 
   // Stage-aware row filter: 'all' | 'Approve' | 'Not Approve' | 'Pending'
   const [rowFilter, setRowFilter] = useState('all');
@@ -147,6 +148,19 @@ const SubcontractEstimateView = () => {
     () => lines.filter((line) => line.final_approved_revision == null),
     [lines]
   );
+
+  // Automatically default to History tab when there are no working lines and approved contributions exist
+  useEffect(() => {
+    if (!userSelectedTab && estimate) {
+      const allLines = estimate.project_subcontract_estimate_lines || [];
+      const hasWorkingLines = allLines.some((line) => line.final_approved_revision == null);
+      const hasApprovedLines = allLines.some((line) => line.final_approved_revision != null);
+
+      if (!hasWorkingLines && hasApprovedLines) {
+        setActiveTab('history');
+      }
+    }
+  }, [estimate, userSelectedTab]);
   const workflowLog = useMemo(
     () =>
       [...(estimate?.project_subcontract_estimate_workflow_log || [])].sort(
@@ -212,21 +226,41 @@ const SubcontractEstimateView = () => {
   const filteredCurrentLines = useMemo(() => {
     if (rowFilter === 'all') return currentLines;
     return currentLines.filter((line) => {
-      let decisionVal = '';
-      if (canReview) {
-        decisionVal = decisions[line.line_id] || '';
-      } else if (activeFilteringStage === 'HO') {
-        decisionVal = line.ho_office_approve || '';
-      } else {
-        decisionVal = line.zo_office_approve || '';
+      // Keep row being modal-edited visible
+      if (remarksModalData?.lineId === line.line_id) {
+        return true;
       }
 
+      const savedDecision =
+        activeFilteringStage === 'HO' ? line.ho_office_approve : line.zo_office_approve;
+      const liveDecision = decisions[line.line_id];
+
       if (rowFilter === 'Pending') {
-        return !decisionVal;
+        if (canReview) {
+          // If a row was pending on the server, keep it visible during this review session
+          // so decisions and remarks can be entered without the row vanishing under the cursor
+          return !savedDecision || !liveDecision;
+        }
+        return !savedDecision;
       }
-      return decisionVal === rowFilter;
+
+      if (rowFilter === 'Approve') {
+        if (canReview) {
+          return liveDecision === 'Approve' || (!liveDecision && savedDecision === 'Approve');
+        }
+        return savedDecision === 'Approve';
+      }
+
+      if (rowFilter === 'Not Approve') {
+        if (canReview) {
+          return liveDecision === 'Not Approve' || (!liveDecision && savedDecision === 'Not Approve');
+        }
+        return savedDecision === 'Not Approve';
+      }
+
+      return true;
     });
-  }, [currentLines, rowFilter, activeFilteringStage, canReview, decisions]);
+  }, [currentLines, rowFilter, activeFilteringStage, canReview, decisions, remarksModalData?.lineId]);
 
   // Handle row decision change
   const handleDecisionChange = (lineId, value) => {
@@ -319,7 +353,17 @@ const SubcontractEstimateView = () => {
     executeWorkflow(action);
   };
 
+  const hasAnyDecision = useMemo(
+    () => currentLines.some((line) => decisions[line.line_id]),
+    [currentLines, decisions]
+  );
+
   const saveDecisions = async () => {
+    if (missingDecisionRemarks) {
+      setError('Please provide remarks for each line marked Not Approve before saving decisions.');
+      return;
+    }
+
     const approvals = currentLines
       .filter((line) => decisions[line.line_id])
       .map((line) => ({
@@ -327,6 +371,11 @@ const SubcontractEstimateView = () => {
         approve_status: decisions[line.line_id],
         remarks: remarks[line.line_id] || null
       }));
+
+    if (approvals.length === 0) {
+      setError('Please select a decision for at least one row before saving.');
+      return;
+    }
 
     setSaving(true);
     setError('');
@@ -337,7 +386,6 @@ const SubcontractEstimateView = () => {
         expected_updated_at: estimate.updated_at
       });
       setEstimate(response.data.estimate);
-      await load();
     } catch (e) {
       if (e.response?.status === 409) {
         await load();
@@ -412,7 +460,7 @@ const SubcontractEstimateView = () => {
           {/* Review Actions */}
           {canReview && (
             <Button
-              disabled={saving || !currentLines.length || missingDecisionRemarks || currentLines.some((line) => !decisions[line.line_id])}
+              disabled={saving || !currentLines.length || !hasAnyDecision || missingDecisionRemarks}
               onClick={saveDecisions}
             >
               Save Row Decisions
@@ -541,7 +589,10 @@ const SubcontractEstimateView = () => {
       <div className="flex gap-6 border-b border-white/5">
         <button
           type="button"
-          onClick={() => setActiveTab('current')}
+          onClick={() => {
+            setUserSelectedTab(true);
+            setActiveTab('current');
+          }}
           className={`pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 transition-all duration-200 ${
             activeTab === 'current'
               ? 'border-amber-500 text-slate-100'
@@ -552,7 +603,10 @@ const SubcontractEstimateView = () => {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('history')}
+          onClick={() => {
+            setUserSelectedTab(true);
+            setActiveTab('history');
+          }}
           className={`pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 transition-all duration-200 ${
             activeTab === 'history'
               ? 'border-amber-500 text-slate-100'
@@ -566,8 +620,55 @@ const SubcontractEstimateView = () => {
       {/* ── TAB 1: CURRENT WORKING ESTIMATE ── */}
       {activeTab === 'current' && (
         <div className="space-y-6">
-          {/* Stage-Aware Filter Bar */}
-          <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl border border-white/5 bg-white/[0.02]">
+          {currentLines.length === 0 && historicalLines.length > 0 ? (
+            <div className="p-8 rounded-3xl border border-emerald-500/20 bg-emerald-500/[0.04] text-center space-y-4 my-4">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-400 text-xl font-bold">
+                ✓
+              </div>
+              <div className="max-w-lg mx-auto space-y-1.5">
+                <h3 className="text-base font-bold text-slate-100">
+                  {estimate.estimate_status === 'Final Approved'
+                    ? 'This Subcontract Estimate is Final Approved'
+                    : 'All Line Items Approved in Permanent Baseline'}
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  All {historicalLines.length} line items totaling{' '}
+                  <strong className="text-emerald-400 font-mono">{money(historicalTotal)}</strong>{' '}
+                  have been approved and stamped into the permanent accounting baseline.
+                </p>
+              </div>
+
+              {/* Quick metrics */}
+              <div className="grid grid-cols-2 max-w-xs mx-auto gap-3 py-2 text-xs">
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <span className="text-slate-500 block uppercase tracking-wider text-[9px] font-bold">Approved Lines</span>
+                  <span className="font-mono text-white font-bold text-sm">{historicalLines.length}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                  <span className="text-slate-500 block uppercase tracking-wider text-[9px] font-bold">Approved Amount</span>
+                  <span className="font-mono text-emerald-400 font-bold text-sm">{money(historicalTotal)}</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setUserSelectedTab(true);
+                    setActiveTab('history');
+                  }}
+                  className="inline-flex items-center gap-2 font-bold"
+                >
+                  <span>View Final Approved Lines in History ({historicalLines.length})</span>
+                  <span>→</span>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Stage-Aware Filter Bar */}
+              <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl border border-white/5 bg-white/[0.02]">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mr-2">
               Filter by {activeFilteringStage} Decision:
             </span>
@@ -813,102 +914,8 @@ const SubcontractEstimateView = () => {
               </TableBody>
             </Table>
           </div>
-
-          {/* ── APPROVAL INFORMATION CARDS (Cost Estimate Pattern) ── */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5">
-            {/* JE Card */}
-            <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
-                JE / Estimate Preparer
-              </span>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">JE User ID / Mob</span>
-                <span className="font-mono text-slate-300 text-xs">{estimate.created_by || '—'}</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">Submission Status</span>
-                <div className="mt-0.5">
-                  <Badge variant={getStatusBadgeVariant(estimate.estimate_status)}>
-                    {estimate.estimate_status}
-                  </Badge>
-                </div>
-              </div>
-              {estimate.je_remarks && (
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Submission Remarks</span>
-                  <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
-                    {estimate.je_remarks}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* ZO Card */}
-            <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
-                ZO / Zonal Office
-              </span>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">ZO Audit Status</span>
-                <div className="mt-0.5">
-                  <Badge variant={estimate.zo_approval_date ? 'teal' : 'slate'}>
-                    {estimate.zo_approval_date ? 'Approved' : 'Awaiting Audit'}
-                  </Badge>
-                </div>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">Audited By</span>
-                <span className="text-slate-300 font-mono text-xs">{estimate.zo_approved_by || '—'}</span>
-              </div>
-              {estimate.zo_approval_date && (
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Approval Date</span>
-                  <span className="text-slate-300 font-mono text-xs">{formatDate(estimate.zo_approval_date)}</span>
-                </div>
-              )}
-              {estimate.zo_remarks && (
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">ZO Remarks</span>
-                  <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
-                    {estimate.zo_remarks}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* HO Card */}
-            <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
-                HO / Head Office
-              </span>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">HO Audit Status</span>
-                <div className="mt-0.5">
-                  <Badge variant={estimate.estimate_status === 'Final Approved' ? 'emerald' : 'slate'}>
-                    {estimate.estimate_status === 'Final Approved' ? 'Final Approved' : 'Awaiting Audit'}
-                  </Badge>
-                </div>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block uppercase font-bold">Audited By</span>
-                <span className="text-slate-300 font-mono text-xs">{estimate.ho_approved_by || '—'}</span>
-              </div>
-              {estimate.ho_approval_date && (
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">Approval Date</span>
-                  <span className="text-slate-300 font-mono text-xs">{formatDate(estimate.ho_approval_date)}</span>
-                </div>
-              )}
-              {estimate.ho_remarks && (
-                <div>
-                  <span className="text-[10px] text-slate-500 block uppercase font-bold">HO Remarks</span>
-                  <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
-                    {estimate.ho_remarks}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1127,6 +1134,102 @@ const SubcontractEstimateView = () => {
           </section>
         </div>
       )}
+
+      {/* ── APPROVAL INFORMATION CARDS (Cost Estimate Pattern) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-white/5">
+        {/* JE Card */}
+        <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
+            JE / Estimate Preparer
+          </span>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">JE User ID / Mob</span>
+            <span className="font-mono text-slate-300 text-xs">{estimate.created_by || '—'}</span>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Submission Status</span>
+            <div className="mt-0.5">
+              <Badge variant={getStatusBadgeVariant(estimate.estimate_status)}>
+                {estimate.estimate_status}
+              </Badge>
+            </div>
+          </div>
+          {estimate.je_remarks && (
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">Submission Remarks</span>
+              <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
+                {estimate.je_remarks}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* ZO Card */}
+        <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
+            ZO / Zonal Office
+          </span>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">ZO Audit Status</span>
+            <div className="mt-0.5">
+              <Badge variant={estimate.zo_approval_date ? 'teal' : 'slate'}>
+                {estimate.zo_approval_date ? 'Approved' : 'Awaiting Audit'}
+              </Badge>
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Audited By</span>
+            <span className="text-slate-300 font-mono text-xs">{estimate.zo_approved_by || '—'}</span>
+          </div>
+          {estimate.zo_approval_date && (
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">Approval Date</span>
+              <span className="text-slate-300 font-mono text-xs">{formatDate(estimate.zo_approval_date)}</span>
+            </div>
+          )}
+          {estimate.zo_remarks && (
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">ZO Remarks</span>
+              <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
+                {estimate.zo_remarks}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* HO Card */}
+        <div className="p-5 rounded-2xl border border-white/5 bg-white/[0.02] space-y-3">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block border-b border-white/5 pb-2">
+            HO / Head Office
+          </span>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">HO Audit Status</span>
+            <div className="mt-0.5">
+              <Badge variant={estimate.estimate_status === 'Final Approved' ? 'emerald' : 'slate'}>
+                {estimate.estimate_status === 'Final Approved' ? 'Final Approved' : 'Awaiting Audit'}
+              </Badge>
+            </div>
+          </div>
+          <div>
+            <span className="text-[10px] text-slate-500 block uppercase font-bold">Audited By</span>
+            <span className="text-slate-300 font-mono text-xs">{estimate.ho_approved_by || '—'}</span>
+          </div>
+          {estimate.ho_approval_date && (
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">Approval Date</span>
+              <span className="text-slate-300 font-mono text-xs">{formatDate(estimate.ho_approval_date)}</span>
+            </div>
+          )}
+          {estimate.ho_remarks && (
+            <div>
+              <span className="text-[10px] text-slate-500 block uppercase font-bold">HO Remarks</span>
+              <span className="text-slate-300 italic text-xs block mt-0.5 leading-relaxed">
+                {estimate.ho_remarks}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── ROW REMARKS MODAL (Cost Estimate Popover Pattern) ── */}
       {remarksModalData && (

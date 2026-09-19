@@ -404,4 +404,140 @@ describe('SubcontractEstimateView', () => {
     expect(screen.queryByText('Line Rejected')).not.toBeInTheDocument();
     expect(screen.getByText('Line Pending')).toBeInTheDocument();
   });
+
+  it('opens History tab by default when estimate has only final-approved lines and displays approved summary on Current tab', async () => {
+    const user = userEvent.setup();
+    const finalApprovedEstimate = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 0,
+      estimate_amount: 25000,
+      estimate_status: 'Final Approved',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-hist-1',
+          subcontractor_id: 'sub-1',
+          subcontract_work_id: 'work-1',
+          subcontractor: { subcontractor_name: 'Alpha Builders', is_active: true },
+          subcontract_work: { material_details: 'Earth Excavation', unit: 'Cum', is_active: true },
+          qty: 50,
+          rate: 500,
+          amount: 25000,
+          entry_kind: 'BASE',
+          final_approved_revision: 0,
+          zo_office_approve: 'Approve',
+          ho_office_approve: 'Approve'
+        }
+      ]
+    };
+
+    mockGetSubcontractEstimate.mockResolvedValue({
+      data: { estimate: finalApprovedEstimate }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    // Should automatically open on History tab
+    await waitFor(() => {
+      expect(screen.getByText('Final Approved Contributions')).toBeInTheDocument();
+    });
+    expect(screen.getByText('Earth Excavation')).toBeInTheDocument();
+    expect(screen.getByText('Rev 0')).toBeInTheDocument();
+
+    // Switch to Current Working Estimate tab
+    const currentTabBtn = screen.getByRole('button', { name: /Current Working Estimate/i });
+    await user.click(currentTabBtn);
+
+    // Should show the clear approved-estimate summary card with direct link
+    await waitFor(() => {
+      expect(screen.getByText('This Subcontract Estimate is Final Approved')).toBeInTheDocument();
+    });
+    expect(screen.getByText(/All 1 line items totaling/i)).toBeInTheDocument();
+
+    // Click link back to history
+    const viewHistoryLink = screen.getByRole('button', { name: /View Final Approved Lines in History/i });
+    await user.click(viewHistoryLink);
+
+    // History tab should be active again
+    await waitFor(() => {
+      expect(screen.getByText('Final Approved Contributions')).toBeInTheDocument();
+    });
+  });
+
+  it('keeps row visible when decided in Pending filter mode so reviewer is not interrupted', async () => {
+    const user = userEvent.setup();
+    const pendingEstimate = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 0,
+      estimate_amount: 5000,
+      estimate_status: 'Under ZO Review',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-1',
+          subcontractor: { subcontractor_name: 'Sub A', is_active: true },
+          subcontract_work: { material_details: 'Uninterrupted Line', unit: 'Mtr' },
+          qty: 10,
+          rate: 500,
+          amount: 5000,
+          entry_kind: 'BASE',
+          zo_office_approve: null,
+          zo_remarks: null
+        }
+      ]
+    };
+
+    mockGetSubcontractEstimate.mockResolvedValue({
+      data: { estimate: pendingEstimate }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Uninterrupted Line')).toBeInTheDocument();
+    });
+
+    // Click Pending filter
+    const pendingFilterBtn = screen.getByRole('button', { name: 'Pending' });
+    await user.click(pendingFilterBtn);
+
+    // Line is visible under Pending
+    expect(screen.getByText('Uninterrupted Line')).toBeInTheDocument();
+
+    // Mark as Not Approve
+    const decisionSelect = screen.getByRole('combobox');
+    await user.selectOptions(decisionSelect, 'Not Approve');
+
+    // CRITICAL: Line must NOT vanish from under the reviewer's cursor!
+    expect(screen.getByText('Uninterrupted Line')).toBeInTheDocument();
+
+    // Reviewer can enter remarks without interruption
+    const remarksInput = screen.getByPlaceholderText(/click to enter required reason/i);
+    await user.click(remarksInput);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Review Remarks \(ZO\)/i)).toBeInTheDocument();
+    });
+
+    const modalTextarea = screen.getByPlaceholderText(/Enter rejection reason or audit instruction…/i);
+    await user.type(modalTextarea, 'Rate verification needed');
+
+    const saveRemarksBtn = screen.getByRole('button', { name: /save remarks/i });
+    await user.click(saveRemarksBtn);
+
+    // Save Row Decisions should be enabled for partial save
+    const saveRowDecisionsBtn = screen.getByRole('button', { name: /Save Row Decisions/i });
+    expect(saveRowDecisionsBtn).toBeEnabled();
+  });
 });
+
