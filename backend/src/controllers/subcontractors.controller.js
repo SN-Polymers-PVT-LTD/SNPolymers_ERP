@@ -44,33 +44,58 @@ async function getSubcontractorById(req, res) {
   return res.json({ success: true, subcontractor: filterAssignmentsByAllowed(data, allowed) });
 }
 
+async function validateWorkIds(workIds) {
+  if (!Array.isArray(workIds) || workIds.length === 0) return { valid: true, uniqueIds: [] };
+  const uniqueIds = [...new Set(workIds)];
+  const { data, error } = await supabase
+    .from('subcontract_work_master')
+    .select('id')
+    .in('id', uniqueIds);
+  if (error) throw error;
+  if (!data || data.length !== uniqueIds.length) {
+    return { valid: false, uniqueIds };
+  }
+  return { valid: true, uniqueIds };
+}
+
 async function createSubcontractor(req, res) {
   try {
     const { subcontractor_name, work_ids = [] } = req.body;
-    const { data: created, error } = await supabase
-      .from('subcontractor_master')
-      .insert({ subcontractor_name, created_by: req.user.mobile_number })
-      .select('id')
-      .single();
-    if (error) throw error;
 
     if (Array.isArray(work_ids) && work_ids.length > 0) {
-      const uniqueWorkIds = [...new Set(work_ids)];
-      const capabilityRows = uniqueWorkIds.map(wid => ({
-        subcontractor_id: created.id,
-        subcontract_work_id: wid,
-        created_by: req.user.mobile_number
-      }));
-      const { error: capError } = await supabase
-        .from('subcontractor_work_capabilities')
-        .insert(capabilityRows);
-      if (capError) console.error(`Error inserting capabilities for contractor ${created.id}: ${capError.message}`);
+      const { valid } = await validateWorkIds(work_ids);
+      if (!valid) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more subcontract work IDs do not exist.'
+        });
+      }
+    }
+
+    const { data: createdId, error: rpcError } = await supabase.rpc('create_subcontractor_transact', {
+      p_subcontractor_name: subcontractor_name?.trim(),
+      p_work_ids: Array.isArray(work_ids) ? [...new Set(work_ids)] : [],
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcError) {
+      if (
+        rpcError.code === 'P4B01' ||
+        rpcError.code === '23503' ||
+        rpcError.message?.includes('One or more subcontract work IDs do not exist')
+      ) {
+        return res.status(400).json({ success: false, message: 'One or more subcontract work IDs do not exist.' });
+      }
+      if (rpcError.code === 'P4B02' || rpcError.message?.includes('Subcontractor name cannot be blank')) {
+        return res.status(400).json({ success: false, message: 'Subcontractor name cannot be blank.' });
+      }
+      throw rpcError;
     }
 
     const { data: fullContractor, error: fetchError } = await supabase
       .from('subcontractor_master')
       .select(selectWithCapabilities)
-      .eq('id', created.id)
+      .eq('id', createdId)
       .single();
     if (fetchError) throw fetchError;
 
@@ -86,30 +111,41 @@ async function updateSubcontractor(req, res) {
     const { id } = req.params;
     const { subcontractor_name, is_active, work_ids } = req.body;
 
-    const updatePayload = { updated_by: req.user.mobile_number };
-    if (subcontractor_name !== undefined) updatePayload.subcontractor_name = subcontractor_name;
-    if (is_active !== undefined) updatePayload.is_active = is_active;
-
-    const { data: updated, error } = await supabase
-      .from('subcontractor_master')
-      .update(updatePayload)
-      .eq('id', id)
-      .select('id')
-      .maybeSingle();
-    if (error) throw error;
-    if (!updated) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
-
-    if (Array.isArray(work_ids)) {
-      await supabase.from('subcontractor_work_capabilities').delete().eq('subcontractor_id', id);
-      const uniqueWorkIds = [...new Set(work_ids)];
-      if (uniqueWorkIds.length > 0) {
-        const rows = uniqueWorkIds.map(wid => ({
-          subcontractor_id: id,
-          subcontract_work_id: wid,
-          created_by: req.user.mobile_number
-        }));
-        await supabase.from('subcontractor_work_capabilities').insert(rows);
+    const updateWorkIds = Array.isArray(work_ids);
+    if (updateWorkIds && work_ids.length > 0) {
+      const { valid } = await validateWorkIds(work_ids);
+      if (!valid) {
+        return res.status(400).json({
+          success: false,
+          message: 'One or more subcontract work IDs do not exist.'
+        });
       }
+    }
+
+    const { data: updatedId, error: rpcError } = await supabase.rpc('update_subcontractor_transact', {
+      p_subcontractor_id: id,
+      p_subcontractor_name: subcontractor_name !== undefined ? subcontractor_name?.trim() : null,
+      p_is_active: is_active !== undefined ? is_active : null,
+      p_work_ids: updateWorkIds ? [...new Set(work_ids)] : null,
+      p_update_work_ids: updateWorkIds,
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcError) {
+      if (
+        rpcError.code === 'P4B01' ||
+        rpcError.code === '23503' ||
+        rpcError.message?.includes('One or more subcontract work IDs do not exist')
+      ) {
+        return res.status(400).json({ success: false, message: 'One or more subcontract work IDs do not exist.' });
+      }
+      if (rpcError.code === 'P4B04' || rpcError.message?.includes('Subcontractor not found')) {
+        return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
+      }
+      if (rpcError.code === 'P4B02' || rpcError.message?.includes('Subcontractor name cannot be blank')) {
+        return res.status(400).json({ success: false, message: 'Subcontractor name cannot be blank.' });
+      }
+      throw rpcError;
     }
 
     const { data: fullContractor, error: fetchError } = await supabase
@@ -128,15 +164,31 @@ async function updateSubcontractor(req, res) {
 
 async function updateSubcontractorStatus(req, res) {
   try {
-    const { data, error } = await supabase
+    const { id } = req.params;
+    const { data: updatedId, error: rpcError } = await supabase.rpc('update_subcontractor_transact', {
+      p_subcontractor_id: id,
+      p_subcontractor_name: null,
+      p_is_active: req.body.is_active,
+      p_work_ids: null,
+      p_update_work_ids: false,
+      p_actor: req.user.mobile_number
+    });
+
+    if (rpcError) {
+      if (rpcError.code === 'P4B04' || rpcError.message?.includes('Subcontractor not found')) {
+        return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
+      }
+      throw rpcError;
+    }
+
+    const { data: fullContractor, error: fetchError } = await supabase
       .from('subcontractor_master')
-      .update({ is_active: req.body.is_active, updated_by: req.user.mobile_number })
-      .eq('id', req.params.id)
       .select(selectWithCapabilities)
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return res.status(404).json({ success: false, message: 'Subcontractor not found.' });
-    return res.json({ success: true, subcontractor: data, message: 'Subcontractor status updated.' });
+      .eq('id', id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    return res.json({ success: true, subcontractor: fullContractor, message: 'Subcontractor status updated.' });
   } catch (error) {
     console.error(`updateSubcontractorStatus failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update subcontractor status.' });

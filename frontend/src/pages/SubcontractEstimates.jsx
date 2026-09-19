@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Badge, Button, Input, Select, SkeletonCard } from '../components/ui';
@@ -70,12 +70,11 @@ const SubcontractEstimates = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const isJE = user?.role === 'je' || user?.role === 'staff';
   const isHO = user?.role === 'ho';
   const canCreate = ['je', 'admin'].includes(user?.role);
 
   // Fetch estimates list & summary
-  const fetchEstimates = async () => {
+  const fetchEstimates = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -93,11 +92,11 @@ const SubcontractEstimates = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit]);
 
   useEffect(() => {
     fetchEstimates();
-  }, [page, limit]);
+  }, [fetchEstimates]);
 
   // Compute stats for top horizontal strip
   const totalCount = summaryData?.total ?? pagination.totalItems ?? estimates.length;

@@ -48,7 +48,7 @@ export default function SubcontractorMaster() {
 
   const rows = data?.subcontractors || [];
   const pagination = data?.pagination || { totalPages: 1, totalItems: 0 };
-  const allWorks = workData?.subcontractWorks || [];
+  const allWorks = useMemo(() => workData?.subcontractWorks || [], [workData?.subcontractWorks]);
 
   const filteredWorks = useMemo(() => {
     if (!workSearch.trim()) return allWorks;

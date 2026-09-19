@@ -1222,31 +1222,45 @@ async function getSubcontractorLedger(req, res) {
       }).filter(Boolean);
     }
 
-    // 4. Flatten balances for backwards-compatibility
-    const flatBalances = [];
-    for (const c of contractors) {
-      for (const s of (c.scopes || [])) {
-        for (const w of (s.works || [])) {
-          flatBalances.push({
-            subcontractor_id: c.subcontractor_id,
-            subcontractor_name: c.subcontractor_name,
-            work_order_no: s.work_order_no,
-            department: s.department,
-            site_details: s.site_details,
-            project: { department: s.department, site_details: s.site_details },
-            material_sub_head: w.sub_head,
-            material_details: w.material_details,
-            subcontract_work_id: w.subcontract_work_id,
-            unit: w.unit,
-            estimated_total: Number(w.approved_scope || 0),
-            total_paid: Number(w.paid || 0),
-            reserved_amount: Number(w.reserved || 0),
-            remaining_balance: Number(w.remaining || 0),
-            available_balance: Number(w.remaining || 0),
-            is_active: c.is_active
-          });
+    // 4. If canonical contractors exist and export=true is requested, return all matching contractors and all their scopes
+    if (contractors.length > 0 && query.export === 'true') {
+      const allFlatBalances = [];
+      for (const c of contractors) {
+        for (const s of (c.scopes || [])) {
+          for (const w of (s.works || [])) {
+            allFlatBalances.push({
+              subcontractor_id: c.subcontractor_id,
+              subcontractor_name: c.subcontractor_name,
+              work_order_no: s.work_order_no,
+              department: s.department,
+              site_details: s.site_details,
+              project: { department: s.department, site_details: s.site_details },
+              material_sub_head: w.sub_head,
+              material_details: w.material_details,
+              subcontract_work_id: w.subcontract_work_id,
+              unit: w.unit,
+              estimated_total: Number(w.approved_scope || 0),
+              total_paid: Number(w.paid || 0),
+              reserved_amount: Number(w.reserved || 0),
+              remaining_balance: Number(w.remaining || 0),
+              available_balance: Number(w.remaining || 0),
+              is_active: c.is_active
+            });
+          }
         }
       }
+
+      return res.status(200).json({
+        success: true,
+        contractors,
+        balances: allFlatBalances,
+        pagination: {
+          page: 1,
+          limit: contractors.length || 1,
+          total: contractors.length,
+          totalPages: 1
+        }
+      });
     }
 
     if (contractors.length === 0) {
@@ -1267,7 +1281,10 @@ async function getSubcontractorLedger(req, res) {
         }
       }
 
-      legacyDbQuery = legacyDbQuery.order('updated_at', { ascending: false }).range(offset, offset + limit - 1);
+      legacyDbQuery = legacyDbQuery.order('updated_at', { ascending: false });
+      if (query.export !== 'true') {
+        legacyDbQuery = legacyDbQuery.range(offset, offset + limit - 1);
+      }
 
       const { data: legacyBalances, count, error: legacyErr } = await legacyDbQuery;
       if (legacyErr) throw legacyErr;
@@ -1291,17 +1308,50 @@ async function getSubcontractorLedger(req, res) {
         success: true,
         contractors: [],
         balances: enriched,
-        pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
+        legacy: true,
+        pagination: {
+          page: query.export === 'true' ? 1 : page,
+          limit: query.export === 'true' ? (enriched.length || 1) : limit,
+          total: count || enriched.length,
+          totalPages: query.export === 'true' ? 1 : Math.max(Math.ceil((count || 0) / limit), 1)
+        }
       });
     }
 
     const total = contractors.length;
     const pagedContractors = contractors.slice(offset, offset + limit);
 
+    // Build page-scoped flattened balances directly from the paginated contractors on this page
+    const pageFlatBalances = [];
+    for (const c of pagedContractors) {
+      for (const s of (c.scopes || [])) {
+        for (const w of (s.works || [])) {
+          pageFlatBalances.push({
+            subcontractor_id: c.subcontractor_id,
+            subcontractor_name: c.subcontractor_name,
+            work_order_no: s.work_order_no,
+            department: s.department,
+            site_details: s.site_details,
+            project: { department: s.department, site_details: s.site_details },
+            material_sub_head: w.sub_head,
+            material_details: w.material_details,
+            subcontract_work_id: w.subcontract_work_id,
+            unit: w.unit,
+            estimated_total: Number(w.approved_scope || 0),
+            total_paid: Number(w.paid || 0),
+            reserved_amount: Number(w.reserved || 0),
+            remaining_balance: Number(w.remaining || 0),
+            available_balance: Number(w.remaining || 0),
+            is_active: c.is_active
+          });
+        }
+      }
+    }
+
     return res.status(200).json({
       success: true,
       contractors: pagedContractors,
-      balances: flatBalances.slice(offset, offset + limit),
+      balances: pageFlatBalances,
       pagination: {
         page,
         limit,
@@ -1338,19 +1388,23 @@ async function getSubcontractorLedgerEntries(req, res) {
       }
     }
 
-    // 2. If canonical subcontractor_id provided, use canonical RPC
-    if (subcontractor_id && uuidRegex.test(subcontractor_id)) {
-      const { data: canonicalRows, error } = await supabase.rpc('get_canonical_subcontractor_ledger_entries', {
-        p_subcontractor_id: subcontractor_id,
-        p_work_order_no: work_order_no?.trim() || null,
-        p_subcontract_work_id: subcontract_work_id && uuidRegex.test(subcontract_work_id) ? subcontract_work_id : null,
-        p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
-        p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
-      });
+    const cleanSubcontractorId = subcontractor_id && uuidRegex.test(subcontractor_id) ? subcontractor_id : null;
+    const cleanWorkId = subcontract_work_id && uuidRegex.test(subcontract_work_id) ? subcontract_work_id : null;
 
-      if (error) throw error;
+    // 2. Query canonical RPC (supports both single-contractor and cross-contractor queries)
+    const { data: canonicalRows, error } = await supabase.rpc('get_canonical_subcontractor_ledger_entries', {
+      p_subcontractor_id: cleanSubcontractorId,
+      p_work_order_no: work_order_no?.trim() || null,
+      p_subcontract_work_id: cleanWorkId,
+      p_search: search?.trim() || null,
+      p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
+      p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
+    });
 
-      let rawEntries = (canonicalRows || []).map(row => ({
+    if (error) throw error;
+
+    if (canonicalRows && canonicalRows.length > 0) {
+      let rawEntries = canonicalRows.map(row => ({
         ...(row.entry || {}),
         scope_opening_balance: Number(row.scope_opening_balance || 0),
         scope_closing_balance: Number(row.scope_closing_balance || 0)
@@ -1372,98 +1426,41 @@ async function getSubcontractorLedgerEntries(req, res) {
       return res.status(200).json({ success: true, entries: enriched });
     }
 
-    // 3. Fallback to legacy RPC for non-canonical queries
-    const { data: ledgerRows, error } = await supabase.rpc('get_subcontractor_ledger_entries', {
-      p_work_order_no: work_order_no?.trim() || null,
-      p_material_sub_head: material_sub_head?.trim() || null,
-      p_material_details: material_details?.trim() || null,
-      p_search: search?.trim() || null,
-      p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
-      p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
-    });
+    // 3. Fallback to legacy RPC for non-canonical legacy queries when canonical rows are empty and no UUID specified
+    if (!cleanSubcontractorId && !cleanWorkId) {
+      const { data: ledgerRows, error: legacyErr } = await supabase.rpc('get_subcontractor_ledger_entries', {
+        p_work_order_no: work_order_no?.trim() || null,
+        p_material_sub_head: material_sub_head?.trim() || null,
+        p_material_details: material_details?.trim() || null,
+        p_search: search?.trim() || null,
+        p_date_from: date_from ? `${date_from}T00:00:00+05:30` : null,
+        p_date_to: date_to ? `${date_to}T23:59:59.999+05:30` : null
+      });
 
-    if (error) throw error;
+      if (legacyErr) throw legacyErr;
 
-    let rawEntries = (ledgerRows || []).map(row => ({
-      ...(row.entry || {}),
-      opening_balance: Number(row.opening_balance || 0),
-      closing_balance: Number(row.closing_balance || 0)
-    }));
+      let rawEntries = (ledgerRows || []).map(row => ({
+        ...(row.entry || {}),
+        opening_balance: Number(row.opening_balance || 0),
+        closing_balance: Number(row.closing_balance || 0)
+      }));
 
-    if (allowed !== null) {
-      rawEntries = rawEntries.filter(e => allowed.includes(e.work_order_no));
-    }
+      if (allowed !== null) {
+        rawEntries = rawEntries.filter(e => allowed.includes(e.work_order_no));
+      }
 
-    // 1. Resolve user display names
-    const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
+      const userMap = await resolveDisplayNames(rawEntries.map(e => e.created_by));
 
-    // 2. Resolve Requisitions details (requisition_no, remarks, amounts)
-    const reqIds = rawEntries
-      .filter(e => e.reference_type === 'REQUISITION' && e.reference_id)
-      .map(e => e.reference_id);
-    let reqMap = {};
-    if (reqIds.length > 0) {
-      const { data: reqRows } = await supabase
-        .from('requisitions')
-        .select('requisition_id, requisition_no, requisition_amount, approved_amount, requisition_status, remarks, remarks_approved_authority')
-        .in('requisition_id', reqIds);
-      reqMap = (reqRows || []).reduce((acc, r) => {
-        acc[r.requisition_id] = r;
-        return acc;
-      }, {});
-    }
-
-    // 3. Resolve Estimate Items details
-    const itemIds = rawEntries
-      .filter(e => e.reference_type === 'ESTIMATE_ITEM' && e.reference_id)
-      .map(e => e.reference_id);
-    let itemMap = {};
-    if (itemIds.length > 0) {
-      const { data: itemRows } = await supabase
-        .from('project_cost_estimate_items')
-        .select('item_id, description, estimate_id')
-        .in('item_id', itemIds);
-      itemMap = (itemRows || []).reduce((acc, it) => {
-        acc[it.item_id] = it;
-        return acc;
-      }, {});
-    }
-
-    // 4. Resolve Admin Adjustments remarks from audit_log
-    const adjIds = rawEntries
-      .filter(e => e.reference_type === 'MANUAL_ADJUSTMENT' && e.reference_id)
-      .map(e => e.reference_id);
-    let adjMap = {};
-    if (adjIds.length > 0) {
-      const { data: auditRows } = await supabase
-        .from('audit_log')
-        .select('new_value')
-        .eq('action', 'ADMIN_ADJUST_SUBCONTRACTOR_BALANCE');
-      adjMap = (auditRows || []).reduce((acc, a) => {
-        if (a.new_value?.adjustment_id) {
-          acc[a.new_value.adjustment_id] = a.new_value.remarks;
-        }
-        return acc;
-      }, {});
-    }
-
-    // 5. Enrich entries (returned newest first)
-    const enriched = rawEntries.map(e => {
-      const reqInfo = reqMap[e.reference_id];
-      const itemInfo = itemMap[e.reference_id];
-      const adjRemarks = adjMap[e.reference_id];
-
-      return {
+      const enriched = rawEntries.map(e => ({
         ...e,
         created_by_name: userMap[e.created_by] || e.created_by,
-        requisition_no: reqInfo?.requisition_no || null,
-        reference_doc_no: reqInfo?.requisition_no || (itemInfo ? `Item: ${e.reference_id.slice(0, 8)}` : e.reference_id ? `${e.reference_type}: ${e.reference_id.slice(0, 8)}` : null),
-        remarks: reqInfo ? (reqInfo.remarks_approved_authority || reqInfo.remarks || null) : (adjRemarks || itemInfo?.description || null),
-        item_description: itemInfo?.description || null
-      };
-    });
+        reference_doc_no: e.requisition_no || (e.reference_type ? `${e.reference_type}: ${e.reference_id?.slice(0, 8)}` : null)
+      }));
 
-    return res.status(200).json({ success: true, entries: enriched });
+      return res.status(200).json({ success: true, entries: enriched });
+    }
+
+    return res.status(200).json({ success: true, entries: [] });
   } catch (error) {
     console.error(`getSubcontractorLedgerEntries failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Subcontractor Ledger entries.' });

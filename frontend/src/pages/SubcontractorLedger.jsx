@@ -101,8 +101,8 @@ const SubcontractorLedger = () => {
     enabled: canView && viewMode === 'contractors'
   });
 
-  const contractors = ledgerData?.contractors || [];
-  const flatBalances = ledgerData?.balances || [];
+  const contractors = useMemo(() => ledgerData?.contractors || [], [ledgerData?.contractors]);
+  const flatBalances = useMemo(() => ledgerData?.balances || [], [ledgerData?.balances]);
   const totalContractors = ledgerData?.pagination?.total || 0;
   const totalPages = ledgerData?.pagination?.totalPages || 1;
 
@@ -181,11 +181,25 @@ const SubcontractorLedger = () => {
     });
   };
 
-  const handleExportBalances = () => {
-    exportSubcontractorBalancesToExcel(flatBalances, {
-      workOrderFilter,
-      searchFilter: debouncedSearch
-    });
+  const handleExportBalances = async () => {
+    try {
+      setIsExporting(true);
+      const res = await getSubcontractorLedger({
+        work_order_no: workOrderFilter || undefined,
+        search: debouncedSearch || undefined,
+        export: 'true'
+      });
+      const balancesToExport = res.data?.balances || res.data?.contractors?.flatMap((c) => c.balances || []) || [];
+      exportSubcontractorBalancesToExcel(balancesToExport, {
+        workOrderFilter,
+        searchFilter: debouncedSearch
+      });
+    } catch (err) {
+      console.error('Export balances failed:', err);
+      alert('Failed to export balances: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleExportContractorStatement = async (contractor, chosenWorkOrder) => {
@@ -201,6 +215,12 @@ const SubcontractorLedger = () => {
         subcontractor: contractor.subcontractor_name,
         subHead: 'Consolidated Statement',
         workOrder: chosenWorkOrder || workOrderFilter || 'All Work Orders',
+        balance: {
+          approved_scope: contractor.total_approved,
+          reserved: contractor.total_reserved,
+          paid: contractor.total_paid,
+          remaining: contractor.total_remaining
+        },
         entries
       });
     } catch (err) {
@@ -214,15 +234,23 @@ const SubcontractorLedger = () => {
   const handleExportFullLedger = async () => {
     try {
       setIsExporting(true);
-      const res = await getSubcontractorLedgerEntries({
-        work_order_no: workOrderFilter || undefined,
-        search: debouncedSearch || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined
-      });
-      const entries = res.data?.entries || [];
+      const [entriesRes, balancesRes] = await Promise.all([
+        getSubcontractorLedgerEntries({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined
+        }),
+        getSubcontractorLedger({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          export: 'true'
+        })
+      ]);
+      const entries = entriesRes.data?.entries || [];
+      const allBalances = balancesRes.data?.balances || balancesRes.data?.contractors?.flatMap((c) => c.balances || []) || [];
 
-      await exportAllSubcontractorLedgersToExcel(entries, flatBalances, requisitions, {
+      await exportAllSubcontractorLedgersToExcel(entries, allBalances, requisitions, {
         workOrderFilter,
         searchFilter: debouncedSearch,
         dateBasis,
@@ -363,16 +391,16 @@ const SubcontractorLedger = () => {
                 variant="glass"
                 size="sm"
                 onClick={handleExportBalances}
-                disabled={flatBalances.length === 0}
+                disabled={(contractors.length === 0 && flatBalances.length === 0) || isExporting}
                 className="text-xs"
               >
-                Export Summary to Excel
+                {isExporting ? 'Exporting…' : 'Export Summary to Excel'}
               </Button>
               <Button
                 variant="default"
                 size="sm"
                 onClick={handleExportFullLedger}
-                disabled={contractors.length === 0 || isExporting}
+                disabled={(contractors.length === 0 && flatBalances.length === 0) || isExporting}
                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
               >
                 {isExporting ? 'Exporting…' : 'Export Full Ledger'}
@@ -397,9 +425,122 @@ const SubcontractorLedger = () => {
         <div className="py-16 text-center text-xs text-slate-400">Loading Subcontractor Ledger data…</div>
       ) : viewMode === 'contractors' ? (
         contractors.length === 0 ? (
-          <div className="rounded-3xl border border-white/5 p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
-            {hasFilters ? 'No contractors match the active filters.' : 'No subcontractor ledger records found.'}
-          </div>
+          flatBalances.length > 0 ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                    <h3 className="text-sm font-bold text-amber-300">Legacy / Unlinked Scopes</h3>
+                  </div>
+                  <p className="text-xs text-amber-200/80 mt-1">
+                    These scopes originate from legacy Cost Estimates prior to Subcontractor Master linking. Capacities are strictly isolated per Work Order.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/20 shrink-0 self-start sm:self-auto">
+                  {flatBalances.length} {flatBalances.length === 1 ? 'Legacy Scope' : 'Legacy Scopes'}
+                </span>
+              </div>
+
+              {/* Legacy Scopes Table */}
+              <div className="rounded-2xl border border-white/5 overflow-hidden">
+                <Table containerClassName="min-w-[850px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader>Work Order</TableCell>
+                      <TableCell isHeader>Subcontractor (Legacy Name)</TableCell>
+                      <TableCell isHeader>Sub Head</TableCell>
+                      <TableCell isHeader align="right">Estimated Total</TableCell>
+                      <TableCell isHeader align="right">Paid Total</TableCell>
+                      <TableCell isHeader align="right">Available Balance</TableCell>
+                      <TableCell isHeader className="text-right">Actions</TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {flatBalances.map((b) => (
+                      <TableRow key={`${b.work_order_no}-${b.material_sub_head}-${b.material_details}`}>
+                        <TableCell>
+                          <div className="font-mono text-xs font-bold text-indigo-300">{b.work_order_no}</div>
+                          {b.project?.department && (
+                            <div className="text-[10px] text-slate-400">{b.project.department}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-white text-xs">{b.material_details}</div>
+                          {b.project?.site_details && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-[200px]" title={b.project.site_details}>
+                              {b.project.site_details}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-300">{b.material_sub_head}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-slate-300">{formatCurrency(b.estimated_total)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-slate-300">{formatCurrency(b.paid_total)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                            {formatCurrency(b.available_balance)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1.5 items-center">
+                            <Button
+                              variant="glass"
+                              size="sm"
+                              onClick={() => setViewingEntry({
+                                work_order_no: b.work_order_no,
+                                material_sub_head: b.material_sub_head,
+                                material_details: b.material_details,
+                                subcontractor_name: b.material_details,
+                                department: b.project?.department,
+                                approved_scope: b.estimated_total,
+                                reserved: b.reserved_total || b.reserved_amount || 0,
+                                paid: b.paid_total || 0,
+                                remaining: b.available_balance || 0
+                              })}
+                              className="text-xs h-7 px-2.5"
+                            >
+                              View Transactions
+                            </Button>
+                            {canAdjust && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAdjustingEntry(b)}
+                                className="text-xs h-7 px-2 text-slate-400 hover:text-white"
+                              >
+                                Adjust
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  maxVisible={5}
+                  showLabel={true}
+                  totalRecords={totalContractors}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-white/5 p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+              {hasFilters ? 'No contractors match the active filters.' : 'No subcontractor ledger records found.'}
+            </div>
+          )
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
@@ -529,7 +670,12 @@ const SubcontractorLedger = () => {
                                   onClick={() => setViewingEntry({
                                     subcontractor_id: c.subcontractor_id,
                                     subcontractor_name: c.subcontractor_name,
-                                    work_order_no: woScope.work_order_no
+                                    work_order_no: woScope.work_order_no,
+                                    department: woScope.department,
+                                    approved_scope: woScope.approved_scope,
+                                    reserved: woScope.reserved,
+                                    paid: woScope.paid,
+                                    remaining: woScope.remaining
                                   })}
                                   className="text-xs h-7 px-2.5 text-indigo-300"
                                 >
@@ -584,7 +730,12 @@ const SubcontractorLedger = () => {
                                             work_order_no: woScope.work_order_no,
                                             subcontract_work_id: w.subcontract_work_id,
                                             material_details: w.material_details,
-                                            sub_head: w.sub_head
+                                            sub_head: w.sub_head,
+                                            department: woScope.department,
+                                            approved_scope: w.approved_scope,
+                                            reserved: w.reserved,
+                                            paid: w.paid,
+                                            remaining: w.remaining
                                           })}
                                           className="text-xs h-7 px-2.5"
                                         >
@@ -764,6 +915,13 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
       subcontractor: entry.subcontractor_name || entry.material_details,
       subHead: entry.material_sub_head || entry.sub_head || 'All Scopes',
       workOrder: entry.work_order_no || 'All Work Orders',
+      balance: {
+        department: entry.department,
+        approved_scope: entry.approved_scope,
+        reserved: entry.reserved,
+        paid: entry.paid,
+        remaining: entry.remaining
+      },
       entries
     });
   };
@@ -776,20 +934,42 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
     <Modal
       isOpen={!!entry}
       onClose={onClose}
-      title="Subcontractor Ledger — Transaction Trail"
+      title="Subcontractor Ledger — Payment Statement"
       subtitle={titleSubtitle}
       size="xl"
     >
-      <div className="flex justify-between items-center mb-4">
+      {/* Scope Capacity KPI Strip */}
+      {entry && entry.approved_scope != null && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Approved Scope</span>
+            <span className="text-sm font-mono font-bold text-slate-200">{formatCurrency(entry.approved_scope)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-amber-400 block uppercase font-bold tracking-wider">Reserved (Pending)</span>
+            <span className="text-sm font-mono font-bold text-amber-300">{formatCurrency(entry.reserved || 0)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Actually Paid</span>
+            <span className="text-sm font-mono font-bold text-slate-200">{formatCurrency(entry.paid || 0)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <span className="text-[10px] text-emerald-400 block uppercase font-bold tracking-wider">Remaining Capacity</span>
+            <span className="text-sm font-mono font-bold text-emerald-300">{formatCurrency(entry.remaining || 0)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
         <span className="text-xs text-slate-400">
-          Chronological dual-entry transaction trail with running balances.
+          Chronological disbursement and payment statement. Capacity is strictly governed by approved Work Order scope.
         </span>
         <Button
           variant="glass"
           size="sm"
           onClick={handleExportModalLedger}
           disabled={entries.length === 0}
-          className="text-xs font-bold text-indigo-300 border-indigo-500/20"
+          className="text-xs font-bold text-indigo-300 border-indigo-500/20 shrink-0"
         >
           Export Statement to Excel
         </Button>
@@ -798,7 +978,7 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
         <div className="py-8 text-center text-xs text-slate-400">Loading transaction history…</div>
       ) : entries.length === 0 ? (
         <div className="py-8 text-center text-xs text-slate-500 font-bold uppercase tracking-wider">
-          No ledger transactions found for this scope.
+          No payment transactions found for this scope.
         </div>
       ) : (
         <div className="rounded-2xl border border-white/5 overflow-hidden">
@@ -809,17 +989,17 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                 <TableCell isHeader>Type</TableCell>
                 <TableCell isHeader>Doc / Ref No.</TableCell>
                 <TableCell isHeader>Description / Remarks</TableCell>
-                <TableCell isHeader align="right">Approved Scope (+)</TableCell>
-                <TableCell isHeader align="right">Debit (-)</TableCell>
-                <TableCell isHeader align="right">Running Balance</TableCell>
+                <TableCell isHeader align="right">Paid Amount</TableCell>
+                <TableCell isHeader align="right">Cumulative Paid</TableCell>
                 <TableCell isHeader>By</TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.map((e) => {
-                const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
-                const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
-                const runningBal = e.scope_running_balance != null ? e.scope_running_balance : e.running_balance;
+                const paidAmount = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : (Number(e.amount) > 0 ? Number(e.amount) : 0));
+                const cumPaid = e.cumulative_paid != null 
+                  ? Number(e.cumulative_paid) 
+                  : (e.scope_running_balance != null && e.scope_running_balance < 0 ? Math.abs(Number(e.scope_running_balance)) : paidAmount);
 
                 return (
                   <TableRow key={e.ledger_id}>
@@ -846,22 +1026,15 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                       </span>
                     </TableCell>
                     <TableCell align="right">
-                      {credit > 0 ? (
-                        <span className="font-mono font-bold text-emerald-400">+{formatCurrency(credit)}</span>
+                      {paidAmount > 0 ? (
+                        <span className="font-mono font-bold text-slate-200">+{formatCurrency(paidAmount)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
                     </TableCell>
                     <TableCell align="right">
-                      {debit > 0 ? (
-                        <span className="font-mono font-bold text-red-400">-{formatCurrency(debit)}</span>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="font-mono font-bold text-slate-200">
-                        {runningBal != null ? formatCurrency(runningBal) : '—'}
+                      <span className="font-mono font-bold text-indigo-300">
+                        {formatCurrency(cumPaid)}
                       </span>
                     </TableCell>
                     <TableCell>
