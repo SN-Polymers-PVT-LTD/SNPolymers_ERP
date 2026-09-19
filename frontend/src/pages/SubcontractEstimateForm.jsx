@@ -420,7 +420,15 @@ const SubcontractEstimateForm = () => {
                 </tr>
               ) : (
                 lines.map((line, index) => {
-                  const locked = historical(line);
+                  // Final-approved history is immutable. A ZO-approved row
+                  // is protected in a ZO revision; an HO-approved row is
+                  // protected in an HO revision. JE can still correct an
+                  // HO-rejected row that had passed ZO.
+                  const locked = historical(line) || (
+                    line.ho_office_approve === 'Approve' ||
+                    ((status === 'ZO Revision Requested' || status === 'Estimate Reopened') &&
+                      line.zo_office_approve === 'Approve')
+                  );
 
                   // 1. Resolve selected contractor from the cached catalog by subcontractor_id
                   const resolvedSub = subcontractors.find(s => s.id === line.subcontractor_id);
