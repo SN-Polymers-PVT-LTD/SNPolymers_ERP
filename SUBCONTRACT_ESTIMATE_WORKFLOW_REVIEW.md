@@ -11,7 +11,9 @@ Subcontractor Estimate follows the same broad stages, but its prior implementati
 
 The recommended repair is narrow: preserve decisions and remarks for unchanged, still-eligible lines; reset only lines that changed in a review-relevant way; make resubmission reset only the applicable stage; and expose bounded/paginated history rather than returning the full estimate history with every detail response. The Cost Estimate locking and retention pattern is the reference, not an instruction to copy its legacy SQL wholesale.
 
-Phase 1 validation passed 10 backend regression files and 40 tests, plus 4 affected frontend form tests. The remaining open review finding is unbounded detail-history payload (P3). Ambiguous business decisions remain limited to reopened non-final inheritance and adjustment-target review scope.
+Phase 1 validation passed 10 backend regression files and 41 tests, plus 4 affected frontend form tests. The remaining open review finding is unbounded detail-history payload (P3). Ambiguous business decisions remain limited to reopened non-final inheritance and adjustment-target review scope.
+
+Phase 1 follow-up adds migration 088. It revokes all direct execution grants on the renamed Phase 1 legacy functions, leaving only the public wrappers callable by service_role. Regression coverage verifies anon/authenticated cannot execute the legacy functions, that a direct RESUBMIT preserves a rejection rather than bypassing ZO, and that reopened additions cannot Final Approve without a new HO decision.
 
 ## 2. Source inventory and effective SQL migration map
 

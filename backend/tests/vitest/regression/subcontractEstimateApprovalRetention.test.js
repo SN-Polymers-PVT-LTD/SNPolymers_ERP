@@ -5,6 +5,30 @@ const { createPgClient } = require('../../../scripts/lib/pg-connect');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 
 describe('Subcontract Estimate Phase 1 approval retention', () => {
+  test('does not expose renamed legacy workflow functions to ordinary API roles', async () => {
+    await requireLocalSupabase();
+    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    await client.connect();
+    try {
+      const { rows } = await client.query(
+        "SELECT " +
+        "has_function_privilege('anon', " +
+        "'public.reconcile_subcontract_estimate_lines_phase1_legacy(uuid, character varying, timestamp with time zone, jsonb)'::regprocedure, 'EXECUTE') AS anon_reconcile, " +
+        "has_function_privilege('authenticated', " +
+        "'public.transition_subcontract_estimate_workflow_phase1_legacy(uuid, character varying, character varying, text, timestamp with time zone, integer)'::regprocedure, 'EXECUTE') AS authenticated_transition, " +
+        "has_function_privilege('authenticated', " +
+        "'public.submit_reopened_subcontract_estimate_phase1_legacy(uuid, character varying, timestamp with time zone)'::regprocedure, 'EXECUTE') AS authenticated_reopened"
+      );
+      expect(rows[0]).toEqual({
+        anon_reconcile: false,
+        authenticated_transition: false,
+        authenticated_reopened: false
+      });
+    } finally {
+      await client.end();
+    }
+  });
+
   test('retains unchanged approvals and remarks while corrected rejected rows restart at ZO', async () => {
     await requireLocalSupabase();
     const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
@@ -72,6 +96,16 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
         { line_id: b.line_id, approve_status: 'Not Approve', remarks: 'Correct B rate' }
       ]);
       await transition('HO_REQUEST_REVISION', 'Correct B rate');
+
+      // A direct resubmit cannot turn B's retained HO rejection into an
+      // approval. Its retained ZO approval can complete ZO, but Final
+      // Approval remains blocked until B receives a fresh HO decision.
+      await transition('RESUBMIT');
+      await transition('OPEN_ZO_REVIEW');
+      await transition('ZO_APPROVE');
+      await transition('OPEN_HO_REVIEW');
+      await expectCode(() => transition('HO_APPROVE'), 'P4B17');
+      await transition('HO_REQUEST_REVISION', 'B remains rejected until corrected');
 
       // A retains both decisions but is protected from edit and omission.
       await reconcile(lines(21));

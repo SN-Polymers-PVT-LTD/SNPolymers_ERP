@@ -153,6 +153,7 @@ describe('Subcontract Estimate Phase 4B M4 reopen and signed delta lines', () =>
       await client.query(`UPDATE public.project_subcontract_estimate_lines SET zo_office_approve = 'Approve' WHERE subcontract_estimate_id = $1 AND final_approved_revision IS NULL`, [estimateId]);
       await transition('ZO_APPROVE');
       await transition('OPEN_HO_REVIEW');
+      await expectError(() => transition('HO_APPROVE'), 'P4B17');
       await client.query(`UPDATE public.project_subcontract_estimate_lines SET ho_office_approve = 'Approve' WHERE subcontract_estimate_id = $1 AND final_approved_revision IS NULL`, [estimateId]);
       await expectError(() => transition('HO_APPROVE'), 'P4B29');
       expect(currentLines.length).toBeGreaterThan(0);
