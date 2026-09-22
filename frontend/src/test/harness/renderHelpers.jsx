@@ -7,6 +7,7 @@ import { ModalProvider } from '../../components/ModalContext';
 import { AuthProvider } from '../../components/AuthContext';
 import { LocationProbe, HistoryControls, readLocation } from '../routerTestUtils';
 import { usersFixture } from '../fixtures/domainFixtures';
+import { mockApiScenario } from '../mocks/mockApiScenario';
 import authApi from '../../api/authApi';
 import App from '../../App';
 
@@ -38,24 +39,25 @@ export function renderPage(component, {
   routePath = initialUrl.split('?')[0].split('#')[0] || '/',
   role = 'admin',
   user = null,
-  queryClient = createTestQueryClient(),
+  scenario = 'populated',
+  overrides = {},
+  errorMessage = 'Server unavailable',
+  queryClient = null,
   customWrapper = (children) => children
 } = {}) {
   const activeUser = user || usersFixture[role] || usersFixture.admin;
+  const client = queryClient || createTestQueryClient();
 
-  // Mock /me endpoint for AuthProvider
-  if (authApi?.get?.mockImplementation) {
-    const existingImpl = authApi.get.getMockImplementation?.();
-    authApi.get.mockImplementation((url, ...args) => {
-      if (url === '/me') {
-        return Promise.resolve({ data: { success: true, user: activeUser } });
-      }
-      return existingImpl ? existingImpl(url, ...args) : Promise.resolve({ data: { success: true } });
-    });
-  }
+  mockApiScenario(authApi, {
+    scenario,
+    role,
+    user: activeUser,
+    overrides,
+    errorMessage
+  });
 
   const renderResult = render(
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={client}>
       <ThemeProvider>
         <ModalProvider>
           <AuthProvider initialUser={activeUser}>
@@ -78,7 +80,7 @@ export function renderPage(component, {
 
   return {
     ...renderResult,
-    queryClient,
+    queryClient: client,
     activeUser,
     readLocation: () => readLocation(),
     goBack: () => {
@@ -93,25 +95,25 @@ export function renderPage(component, {
 }
 
 /**
- * Renders full App.jsx with protected route trees and role-based permissions.
+ * Renders full App.jsx with protected route trees and role-based permissions,
+ * fully connected to scenario mock fixtures.
  */
 export async function renderAppRoute(url, {
   role = 'admin',
-  user = null
+  user = null,
+  scenario = 'populated',
+  overrides = {},
+  errorMessage = 'API Error occurred'
 } = {}) {
   const activeUser = user || (role ? usersFixture[role] : null);
 
-  if (authApi?.get?.mockImplementation) {
-    authApi.get.mockImplementation((endpoint) => {
-      if (endpoint === '/me') {
-        if (!activeUser) return Promise.resolve({ data: { success: false, user: null } });
-        return Promise.resolve({ data: { success: true, user: activeUser } });
-      }
-      if (endpoint === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
-      if (endpoint === '/admin/sessions') return Promise.resolve({ data: { success: true, sessions: [] } });
-      return Promise.resolve({ data: { success: true, data: [] } });
-    });
-  }
+  mockApiScenario(authApi, {
+    scenario,
+    role,
+    user: activeUser,
+    overrides,
+    errorMessage
+  });
 
   window.history.pushState({}, '', url);
   const renderResult = render(<App />);

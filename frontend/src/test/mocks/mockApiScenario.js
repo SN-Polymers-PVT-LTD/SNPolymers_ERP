@@ -5,6 +5,8 @@ import {
   estimatesFixture,
   requisitionsFixture,
   fundRequestsFixture,
+  materialsFixture,
+  materialCategoriesFixture,
   accountsSheetsFixture,
   ledgerEntriesFixture,
   bankBalancesFixture
@@ -22,6 +24,8 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   }
 
   if (scenario === 'empty') {
+    if (url.includes('/materials/categories')) return { success: true, mainHeads: [], subHeads: [] };
+    if (url.includes('/materials')) return { success: true, materials: [], total: 0, totalPages: 0, data: [] };
     if (url.includes('/projects')) return { success: true, projects: [], data: [] };
     if (url.includes('/requisitions')) return { success: true, requisitions: [], data: [] };
     if (url.includes('/fund-requests')) return { success: true, fundRequests: [], data: [] };
@@ -33,6 +37,8 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   }
 
   // Populated scenario
+  if (url.includes('/materials/categories')) return { success: true, ...materialCategoriesFixture };
+  if (url.includes('/materials')) return { success: true, materials: materialsFixture, total: materialsFixture.length, totalPages: 1 };
   if (url.includes('/projects')) return { success: true, projects: projectsFixture, data: projectsFixture };
   if (url.includes('/requisitions')) return { success: true, requisitions: requisitionsFixture, data: requisitionsFixture };
   if (url.includes('/fund-requests')) return { success: true, fundRequests: fundRequestsFixture, data: fundRequestsFixture };
@@ -71,10 +77,9 @@ export function createMockAuthApi({
     }
 
     if (scenario === 'apiError') {
-      return Promise.reject({
-        response: { status: 500, data: { success: false, message: errorMessage } },
-        message: errorMessage
-      });
+      const err = new Error(errorMessage);
+      err.response = { status: 500, data: { success: false, message: errorMessage } };
+      return Promise.reject(err);
     }
 
     const payload = getScenarioPayload(url, scenario, overrides);
@@ -106,16 +111,25 @@ export function createMockAuthApi({
 }
 
 /**
- * Configures the default authApi mock module with a scenario.
+ * Safely installs scenario handlers onto an authApi instance regardless of whether
+ * it has already been mocked with vi.mock() or is a raw Axios instance.
  */
-export function mockApiScenario(authApiMock, options = {}) {
+export function mockApiScenario(authApiTarget, options = {}) {
   const mockInstance = createMockAuthApi(options);
-  if (authApiMock) {
-    if (authApiMock.get?.mockImplementation) authApiMock.get.mockImplementation(mockInstance.get);
-    if (authApiMock.post?.mockImplementation) authApiMock.post.mockImplementation(mockInstance.post);
-    if (authApiMock.put?.mockImplementation) authApiMock.put.mockImplementation(mockInstance.put);
-    if (authApiMock.patch?.mockImplementation) authApiMock.patch.mockImplementation(mockInstance.patch);
-    if (authApiMock.delete?.mockImplementation) authApiMock.delete.mockImplementation(mockInstance.delete);
+  if (!authApiTarget) return mockInstance;
+
+  const methods = ['get', 'post', 'put', 'patch', 'delete'];
+  for (const method of methods) {
+    if (authApiTarget[method] && typeof authApiTarget[method].mockImplementation === 'function') {
+      authApiTarget[method].mockImplementation(mockInstance[method]);
+    } else {
+      authApiTarget[method] = vi.fn().mockImplementation(mockInstance[method]);
+    }
   }
+
+  if (!authApiTarget.interceptors) {
+    authApiTarget.interceptors = { response: { use: vi.fn() } };
+  }
+
   return mockInstance;
 }

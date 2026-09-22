@@ -153,10 +153,15 @@ const SampleOperationalPage = ({ error, empty }) => {
   );
 };
 
+// When testing a real route via describePageContract, expectDom validates the mounted DOM
 describePageContract(SampleOperationalPage, {
   name: 'SampleOperationalPage',
   route: '/requisitions',
   allowedRoles: ['je', 'admin'],
   unauthorizedRole: 'accounts',
-  headingMatch: /Sample Requisitions Console/i
+  headingMatch: /Sample Requisitions Console/i,
+  expectDom: async (screen) => {
+    // Proves that the actual page mounted under the App route (/requisitions mounts Requisition Management)
+    expect(await screen.findByRole('heading', { name: /Requisition Management/i })).toBeInTheDocument();
+  }
 });

@@ -138,10 +138,13 @@ export const estimatesFixture = [
 // ─── Requisitions ───────────────────────────────────────────────────────────
 export const requisitionsFixture = [
   {
+    requisition_id: 'req-501',
     requisition_no: 'REQ-501',
     work_order_no: 'WO-101',
     requisition_status: 'Pending',
     requisition_amount: 150000,
+    approved_amount: 0,
+    payment_status: 'Unpaid',
     particulars: 'Emergency Cable Drum Delivery',
     beneficiary_name: 'Pioneer Cable Works',
     beneficiary_ac_no: '987654321001',
@@ -149,11 +152,13 @@ export const requisitionsFixture = [
     created_at: '2026-09-15T00:00:00Z'
   },
   {
+    requisition_id: 'req-502',
     requisition_no: 'REQ-502',
     work_order_no: 'WO-101',
     requisition_status: 'Approved',
     requisition_amount: 320000,
     approved_amount: 320000,
+    payment_status: 'Paid',
     particulars: 'Panel Boards Delivery',
     beneficiary_name: 'Apex Switchgear Ltd',
     beneficiary_ac_no: '987654321002',
@@ -166,28 +171,75 @@ export const requisitionsFixture = [
 // ─── Fund Requests ──────────────────────────────────────────────────────────
 export const fundRequestsFixture = [
   {
-    request_id: 'fr-301',
-    request_no: 'FR-301',
+    fund_request_id: 'fr-301',
+    zo_fr_no: 'FR-301',
     work_order_no: 'WO-101',
-    request_amount: 500000,
-    allocated_amount: 500000,
-    status: 'Approved',
+    zo_fr_amount: 500000,
+    remaining_amount: 500000,
+    request_status: 'Approved',
     urgent: true,
     reason: 'Critical transformer site delivery payment',
-    created_at: '2026-09-12T00:00:00Z'
+    zo_user_id: 'usr_zo',
+    created_at: '2026-09-12T00:00:00Z',
+    // Backward-compat aliases
+    request_id: 'fr-301',
+    request_no: 'FR-301',
+    request_amount: 500000,
+    allocated_amount: 500000,
+    status: 'Approved'
   },
   {
-    request_id: 'fr-302',
-    request_no: 'FR-302',
+    fund_request_id: 'fr-302',
+    zo_fr_no: 'FR-302',
     work_order_no: 'WO-101',
-    request_amount: 200000,
-    allocated_amount: 0,
-    status: 'Pending',
+    zo_fr_amount: 200000,
+    remaining_amount: 200000,
+    request_status: 'Pending',
     urgent: false,
     reason: 'Secondary cable conduits procurement',
-    created_at: '2026-09-21T00:00:00Z'
+    zo_user_id: 'usr_zo',
+    created_at: '2026-09-21T00:00:00Z',
+    // Backward-compat aliases
+    request_id: 'fr-302',
+    request_no: 'FR-302',
+    request_amount: 200000,
+    allocated_amount: 0,
+    status: 'Pending'
   }
 ];
+
+// ─── Materials ──────────────────────────────────────────────────────────────
+export const materialsFixture = [
+  {
+    id: 1,
+    Material_Main_Head: 'Civil',
+    Material_Sub_Head: 'Cement',
+    Material_Details: 'Portland Pozzolana Cement Grade 53',
+    M_Unit: 'Bags',
+    is_active: true
+  },
+  {
+    id: 2,
+    Material_Main_Head: 'Electrical',
+    Material_Sub_Head: 'Cables',
+    Material_Details: '4-Core 16 sq mm Armoured Copper Cable',
+    M_Unit: 'Meters',
+    is_active: true
+  },
+  {
+    id: 3,
+    Material_Main_Head: 'Plumbing',
+    Material_Sub_Head: 'Pipes',
+    Material_Details: '110mm PVC Drainage Pipe Class 4',
+    M_Unit: 'Lengths',
+    is_active: true
+  }
+];
+
+export const materialCategoriesFixture = {
+  mainHeads: ['Civil', 'Electrical', 'Plumbing'],
+  subHeads: ['Cement', 'Cables', 'Pipes']
+};
 
 // ─── Accounts Sheets & Queues ───────────────────────────────────────────────
 export const accountsSheetsFixture = [

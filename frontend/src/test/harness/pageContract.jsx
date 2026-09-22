@@ -16,6 +16,7 @@ export function describePageContract(PageComponent, {
   headingMatch = null,
   emptyTextMatch = null,
   errorTextMatch = null,
+  expectDom = null,
   customProps = {},
   scenarioOverrides = {}
 } = {}) {
@@ -29,7 +30,8 @@ export function describePageContract(PageComponent, {
       it(`renders primary page heading for authorized role (${allowedRoles[0]})`, async () => {
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
-          role: allowedRoles[0]
+          role: allowedRoles[0],
+          overrides: scenarioOverrides
         });
 
         const heading = await screen.findByText(headingMatch);
@@ -43,7 +45,9 @@ export function describePageContract(PageComponent, {
 
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
-          role: allowedRoles[0]
+          role: allowedRoles[0],
+          scenario: 'empty',
+          overrides: scenarioOverrides
         });
 
         const emptyMessage = await screen.findByText(emptyTextMatch);
@@ -53,28 +57,38 @@ export function describePageContract(PageComponent, {
 
     if (errorTextMatch) {
       it('renders error alert or fallback when API request fails', async () => {
-        mockApiScenario(authApi, {
+        renderPage(<PageComponent {...customProps} />, {
+          initialUrl: route,
+          role: allowedRoles[0],
           scenario: 'apiError',
           errorMessage: 'Server unavailable',
           overrides: scenarioOverrides
         });
 
-        renderPage(<PageComponent {...customProps} />, {
-          initialUrl: route,
-          role: allowedRoles[0]
-        });
-
-        const errorMessage = await screen.findByText(errorTextMatch);
+        console.log("BODY_HTML_SNIPPET:", document.body.innerHTML.slice(-1500));
+        const errorMessage = await screen.findByText(errorTextMatch, {}, { timeout: 4000 });
         expect(errorMessage).toBeInTheDocument();
       });
     }
 
-    it.each(allowedRoles)('mounts through App.jsx route tree for authorized role "%s"', async (role) => {
-      const { currentLocation } = await renderAppRoute(route, { role });
+    it.each(allowedRoles)('mounts through App.jsx route tree for authorized role "%s" and renders page DOM', async (role) => {
+      const { currentLocation } = await renderAppRoute(route, {
+        role,
+        scenario: 'populated',
+        overrides: scenarioOverrides
+      });
+
       await waitFor(() => {
         expect(currentLocation()).toContain(route.split('?')[0]);
       });
       expect(screen.queryByText(/Portal Authentication/i)).not.toBeInTheDocument();
+
+      // P1: Validate that the page-owned DOM landmark or heading is genuinely present!
+      if (expectDom) {
+        await expectDom(screen);
+      } else if (headingMatch) {
+        expect((await screen.findAllByRole('heading', { name: headingMatch }, { timeout: 4000 })).length).toBeGreaterThan(0);
+      }
     });
 
     if (unauthorizedRole) {
