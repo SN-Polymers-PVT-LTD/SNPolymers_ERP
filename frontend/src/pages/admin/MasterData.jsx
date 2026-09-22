@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal, SuccessPopup, ErrorPopup, FormattedCurrencyInput } from '../../components/ui';
 import { SkeletonTable } from '../../components/ui/Skeleton';
 import Pagination from '../../components/ui/Pagination';
 import { getProjects, createProject, updateProject, updateProjectStatus } from '../../api/projectsApi';
 import { exportProjectsToExcel } from '../../utils/exportHelpers';
 import { getEligibleZOs } from '../../api/userMappingsApi';
+import { useMasterDataUrlState } from '../../hooks/useMasterDataUrlState';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_OPTIONS = ['Running', 'Closed', 'Complete Under Maintenance'];
@@ -62,8 +63,6 @@ const StatusBadge = ({ status }) => {
     </span>
   );
 };
-
-
 
 // ─── Project Form Modal ───────────────────────────────────────────────────────
 const ProjectFormModal = ({ mode, initial, onClose, onSave }) => {
@@ -334,12 +333,38 @@ const MasterData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState('running'); // 'running' | 'archive'
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
 
-  const [modal, setModal] = useState(null); // null | { type: 'create'|'edit'|'status', project? }
+  const {
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    departmentFilter,
+    setDepartmentFilter,
+    zoneFilter,
+    setZoneFilter,
+    statusFilter,
+    setStatusFilter,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    resetFilters,
+    targetWorkOrder,
+    showCreateModal,
+    showEditModal,
+    showStatusModal,
+    openCreateModal,
+    openEditModal,
+    openStatusModal,
+    closeModal
+  } = useMasterDataUrlState();
+
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
 
   // ── Data fetching ──
   const fetchProjects = useCallback(async () => {
@@ -368,10 +393,26 @@ const MasterData = () => {
     return () => clearTimeout(t);
   }, [success]);
 
+  // Distinct filter options extracted from projects
+  const distinctDepartments = useMemo(() => {
+    return Array.from(new Set(projects.map((p) => p.department).filter(Boolean))).sort();
+  }, [projects]);
+
+  const distinctZones = useMemo(() => {
+    return Array.from(new Set(projects.map((p) => p.zone).filter(Boolean))).sort();
+  }, [projects]);
+
+  // Resolved project for modal operations
+  const targetProject = useMemo(() => {
+    if (!targetWorkOrder || projects.length === 0) return null;
+    return projects.find((p) => p.work_order_no === targetWorkOrder) || null;
+  }, [targetWorkOrder, projects]);
+
   // ── Handlers ──
   const handleCreate = async (form) => {
     await createProject(form);
     setSuccess(`Project ${form.work_order_no} created successfully.`);
+    closeModal();
     fetchProjects();
   };
 
@@ -380,38 +421,67 @@ const MasterData = () => {
     // Send field edits first
     await updateProject(work_order_no, editableFields);
     // If status changed, also patch status
-    if (status !== modal?.project?.status) {
+    if (targetProject && status !== targetProject.status) {
       await updateProjectStatus(work_order_no, status);
     }
     setSuccess(`Project ${work_order_no} updated successfully.`);
+    closeModal();
     fetchProjects();
   };
 
   const handleStatusChange = async (workOrderNo, status) => {
     await updateProjectStatus(workOrderNo, status);
     setSuccess(`Status for ${workOrderNo} updated to "${status}".`);
+    closeModal();
     fetchProjects();
   };
 
   // ── Filtered list ──
-  const filtered = projects.filter((p) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      p.work_order_no?.toLowerCase().includes(q) ||
-      p.estimate_no?.toLowerCase().includes(q) ||
-      p.state?.toLowerCase().includes(q) ||
-      p.district?.toLowerCase().includes(q) ||
-      p.department?.toLowerCase().includes(q)
-    );
-  });
+  const filtered = useMemo(() => {
+    return projects.filter((p) => {
+      // 1. Search Query
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchesQ =
+          p.work_order_no?.toLowerCase().includes(q) ||
+          p.estimate_no?.toLowerCase().includes(q) ||
+          p.state?.toLowerCase().includes(q) ||
+          p.district?.toLowerCase().includes(q) ||
+          p.department?.toLowerCase().includes(q) ||
+          p.site_details?.toLowerCase().includes(q);
+        if (!matchesQ) return false;
+      }
 
-  const runningProjects = filtered.filter((p) => p.status === 'Running');
-  const archivedProjects = filtered.filter((p) => p.status === 'Closed' || p.status === 'Complete Under Maintenance');
+      // 2. Department Filter
+      if (departmentFilter !== 'all' && p.department !== departmentFilter) {
+        return false;
+      }
+
+      // 3. Zone Filter
+      if (zoneFilter !== 'all' && p.zone !== zoneFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [projects, searchQuery, departmentFilter, zoneFilter]);
+
+  const runningProjects = useMemo(() => {
+    return filtered.filter((p) => p.status === 'Running');
+  }, [filtered]);
+
+  const archivedProjects = useMemo(() => {
+    return filtered.filter((p) => {
+      if (p.status !== 'Closed' && p.status !== 'Complete Under Maintenance') return false;
+      if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+      return true;
+    });
+  }, [filtered, statusFilter]);
 
   const activeProjectsList = activeTab === 'running' ? runningProjects : archivedProjects;
   const totalPages = Math.ceil(activeProjectsList.length / pageSize) || 1;
-  const startIndex = (currentPage - 1) * pageSize;
+  const activePage = Math.min(page, totalPages);
+  const startIndex = (activePage - 1) * pageSize;
   const paginatedProjects = activeProjectsList.slice(startIndex, startIndex + pageSize);
 
   // ── Stat counts ──
@@ -421,6 +491,8 @@ const MasterData = () => {
     closed: projects.filter((p) => p.status === 'Closed').length,
     maintenance: projects.filter((p) => p.status === 'Complete Under Maintenance').length,
   };
+
+  const hasActiveFilters = searchQuery || departmentFilter !== 'all' || zoneFilter !== 'all' || statusFilter !== 'all';
 
   const renderProjectTable = (list, emptyMessage) => {
     if (list.length === 0) {
@@ -498,7 +570,7 @@ const MasterData = () => {
                   <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-200">
                     <button
                       id={`btn-edit-${project.work_order_no}`}
-                      onClick={() => setModal({ type: 'edit', project })}
+                      onClick={() => openEditModal(project.work_order_no)}
                       title="Edit project"
                       className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all duration-200"
                     >
@@ -508,7 +580,7 @@ const MasterData = () => {
                     </button>
                     <button
                       id={`btn-status-${project.work_order_no}`}
-                      onClick={() => setModal({ type: 'status', project })}
+                      onClick={() => openStatusModal(project.work_order_no)}
                       title="Update status"
                       className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all duration-200"
                     >
@@ -549,7 +621,7 @@ const MasterData = () => {
           </div>
           <button
             id="btn-create-project"
-            onClick={() => setModal({ type: 'create' })}
+            onClick={openCreateModal}
             className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2 shrink-0 transform hover:-translate-y-0.5"
           >
             <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -595,10 +667,7 @@ const MasterData = () => {
         {/* ── View Selection Tabs ── */}
         <div className="flex gap-2 mb-6 border-b border-white/5 pb-4">
           <button
-            onClick={() => {
-              setActiveTab('running');
-              setCurrentPage(1);
-            }}
+            onClick={() => setActiveTab('running')}
             className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
               activeTab === 'running'
                 ? 'bg-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.25)]'
@@ -608,10 +677,7 @@ const MasterData = () => {
             Running Projects ({counts.running})
           </button>
           <button
-            onClick={() => {
-              setActiveTab('archive');
-              setCurrentPage(1);
-            }}
+            onClick={() => setActiveTab('archive')}
             className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
               activeTab === 'archive'
                 ? 'bg-amber-500 text-slate-950 shadow-[0_4px_20px_rgba(245,158,11,0.25)]'
@@ -622,8 +688,8 @@ const MasterData = () => {
           </button>
         </div>
 
-        {/* ── Search ── */}
-        <div className="flex items-center gap-3 mb-5">
+        {/* ── Search & Filter Controls Strip ── */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 mb-5">
           <div className="relative flex-1 max-w-sm">
             <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -632,33 +698,98 @@ const MasterData = () => {
               id="search-projects"
               type="text"
               placeholder="Search projects…"
-              value={search}
+              value={localSearch}
               onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
+                setLocalSearch(e.target.value);
+                setSearchQuery(e.target.value);
               }}
               className="w-full glass-input focus:ring-0 outline-none rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 font-medium transition"
             />
           </div>
-          <button
-            onClick={fetchProjects}
-            title="Refresh"
-            className="p-2.5 rounded-xl glass-input hover:border-white/20 transition-all duration-200 text-slate-400 hover:text-slate-200"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          </button>
-          <button
-            onClick={() => exportProjectsToExcel(filtered)}
-            title="Export to Excel"
-            className="p-2.5 rounded-xl glass-input hover:border-white/20 transition-all duration-200 text-slate-400 hover:text-slate-200 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <span>Export Excel</span>
-          </button>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Department Filter */}
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="glass-input focus:ring-0 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-medium transition"
+            >
+              <option value="all" className="bg-slate-900 text-slate-100">All Departments</option>
+              {distinctDepartments.map((dept) => (
+                <option key={dept} value={dept} className="bg-slate-900 text-slate-100">{dept}</option>
+              ))}
+            </select>
+
+            {/* Zone Filter */}
+            <select
+              value={zoneFilter}
+              onChange={(e) => setZoneFilter(e.target.value)}
+              className="glass-input focus:ring-0 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-medium transition"
+            >
+              <option value="all" className="bg-slate-900 text-slate-100">All Zones</option>
+              {distinctZones.map((z) => (
+                <option key={z} value={z} className="bg-slate-900 text-slate-100">{z}</option>
+              ))}
+            </select>
+
+            {/* In Archive: Sub-status filter */}
+            {activeTab === 'archive' && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="glass-input focus:ring-0 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-medium transition"
+              >
+                <option value="all" className="bg-slate-900 text-slate-100">All Archive Statuses</option>
+                <option value="Closed" className="bg-slate-900 text-slate-100">Closed Only</option>
+                <option value="Complete Under Maintenance" className="bg-slate-900 text-slate-100">Under Maintenance Only</option>
+              </select>
+            )}
+
+            {/* Page Size */}
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              className="glass-input focus:ring-0 outline-none rounded-xl px-3 py-2 text-xs text-slate-300 font-medium transition font-mono"
+            >
+              <option value="10" className="bg-slate-900 text-slate-100">10 / page</option>
+              <option value="25" className="bg-slate-900 text-slate-100">25 / page</option>
+              <option value="50" className="bg-slate-900 text-slate-100">50 / page</option>
+            </select>
+
+            {/* Reset Filters */}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalSearch('');
+                  resetFilters();
+                }}
+                className="px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider bg-white/5 border border-white/10 text-slate-400 hover:text-slate-200 hover:bg-white/10 transition"
+              >
+                Reset
+              </button>
+            )}
+
+            <button
+              onClick={fetchProjects}
+              title="Refresh"
+              className="p-2.5 rounded-xl glass-input hover:border-white/20 transition-all duration-200 text-slate-400 hover:text-slate-200"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button
+              onClick={() => exportProjectsToExcel(filtered)}
+              title="Export to Excel"
+              className="p-2.5 rounded-xl glass-input hover:border-white/20 transition-all duration-200 text-slate-400 hover:text-slate-200 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Export Excel</span>
+            </button>
+          </div>
         </div>
 
         {/* ── Table ── */}
@@ -671,20 +802,20 @@ const MasterData = () => {
             {renderProjectTable(
               paginatedProjects,
               activeTab === 'running'
-                ? (search ? 'No matching running projects found.' : 'No running projects found. Create one to get started.')
-                : (search ? 'No matching archived projects found.' : 'No archived projects found.')
+                ? (hasActiveFilters ? 'No matching running projects found.' : 'No running projects found. Create one to get started.')
+                : (hasActiveFilters ? 'No matching archived projects found.' : 'No archived projects found.')
             )}
             
             {/* Pagination Footer */}
             <div className="px-5 py-4 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row justify-between items-center gap-4 text-xs select-none">
-              <span className="text-slate-400 font-medium font-mono">
+              <span className="text-slate-400 font-medium font-mono text-[11px]">
                 Showing <span className="font-extrabold text-slate-200">{activeProjectsList.length > 0 ? startIndex + 1 : 0}</span> to <span className="font-extrabold text-slate-200">{Math.min(startIndex + pageSize, activeProjectsList.length)}</span> of <span className="font-extrabold text-slate-200">{activeProjectsList.length}</span> records
               </span>
               {totalPages > 1 && (
                 <Pagination
-                  currentPage={currentPage}
+                  currentPage={activePage}
                   totalPages={totalPages}
-                  onPageChange={setCurrentPage}
+                  onPageChange={setPage}
                   maxVisible={5}
                 />
               )}
@@ -695,26 +826,26 @@ const MasterData = () => {
       </div>
 
       {/* ── Modals ── */}
-      {modal?.type === 'create' && (
+      {showCreateModal && (
         <ProjectFormModal
           mode="create"
           initial={EMPTY_FORM}
-          onClose={() => setModal(null)}
+          onClose={closeModal}
           onSave={handleCreate}
         />
       )}
-      {modal?.type === 'edit' && (
+      {showEditModal && targetProject && (
         <ProjectFormModal
           mode="edit"
-          initial={{ ...modal.project }}
-          onClose={() => setModal(null)}
+          initial={{ ...targetProject }}
+          onClose={closeModal}
           onSave={handleEdit}
         />
       )}
-      {modal?.type === 'status' && (
+      {showStatusModal && targetProject && (
         <StatusModal
-          project={modal.project}
-          onClose={() => setModal(null)}
+          project={targetProject}
+          onClose={closeModal}
           onSave={handleStatusChange}
         />
       )}
