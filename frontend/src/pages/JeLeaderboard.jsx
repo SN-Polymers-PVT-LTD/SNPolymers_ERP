@@ -3,19 +3,33 @@ import { useNavigate } from 'react-router-dom';
 import authApi from '../api/authApi';
 import { useAuth } from '../components/AuthContext';
 import { SkeletonTable, SkeletonCard, Pagination } from '../components/ui';
+import { useJeLeaderboardUrlState } from '../hooks/useJeLeaderboardUrlState';
 
 const JeLeaderboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [timeframe, setTimeframe] = useState('weekly'); // 'weekly' | 'monthly' | 'annually' | 'lifetime'
+
+  const {
+    timeframe,
+    setTimeframe,
+    searchQuery,
+    setSearchQuery,
+    page: currentPage,
+    setPage: setCurrentPage,
+    pageSize,
+    setPageSize,
+    resetFilters
+  } = useJeLeaderboardUrlState();
+
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Pagination & Search States
-  const [search, setSearch] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -37,21 +51,17 @@ const JeLeaderboard = () => {
     fetchLeaderboard();
   }, [timeframe]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, timeframe, pageSize]);
-
   const filteredLeaderboard = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = searchQuery.toLowerCase().trim();
     if (!q) return leaderboard;
     return leaderboard.filter(
       je =>
         (je.display_name && je.display_name.toLowerCase().includes(q)) ||
         (je.mobile_number && je.mobile_number.toLowerCase().includes(q))
     );
-  }, [leaderboard, search]);
+  }, [leaderboard, searchQuery]);
 
-  const totalPages = Math.ceil(filteredLeaderboard.length / pageSize) || 1;
+  const totalPages = Math.max(1, Math.ceil(filteredLeaderboard.length / pageSize));
   const paginatedLeaderboard = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredLeaderboard.slice(start, start + pageSize);
@@ -66,13 +76,21 @@ const JeLeaderboard = () => {
     topThree[2] || null  // 3rd Place (Bronze)
   ];
 
+  const hasActiveFilters = Boolean(searchQuery || timeframe !== 'weekly');
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fadeIn">
       {/* Header section with back navigation */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/5">
         <div>
           <button
-            onClick={() => navigate('/daily-progress')}
+            onClick={() => {
+              if (window.history.state && window.history.state.idx > 0) {
+                navigate(-1);
+              } else {
+                navigate('/daily-progress');
+              }
+            }}
             className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-amber-400 hover:text-amber-300 transition mb-3"
           >
             <svg className="w-4 h-4 transform group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -93,24 +111,39 @@ const JeLeaderboard = () => {
         </div>
 
         {/* Timeframe Filter Switcher */}
-        <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 shrink-0 self-stretch md:self-auto">
-          {[
-            { id: 'weekly', label: 'Weekly' },
-            { id: 'monthly', label: 'Monthly' },
-            { id: 'annually', label: 'Annually' },
-            { id: 'lifetime', label: 'All Time' }
-          ].map((tf) => (
-            <button
-              key={tf.id}
-              onClick={() => setTimeframe(tf.id)}
-              className={`flex-grow md:flex-none px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${timeframe === tf.id
-                  ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 font-black'
-                  : 'text-slate-400 hover:text-slate-200'
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex bg-white/5 p-1 rounded-2xl border border-white/5 shrink-0 self-stretch md:self-auto">
+            {[
+              { id: 'weekly', label: 'Weekly' },
+              { id: 'monthly', label: 'Monthly' },
+              { id: 'annually', label: 'Annually' },
+              { id: 'lifetime', label: 'All Time' }
+            ].map((tf) => (
+              <button
+                key={tf.id}
+                onClick={() => setTimeframe(tf.id)}
+                className={`flex-grow md:flex-none px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition ${
+                  timeframe === tf.id
+                    ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 font-black'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              onClick={() => {
+                setLocalSearch('');
+                resetFilters();
+              }}
+              className="px-3.5 py-2 rounded-xl border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-bold uppercase tracking-wider transition-all"
             >
-              {tf.label}
+              Reset Filters
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -121,37 +154,44 @@ const JeLeaderboard = () => {
       )}
 
       {loading ? (
-        <div className="space-y-6">
-          <SkeletonCard />
-          <SkeletonTable rows={5} cols={5} />
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+          <SkeletonTable rows={5} columns={6} />
         </div>
       ) : leaderboard.length === 0 ? (
-        <div className="glass-panel p-12 rounded-3xl text-center text-slate-400">
-          No progress activity logged for the selected timeframe yet.
+        <div className="glass-panel p-16 rounded-3xl text-center flex flex-col items-center justify-center border border-white/5">
+          <span className="text-4xl mb-3">📋</span>
+          <h2 className="text-sm font-bold uppercase tracking-widest text-slate-300">No Performance Data Found</h2>
+          <p className="text-xs text-slate-500 mt-1">No daily progress reports logged for the selected timeframe.</p>
         </div>
       ) : (
         <>
-          {/* Podium Section (Top 3 Performers) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end pt-4">
+          {/* Top 3 Podium Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
             {podiumOrder.map((je, idx) => {
-              if (!je) return <div key={idx} />;
-
+              if (!je) return null;
               const isFirst = je.rank === 1;
               const isSecond = je.rank === 2;
 
               return (
                 <div
                   key={je.mobile_number}
-                  className={`glass-panel p-6 rounded-3xl relative overflow-hidden flex flex-col items-center text-center transition-all duration-300 ${isFirst
-                      ? 'border-2 border-amber-400/60 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-transparent md:-translate-y-4 shadow-[0_0_30px_rgba(245,158,11,0.2)]'
+                  className={`glass-panel p-6 rounded-3xl relative overflow-hidden flex flex-col items-center text-center transition-transform duration-300 hover:scale-[1.02] shadow-xl ${
+                    isFirst
+                      ? 'border-2 border-amber-400/60 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-transparent md:-translate-y-4'
                       : isSecond
-                        ? 'border border-slate-300/40 bg-gradient-to-b from-slate-300/10 to-transparent'
-                        : 'border border-amber-700/40 bg-gradient-to-b from-amber-700/10 to-transparent'
-                    }`}
+                      ? 'border border-slate-300/40 bg-gradient-to-b from-slate-300/10 to-transparent'
+                      : 'border border-amber-700/40 bg-gradient-to-b from-amber-700/10 to-transparent'
+                  }`}
                 >
                   {/* Rank badge */}
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl mb-4 shadow-lg ${isFirst ? 'bg-amber-400 text-slate-950' : isSecond ? 'bg-slate-300 text-slate-950' : 'bg-amber-700 text-slate-100'
-                    }`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl mb-4 shadow-lg ${
+                    isFirst ? 'bg-amber-400 text-slate-950' : isSecond ? 'bg-slate-300 text-slate-950' : 'bg-amber-700 text-slate-100'
+                  }`}>
                     #{je.rank}
                   </div>
 
@@ -202,8 +242,11 @@ const JeLeaderboard = () => {
                 <input
                   type="text"
                   placeholder="Search engineer..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={localSearch}
+                  onChange={(e) => {
+                    setLocalSearch(e.target.value);
+                    setSearchQuery(e.target.value);
+                  }}
                   className="px-3.5 py-1.5 rounded-xl text-xs bg-slate-950/80 border border-white/10 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 w-full sm:w-48 font-medium"
                 />
 
@@ -246,7 +289,9 @@ const JeLeaderboard = () => {
                     paginatedLeaderboard.map((je) => (
                       <tr
                         key={je.mobile_number}
-                        className={`hover:bg-white/[0.02] transition ${user?.mobile_number === je.mobile_number ? 'bg-amber-500/10 border-l-4 border-l-amber-500' : ''}`}
+                        className={`hover:bg-white/[0.02] transition ${
+                          user?.mobile_number === je.mobile_number ? 'bg-amber-500/10 border-l-4 border-l-amber-500' : ''
+                        }`}
                       >
                         <td className="p-4 text-center font-mono font-bold text-slate-400">
                           #{je.rank}
@@ -294,7 +339,6 @@ const JeLeaderboard = () => {
           </div>
         </>
       )}
-
     </div>
   );
 };
