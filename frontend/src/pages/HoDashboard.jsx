@@ -26,6 +26,7 @@ import { SCurveProgressChart } from '../components/analytics/charts/SCurveProgre
 import { EMPTY_ARRAY } from '../utils/constants';
 import { BubbleRiskMatrixChart } from '../components/analytics/charts/BubbleRiskMatrixChart';
 import { WorkOrderTelemetryTable } from '../components/analytics/charts/WorkOrderTelemetryTable';
+import { useHoDashboardUrlState } from '../hooks/useHoDashboardUrlState';
 
 const ZonalPerformanceHeatmap = ({ data, onSelectZone, selectedZone }) => {
   const [page, setPage] = useState(1);
@@ -744,40 +745,47 @@ const HoDashboard = () => {
   const { isDark } = useTheme();
   const [alertMsg, setAlertMsg] = useState(null);
   const [alertType, setAlertType] = useState('success'); // 'success' or 'error'
-  const [activeView, _setActiveView] = useState('all'); // 'all' | 'zo' | 'je' | 'wo'
-  const [selectedZone, setSelectedZone] = useState(null); // Filter for telemetry table
-  const [zoomedChart, setZoomedChart] = useState(null); // null | 'bubble' | 'fundflow' | 'zonal' | 'runway' | 'scurve' | 'revision'
-  const [kpiDetailModal, setKpiDetailModal] = useState(null); // null | { title, filterType, projects: [] }
 
-  // Strict Project Status & Date Range Filters
-  const [projectStatusFilter, setProjectStatusFilter] = useState('all'); // 'all' | 'Running' | 'Closed' | 'Complete Under Maintenance'
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [datePreset, setDatePreset] = useState('all'); // 'all' | 'month' | 'quarter' | 'half' | 'custom'
+  const {
+    selectedZone,
+    setSelectedZone,
+    projectStatusFilter,
+    setProjectStatusFilter,
+    datePreset,
+    startDate,
+    endDate,
+    handleDatePreset,
+    setCustomDateRange,
+    activeView,
+    setActiveView: _setActiveView,
+    zoomedChart,
+    openZoom,
+    closeZoom,
+    kpiModal,
+    openKpiModal,
+    closeKpiModal,
+    resetFilters
+  } = useHoDashboardUrlState();
 
-  const handleDatePreset = (preset) => {
-    setDatePreset(preset);
-    const now = new Date();
-    if (preset === 'all') {
-      setStartDate('');
-      setEndDate('');
-    } else if (preset === 'month') {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-      const today = now.toISOString().slice(0, 10);
-      setStartDate(firstDay);
-      setEndDate(today);
-    } else if (preset === 'quarter') {
-      const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const today = now.toISOString().slice(0, 10);
-      setStartDate(threeMonthsAgo);
-      setEndDate(today);
-    } else if (preset === 'half') {
-      const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-      const today = now.toISOString().slice(0, 10);
-      setStartDate(sixMonthsAgo);
-      setEndDate(today);
-    }
-  };
+  const resolvedKpiModal = useMemo(() => {
+    if (!kpiModal) return null;
+    const kpiDefinitions = {
+      total: { label: 'Total Projects', color: 'text-indigo-400', filterFn: null },
+      running: { label: 'Running Projects', color: 'text-emerald-400', filterFn: (p) => p.status === 'Running' },
+      closed: { label: 'Closed Projects', color: 'text-slate-400', filterFn: (p) => p.status === 'Closed' },
+      maintenance: { label: 'Under Maintenance', color: 'text-amber-400', filterFn: (p) => p.status === 'Complete Under Maintenance' },
+      at_risk: { label: 'At-Risk Projects', color: 'text-rose-400', filterFn: (p) => p.health_score < 60 || p.days_since_dpr > 14 },
+      delayed: { label: 'Delayed Reporting', color: 'text-orange-400', filterFn: (p) => p.days_since_dpr > 7 },
+      health: { label: 'Avg Health', color: 'text-violet-400', filterFn: null },
+    };
+    const def = kpiDefinitions[kpiModal] || { label: kpiModal, color: 'text-slate-100', filterFn: null };
+    const filtered = def.filterFn ? filteredProjects.filter(def.filterFn) : filteredProjects;
+    return {
+      title: def.label,
+      color: def.color,
+      projects: filtered
+    };
+  }, [kpiModal, filteredProjects]);
 
   // Fetch actionable insights (runways, stalled)
   const { data: insightsRes } = useQuery({
@@ -1022,10 +1030,7 @@ const HoDashboard = () => {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setDatePreset('custom');
-                }}
+                onChange={(e) => setCustomDateRange(e.target.value, endDate)}
                 className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
               />
             </div>
@@ -1034,10 +1039,7 @@ const HoDashboard = () => {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setDatePreset('custom');
-                }}
+                onChange={(e) => setCustomDateRange(startDate, e.target.value)}
                 className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
               />
             </div>
@@ -1151,7 +1153,7 @@ const HoDashboard = () => {
       </div>
       {/* ── Row 1: Fund Flow Waterfall (1/2) + Bubble Risk Matrix (1/2) ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('fundflow')}>
+        <ZoomCard className="lg:col-span-1" onZoom={() => openZoom('fundflow')}>
           <div style={{ minHeight: '480px' }} className="h-full">
             <FundFlowWaterfallChart
               data={chartRes?.waterfallData}
@@ -1159,7 +1161,7 @@ const HoDashboard = () => {
             />
           </div>
         </ZoomCard>
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('bubble')}>
+        <ZoomCard className="lg:col-span-1" onZoom={() => openZoom('bubble')}>
           <div style={{ minHeight: '480px' }} className="h-full">
             <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} />
           </div>
@@ -1173,17 +1175,17 @@ const HoDashboard = () => {
       </div>
       {/* ── Row 2: Physical Work Progress + Department Wise Estimate + Key Financial Indicators ── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('physical_progress')}>
+        <ZoomCard className="lg:col-span-4" onZoom={() => openZoom('physical_progress')}>
           <div style={{ minHeight: '520px' }} className="h-full">
             <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} />
           </div>
         </ZoomCard>
-        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('department')}>
+        <ZoomCard className="lg:col-span-4" onZoom={() => openZoom('department')}>
           <div style={{ minHeight: '520px' }} className="h-full">
             <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} />
           </div>
         </ZoomCard>
-        <ZoomCard className="lg:col-span-4" onZoom={() => setZoomedChart('key_financials')}>
+        <ZoomCard className="lg:col-span-4" onZoom={() => openZoom('key_financials')}>
           <div style={{ minHeight: '520px' }} className="h-full">
             <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} />
           </div>
@@ -1196,7 +1198,7 @@ const HoDashboard = () => {
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
       {/* ── Row 3: Zonal Performance Heatmap (full-width) ─────────────── */}
-      <ZoomCard className="mb-6" onZoom={() => setZoomedChart('zonal')}>
+      <ZoomCard className="mb-6" onZoom={() => openZoom('zonal')}>
         <ZonalPerformanceHeatmap
           data={chartRes?.zonalHeatmap || []}
           onSelectZone={setSelectedZone}
@@ -1210,13 +1212,13 @@ const HoDashboard = () => {
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6 items-start">
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('runway')}>
+        <ZoomCard className="lg:col-span-1" onZoom={() => openZoom('runway')}>
           <PredictiveRunwayLines
             trendData={chartRes?.runwayTrend || []}
             runwayData={insightsRes?.runwayData || []}
           />
         </ZoomCard>
-        <ZoomCard className="lg:col-span-1" onZoom={() => setZoomedChart('scurve')}>
+        <ZoomCard className="lg:col-span-1" onZoom={() => openZoom('scurve')}>
           <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} />
         </ZoomCard>
       </div>
@@ -1226,7 +1228,7 @@ const HoDashboard = () => {
         <span className="font-mono text-[9.5px] uppercase tracking-[2.5px] text-slate-500">Financial Realization &amp; Bill Recovery</span>
         <div className="flex-1 h-px bg-white/[0.045]" />
       </div>
-      <ZoomCard className="mb-6" onZoom={() => setZoomedChart('revision')}>
+      <ZoomCard className="mb-6" onZoom={() => openZoom('revision')}>
         <InvestmentRecoveryPlot
           projects={filteredProjects}
           agencyPaymentAmount={chartRes?.executiveSummaryKpis?.agencyPayment?.amount}
@@ -1335,12 +1337,16 @@ const HoDashboard = () => {
           <div
             key={label}
             onClick={() => {
-              const filtered = filterFn ? filteredProjects.filter(filterFn) : filteredProjects;
-              setKpiDetailModal({
-                title: label,
-                color,
-                projects: filtered
-              });
+              const kpiKeyMap = {
+                'Total Projects': 'total',
+                'Running Projects': 'running',
+                'Closed Projects': 'closed',
+                'Under Maintenance': 'maintenance',
+                'At-Risk Projects': 'at_risk',
+                'Delayed Reporting': 'delayed',
+                'Avg Health': 'health'
+              };
+              openKpiModal(kpiKeyMap[label] || label);
             }}
             className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-xl ${border} ${glow} ${isDark ? 'bg-slate-900/40 text-slate-100' : 'bg-white/80 border-slate-200 shadow-sm text-slate-900'
               } flex flex-col justify-between group cursor-pointer`}
@@ -1391,32 +1397,32 @@ const HoDashboard = () => {
 
       {/* ── Fullscreen Chart Zoom Modal (Dynamic Class Component) ───────── */}
       {zoomedChart === 'physical_progress' && (
-        <ChartModal title="Physical Work Progress Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Physical Work Progress Telemetry" isDark={isDark} onClose={closeZoom}>
           <PhysicalWorkProgress data={chartRes?.physicalProgressMetrics} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'je_visit' && (
-        <ChartModal title="JE Visit Frequency Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title="JE Visit Frequency Telemetry" isDark={isDark} onClose={closeZoom}>
           <JeVisitFrequency data={chartRes?.jeVisitFrequencyMetrics} />
         </ChartModal>
       )}
       {zoomedChart === 'department' && (
-        <ChartModal title="Department Wise Work Order Value Breakdown" isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Department Wise Work Order Value Breakdown" isDark={isDark} onClose={closeZoom}>
           <DepartmentWiseEstimateChart items={chartRes?.departmentWiseEstimate} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'key_financials' && (
-        <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Key Financial Indicators Telemetry" isDark={isDark} onClose={closeZoom}>
           <KeyFinancialIndicators data={chartRes?.keyFinancialIndicators} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'bubble' && (
-        <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Bubble Risk Matrix Inspection" isDark={isDark} width="96vw" height="92vh" onClose={closeZoom}>
           <BubbleRiskMatrixChart bubbleMatrixData={chartRes?.bubbleMatrix} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
       {zoomedChart === 'fundflow' && (
-        <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Fund Flow Pipeline Inspection" isDark={isDark} width="96vw" height="92vh" onClose={closeZoom}>
           <FundFlowWaterfallChart
             data={chartRes?.waterfallData}
             projects={filteredProjects}
@@ -1425,17 +1431,17 @@ const HoDashboard = () => {
         </ChartModal>
       )}
       {zoomedChart === 'zonal' && (
-        <ChartModal title="Zonal Performance Heatmap Inspection" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Zonal Performance Heatmap Inspection" isDark={isDark} width="96vw" height="92vh" onClose={closeZoom}>
           <ZonalPerformanceHeatmap data={chartRes?.zonalHeatmap || []} onSelectZone={setSelectedZone} selectedZone={selectedZone} />
         </ChartModal>
       )}
       {zoomedChart === 'runway' && (
-        <ChartModal title="Predictive Cash Runway & Projections" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+        <ChartModal title="Predictive Cash Runway & Projections" isDark={isDark} width="96vw" height="92vh" onClose={closeZoom}>
           <PredictiveRunwayLines trendData={chartRes?.runwayTrend || []} runwayData={insightsRes?.runwayData || []} />
         </ChartModal>
       )}
       {zoomedChart === 'scurve' && (
-        <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={() => setZoomedChart(null)}>
+        <ChartModal title="S-Curve Performance Progress" isDark={isDark} width="96vw" height="92vh" onClose={closeZoom}>
           <SCurveProgressChart sCurveData={chartRes?.sCurveData} projects={filteredProjects} isModal={true} />
         </ChartModal>
       )}
@@ -1447,7 +1453,7 @@ const HoDashboard = () => {
           isDark={isDark}
           width="96vw"
           height="92vh"
-          onClose={() => setZoomedChart(null)}
+          onClose={closeZoom}
         >
           <InvestmentRecoveryPlot
             projects={filteredProjects}
@@ -1458,12 +1464,12 @@ const HoDashboard = () => {
       )}
 
       {/* ── KPI Details Modal ─────────────────────────────────────────── */}
-      {kpiDetailModal && (
+      {resolvedKpiModal && (
         <KpiDetailsModal
-          title={kpiDetailModal.title}
-          colorClass={kpiDetailModal.color}
-          projects={kpiDetailModal.projects}
-          onClose={() => setKpiDetailModal(null)}
+          title={resolvedKpiModal.title}
+          colorClass={resolvedKpiModal.color}
+          projects={resolvedKpiModal.projects}
+          onClose={closeKpiModal}
         />
       )}
 
