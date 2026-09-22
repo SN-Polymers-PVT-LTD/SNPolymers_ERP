@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../components/AuthContext';
-import { Button, Input, FormattedCurrencyInput, TextArea, Badge, Modal, SkeletonTable } from '../components/ui';
+import { Button, Input, FormattedCurrencyInput, TextArea, Badge, Modal, SkeletonTable, Pagination } from '../components/ui';
 import { getReports, getDeletedReports, createReport, updateReport, deleteReport, restoreReport } from '../api/reportsApi';
 import { getProjects } from '../api/projectsApi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFundReportsUrlState } from '../hooks/useFundReportsUrlState';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = { work_order_no: '', amount: '', remarks: '' };
@@ -224,10 +225,31 @@ const FundReports = () => {
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [tab, setTab] = useState('active'); // 'active' | 'deleted'
-  const [search, setSearch] = useState('');
-  const [modal, setModal] = useState(null); // { type, report? }
   const [confirmModal, setConfirmModal] = useState(null); // { type, id, message }
+
+  const {
+    tab,
+    setTab,
+    searchQuery,
+    setSearchQuery,
+    page,
+    setPage,
+    pageSize,
+    workOrderNo,
+    reportId,
+    isCreateModalOpen,
+    isEditModalOpen,
+    openCreateModal,
+    openEditModal,
+    closeModal,
+    resetFilters
+  } = useFundReportsUrlState();
+
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
 
   // Fetch active reports using React Query
   const { data: reportsData, isLoading: loadingReports, error: reportsError } = useQuery({
@@ -275,6 +297,7 @@ const FundReports = () => {
     try {
       await createReport(form);
       setSuccess('Fund report created successfully.');
+      closeModal();
       queryClient.invalidateQueries({ queryKey: ['fundReports'] });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create report.');
@@ -283,8 +306,9 @@ const FundReports = () => {
 
   const handleUpdate = async (form) => {
     try {
-      await updateReport(modal.report.fund_report_id, { amount: form.amount, remarks: form.remarks });
+      await updateReport(reportId, { amount: form.amount, remarks: form.remarks });
       setSuccess('Fund report updated successfully.');
+      closeModal();
       queryClient.invalidateQueries({ queryKey: ['fundReports'] });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update report.');
@@ -314,26 +338,48 @@ const FundReports = () => {
   };
 
   // ── Filtered lists ──
-  const activeFiltered = reports.filter((r) => {
-    const q = search.toLowerCase();
-    return (
-      !q ||
-      r.work_order_no?.toLowerCase().includes(q) ||
-      r.projects_master?.state?.toLowerCase().includes(q) ||
-      r.projects_master?.district?.toLowerCase().includes(q) ||
-      r.remarks?.toLowerCase().includes(q)
-    );
-  });
+  const activeFiltered = useMemo(() => {
+    return reports.filter((r) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      const pm = r.projects_master ?? {};
+      return (
+        r.work_order_no?.toLowerCase().includes(q) ||
+        r.remarks?.toLowerCase().includes(q) ||
+        pm.state?.toLowerCase().includes(q) ||
+        pm.district?.toLowerCase().includes(q) ||
+        pm.department?.toLowerCase().includes(q)
+      );
+    });
+  }, [reports, searchQuery]);
 
-  const deletedFiltered = deletedReports.filter((r) => {
-    const q = search.toLowerCase();
-    return !q || r.work_order_no?.toLowerCase().includes(q);
-  });
+  const deletedFiltered = useMemo(() => {
+    return deletedReports.filter((r) => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      return r.work_order_no?.toLowerCase().includes(q) || r.remarks?.toLowerCase().includes(q);
+    });
+  }, [deletedReports, searchQuery]);
 
-  // ── Stat cards ──
+  const currentList = tab === 'active' ? activeFiltered : deletedFiltered;
+  const totalPages = Math.max(1, Math.ceil(currentList.length / pageSize));
+  const paginatedList = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return currentList.slice(start, start + pageSize);
+  }, [currentList, page, pageSize]);
+
+  // Find active editing report from ID
+  const editingReport = useMemo(() => {
+    if (!isEditModalOpen || !reportId) return null;
+    return reports.find((r) => String(r.fund_report_id) === String(reportId)) || null;
+  }, [isEditModalOpen, reportId, reports]);
+
+  // ── KPI stats ──
   const totalAmount = reports.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
   const runningCount = reports.filter((r) => r.projects_master?.status === 'Running').length;
   const closedCount = reports.filter((r) => r.projects_master?.status === 'Closed').length;
+
+  const hasActiveFilters = Boolean(searchQuery);
 
   return (
     <>
@@ -352,7 +398,7 @@ const FundReports = () => {
           </div>
           <Button
             id="btn-create-report"
-            onClick={() => setModal({ type: 'create' })}
+            onClick={() => openCreateModal()}
             variant="primary"
             icon={
               <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -415,8 +461,11 @@ const FundReports = () => {
               id="search-reports"
               type="text"
               placeholder="Search reports…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setSearchQuery(e.target.value);
+              }}
               size="sm"
               iconLeft={
                 <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -425,6 +474,19 @@ const FundReports = () => {
               }
               containerClassName="w-52"
             />
+            {hasActiveFilters && (
+              <Button
+                onClick={() => {
+                  setLocalSearch('');
+                  resetFilters();
+                }}
+                variant="ghost"
+                size="sm"
+                className="text-xs text-amber-400 hover:text-amber-300"
+              >
+                Clear
+              </Button>
+            )}
             <Button
               onClick={() => queryClient.invalidateQueries({ queryKey: ['fundReports'] })}
               title="Refresh"
@@ -445,7 +507,7 @@ const FundReports = () => {
               <SkeletonTable rows={5} cols={8} />
             ) : activeFiltered.length === 0 ? (
               <div className="text-center p-24 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
-                {search ? 'No matching reports.' : 'No active fund reports. Create one to get started.'}
+                {searchQuery ? 'No matching reports.' : 'No active fund reports. Create one to get started.'}
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -458,7 +520,7 @@ const FundReports = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-xs text-slate-300">
-                    {activeFiltered.map((report) => {
+                    {paginatedList.map((report) => {
                       const pm = report.projects_master ?? {};
                       const closed = pm.status === 'Closed';
                       return (
@@ -487,7 +549,7 @@ const FundReports = () => {
                               {!closed && (
                                 <button
                                   id={`btn-edit-report-${report.fund_report_id}`}
-                                  onClick={() => setModal({ type: 'edit', report })}
+                                  onClick={() => openEditModal(report.fund_report_id)}
                                   title="Edit"
                                   className="p-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 hover:bg-indigo-500/20 transition-all"
                                 >
@@ -530,9 +592,25 @@ const FundReports = () => {
                     })}
                   </tbody>
                 </table>
-                <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
-                  Showing {activeFiltered.length} of {reports.length} active records
-                </div>
+                
+                {/* Pagination Controls Footer */}
+                {totalPages > 1 ? (
+                  <div className="p-4 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs select-none">
+                    <span className="text-slate-400 font-bold">
+                      Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, activeFiltered.length)} of {activeFiltered.length} records (Page {page} of {totalPages})
+                    </span>
+                    <Pagination
+                      currentPage={page}
+                      totalPages={totalPages}
+                      onPageChange={setPage}
+                      maxVisible={5}
+                    />
+                  </div>
+                ) : (
+                  <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
+                    Showing {activeFiltered.length} of {reports.length} active records
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -558,7 +636,7 @@ const FundReports = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5 text-xs text-slate-400">
-                    {deletedFiltered.map((r) => (
+                    {paginatedList.map((r) => (
                       <tr key={r.fund_report_id} className="hover:bg-white/[0.02] transition-colors duration-200">
                         <td className="py-4 px-5 font-mono font-semibold text-slate-300">{r.work_order_no}</td>
                         <td className="py-4 px-5 font-mono font-bold text-slate-400">{formatCurrency(r.amount)}</td>
@@ -586,9 +664,25 @@ const FundReports = () => {
                     ))}
                   </tbody>
                 </table>
-                <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
-                  {deletedFiltered.length} deleted record{deletedFiltered.length !== 1 ? 's' : ''}
-                </div>
+
+                {/* Pagination Controls Footer for Deleted Tab */}
+                {totalPages > 1 ? (
+                  <div className="p-4 border-t border-white/5 bg-white/[0.01] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs select-none">
+                    <span className="text-slate-400 font-bold">
+                      Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, deletedFiltered.length)} of {deletedFiltered.length} records (Page {page} of {totalPages})
+                    </span>
+                    <Pagination
+                      currentPage={page}
+                      totalPages={totalPages}
+                      onPageChange={setPage}
+                      maxVisible={5}
+                    />
+                  </div>
+                ) : (
+                  <div className="px-5 py-3 border-t border-white/5 bg-white/[0.01] text-[10px] text-slate-600 font-mono">
+                    {deletedFiltered.length} deleted record{deletedFiltered.length !== 1 ? 's' : ''}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -596,25 +690,25 @@ const FundReports = () => {
       </main>
 
       {/* ── Report Form Modals ── */}
-      {modal?.type === 'create' && (
+      {isCreateModalOpen && (
         <ReportFormModal
           mode="create"
-          initial={EMPTY_FORM}
+          initial={workOrderNo ? { work_order_no: workOrderNo, amount: '', remarks: '' } : EMPTY_FORM}
           projects={projects}
-          onClose={() => setModal(null)}
+          onClose={closeModal}
           onSave={handleCreate}
         />
       )}
-      {modal?.type === 'edit' && (
+      {isEditModalOpen && (
         <ReportFormModal
           mode="edit"
           initial={{
-            work_order_no: modal.report.work_order_no,
-            amount: modal.report.amount,
-            remarks: modal.report.remarks || '',
+            work_order_no: editingReport?.work_order_no || '',
+            amount: editingReport?.amount || '',
+            remarks: editingReport?.remarks || '',
           }}
           projects={projects}
-          onClose={() => setModal(null)}
+          onClose={closeModal}
           onSave={handleUpdate}
         />
       )}
@@ -622,6 +716,7 @@ const FundReports = () => {
       {/* ── Confirm Modal ── */}
       {confirmModal && (
         <ConfirmModal
+          show={Boolean(confirmModal)}
           message={confirmModal.message}
           danger={confirmModal.type === 'delete'}
           onClose={() => setConfirmModal(null)}
