@@ -34,6 +34,22 @@ describe('useDocsUrlState hook', () => {
     expect(result.current.searchQuery).toBe('telegram');
   });
 
+  it('hydrates the legacy search alias and writes the canonical q parameter', () => {
+    const { result } = renderHook(() => {
+      const state = useDocsUrlState();
+      return { ...state, location: useLocation() };
+    }, {
+      wrapper: wrapperWithRoute('/docs/account-setup?search=telegram&unrelated=keep')
+    });
+
+    expect(result.current.searchQuery).toBe('telegram');
+    act(() => result.current.setSearchQuery('estimation', { debounce: false }));
+
+    expect(result.current.location.search).toContain('q=estimation');
+    expect(result.current.location.search).not.toContain('search=telegram');
+    expect(result.current.location.search).toContain('unrelated=keep');
+  });
+
   it('updates search query immediately when debounce is false', () => {
     const { result } = renderHook(() => {
       const state = useDocsUrlState();

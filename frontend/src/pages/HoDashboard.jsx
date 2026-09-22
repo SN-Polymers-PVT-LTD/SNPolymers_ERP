@@ -767,26 +767,6 @@ const HoDashboard = () => {
     resetFilters
   } = useHoDashboardUrlState();
 
-  const resolvedKpiModal = useMemo(() => {
-    if (!kpiModal) return null;
-    const kpiDefinitions = {
-      total: { label: 'Total Projects', color: 'text-indigo-400', filterFn: null },
-      running: { label: 'Running Projects', color: 'text-emerald-400', filterFn: (p) => p.status === 'Running' },
-      closed: { label: 'Closed Projects', color: 'text-slate-400', filterFn: (p) => p.status === 'Closed' },
-      maintenance: { label: 'Under Maintenance', color: 'text-amber-400', filterFn: (p) => p.status === 'Complete Under Maintenance' },
-      at_risk: { label: 'At-Risk Projects', color: 'text-rose-400', filterFn: (p) => p.health_score < 60 || p.days_since_dpr > 14 },
-      delayed: { label: 'Delayed Reporting', color: 'text-orange-400', filterFn: (p) => p.days_since_dpr > 7 },
-      health: { label: 'Avg Health', color: 'text-violet-400', filterFn: null },
-    };
-    const def = kpiDefinitions[kpiModal] || { label: kpiModal, color: 'text-slate-100', filterFn: null };
-    const filtered = def.filterFn ? filteredProjects.filter(def.filterFn) : filteredProjects;
-    return {
-      title: def.label,
-      color: def.color,
-      projects: filtered
-    };
-  }, [kpiModal, filteredProjects]);
-
   // Fetch actionable insights (runways, stalled)
   const { data: insightsRes } = useQuery({
     queryKey: ['hoInsights'],
@@ -858,6 +838,25 @@ const HoDashboard = () => {
     }
     return list;
   }, [stalledProjects, selectedZone, projectStatusFilter]);
+
+  const resolvedKpiModal = useMemo(() => {
+    if (!kpiModal) return null;
+    const kpiDefinitions = {
+      total: { label: 'Total Projects', color: 'text-indigo-400', filterFn: null },
+      running: { label: 'Running Projects', color: 'text-emerald-400', filterFn: (p) => p.status === 'Running' },
+      closed: { label: 'Closed Projects', color: 'text-slate-400', filterFn: (p) => p.status === 'Closed' },
+      maintenance: { label: 'Under Maintenance', color: 'text-amber-400', filterFn: (p) => p.status === 'Complete Under Maintenance' },
+      at_risk: { label: 'At-Risk Projects', color: 'text-rose-400', filterFn: (p) => p.health_score < 60 || p.days_since_dpr > 14 },
+      delayed: { label: 'Delayed Reporting', color: 'text-orange-400', filterFn: (p) => p.days_since_dpr > 7 },
+      health: { label: 'Avg Health', color: 'text-violet-400', filterFn: null },
+    };
+    const def = kpiDefinitions[kpiModal] || { label: kpiModal, color: 'text-slate-100', filterFn: null };
+    return {
+      title: def.label,
+      color: def.color,
+      projects: def.filterFn ? filteredProjects.filter(def.filterFn) : filteredProjects
+    };
+  }, [kpiModal, filteredProjects]);
 
 
   // 1. Fetch HO KPIs

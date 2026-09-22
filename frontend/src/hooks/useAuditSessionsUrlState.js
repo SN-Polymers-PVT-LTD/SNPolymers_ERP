@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 
 /**
@@ -10,6 +10,10 @@ export function useAuditSessionsUrlState() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const debounceTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+  }, []);
 
   // 1. Operator / User ID Filter
   const userId = useMemo(() => {
@@ -59,10 +63,8 @@ export function useAuditSessionsUrlState() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (id) next.set('userId', id);
-      else {
-        next.delete('userId');
-        next.delete('user');
-      }
+      else next.delete('userId');
+      next.delete('user');
       next.delete('page');
       return next;
     }, { replace });
@@ -72,10 +74,8 @@ export function useAuditSessionsUrlState() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (val) next.set('dateFrom', val);
-      else {
-        next.delete('dateFrom');
-        next.delete('from');
-      }
+      else next.delete('dateFrom');
+      next.delete('from');
       next.delete('page');
       return next;
     }, { replace });
@@ -85,10 +85,8 @@ export function useAuditSessionsUrlState() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (val) next.set('dateTo', val);
-      else {
-        next.delete('dateTo');
-        next.delete('to');
-      }
+      else next.delete('dateTo');
+      next.delete('to');
       next.delete('page');
       return next;
     }, { replace });
@@ -112,8 +110,8 @@ export function useAuditSessionsUrlState() {
           next.set('q', q.trim());
         } else {
           next.delete('q');
-          next.delete('search');
         }
+        next.delete('search');
         next.delete('page');
         return next;
       }, { replace });
@@ -147,10 +145,10 @@ export function useAuditSessionsUrlState() {
       const s = parseInt(size, 10);
       if (isNaN(s) || s === 20) {
         next.delete('page_size');
-        next.delete('limit');
       } else {
         next.set('page_size', String(s));
       }
+      next.delete('limit');
       next.delete('page');
       return next;
     }, { replace });
@@ -182,27 +180,19 @@ export function useAuditSessionsUrlState() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (filters.userId) next.set('userId', filters.userId);
-      else {
-        next.delete('userId');
-        next.delete('user');
-      }
+      else next.delete('userId');
+      next.delete('user');
       if (filters.dateFrom) next.set('dateFrom', filters.dateFrom);
-      else {
-        next.delete('dateFrom');
-        next.delete('from');
-      }
+      else next.delete('dateFrom');
+      next.delete('from');
       if (filters.dateTo) next.set('dateTo', filters.dateTo);
-      else {
-        next.delete('dateTo');
-        next.delete('to');
-      }
+      else next.delete('dateTo');
+      next.delete('to');
       if (filters.status && filters.status !== 'all') next.set('status', filters.status);
       else next.delete('status');
       if (filters.q && filters.q.trim()) next.set('q', filters.q.trim());
-      else {
-        next.delete('q');
-        next.delete('search');
-      }
+      else next.delete('q');
+      next.delete('search');
       next.delete('page');
       return next;
     }, { replace });

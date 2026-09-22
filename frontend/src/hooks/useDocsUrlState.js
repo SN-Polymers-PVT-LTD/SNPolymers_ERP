@@ -11,6 +11,10 @@ export function useDocsUrlState() {
   const navigate = useNavigate();
   const debounceTimerRef = useRef(null);
 
+  useEffect(() => () => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+  }, []);
+
   // 1. Resolved active pageId (defaulting to 'what-is-idbp')
   const activePageId = useMemo(() => {
     return pageId || 'what-is-idbp';
@@ -44,8 +48,8 @@ export function useDocsUrlState() {
           next.set('q', q.trim());
         } else {
           next.delete('q');
-          next.delete('search');
         }
+        next.delete('search');
         return next;
       }, { replace });
     };

@@ -5,9 +5,13 @@ import authApi from '../api/authApi';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+export const AuthProvider = ({
+  children,
+  initialUser = undefined,
+  initialLoading = initialUser !== undefined ? false : true
+}) => {
+  const [user, setUser] = useState(initialUser !== undefined ? initialUser : null);
+  const [loading, setLoading] = useState(initialLoading);
   const queryClient = useQueryClient();
 
   const checkAuth = async () => {
@@ -26,9 +30,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    Promise.resolve().then(() => {
-      checkAuth();
-    });
+    if (initialUser === undefined) {
+      Promise.resolve().then(() => {
+        checkAuth();
+      });
+    }
 
     const handleAuthFailure = async () => {
       queryClient.clear();

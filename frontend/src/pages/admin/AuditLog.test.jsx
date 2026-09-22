@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import AuditLog from './AuditLog';
 import { ModalProvider } from '../../components/ModalContext';
+import { LocationProbe, readLocation } from '../../test/routerTestUtils';
 
 const mockUsers = [
   { id: 'usr_1', display_name: 'Alice Officer', mobile_number: '9876543210', role: 'zo' },
@@ -64,6 +65,7 @@ const renderAuditLog = (initialEntry = '/admin/sessions') => {
         <Routes>
           <Route path="/admin/sessions" element={<AuditLog />} />
         </Routes>
+        <LocationProbe />
       </MemoryRouter>
     </ModalProvider>
   );
@@ -159,5 +161,67 @@ describe('AuditLog Component', () => {
     expect(screen.getByText('Origin IP Address')).toBeInTheDocument();
     expect(screen.getAllByText('10.0.0.5').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Firefox\/122\.0/).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('does not open the inspector when a deep link has no session ID', async () => {
+    renderAuditLog('/admin/sessions?modal=inspect');
+
+    expect(await screen.findByText('Alice Officer')).toBeInTheDocument();
+    expect(screen.queryByText('Session Integrity & Network Telemetry')).not.toBeInTheDocument();
+  });
+
+  it('renders a safe missing-session state for an unknown inspector deep link', async () => {
+    renderAuditLog('/admin/sessions?modal=inspect&sessionId=does-not-exist');
+
+    expect(await screen.findByText('Alice Officer')).toBeInTheDocument();
+    expect(screen.getByText('Session Integrity & Network Telemetry')).toBeInTheDocument();
+    expect(screen.getByText('Loading session details or session no longer exists.')).toBeInTheDocument();
+  });
+
+  it('hydrates a filtered, paginated audit-session deep link', async () => {
+    renderAuditLog('/admin/sessions?userId=usr_2&status=expired&q=Firefox&page=2&page_size=50');
+
+    expect(await screen.findByText('Bob Admin')).toBeInTheDocument();
+    expect(screen.queryByText('Alice Officer')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/Search Operator, Mobile, IP, or Browser/i)).toHaveValue('Firefox');
+    expect(readLocation()).toContain('page_size=50');
+  });
+
+  it('preserves list state while opening and closing the nested inspector', async () => {
+    renderAuditLog('/admin/sessions?status=active&q=Alice&page=2');
+
+    expect(await screen.findByText('Alice Officer')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Inspect/i }));
+
+    await waitFor(() => expect(readLocation()).toContain('modal=inspect'));
+    expect(readLocation()).toContain('status=active');
+    expect(readLocation()).toContain('q=Alice');
+    expect(readLocation()).toContain('page=2');
+
+    fireEvent.click(screen.getByRole('button', { name: /Close Telemetry/i }));
+    await waitFor(() => expect(screen.queryByText('Session ID: sess_1')).not.toBeInTheDocument());
+    expect(readLocation()).toBe('/admin/sessions?status=active&q=Alice&page=2');
+  });
+
+  it('debounces URL search writes and cancels superseded values', async () => {
+    renderAuditLog('/admin/sessions?page=3');
+    await screen.findByText('Alice Officer');
+
+    vi.useFakeTimers();
+    try {
+      const searchInput = screen.getByPlaceholderText(/Search Operator, Mobile, IP, or Browser/i);
+
+      fireEvent.change(searchInput, { target: { value: 'Chrome' } });
+      fireEvent.change(searchInput, { target: { value: 'Firefox' } });
+      expect(readLocation()).toBe('/admin/sessions?page=3');
+
+      await act(async () => { vi.advanceTimersByTime(299); });
+      expect(readLocation()).toBe('/admin/sessions?page=3');
+
+      await act(async () => { vi.advanceTimersByTime(1); });
+      expect(readLocation()).toBe('/admin/sessions?q=Firefox');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

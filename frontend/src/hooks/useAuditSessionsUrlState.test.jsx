@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
@@ -44,6 +44,39 @@ describe('useAuditSessionsUrlState hook', () => {
     expect(result.current.isInspectModalOpen).toBe(true);
     expect(result.current.selectedSessionId).toBe('sess_101');
     expect(result.current.hasActiveFilters).toBe(true);
+  });
+
+  it('hydrates legacy aliases and replaces them with canonical parameters on write', () => {
+    const { result } = renderHook(() => {
+      const state = useAuditSessionsUrlState();
+      return { ...state, location: useLocation() };
+    }, {
+      wrapper: wrapperWithInitialEntry('/admin/sessions?user=usr_42&from=2026-09-01&to=2026-09-22&search=Chrome&limit=50&unrelated=keep')
+    });
+
+    expect(result.current.userId).toBe('usr_42');
+    expect(result.current.dateFrom).toBe('2026-09-01');
+    expect(result.current.dateTo).toBe('2026-09-22');
+    expect(result.current.searchQuery).toBe('Chrome');
+    expect(result.current.pageSize).toBe(50);
+
+    act(() => result.current.setUserId('usr_99'));
+    act(() => result.current.setDateFrom('2026-10-01'));
+    act(() => result.current.setDateTo('2026-10-31'));
+    act(() => result.current.setSearchQuery('Firefox'));
+    act(() => result.current.setPageSize(100));
+
+    expect(result.current.location.search).toContain('userId=usr_99');
+    expect(result.current.location.search).toContain('dateFrom=2026-10-01');
+    expect(result.current.location.search).toContain('dateTo=2026-10-31');
+    expect(result.current.location.search).toContain('q=Firefox');
+    expect(result.current.location.search).toContain('page_size=100');
+    expect(result.current.location.search).not.toMatch(/(?:\?|&)user=/);
+    expect(result.current.location.search).not.toMatch(/(?:\?|&)from=/);
+    expect(result.current.location.search).not.toMatch(/(?:\?|&)to=/);
+    expect(result.current.location.search).not.toMatch(/(?:\?|&)search=/);
+    expect(result.current.location.search).not.toMatch(/(?:\?|&)limit=/);
+    expect(result.current.location.search).toContain('unrelated=keep');
   });
 
   it('updates individual filters and resets page to 1', () => {
@@ -175,5 +208,20 @@ describe('useAuditSessionsUrlState hook', () => {
     expect(result.current.status).toBe('all');
     expect(result.current.searchQuery).toBe('');
     expect(result.current.location.search).toBe('');
+  });
+
+  it('cancels a pending debounced search when unmounted', () => {
+    vi.useFakeTimers();
+    try {
+      const { result, unmount } = renderHook(() => useAuditSessionsUrlState(), {
+        wrapper: wrapperWithInitialEntry('/admin/sessions')
+      });
+
+      act(() => result.current.setSearchQuery('late write', { debounce: true }));
+      unmount();
+      act(() => vi.advanceTimersByTime(300));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

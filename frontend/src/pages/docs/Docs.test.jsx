@@ -1,9 +1,10 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Docs from './Docs';
 import { ThemeProvider } from '../../components/ThemeContext';
+import { LocationProbe, HistoryControls, readLocation, setBrowserUrl } from '../../test/routerTestUtils';
 
 // Mock scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
@@ -16,6 +17,8 @@ const renderDocs = (initialEntry = '/docs') => {
           <Route path="/docs" element={<Docs />} />
           <Route path="/docs/:pageId" element={<Docs />} />
         </Routes>
+        <LocationProbe />
+        <HistoryControls />
       </MemoryRouter>
     </ThemeProvider>
   );
@@ -75,5 +78,58 @@ describe('Docs Component', () => {
     fireEvent.click(headingLink);
 
     expect(window.HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+  });
+
+  it('keeps the active documentation search when navigating through the sidebar', async () => {
+    renderDocs('/docs/what-is-idbp?q=Estimating');
+
+    const estimatingLink = await screen.findByRole('link', { name: 'Cost Estimating' });
+    fireEvent.click(estimatingLink);
+
+    expect(readLocation()).toBe('/docs/cost-estimates?q=Estimating');
+    expect((await screen.findAllByText('Cost Estimating')).length).toBeGreaterThan(0);
+  });
+
+  it('restores the previous documentation page and search with browser Back', async () => {
+    renderDocs('/docs/what-is-idbp?q=Estimating');
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Cost Estimating' }));
+    expect(readLocation()).toBe('/docs/cost-estimates?q=Estimating');
+
+    fireEvent.click(screen.getByTestId('router-back'));
+    expect(readLocation()).toBe('/docs/what-is-idbp?q=Estimating');
+  });
+
+  it('redirects an unknown page slug to the canonical documentation page', async () => {
+    renderDocs('/docs/not-a-real-page');
+
+    expect((await screen.findAllByText('What is IDBP?')).length).toBeGreaterThan(0);
+    expect(readLocation()).toBe('/docs/what-is-idbp');
+  });
+
+  it('debounces docs search URL writes and only persists the latest input', async () => {
+    vi.useFakeTimers();
+    try {
+      renderDocs('/docs/what-is-idbp');
+      const searchInput = screen.getAllByPlaceholderText('Search docs...')[0];
+
+      fireEvent.change(searchInput, { target: { value: 'Account' } });
+      fireEvent.change(searchInput, { target: { value: 'Estimat' } });
+      expect(readLocation()).toBe('/docs/what-is-idbp');
+
+      await act(async () => { vi.advanceTimersByTime(300); });
+      expect(readLocation()).toBe('/docs/what-is-idbp?q=Estimat');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('writes a canonical heading fragment when a TOC item is selected', async () => {
+    setBrowserUrl('/docs/what-is-idbp?q=setup');
+    renderDocs('/docs/what-is-idbp?q=setup');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Core Functional Modules' }));
+    expect(window.location.hash).toBe('#core-functions');
+    expect(window.location.search).toBe('?q=setup');
   });
 });

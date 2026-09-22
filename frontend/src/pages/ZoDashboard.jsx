@@ -440,27 +440,6 @@ const ZoDashboard = () => {
     resetFilters
   } = useZoDashboardUrlState();
 
-  const resolvedKpiModal = useMemo(() => {
-    if (!kpiModal) return null;
-    const kpiDefinitions = {
-      total: { label: 'Total Projects', color: 'text-indigo-400', filterFn: null },
-      running: { label: 'Running Projects', color: 'text-emerald-400', filterFn: (p) => p.status === 'Running' },
-      closed: { label: 'Closed Projects', color: 'text-slate-400', filterFn: (p) => p.status === 'Closed' },
-      healthy: { label: 'Healthy', color: 'text-emerald-400', filterFn: (p) => p.health_status === 'Healthy' },
-      warning: { label: 'Warning', color: 'text-amber-400', filterFn: (p) => p.health_status === 'Warning' },
-      critical: { label: 'Critical', color: 'text-rose-400', filterFn: (p) => p.health_status === 'Critical' },
-      progress: { label: 'Avg Progress', color: 'text-indigo-400', filterFn: null },
-      health: { label: 'Avg Health', color: 'text-violet-400', filterFn: null },
-    };
-    const def = kpiDefinitions[kpiModal] || { label: kpiModal, color: 'text-slate-100', filterFn: null };
-    const filtered = def.filterFn ? filteredProjects.filter(def.filterFn) : filteredProjects;
-    return {
-      title: `${def.label} ${selectedZoName ? `(${selectedZoName})` : ''}`,
-      color: def.color,
-      projects: filtered
-    };
-  }, [kpiModal, filteredProjects, selectedZoName]);
-
   /* ── Data Queries ── */
   const { data: insightsRes } = useQuery({
     queryKey: ['zoInsights'],
@@ -669,6 +648,26 @@ const ZoDashboard = () => {
       return zZo === sel || zZo === selName;
     });
   }, [lowRunwayZones, selectedZo, zoNameMap]);
+
+  const resolvedKpiModal = useMemo(() => {
+    if (!kpiModal) return null;
+    const kpiDefinitions = {
+      total: { label: 'Total Projects', color: 'text-indigo-400', filterFn: null },
+      running: { label: 'Running Projects', color: 'text-emerald-400', filterFn: (p) => p.status === 'Running' },
+      closed: { label: 'Closed Projects', color: 'text-slate-400', filterFn: (p) => p.status === 'Closed' },
+      healthy: { label: 'Healthy', color: 'text-emerald-400', filterFn: (p) => p.health_status === 'Healthy' },
+      warning: { label: 'Warning', color: 'text-amber-400', filterFn: (p) => p.health_status === 'Warning' },
+      critical: { label: 'Critical', color: 'text-rose-400', filterFn: (p) => p.health_status === 'Critical' },
+      progress: { label: 'Avg Progress', color: 'text-indigo-400', filterFn: null },
+      health: { label: 'Avg Health', color: 'text-violet-400', filterFn: null },
+    };
+    const def = kpiDefinitions[kpiModal] || { label: kpiModal, color: 'text-slate-100', filterFn: null };
+    return {
+      title: `${def.label} ${selectedZoName ? `(${selectedZoName})` : ''}`,
+      color: def.color,
+      projects: def.filterFn ? filteredProjects.filter(def.filterFn) : filteredProjects
+    };
+  }, [kpiModal, filteredProjects, selectedZoName]);
 
   return (
     <>
