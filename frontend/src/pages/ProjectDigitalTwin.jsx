@@ -11,6 +11,7 @@ import {
   createEstimatedBillEntry
 } from '../api/estimatedBillsApi';
 import { canManageEstimatedBills } from '../utils/estimatedBillPermissions';
+import { useProjectDigitalTwinUrlState } from '../hooks/useProjectDigitalTwinUrlState';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -96,14 +97,22 @@ const SitePhotoCard = ({ item, idx }) => {
 const ProjectDigitalTwin = () => {
   const { work_order_no } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('overview');
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  const {
+    activeTab,
+    setActiveTab,
+    isForecastModalOpen,
+    openForecastModal,
+    closeForecastModal,
+    openPhotoModal,
+    closePhotoModal,
+    resolvePhoto
+  } = useProjectDigitalTwinUrlState();
 
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   // Modal + feedback state
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [mutationError, setMutationError] = useState('');
   const [successPopup, setSuccessPopup] = useState({ isOpen: false, message: '' });
 
@@ -191,7 +200,7 @@ const ProjectDigitalTwin = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estimated-bill-ledger', work_order_no] });
       queryClient.invalidateQueries({ queryKey: ['estimated-bills'] });
-      setIsModalOpen(false);
+      closeForecastModal();
       setSuccessPopup({ isOpen: true, message: 'Forecast saved successfully.' });
     },
     onError: (err) => {
@@ -231,6 +240,10 @@ const ProjectDigitalTwin = () => {
   // media is the canonical gallery field; keep a 2-item slice for future quick-access use
   const _recentMedia = (twinData?.media || []).slice(0, 2);
   const audits = twinData?.audits || [];
+
+  const activeSelectedPhoto = useMemo(() => {
+    return resolvePhoto(media);
+  }, [resolvePhoto, media]);
 
   // Tab definitions (No emojis)
   const tabs = [
@@ -394,7 +407,7 @@ const ProjectDigitalTwin = () => {
                               {media.map((item) => (
                                 <div
                                   key={item.report_id}
-                                  onClick={() => setSelectedPhoto(item)}
+                                  onClick={() => openPhotoModal(item)}
                                   className="glass-panel glass-card-hover rounded-2xl border border-white/10 overflow-hidden cursor-pointer group flex flex-col justify-between"
                                 >
                                   <div className="relative aspect-video bg-black/40 overflow-hidden">
@@ -606,7 +619,7 @@ const ProjectDigitalTwin = () => {
                       </div>
                       {canManageForecast && (
                         <button
-                          onClick={() => { setMutationError(''); setIsModalOpen(true); }}
+                          onClick={() => { setMutationError(''); openForecastModal(); }}
                           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-black text-xs font-black uppercase tracking-wider transition cursor-pointer self-start sm:self-auto shadow-sm"
                         >
                           + New Forecast
@@ -632,7 +645,7 @@ const ProjectDigitalTwin = () => {
                         <p className="text-[10px] text-slate-500">Forecasts help estimate future cash flow for this project.</p>
                         {canManageForecast && (
                           <button
-                            onClick={() => { setMutationError(''); setIsModalOpen(true); }}
+                            onClick={() => { setMutationError(''); openForecastModal(); }}
                             className="text-[10px] font-extrabold uppercase tracking-wider text-amber-500 hover:underline"
                           >
                             Submit First Forecast →
@@ -873,20 +886,20 @@ const ProjectDigitalTwin = () => {
           )}
 
       {/* Full-screen Photo Modal */}
-      {selectedPhoto && (
+      {activeSelectedPhoto && (
         <Modal
-          isOpen={!!selectedPhoto}
-          onClose={() => setSelectedPhoto(null)}
-          title={`Site Attachment — ${new Date(selectedPhoto.site_visit_date).toLocaleDateString('en-IN')}`}
+          isOpen={Boolean(activeSelectedPhoto)}
+          onClose={closePhotoModal}
+          title={`Site Attachment — ${new Date(activeSelectedPhoto.site_visit_date).toLocaleDateString('en-IN')}`}
           subtitle={`Work Order: ${work_order_no}`}
           size="lg"
         >
           <div className="space-y-4 text-left">
             <div className="rounded-2xl overflow-hidden bg-black/80 border border-white/10 flex items-center justify-center max-h-[60vh]">
-              {selectedPhoto.signed_url ? (
+              {activeSelectedPhoto.signed_url ? (
                 <img
-                  src={selectedPhoto.signed_url}
-                  alt={selectedPhoto.original_photo_filename || 'Site Photo'}
+                  src={activeSelectedPhoto.signed_url}
+                  alt={activeSelectedPhoto.original_photo_filename || 'Site Photo'}
                   className="max-h-[60vh] w-auto object-contain"
                 />
               ) : (
@@ -897,22 +910,22 @@ const ProjectDigitalTwin = () => {
             <div className="grid grid-cols-2 gap-4 glass-panel p-4 rounded-2xl text-xs">
               <div>
                 <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest block">Site Visit Date</span>
-                <span className="text-slate-200 font-mono font-bold">{selectedPhoto.site_visit_date}</span>
+                <span className="text-slate-200 font-mono font-bold">{activeSelectedPhoto.site_visit_date}</span>
               </div>
               <div>
                 <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest block">Physical Work Progress</span>
-                <span className="text-amber-500 font-mono font-bold">{selectedPhoto.physical_work_progress}% Completed</span>
+                <span className="text-amber-500 font-mono font-bold">{activeSelectedPhoto.physical_work_progress}% Completed</span>
               </div>
-              {selectedPhoto.original_photo_filename && (
+              {activeSelectedPhoto.original_photo_filename && (
                 <div className="col-span-2">
                   <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest block">Original Filename</span>
-                  <span className="text-slate-300 font-mono text-xs">{selectedPhoto.original_photo_filename}</span>
+                  <span className="text-slate-300 font-mono text-xs">{activeSelectedPhoto.original_photo_filename}</span>
                 </div>
               )}
-              {selectedPhoto.remarks_after_site_visit && (
+              {activeSelectedPhoto.remarks_after_site_visit && (
                 <div className="col-span-2">
                   <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest block">Site Visit Remarks</span>
-                  <p className="text-slate-300 leading-relaxed font-medium mt-0.5">{selectedPhoto.remarks_after_site_visit}</p>
+                  <p className="text-slate-300 leading-relaxed font-medium mt-0.5">{activeSelectedPhoto.remarks_after_site_visit}</p>
                 </div>
               )}
             </div>
@@ -921,8 +934,8 @@ const ProjectDigitalTwin = () => {
       )}
       {/* Billing Forecast Entry Modal */}
       <EstimatedBillEntryModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isForecastModalOpen}
+        onClose={closeForecastModal}
         initialWorkOrderNo={work_order_no}
         lockWorkOrder={true}
         workOrderOptions={forecastWorkOrderOptions}
