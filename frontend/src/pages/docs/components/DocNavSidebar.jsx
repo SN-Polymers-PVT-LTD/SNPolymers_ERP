@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const DocNavSidebar = ({ sections, activePageId, searchQuery, onItemClick }) => {
+const DocNavSidebar = ({ sections, activePageId, searchQuery = '', onItemClick }) => {
   // Track manual open/close overrides for sections
   const [manualToggles, setManualToggles] = useState({});
 
@@ -22,10 +22,13 @@ const DocNavSidebar = ({ sections, activePageId, searchQuery, onItemClick }) => 
   return (
     <nav className="p-6 space-y-6">
       {sections.map((section) => {
-        // Filter pages if search query is present
-        const filteredPages = section.pages.filter((page) =>
-          page.title.toLowerCase().includes(searchQuery.toLowerCase())
-        );
+        // Filter pages if search query is present (matching titles or headings)
+        const filteredPages = section.pages.filter((page) => {
+          const q = searchQuery.toLowerCase();
+          if (page.title.toLowerCase().includes(q)) return true;
+          if (page.headings && page.headings.some((h) => h.text.toLowerCase().includes(q))) return true;
+          return false;
+        });
 
         // If a section has no matching pages and search is active, hide the section
         if (searchQuery.trim() !== '' && filteredPages.length === 0) {
@@ -72,10 +75,11 @@ const DocNavSidebar = ({ sections, activePageId, searchQuery, onItemClick }) => 
               <ul className="pl-4 space-y-1 border-l border-white/5 ml-2 mt-1 transition-all">
                 {filteredPages.map((page) => {
                   const isActive = page.id === activePageId;
+                  const targetUrl = `/docs/${page.id}${searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : ''}`;
                   return (
                     <li key={page.id}>
                       <Link
-                        to={`/docs/${page.id}`}
+                        to={targetUrl}
                         onClick={onItemClick}
                         className={`block py-1.5 px-3 rounded-lg text-xs tracking-wide transition-all ${
                           isActive

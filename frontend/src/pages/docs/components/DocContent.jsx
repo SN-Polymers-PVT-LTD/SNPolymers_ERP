@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-const DocContent = ({ page, prevPage, nextPage }) => {
+const DocContent = ({ page, prevPage, nextPage, searchQuery = '' }) => {
+  const querySuffix = searchQuery.trim() ? `?q=${encodeURIComponent(searchQuery.trim())}` : '';
+
   return (
     <div className="space-y-12">
       {/* Title */}
@@ -21,7 +23,7 @@ const DocContent = ({ page, prevPage, nextPage }) => {
       <footer className="border-t border-white/5 pt-8 mt-12 flex flex-col sm:flex-row gap-4 justify-between items-center text-xs">
         {prevPage ? (
           <Link
-            to={`/docs/${prevPage.id}`}
+            to={`/docs/${prevPage.id}${querySuffix}`}
             className="w-full sm:w-auto p-4 rounded-2xl glass-panel glass-card-hover border border-white/5 flex flex-col gap-1 items-start text-left"
           >
             <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">
@@ -40,7 +42,7 @@ const DocContent = ({ page, prevPage, nextPage }) => {
 
         {nextPage ? (
           <Link
-            to={`/docs/${nextPage.id}`}
+            to={`/docs/${nextPage.id}${querySuffix}`}
             className="w-full sm:w-auto p-4 rounded-2xl glass-panel glass-card-hover border border-white/5 flex flex-col gap-1 items-end text-right ml-auto"
           >
             <span className="text-[9px] font-extrabold uppercase tracking-widest text-slate-500">
