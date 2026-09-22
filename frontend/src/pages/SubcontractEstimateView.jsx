@@ -97,6 +97,10 @@ const SubcontractEstimateView = () => {
   // Line Remarks Modal State (For entering row rejection remarks without cramping table)
   const [remarksModalData, setRemarksModalData] = useState(null); // { lineId, stage, remarks, lineLabel }
 
+  // Expandable dropdown states for History & Audit Log tab (default hidden/collapsed)
+  const [isRevisionCyclesOpen, setIsRevisionCyclesOpen] = useState(false);
+  const [isWorkflowHistoryOpen, setIsWorkflowHistoryOpen] = useState(false);
+
   const load = useCallback(() => {
     return getSubcontractEstimate(id)
       .then((response) => {
@@ -202,7 +206,7 @@ const SubcontractEstimateView = () => {
 
   const canReopen =
     ['Final Approved', 'Rejected by ZO', 'Rejected by HO'].includes(estimate?.estimate_status) &&
-    ['ho', 'admin'].includes(user?.role) &&
+    ['zo', 'admin'].includes(user?.role) &&
     historicalLines.length > 0;
 
   const currentDelta = currentLines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
@@ -1033,113 +1037,164 @@ const SubcontractEstimateView = () => {
           {/* Section 2: Revision Log Cycles */}
           {revisionLog.length > 0 && (
             <section className="space-y-4">
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-widest text-slate-200">
-                  Revision Cycles ({revisionLog.length})
-                </h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Timeline of revision requests, deadlines, and resubmissions.
-                </p>
-              </div>
-
-              <div className="divide-y divide-white/5 rounded-2xl border border-white/5 bg-white/[0.01]">
-                {revisionLog.map((rev) => (
-                  <div key={rev.id} className="p-5 hover:bg-white/[0.01] transition-colors duration-150 space-y-3">
-                    <div className="flex justify-between items-center text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-lg">
-                          Cycle {rev.revision_cycle}
-                        </span>
-                        <span className="text-slate-400 font-mono font-bold">Stage: {rev.stage}</span>
-                      </div>
-                      <span className="text-[11px] text-slate-400 font-mono">
-                        Initiated: {formatDate(rev.created_at)}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Requested By</span>
-                        <span className="text-slate-300 font-mono">{rev.requested_by}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Resubmitted By</span>
-                        <span className="text-slate-300 font-mono">
-                          {rev.resubmitted_by || 'Awaiting Resubmission'}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Revision Deadline</span>
-                        <span className="text-slate-300 font-mono">{formatDate(rev.revision_deadline)}</span>
-                      </div>
-                      {rev.resubmitted_at && (
-                        <div>
-                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Resubmitted At</span>
-                          <span className="text-slate-300 font-mono">{formatDate(rev.resubmitted_at)}</span>
-                        </div>
-                      )}
-                    </div>
+              <button
+                type="button"
+                onClick={() => setIsRevisionCyclesOpen((prev) => !prev)}
+                aria-expanded={isRevisionCyclesOpen}
+                aria-controls="revision-cycles-content"
+                className="w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-slate-200 group-hover:text-white transition-colors">
+                      Revision Cycles ({revisionLog.length})
+                    </h2>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {isRevisionCyclesOpen ? 'Hide' : 'Show'}
+                    </span>
                   </div>
-                ))}
-              </div>
+                  <p className="text-xs text-slate-400">
+                    Timeline of revision requests, deadlines, and resubmissions.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-xl bg-white/5 text-slate-400 group-hover:text-slate-200 transition-transform duration-200 ${isRevisionCyclesOpen ? 'rotate-180' : ''}`}>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+
+              {isRevisionCyclesOpen && (
+                <div id="revision-cycles-content" className="divide-y divide-white/5 rounded-2xl border border-white/5 bg-white/[0.01]">
+                  {revisionLog.map((rev) => (
+                    <div key={rev.id} className="p-5 hover:bg-white/[0.01] transition-colors duration-150 space-y-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-lg">
+                            Cycle {rev.revision_cycle}
+                          </span>
+                          <span className="text-slate-400 font-mono font-bold">Stage: {rev.stage}</span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono">
+                          Initiated: {formatDate(rev.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Requested By</span>
+                          <span className="text-slate-300 font-mono">{rev.requested_by}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Resubmitted By</span>
+                          <span className="text-slate-300 font-mono">
+                            {rev.resubmitted_by || 'Awaiting Resubmission'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase font-bold text-slate-500 block">Revision Deadline</span>
+                          <span className="text-slate-300 font-mono">{formatDate(rev.revision_deadline)}</span>
+                        </div>
+                        {rev.resubmitted_at && (
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-500 block">Resubmitted At</span>
+                            <span className="text-slate-300 font-mono">{formatDate(rev.resubmitted_at)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           )}
 
           {/* Section 3: Workflow History Audit Log */}
           <section className="space-y-4">
-            <div>
-              <h2 className="text-sm font-bold uppercase tracking-widest text-slate-200">
-                Workflow History
-              </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Complete audit trail of state transitions, actors, and mandatory remarks.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
-              <Table containerClassName="min-w-[900px]">
-                <TableHeader>
-                  <TableRow hover={false}>
-                    <TableCell isHeader className="w-48">When</TableCell>
-                    <TableCell isHeader className="w-40">Action</TableCell>
-                    <TableCell isHeader className="w-56">Transition</TableCell>
-                    <TableCell isHeader className="w-48">Actor</TableCell>
-                    <TableCell isHeader>Remarks</TableCell>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {workflowLog.map((event) => (
-                    <TableRow key={event.id}>
-                      <TableCell className="font-mono text-xs text-slate-400">
-                        {formatDate(event.created_at)}
-                      </TableCell>
-                      <TableCell className="font-semibold text-xs text-slate-200">
-                        {event.action}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="slate">
-                          {event.from_status} → {event.to_status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-300">
-                        {event.actor_user?.display_name || event.actor} ({event.actor_role})
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-300 italic">
-                        {event.remarks || '—'}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-
-                  {!workflowLog.length && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
-                        No workflow events recorded.
-                      </TableCell>
-                    </TableRow>
+            <button
+              type="button"
+              onClick={() => setIsWorkflowHistoryOpen((prev) => !prev)}
+              aria-expanded={isWorkflowHistoryOpen}
+              aria-controls="workflow-history-content"
+              className="w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
+            >
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-slate-200 group-hover:text-white transition-colors">
+                    Workflow History
+                  </h2>
+                  {workflowLog.length > 0 && (
+                    <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-400 border border-slate-500/20">
+                      {workflowLog.length} events
+                    </span>
                   )}
-                </TableBody>
-              </Table>
-            </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10">
+                    {isWorkflowHistoryOpen ? 'Hide' : 'Show'}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">
+                  Complete audit trail of state transitions, actors, and mandatory remarks.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className={`p-2 rounded-xl bg-white/5 text-slate-400 group-hover:text-slate-200 transition-transform duration-200 ${isWorkflowHistoryOpen ? 'rotate-180' : ''}`}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+            </button>
+
+            {isWorkflowHistoryOpen && (
+              <div id="workflow-history-content" className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
+                <Table containerClassName="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader className="w-48">When</TableCell>
+                      <TableCell isHeader className="w-40">Action</TableCell>
+                      <TableCell isHeader className="w-56">Transition</TableCell>
+                      <TableCell isHeader className="w-48">Actor</TableCell>
+                      <TableCell isHeader>Remarks</TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {workflowLog.map((event) => (
+                      <TableRow key={event.id}>
+                        <TableCell className="font-mono text-xs text-slate-400">
+                          {formatDate(event.created_at)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-xs text-slate-200">
+                          {event.action}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="slate">
+                            {event.from_status} → {event.to_status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-300">
+                          {event.actor_user?.display_name || event.actor} ({event.actor_role})
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-300 italic">
+                          {event.remarks || '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+
+                    {!workflowLog.length && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-slate-500 text-xs uppercase font-extrabold tracking-widest">
+                          No workflow events recorded.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </section>
         </div>
       )}

@@ -16,6 +16,7 @@ import {
   exportAllSubcontractorLedgersToExcel
 } from '../utils/exportHelpers';
 import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
+import { useSubcontractorLedgerUrlState } from '../hooks/useSubcontractorLedgerUrlState';
 
 const VIEW_TABS = [
   { value: 'contractors', label: 'Contractor Ledger' },
@@ -60,31 +61,34 @@ const SubcontractorLedger = () => {
   const canView = ['je', 'zo', 'ho', 'admin'].includes(user?.role);
   const canAdjust = ['ho', 'admin'].includes(user?.role);
 
-  const [viewMode, setViewMode] = useState('contractors');
-  const [workOrderFilter, setWorkOrderFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1);
   const pageSize = 15;
-  const [dateBasis, setDateBasis] = useState('created'); // 'created' | 'approved' | 'paid'
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [viewingEntry, setViewingEntry] = useState(null);
-  const [adjustingEntry, setAdjustingEntry] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [expandedContractors, setExpandedContractors] = useState({});
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [workOrderFilter, dateFrom, dateTo, dateBasis]);
+  // Synchronized URL Routing & State Machine
+  const {
+    viewMode,
+    setViewMode,
+    workOrderFilter,
+    setWorkOrderFilter,
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    page,
+    setPage,
+    dateBasis,
+    setDateBasis,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    resetFilters,
+    viewingEntry,
+    setViewingEntry,
+    adjustingEntry,
+    setAdjustingEntry,
+    closeModal
+  } = useSubcontractorLedgerUrlState();
 
   const hasContractorFilters = workOrderFilter || debouncedSearch;
   const hasRequisitionFilters = workOrderFilter || debouncedSearch || dateFrom || dateTo || dateBasis !== 'created';
@@ -161,15 +165,7 @@ const SubcontractorLedger = () => {
     return contractors.every(c => expandedContractors[c.subcontractor_id]);
   }, [contractors, expandedContractors]);
 
-  const resetFilters = () => {
-    setWorkOrderFilter('');
-    setSearchInput('');
-    setDebouncedSearch('');
-    setDateFrom('');
-    setDateTo('');
-    setDateBasis('created');
-    setPage(1);
-  };
+
 
   const handleExportRequisitions = () => {
     exportSubcontractorRequisitionsToExcel(requisitions, {
@@ -308,17 +304,19 @@ const SubcontractorLedger = () => {
       )}
 
       {/* Accounting Notice Banner */}
-      <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/20 p-4 text-xs text-indigo-200 flex items-start gap-3">
-        <span className="text-indigo-400 text-base mt-0.5">ℹ️</span>
+      <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/20 p-4 text-xs flex items-start gap-3">
+        <span className="text-indigo-500 dark:text-indigo-400 text-base mt-0.5 shrink-0">ℹ️</span>
         <div>
-          <strong className="text-white block mb-0.5">Authoritative Accounting Invariant:</strong>
-          Contractor-level consolidated totals are informational for visibility. Financial capacity and funds remain
-          strictly isolated per Work Order and Work Type — capacity is never spendable or transferable across scopes.
+          <strong className="text-slate-900 dark:text-white font-bold block mb-0.5">Authoritative Accounting Invariant:</strong>
+          <span className="text-slate-700 dark:text-indigo-200">
+            Contractor-level consolidated totals are informational for visibility. Financial capacity and funds remain
+            strictly isolated per Work Order and Work Type — capacity is never spendable or transferable across scopes.
+          </span>
         </div>
       </div>
 
       {/* View Tabs */}
-      <div className="flex gap-2">
+      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900/60 border border-white/5 w-fit">
         {VIEW_TABS.map((tab) => {
           const isActive = viewMode === tab.value;
           return (
@@ -328,8 +326,8 @@ const SubcontractorLedger = () => {
               onClick={() => setViewMode(tab.value)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 select-none ${
                 isActive
-                  ? 'bg-indigo-500 text-slate-950 shadow-md shadow-indigo-500/20 font-extrabold ring-1 ring-indigo-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 bg-white/[0.02] border border-white/5'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20 ring-1 ring-indigo-400'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
               }`}
             >
               {tab.label}
@@ -572,7 +570,7 @@ const SubcontractorLedger = () => {
               return (
                 <div
                   key={c.subcontractor_id}
-                  className="rounded-3xl border border-white/10 bg-slate-900/70 overflow-hidden shadow-lg transition-all"
+                  className="rounded-3xl border border-white/10 bg-slate-900/60 overflow-hidden shadow-lg transition-all"
                 >
                   {/* Contractor Header */}
                   <div
@@ -807,7 +805,7 @@ const SubcontractorLedger = () => {
             const totalApproved = activeRows.reduce((sum, r) => sum + getRequisitionFinancialState(r).effectiveLiability, 0);
 
             return (
-              <div key={group.subcontractor_id || group.contractorName} className="rounded-3xl border border-white/10 bg-slate-900/70 overflow-hidden">
+              <div key={group.subcontractor_id || group.contractorName} className="rounded-3xl border border-white/10 bg-slate-900/60 overflow-hidden">
                 <div className="p-4 bg-white/[0.02] border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <h3 className="text-base font-bold text-white">{group.contractorName}</h3>

@@ -13,6 +13,41 @@ INSERT INTO public.authorised_users (mobile_number, role, is_active, display_nam
 VALUES ('+919883321834', 'admin', true, 'System Admin')
 ON CONFLICT (mobile_number) DO UPDATE SET role = 'admin', is_active = true;
 
+-- 1b. Ensure Canonical Indian Banks exist in indian_bank_master so FK joins always resolve
+INSERT INTO public.indian_bank_master (bank_name, is_active, created_by) VALUES
+  ('State Bank of India', true, '+919883321834'),
+  ('Punjab National Bank', true, '+919883321834'),
+  ('Bank of Baroda', true, '+919883321834'),
+  ('Canara Bank', true, '+919883321834'),
+  ('Union Bank of India', true, '+919883321834'),
+  ('Indian Bank', true, '+919883321834'),
+  ('Bank of India', true, '+919883321834'),
+  ('Central Bank of India', true, '+919883321834'),
+  ('Indian Overseas Bank', true, '+919883321834'),
+  ('UCO Bank', true, '+919883321834'),
+  ('Bank of Maharashtra', true, '+919883321834'),
+  ('Punjab & Sind Bank', true, '+919883321834'),
+  ('HDFC Bank', true, '+919883321834'),
+  ('ICICI Bank', true, '+919883321834'),
+  ('Axis Bank', true, '+919883321834'),
+  ('Kotak Mahindra Bank', true, '+919883321834'),
+  ('IndusInd Bank', true, '+919883321834'),
+  ('Yes Bank', true, '+919883321834'),
+  ('IDFC FIRST Bank', true, '+919883321834'),
+  ('Federal Bank', true, '+919883321834'),
+  ('South Indian Bank', true, '+919883321834'),
+  ('Karnataka Bank', true, '+919883321834'),
+  ('Karur Vysya Bank', true, '+919883321834'),
+  ('City Union Bank', true, '+919883321834'),
+  ('Tamilnad Mercantile Bank', true, '+919883321834'),
+  ('DCB Bank', true, '+919883321834'),
+  ('RBL Bank', true, '+919883321834'),
+  ('CSB Bank', true, '+919883321834'),
+  ('Bandhan Bank', true, '+919883321834'),
+  ('Jammu & Kashmir Bank', true, '+919883321834'),
+  ('Nainital Bank', true, '+919883321834')
+ON CONFLICT (bank_name) DO UPDATE SET is_active = true;
+
 -- 2. Temporary staging table
 CREATE TEMP TABLE tmp_mock_beneficiaries (
     beneficiary_name varchar NOT NULL,
@@ -102,5 +137,25 @@ ON CONFLICT (beneficiary_ac_no, beneficiary_ifsc) DO UPDATE SET
     beneficiary_bank_id = COALESCE(EXCLUDED.beneficiary_bank_id, projects_beneficiary_master.beneficiary_bank_id),
     updated_by = EXCLUDED.created_by,
     updated_at = now();
+
+-- 5. Loud assertion: verify 100% of seeded beneficiaries have resolved bank IDs
+DO $$
+DECLARE
+  v_unlinked_count int;
+BEGIN
+  SELECT count(*) INTO v_unlinked_count
+  FROM public.projects_beneficiary_master
+  WHERE created_by = '+919883321834' AND beneficiary_bank_id IS NULL;
+  IF v_unlinked_count > 0 THEN
+    RAISE EXCEPTION 'Beneficiary seed verification failed: % rows have null beneficiary_bank_id in projects_beneficiary_master', v_unlinked_count;
+  END IF;
+
+  SELECT count(*) INTO v_unlinked_count
+  FROM public.beneficiary_master
+  WHERE created_by = '+919883321834' AND beneficiary_bank_id IS NULL;
+  IF v_unlinked_count > 0 THEN
+    RAISE EXCEPTION 'Beneficiary seed verification failed: % rows have null beneficiary_bank_id in beneficiary_master', v_unlinked_count;
+  END IF;
+END $$;
 
 COMMIT;

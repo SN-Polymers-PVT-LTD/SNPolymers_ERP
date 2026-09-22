@@ -90,11 +90,89 @@ describe('SubcontractEstimateView', () => {
       expect(screen.getByText('Workflow History')).toBeInTheDocument();
     });
 
+    // Workflow History is collapsed by default; click to expand
+    const workflowToggle = screen.getByRole('button', { name: /Workflow History/i });
+    await user.click(workflowToggle);
+
     // John Doe should be displayed for log-1
-    expect(screen.getByText('John Doe (je)')).toBeInTheDocument();
+    expect(await screen.findByText('John Doe (je)')).toBeInTheDocument();
 
     // Fallback to phone number for log-2
     expect(screen.getByText('919000000002 (zo)')).toBeInTheDocument();
+  });
+
+  it('collapses Revision Cycles and Workflow History by default and toggles on click', async () => {
+    const user = userEvent.setup();
+    mockGetSubcontractEstimate.mockResolvedValue({
+      data: {
+        estimate: {
+          subcontract_estimate_id: 'est-123',
+          work_order_no: 'WO-101',
+          estimate_revision: 0,
+          estimate_amount: 10000,
+          estimate_status: 'Submitted',
+          updated_at: '2026-09-19T10:00:00.000Z',
+          project_subcontract_estimate_lines: [],
+          subcontract_estimate_revision_log: [
+            {
+              id: 'rev-1',
+              revision_cycle: 1,
+              stage: 'ZO',
+              requested_by: '918276071523',
+              resubmitted_by: '919000000001',
+              revision_deadline: '2026-09-20T10:00:00.000Z',
+              created_at: '2026-09-19T10:00:00.000Z'
+            }
+          ],
+          project_subcontract_estimate_workflow_log: [
+            {
+              id: 'log-1',
+              actor: '919000000001',
+              actor_role: 'je',
+              actor_user: { display_name: 'John Doe' },
+              action: 'SUBMIT',
+              from_status: 'Draft',
+              to_status: 'Submitted',
+              created_at: '2026-09-19T10:00:00.000Z'
+            }
+          ]
+        }
+      }
+    });
+
+    render(
+      <MemoryRouter>
+        <SubcontractEstimateView />
+      </MemoryRouter>
+    );
+
+    // Switch to History tab
+    const historyTab = await screen.findByRole('button', { name: /History & Audit Log/i });
+    await user.click(historyTab);
+
+    // Both section buttons are visible
+    const revisionToggle = await screen.findByRole('button', { name: /Revision Cycles/i });
+    const workflowToggle = await screen.findByRole('button', { name: /Workflow History/i });
+
+    // Defaults to collapsed: content is hidden
+    expect(screen.queryByText(/Cycle 1/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('John Doe (je)')).not.toBeInTheDocument();
+
+    // Toggle Revision Cycles open
+    await user.click(revisionToggle);
+    expect(await screen.findByText(/Cycle 1/i)).toBeInTheDocument();
+
+    // Toggle Revision Cycles closed
+    await user.click(revisionToggle);
+    expect(screen.queryByText(/Cycle 1/i)).not.toBeInTheDocument();
+
+    // Toggle Workflow History open
+    await user.click(workflowToggle);
+    expect(await screen.findByText('John Doe (je)')).toBeInTheDocument();
+
+    // Toggle Workflow History closed
+    await user.click(workflowToggle);
+    expect(screen.queryByText('John Doe (je)')).not.toBeInTheDocument();
   });
 
   it('renders the Revision Request banner with ZO remarks and deadline when in ZO Revision Requested status', async () => {
@@ -602,5 +680,133 @@ describe('SubcontractEstimateView', () => {
     // Save Row Decisions should be enabled for partial save
     const saveRowDecisionsBtn = screen.getByRole('button', { name: /Save Row Decisions/i });
     expect(saveRowDecisionsBtn).toBeEnabled();
+  });
+
+  describe('Reopen Authorization (moved from HO to ZO)', () => {
+    const finalApprovedEstimateWithHistory = {
+      subcontract_estimate_id: 'est-123',
+      work_order_no: 'WO-101',
+      estimate_revision: 0,
+      estimate_amount: 25000,
+      estimate_status: 'Final Approved',
+      updated_at: '2026-09-19T10:00:00.000Z',
+      project_subcontract_estimate_lines: [
+        {
+          line_id: 'line-hist-1',
+          subcontractor_id: 'sub-1',
+          subcontract_work_id: 'work-1',
+          subcontractor: { subcontractor_name: 'Alpha Builders', is_active: true },
+          subcontract_work: { material_details: 'Earth Excavation', unit: 'Cum', is_active: true },
+          qty: 50,
+          rate: 500,
+          amount: 25000,
+          entry_kind: 'BASE',
+          final_approved_revision: 0,
+          zo_office_approve: 'Approve',
+          ho_office_approve: 'Approve'
+        }
+      ]
+    };
+
+    it('renders Reopen button for ZO on Final Approved estimate and triggers reopen flow', async () => {
+      const user = userEvent.setup();
+      mockUser = { role: 'zo', mobile_number: '+918276071523' };
+      mockGetSubcontractEstimate.mockResolvedValue({
+        data: { estimate: finalApprovedEstimateWithHistory }
+      });
+      mockTransitionSubcontractEstimateWorkflow.mockResolvedValue({
+        data: {
+          estimate: {
+            ...finalApprovedEstimateWithHistory,
+            estimate_status: 'Estimate Reopened',
+            updated_at: '2026-09-19T10:05:00.000Z'
+          }
+        }
+      });
+
+      render(
+        <MemoryRouter>
+          <SubcontractEstimateView />
+        </MemoryRouter>
+      );
+
+      const reopenBtn = await screen.findByRole('button', { name: /^reopen$/i });
+      expect(reopenBtn).toBeInTheDocument();
+
+      await user.click(reopenBtn);
+
+      // Dialog opens for remarks
+      await waitFor(() => {
+        expect(screen.getByText('Mandatory remarks')).toBeInTheDocument();
+      });
+
+      const remarksInput = screen.getByPlaceholderText('Enter the reason for this workflow action');
+      await user.type(remarksInput, 'ZO needs to reopen this estimate');
+
+      const confirmBtn = screen.getByRole('button', { name: /confirm/i });
+      await user.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(mockTransitionSubcontractEstimateWorkflow).toHaveBeenCalledWith('est-123', {
+          action: 'REOPEN',
+          remarks: 'ZO needs to reopen this estimate',
+          expected_updated_at: '2026-09-19T10:00:00.000Z'
+        });
+      });
+    });
+
+    it('renders Reopen button for Admin on Final Approved estimate', async () => {
+      mockUser = { role: 'admin', mobile_number: '+919999999999' };
+      mockGetSubcontractEstimate.mockResolvedValue({
+        data: { estimate: finalApprovedEstimateWithHistory }
+      });
+
+      render(
+        <MemoryRouter>
+          <SubcontractEstimateView />
+        </MemoryRouter>
+      );
+
+      const reopenBtn = await screen.findByRole('button', { name: /^reopen$/i });
+      expect(reopenBtn).toBeInTheDocument();
+    });
+
+    it('does NOT render Reopen button for HO role on Final Approved estimate', async () => {
+      mockUser = { role: 'ho', mobile_number: '+917000000001' };
+      mockGetSubcontractEstimate.mockResolvedValue({
+        data: { estimate: finalApprovedEstimateWithHistory }
+      });
+
+      render(
+        <MemoryRouter>
+          <SubcontractEstimateView />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Final Approved Contributions')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /^reopen$/i })).not.toBeInTheDocument();
+    });
+
+    it('does NOT render Reopen button for JE role on Final Approved estimate', async () => {
+      mockUser = { role: 'je', mobile_number: '+919000000001' };
+      mockGetSubcontractEstimate.mockResolvedValue({
+        data: { estimate: finalApprovedEstimateWithHistory }
+      });
+
+      render(
+        <MemoryRouter>
+          <SubcontractEstimateView />
+        </MemoryRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Final Approved Contributions')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('button', { name: /^reopen$/i })).not.toBeInTheDocument();
+    });
   });
 });

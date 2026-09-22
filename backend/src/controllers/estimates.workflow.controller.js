@@ -769,7 +769,7 @@ async function getRevisionLog(req, res) {
 /**
  * POST /api/v1/auth/estimates/:id/reopen
  * Reopens an estimate in a terminal/final status back to revision cycle.
- * Restricted to HO and Admin.
+ * Restricted to ZO and Admin.
  */
 async function reopenEstimate(req, res) {
   const { id } = req.params;
@@ -784,10 +784,10 @@ async function reopenEstimate(req, res) {
       return res.status(404).json({ success: false, message: 'Estimate not found.' });
     }
 
-    // Role check: Only HO and Admin can reopen
+    // Role check: Only ZO and Admin can reopen
     const effectiveRole = getEffectiveRole(req.user.role);
-    if (!['ho', 'admin'].includes(effectiveRole)) {
-      return res.status(403).json({ success: false, message: 'Access denied. Only HO or Admin can reopen estimates.' });
+    if (!['zo', 'admin'].includes(effectiveRole)) {
+      return res.status(403).json({ success: false, message: 'Access denied. Only ZO or Admin can reopen estimates.' });
     }
 
     // Check if there's already an active revision log

@@ -455,7 +455,7 @@ const EstimateView = () => {
   
   const showReviewPanel = ((isZO || isAdmin) && isCurrentlyInZOReview) || ((isHO || isAdmin) && isCurrentlyInHOReview);
   const canEditEstimate = (isJE && [ESTIMATE_STATUS.DRAFT, ESTIMATE_STATUS.ZO_REVISION_REQUESTED, ESTIMATE_STATUS.HO_REVISION_REQUESTED, ESTIMATE_STATUS.ESTIMATE_REOPENED].includes(estimate.estimate_status)) || isAdmin;
-  const canReopen = (isHO || isAdmin) && [
+  const canReopen = (isZO || isAdmin) && [
     ESTIMATE_STATUS.FINAL_APPROVED,
     ESTIMATE_STATUS.REJECTED_BY_HO,
     ESTIMATE_STATUS.REJECTED_BY_ZO
@@ -476,6 +476,24 @@ const EstimateView = () => {
     <>
       <main className="flex-grow p-6 md:p-10 overflow-y-auto max-w-[96%] mx-auto w-full relative z-10">
         
+        {/* Back Navigation Breadcrumb */}
+        <div className="mb-5 text-left">
+          <Button
+            variant="glass"
+            size="sm"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate('/estimates');
+              }
+            }}
+            className="text-xs"
+          >
+            &larr; Back to Estimates
+          </Button>
+        </div>
+
         {/* Top Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
           <div>

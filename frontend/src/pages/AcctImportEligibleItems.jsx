@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
@@ -34,11 +34,75 @@ const AcctImportEligibleItems = () => {
   const queryClient = useQueryClient();
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [error, setError] = useState('');
   const [dismissingItemId, setDismissingItemId] = useState(null);
-  const [page, setPage] = useState(1);
-  const [particularsFilter, setParticularsFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+
+  // Status Filter
+  const statusFilter = searchParams.get('status') || '';
+  const setStatusFilter = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('status', val);
+      else next.delete('status');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Particulars Search with debouncing
+  const urlParticulars = searchParams.get('particulars') || searchParams.get('q') || '';
+  const [particularsFilter, setParticularsFilter] = useState(urlParticulars);
+
+  useEffect(() => {
+    setParticularsFilter(urlParticulars);
+  }, [urlParticulars]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = particularsFilter.trim();
+        const current = next.get('particulars') || next.get('q') || '';
+        if (trimmed === current) return prev;
+        if (trimmed) {
+          next.set('particulars', trimmed);
+          next.delete('q');
+        } else {
+          next.delete('particulars');
+          next.delete('q');
+        }
+        next.delete('page');
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [particularsFilter, setSearchParams]);
+
+  // Page
+  const pageParam = parseInt(searchParams.get('page'), 10);
+  const page = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1;
+  const setPage = useCallback((newPage) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const val = typeof newPage === 'function' ? newPage(page) : newPage;
+      if (val > 1) next.set('page', String(val));
+      else next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [page, setSearchParams]);
+
+  const resetFilters = useCallback(() => {
+    setParticularsFilter('');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('particulars');
+      next.delete('q');
+      next.delete('status');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const queryKey = ['acctImportEligibleItems', { particularsFilter, statusFilter, page }];
 
@@ -116,11 +180,11 @@ const AcctImportEligibleItems = () => {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Held / Rejected / Pending Review Items</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">
             Every On Hold, Rejected, or Pending Review line item across all sheets that hasn't been
-            imported into a new sheet yet. Import from within an Open sheet's "Import Held / Rejected"
+            imported into a new sheet yet. Import from within an Open sheet's "Import List"
             button, or dismiss an item here if it'll never be re-requested.
           </p>
         </div>
-        <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+        <Button variant="glass" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/acct-requisitions'))}>
           ← Back to Sheets
         </Button>
       </div>
@@ -158,11 +222,7 @@ const AcctImportEligibleItems = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setParticularsFilter('');
-              setStatusFilter('');
-              setPage(1);
-            }}
+            onClick={resetFilters}
           >
             Reset Filters
           </Button>

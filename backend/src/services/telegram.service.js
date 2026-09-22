@@ -2586,6 +2586,386 @@ async function notifyHoSubcontractEstimateApproved(estimate, actorMobile, remark
   }
 }
 
+/**
+ * Retrieves the active JE user details (display_name, telegram_chat_id) for a given work order.
+ * Checks direct candidate mobile (estimate.je_user_id or estimate.created_by) and active work_order_mappings.
+ * @param {string} workOrderNo
+ * @param {string|null} jeUserId
+ * @returns {Promise<Array<{display_name: string, telegram_chat_id: string}>>}
+ */
+async function getJeUsersForWorkOrder(workOrderNo, jeUserId = null) {
+  try {
+    const recipients = [];
+    const seenChatIds = new Set();
+
+    const addRecipient = (user) => {
+      if (user && user.telegram_chat_id && user.telegram_chat_id.trim() !== '') {
+        const chat = user.telegram_chat_id.trim();
+        if (!seenChatIds.has(chat)) {
+          seenChatIds.add(chat);
+          recipients.push(user);
+        }
+      }
+    };
+
+    // 1. Direct JE candidate (e.g. estimate.je_user_id or estimate.created_by)
+    if (jeUserId) {
+      const { data: directUser } = await supabase
+        .from('authorised_users')
+        .select('display_name, telegram_chat_id, mobile_number')
+        .eq('mobile_number', jeUserId)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (directUser) addRecipient(directUser);
+    }
+
+    // 2. Active work_order_mappings for this work order
+    if (workOrderNo) {
+      const { data: mappings } = await supabase
+        .from('work_order_mappings')
+        .select('je_user_id')
+        .eq('work_order_no', workOrderNo)
+        .eq('is_active', true);
+
+      if (mappings && mappings.length > 0) {
+        const jeMobiles = mappings.map(m => m.je_user_id).filter(Boolean);
+        if (jeMobiles.length > 0) {
+          const { data: mappedUsers } = await supabase
+            .from('authorised_users')
+            .select('display_name, telegram_chat_id, mobile_number')
+            .in('mobile_number', jeMobiles)
+            .eq('is_active', true);
+          (mappedUsers || []).forEach(addRecipient);
+        }
+      }
+    }
+
+    return recipients;
+  } catch (err) {
+    console.warn(`[SUBCONTRACT ESTIMATE ALERTS] getJeUsersForWorkOrder error: ${err.message}`);
+    return [];
+  }
+}
+
+/**
+ * Sends a notification to JE when a subcontract estimate is approved by ZO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of the approving ZO actor
+ * @param {string|null} remarks - Approval remarks if any
+ */
+async function notifyJeSubcontractEstimateZoApproved(estimate, actorMobile, remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getJeUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No JE recipients found with telegram_chat_id for WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const zoName = await getDisplayName(actorMobile || estimate?.zo_approved_by);
+    const revision = estimate?.estimate_revision ?? 0;
+
+    let messageText =
+      `📋 <b>Subcontract Estimate Approved by ZO</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Approved Zonal Amount:</b> ₹${fmtInr(estimate?.estimate_amount)}\n` +
+      `<b>Approved By ZO:</b> ${escapeHtml(zoName)}\n`;
+
+    const effectiveRemarks = remarks || estimate?.zo_remarks;
+    if (effectiveRemarks && effectiveRemarks.trim()) {
+      messageText += `<b>ZO Remarks:</b> ${escapeHtml(effectiveRemarks.trim())}\n`;
+    }
+    messageText += `\nYour subcontract estimate has been approved by the Zonal Office and forwarded to Head Office.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyJeSubcontractEstimateZoApproved failed: ${error.message}`);
+  }
+}
+
+/**
+ * Sends a notification to JE, ZO, and HO when a subcontract estimate is final approved by HO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of the approving HO actor
+ * @param {string|null} remarks - Approval remarks if any
+ */
+async function notifyAllSubcontractEstimateFinalApproved(estimate, actorMobile, remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = [];
+    const seenChatIds = new Set();
+
+    const addRecipient = (user) => {
+      if (user && user.telegram_chat_id && user.telegram_chat_id.trim() !== '') {
+        const chat = user.telegram_chat_id.trim();
+        if (!seenChatIds.has(chat)) {
+          seenChatIds.add(chat);
+          recipients.push(user);
+        }
+      }
+    };
+
+    // 1. JE recipients
+    const jeUsers = await getJeUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    jeUsers.forEach(addRecipient);
+
+    // 2. Mapped ZO recipients
+    const zoUsers = await getZoUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    zoUsers.forEach(addRecipient);
+
+    // 3. HO and Admin users
+    const hoUsers = await getRoleRecipients('ho');
+    hoUsers.forEach(addRecipient);
+    const adminUsers = await getRoleRecipients('admin');
+    adminUsers.forEach(addRecipient);
+
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No recipients configured with telegram_chat_id for final approval of WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const hoName = await getDisplayName(actorMobile || estimate?.ho_approved_by);
+    const revision = estimate?.estimate_revision ?? 0;
+
+    let messageText =
+      `📋 <b>Subcontract Estimate Approved by HO</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Final Approved Amount:</b> ₹${fmtInr(estimate?.estimate_amount)}\n` +
+      `<b>Approved By HO:</b> ${escapeHtml(hoName)}\n`;
+
+    const effectiveRemarks = remarks || estimate?.ho_remarks;
+    if (effectiveRemarks && effectiveRemarks.trim()) {
+      messageText += `<b>HO Remarks:</b> ${escapeHtml(effectiveRemarks.trim())}\n`;
+    }
+    messageText += `\nThe subcontract estimate has been approved by Head Office.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyAllSubcontractEstimateFinalApproved failed: ${error.message}`);
+  }
+}
+
+/**
+ * Sends a notification to JE when a subcontract estimate revision is requested by ZO or HO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of requesting actor
+ * @param {string|null} remarks - Revision remarks
+ * @param {object|null} revisionLog - Latest revision log record if available
+ */
+async function notifyJeSubcontractEstimateRevisionRequested(estimate, actorMobile, remarks = null, revisionLog = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getJeUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No JE recipients found with telegram_chat_id for WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const stage = revisionLog?.stage || (estimate?.estimate_status === 'HO Revision Requested' ? 'HO' : 'ZO');
+    const approveField = stage === 'ZO' ? 'zo_office_approve' : 'ho_office_approve';
+
+    let lines = estimate?.project_subcontract_estimate_lines;
+    if (!lines && estimate?.subcontract_estimate_id) {
+      const { data: fetchedLines } = await supabase
+        .from('project_subcontract_estimate_lines')
+        .select('zo_office_approve, ho_office_approve, final_approved_revision')
+        .eq('subcontract_estimate_id', estimate.subcontract_estimate_id);
+      lines = fetchedLines || [];
+    }
+    const currentLines = (lines || []).filter(l => l.final_approved_revision == null);
+    const totalRows = currentLines.length;
+    const notApprovedRows = currentLines.filter(l => l[approveField] === 'Not Approve').length;
+
+    const requestedByMob = actorMobile || revisionLog?.requested_by;
+    const requestedByName = await getDisplayName(requestedByMob);
+
+    const revisionCycle = revisionLog?.revision_cycle ?? (estimate?.estimate_revision ?? 0) + 1;
+    let deadlineText = '24 hours';
+    if (revisionLog?.revision_deadline) {
+      deadlineText = `${new Date(revisionLog.revision_deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} (IST)`;
+    }
+
+    const effectiveRemarks = remarks || (stage === 'ZO' ? estimate?.zo_remarks : estimate?.ho_remarks);
+
+    let messageText =
+      `⚠️ <b>Subcontract Estimate Revision Requested (${stage})</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision Cycle:</b> ${revisionCycle}\n` +
+      `<b>Requested By:</b> ${escapeHtml(requestedByName)} (${stage})\n` +
+      `<b>Unapproved Rows:</b> ${notApprovedRows} out of ${totalRows} rows not approved\n` +
+      `<b>Deadline:</b> ${deadlineText}\n`;
+
+    if (effectiveRemarks && effectiveRemarks.trim()) {
+      messageText += `<b>Remarks:</b> ${escapeHtml(effectiveRemarks.trim())}\n`;
+    }
+    messageText += `\nPlease review the remarks and resubmit the revised estimate on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyJeSubcontractEstimateRevisionRequested failed: ${error.message}`);
+  }
+}
+
+/**
+ * Sends a notification to JE when a subcontract estimate is rejected by ZO or HO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of rejecting actor
+ * @param {string|null} remarks - Rejection remarks
+ */
+async function notifyJeSubcontractEstimateRejected(estimate, actorMobile, remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getJeUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No JE recipients found with telegram_chat_id for WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const isHo = estimate?.estimate_status === 'Rejected by HO';
+    const rejectedByRole = isHo ? 'Head Office' : 'Zonal Office';
+    const actorName = await getDisplayName(actorMobile || (isHo ? estimate?.ho_approved_by : estimate?.zo_approved_by));
+    const effectiveRemarks = remarks || (isHo ? estimate?.ho_remarks : estimate?.zo_remarks) || 'No remarks provided.';
+    const revision = estimate?.estimate_revision ?? 0;
+
+    let messageText =
+      `❌ <b>Subcontract Estimate Rejected</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Amount:</b> ₹${fmtInr(estimate?.estimate_amount)}\n` +
+      `<b>Rejected By:</b> ${escapeHtml(actorName)} (${rejectedByRole})\n` +
+      `<b>Remarks/Reason:</b> ${escapeHtml(effectiveRemarks)}\n\n` +
+      `Your subcontract estimate has been rejected. Please review on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyJeSubcontractEstimateRejected failed: ${error.message}`);
+  }
+}
+
+/**
+ * Sends a notification to JE when a subcontract estimate is reopened by HO.
+ * @param {object} estimate - The subcontract estimate record
+ * @param {string} actorMobile - Mobile number of reopening actor
+ * @param {string|null} remarks - Reopen remarks
+ */
+async function notifyJeSubcontractEstimateReopened(estimate, actorMobile, remarks = null) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') {
+    return;
+  }
+  try {
+    const recipients = await getJeUsersForWorkOrder(estimate?.work_order_no, estimate?.je_user_id || estimate?.created_by);
+    if (!recipients.length) {
+      console.warn(`[SUBCONTRACT ESTIMATE ALERTS] No JE recipients found with telegram_chat_id for WO ${estimate?.work_order_no}`);
+      return;
+    }
+
+    let siteDetails = 'N/A';
+    if (estimate?.work_order_no) {
+      const { data: project } = await supabase
+        .from('projects_master')
+        .select('site_details')
+        .eq('work_order_no', estimate.work_order_no)
+        .maybeSingle();
+      if (project?.site_details) {
+        siteDetails = project.site_details;
+      }
+    }
+
+    const actorName = await getDisplayName(actorMobile);
+    const revision = estimate?.estimate_revision ?? 0;
+
+    let roleTag = 'ZO';
+    let roleLabel = 'Zonal Office';
+    const { data: actorUser } = await supabase
+      .from('authorised_users')
+      .select('role')
+      .eq('mobile_number', actorMobile)
+      .maybeSingle();
+    if (actorUser?.role === 'admin') {
+      roleTag = 'Admin';
+      roleLabel = 'Administrator';
+    }
+
+    let messageText =
+      `🔄 <b>Subcontract Estimate Reopened (${roleTag})</b>\n\n` +
+      `<b>Work Order:</b> ${escapeHtml(estimate?.work_order_no || 'N/A')}\n` +
+      `<b>Site Details:</b> ${escapeHtml(siteDetails)}\n` +
+      `<b>Revision:</b> ${revision}\n` +
+      `<b>Reopened By:</b> ${escapeHtml(actorName)} (${roleLabel})\n`;
+
+    if (remarks && remarks.trim()) {
+      messageText += `<b>${roleTag} Remarks:</b> ${escapeHtml(remarks.trim())}\n`;
+    }
+    messageText += `\nYour subcontract estimate has been reopened by ${roleLabel}. Please review and prepare the revised subcontract estimate on the IDBP dashboard.`;
+
+    await broadcastTelegram(recipients, messageText, '[SUBCONTRACT ESTIMATE ALERTS]');
+  } catch (error) {
+    console.error(`[SUBCONTRACT ESTIMATE ALERTS] notifyJeSubcontractEstimateReopened failed: ${error.message}`);
+  }
+}
+
 module.exports = {
   escapeHtml,
   sendOtp,
@@ -2625,6 +3005,13 @@ module.exports = {
   notifyAcctBulkNeftExported,
   notifyAcctBankBalanceAdjusted,
   getZoUsersForWorkOrder,
+  getJeUsersForWorkOrder,
   notifyZoSubcontractEstimateSubmitted,
-  notifyHoSubcontractEstimateApproved
+  notifyHoSubcontractEstimateApproved,
+  notifyJeSubcontractEstimateZoApproved,
+  notifyAllSubcontractEstimateFinalApproved,
+  notifyJeSubcontractEstimateRevisionRequested,
+  notifyJeSubcontractEstimateRejected,
+  notifyJeSubcontractEstimateReopened
 };
+

@@ -188,7 +188,11 @@ const AcctRequisitionSheetView = () => {
   // of whatever was last cached.
   const handleBackToSheets = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
-    navigate('/acct-requisitions');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/acct-requisitions');
+    }
   };
 
   // Patches the cached sheet's items in place instead of invalidating +
@@ -605,8 +609,8 @@ const AcctRequisitionSheetView = () => {
               <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
                 + Add Line Item
               </Button>
-              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import Held / Rejected / Pending Review items">
-                Import Held / Rejected
+              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import from Import List (Held / Rejected / Pending Review items)">
+                Import List
               </Button>
               <Button variant="glass" size="sm" onClick={() => setShowCreditImportModal(true)} title="Pull an installment from an open credit purchase">
                 Import from Credit Ledger

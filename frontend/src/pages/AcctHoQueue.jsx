@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { getSheets } from '../api/acctRequisitionsApi';
+import { useAcctHoQueueUrlState } from '../hooks/useAcctHoQueueUrlState';
 
 const STATUS_TABS = [
   { value: 'Submitted', label: 'Pending Review', emptyText: 'No submitted sheets pending review.' },
@@ -30,23 +31,23 @@ const AcctHoQueue = () => {
   const navigate = useNavigate();
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
-  const [statusFilter, setStatusFilter] = useState('Submitted');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    page,
+    setPage,
+    resetFilters
+  } = useAcctHoQueueUrlState();
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
   const handleStatusChange = (value) => {
     setStatusFilter(value);
-    setPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearchQuery('');
-    setDateFrom('');
-    setDateTo('');
-    setPage(1);
   };
 
   // A sheet moves from Submitted to Reviewed automatically once every item

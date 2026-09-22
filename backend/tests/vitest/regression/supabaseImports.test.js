@@ -65,10 +65,20 @@ describe('Supabase import files verification', () => {
       );
       expect(bmRows[0].count).toBe(30);
 
+      const { rows: bmNullBankRows } = await client.query(
+        "SELECT count(*)::int AS count FROM public.beneficiary_master WHERE created_by = '+919883321834' AND beneficiary_bank_id IS NULL"
+      );
+      expect(bmNullBankRows[0].count).toBe(0);
+
       const { rows: pbmRows } = await client.query(
         "SELECT count(*)::int AS count FROM public.projects_beneficiary_master WHERE created_by = '+919883321834'"
       );
       expect(pbmRows[0].count).toBe(30);
+
+      const { rows: pbmNullBankRows } = await client.query(
+        "SELECT count(*)::int AS count FROM public.projects_beneficiary_master WHERE created_by = '+919883321834' AND beneficiary_bank_id IS NULL"
+      );
+      expect(pbmNullBankRows[0].count).toBe(0);
 
       // Run again to verify idempotency
       await client.query(benSql);
@@ -76,6 +86,11 @@ describe('Supabase import files verification', () => {
         "SELECT count(*)::int AS count FROM public.beneficiary_master WHERE created_by = '+919883321834'"
       );
       expect(bmRowsAfter[0].count).toBe(30);
+
+      const { rows: pbmNullBankRowsAfter } = await client.query(
+        "SELECT count(*)::int AS count FROM public.projects_beneficiary_master WHERE created_by = '+919883321834' AND beneficiary_bank_id IS NULL"
+      );
+      expect(pbmNullBankRowsAfter[0].count).toBe(0);
 
       // 4. Verify Debit Banks Seed Script
       const debitSqlPath = path.join(baseDir, 'supabase', 'imports', 'seed_debit_banks.sql');

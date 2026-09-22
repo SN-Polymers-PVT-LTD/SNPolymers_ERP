@@ -7,6 +7,7 @@ import EstimatedBillFilters from '../components/estimatedBill/EstimatedBillFilte
 import EstimatedBillStats from '../components/estimatedBill/EstimatedBillStats';
 import EstimatedBillTable from '../components/estimatedBill/EstimatedBillTable';
 import EstimatedBillEntryModal from '../components/estimatedBill/EstimatedBillEntryModal';
+import { useEstimatedBillsUrlState } from '../hooks/useEstimatedBillsUrlState';
 import {
   getEstimatedBills,
   getWorkOrderOptions,
@@ -19,22 +20,15 @@ export const EstimatedBill = () => {
   const queryClient = useQueryClient();
 
   const isZo = user?.role === 'zo';
+  const defaultZone = isZo ? (user?.zone || '') : '';
 
-  // Filters state
-  const [filters, setFilters] = useState({
-    zone: isZo ? (user?.zone || '') : '',
-    work_order_no: '',
-    status: '',
-    min_surety: '',
-    payment_date_from: '',
-    payment_date_to: ''
-  });
-
-  // Modal states
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    initialWorkOrderNo: null
-  });
+  const {
+    filters,
+    setFilters,
+    modalState,
+    openNewModal,
+    closeModal
+  } = useEstimatedBillsUrlState(defaultZone);
 
   // Success popup state
   const [successPopup, setSuccessPopup] = useState({
@@ -70,7 +64,7 @@ export const EstimatedBill = () => {
     onSuccess: (res, variables) => {
       queryClient.invalidateQueries(['estimated-bills']);
       queryClient.invalidateQueries(['estimated-bill-work-orders']);
-      setModalState({ isOpen: false, initialWorkOrderNo: null });
+      closeModal();
       setSuccessPopup({
         isOpen: true,
         title: 'Estimate Saved',
@@ -80,7 +74,7 @@ export const EstimatedBill = () => {
   });
 
   const handleOpenNewModal = () => {
-    setModalState({ isOpen: true, initialWorkOrderNo: null });
+    openNewModal();
   };
 
   const handleViewLedgerClick = (woNo) => {
@@ -88,7 +82,7 @@ export const EstimatedBill = () => {
   };
 
   const handleCloseModal = () => {
-    setModalState({ isOpen: false, initialWorkOrderNo: null });
+    closeModal();
   };
 
   const handleSaveSubmit = (payload) => {

@@ -43,18 +43,27 @@ const formatINR = (value) => {
 };
 
 import { useQuery } from '@tanstack/react-query';
+import { useEstimatesUrlState } from '../hooks/useEstimatesUrlState';
 
 const Estimates = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  const [page, setPage] = useState(1);
   const [limit] = useState(20);
   
-  const [hoTab, setHoTab] = useState('active'); // active | history for HO users
-  const [selectedFilter, setSelectedFilter] = useState('All'); // 'All' | 'Draft'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  // Synchronized URL Routing & State Machine
+  const {
+    hoTab,
+    setHoTab,
+    selectedFilter,
+    setSelectedFilter,
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    page,
+    setPage
+  } = useEstimatesUrlState();
 
   const isJE = user?.role === 'je' || user?.role === 'staff';
   const isHO = user?.role === 'ho';

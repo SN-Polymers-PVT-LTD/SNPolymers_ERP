@@ -132,8 +132,8 @@ function App() {
                     <Route path="/subcontract-estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
                     <Route path="/subcontract-estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
                   </Route>
-                  <Route path="/subcontract-works" element={<Navigate to="/subcontract-masters" replace />} />
-                  <Route path="/subcontractors" element={<Navigate to="/subcontract-masters" replace />} />
+                  <Route path="/subcontract-works" element={<Navigate to="/subcontract-masters?tab=work" replace />} />
+                  <Route path="/subcontractors" element={<Navigate to="/subcontract-masters?tab=subcontractor" replace />} />
                   <Route path="/subcontract-masters" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractMasters /></React.Suspense>} />
                 </Route>
                 <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />

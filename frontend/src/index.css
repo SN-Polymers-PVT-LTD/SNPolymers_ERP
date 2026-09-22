@@ -470,17 +470,25 @@ body.light .bg-white\/10,
 body.light .bg-white\/\[0\.01\],
 body.light .bg-white\/\[0\.02\],
 body.light .bg-slate-900,
+body.light .bg-slate-900\/95,
 body.light .bg-slate-900\/90,
 body.light .bg-slate-900\/80,
+body.light .bg-slate-900\/75,
+body.light .bg-slate-900\/70,
+body.light .bg-slate-900\/65,
 body.light .bg-slate-900\/60,
+body.light .bg-slate-900\/50,
 body.light .bg-slate-900\/40,
+body.light .bg-slate-900\/30,
 body.light .bg-slate-900\/20,
 body.light .bg-slate-900\/10,
 body.light .bg-slate-900\/5,
 body.light .bg-slate-950,
 body.light .bg-slate-950\/95,
 body.light .bg-slate-950\/90,
+body.light .bg-slate-950\/85,
 body.light .bg-slate-950\/80,
+body.light .bg-slate-950\/75,
 body.light .bg-slate-950\/70,
 body.light .bg-slate-950\/60,
 body.light .bg-slate-950\/50,
@@ -490,7 +498,10 @@ body.light .bg-slate-950\/20,
 body.light .bg-slate-950\/10,
 body.light .bg-slate-950\/5,
 body.light .bg-slate-800,
+body.light .bg-slate-800\/90,
 body.light .bg-slate-800\/80,
+body.light .bg-slate-800\/70,
+body.light .bg-slate-800\/60,
 body.light .bg-slate-800\/50,
 body.light .bg-\[\#101520\],
 body.light .bg-\[\#101520\]\/90,
@@ -732,14 +743,23 @@ body.light button.bg-white {
   border-color: #0f172a !important;
 }
 
+body.light button.bg-indigo-600,
+body.light button.bg-indigo-500 {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+  border-color: #4f46e5 !important;
+}
+
 /* Enhance contrast of status badges in light mode */
 body.light .bg-indigo-950\/40,
+body.light .bg-indigo-950\/30,
 body.light .bg-indigo-950\/20,
 body.light .bg-indigo-500\/10,
 body.light .bg-indigo-500\/20 {
   background-color: rgba(99, 102, 241, 0.12) !important;
 }
 
+body.light .text-indigo-100,
 body.light .text-indigo-200,
 body.light .text-indigo-300,
 body.light .text-indigo-300\/80,
@@ -753,7 +773,9 @@ body.light .dark\:text-indigo-400 {
 }
 
 body.light .border-indigo-900\/30,
-body.light .border-indigo-500\/20 {
+body.light .border-indigo-500\/20,
+body.light .border-indigo-500\/25,
+body.light .border-indigo-500\/30 {
   border-color: rgba(99, 102, 241, 0.3) !important;
 }
 
@@ -764,6 +786,8 @@ body.light .bg-emerald-500\/20 {
   background-color: rgba(16, 185, 129, 0.12) !important;
 }
 
+body.light .text-emerald-100,
+body.light .text-emerald-200,
 body.light .text-emerald-300,
 body.light .text-emerald-400,
 body.light .text-emerald-500,
@@ -786,9 +810,12 @@ body.light .bg-red-500\/20 {
   background-color: rgba(239, 68, 68, 0.12) !important;
 }
 
+body.light .text-red-100,
+body.light .text-red-200,
 body.light .text-red-300,
 body.light .text-red-400,
 body.light .text-red-500,
+body.light .dark\:text-red-100,
 body.light .dark\:text-red-200,
 body.light .dark\:text-red-300,
 body.light .dark\:text-red-400 {
@@ -808,6 +835,8 @@ body.light .bg-amber-500\/20 {
   background-color: rgba(245, 158, 11, 0.12) !important;
 }
 
+body.light .text-amber-100,
+body.light .text-amber-200,
 body.light .text-amber-300,
 body.light .text-amber-400,
 body.light .text-amber-500,
@@ -877,6 +906,16 @@ body.light input.text-slate-100 {
   color: #0f172a !important;
 }
 
+body.light .bg-white\/\[0\.03\],
+body.light .glass-panel .bg-white\/\[0\.03\] {
+  background-color: rgba(0, 0, 0, 0.03) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+body.light .hover\:bg-white\/\[0\.03\]:hover {
+  background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
 body.light .bg-white\/5 {
   background-color: rgba(0, 0, 0, 0.03) !important;
 }
@@ -893,6 +932,9 @@ body.light .bg-white\/\[0\.025\] {
 
 body.light .bg-slate-900\/90,
 body.light .bg-slate-900\/80,
+body.light .bg-slate-900\/75,
+body.light .bg-slate-900\/70,
+body.light .bg-slate-900\/65,
 body.light .bg-slate-900\/60,
 body.light .bg-slate-900\/40,
 body.light .bg-slate-900\/20,

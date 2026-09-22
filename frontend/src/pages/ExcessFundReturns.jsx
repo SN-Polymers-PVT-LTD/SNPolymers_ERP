@@ -13,6 +13,7 @@ import {
 } from '../api/fundReturnsApi';
 import { getZonalBalances } from '../api/zoBalancesApi';
 import { getProjects } from '../api/projectsApi';
+import { useExcessFundReturnsUrlState } from '../hooks/useExcessFundReturnsUrlState';
 
 const ExcessFundReturns = () => {
   const { user } = useAuth();
@@ -27,8 +28,22 @@ const ExcessFundReturns = () => {
   const [eligibleZOs, setEligibleZOs] = useState([]);
   const [zoBalance, setZoBalance] = useState(0.00); // Current ZO available balance (for ZO actions)
 
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    activeReturnId,
+    showRequestModal,
+    showActionModal,
+    showHoActionModal,
+    openRequestModal,
+    openActionModal,
+    openHoActionModal,
+    closeModals
+  } = useExcessFundReturnsUrlState();
+
   // Request Return Modal (Admin/HO only)
-  const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedZO, setSelectedZO] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
   const [remarksHo, setRemarksHo] = useState('');
@@ -37,7 +52,6 @@ const ExcessFundReturns = () => {
 
   // ZO Action Drawer/Modal (ZO only)
   const [selectedReturn, setSelectedReturn] = useState(null);
-  const [showActionModal, setShowActionModal] = useState(false);
   const [remarksZo, setRemarksZo] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -46,17 +60,12 @@ const ExcessFundReturns = () => {
   const [breakdownAllocations, setBreakdownAllocations] = useState({}); // { [work_order_no]: amount }
 
   // HO Action Modal (review modifications/rejections)
-  const [showHoActionModal, setShowHoActionModal] = useState(false);
   const [hoActionTarget, setHoActionTarget] = useState(null); // return request object
   const [hoSelectedAction, setHoSelectedAction] = useState('Cancel'); // 'Cancel' | 'Reissue'
   const [hoActionRemarks, setHoActionRemarks] = useState('');
   const [hoRequestedAmount, setHoRequestedAmount] = useState('');
   const [submittingHoAction, setSubmittingHoAction] = useState(false);
   const [hoActionError, setHoActionError] = useState('');
-
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'Requested', 'Completed', 'Awaiting HO Review', 'Rejected', 'Cancelled'
 
   const fetchReturns = async () => {
     setLoading(true);
@@ -119,7 +128,7 @@ const ExcessFundReturns = () => {
     setSelectedZO('');
     setRequestAmount('');
     setRemarksHo('');
-    setShowRequestModal(true);
+    openRequestModal();
   };
 
   const handleCreateRequest = async (e) => {
@@ -143,7 +152,7 @@ const ExcessFundReturns = () => {
 
       if (response.data?.success) {
         setSuccess('Excess fund return request successfully sent to Zonal Office.');
-        setShowRequestModal(false);
+        closeModals();
         fetchReturns();
       }
     } catch (err) {
@@ -159,7 +168,7 @@ const ExcessFundReturns = () => {
     setRemarksZo('');
     setSelectedReturn(ret);
     setBreakdownAllocations({});
-    setShowActionModal(true);
+    openActionModal(ret.id);
 
     setLoadingWoBalances(true);
     try {
@@ -227,7 +236,7 @@ const ExcessFundReturns = () => {
       const response = await acceptReturnRequest(selectedReturn.id, selectedReturn.updated_at, breakdown);
       if (response.data?.success) {
         setSuccess('Fund return accepted. Balance updated and logged in ledger.');
-        setShowActionModal(false);
+        closeModals();
         fetchReturns();
         fetchDropdownAndBalanceData(); // Refresh available ZO balance
       }
@@ -267,7 +276,7 @@ const ExcessFundReturns = () => {
 
       if (response.data?.success) {
         setSuccess(`Return request successfully ${actionType === 'REJECT' ? 'rejected' : 'sent for modification'}.`);
-        setShowActionModal(false);
+        closeModals();
         fetchReturns();
       }
     } catch (err) {
@@ -284,7 +293,7 @@ const ExcessFundReturns = () => {
     setHoActionRemarks('');
     setHoRequestedAmount(ret.requested_amount);
     setHoActionTarget(ret);
-    setShowHoActionModal(true);
+    openHoActionModal(ret.id);
   };
 
   const handleHoActionSubmit = async (e) => {
@@ -300,7 +309,7 @@ const ExcessFundReturns = () => {
       const response = await actionOnReturnRequest(hoActionTarget.id, hoSelectedAction, hoActionRemarks, reqAmt);
       if (response.data?.success) {
         setSuccess(`Return request successfully actioned (${hoSelectedAction}).`);
-        setShowHoActionModal(false);
+        closeModals();
         fetchReturns();
       }
     } catch (err) {
@@ -310,6 +319,20 @@ const ExcessFundReturns = () => {
       setSubmittingHoAction(false);
     }
   };
+
+  // Deep-link modal restoration
+  useEffect(() => {
+    if (activeReturnId && returns.length > 0) {
+      const found = returns.find(r => String(r.id) === String(activeReturnId));
+      if (found) {
+        if (showActionModal && (!selectedReturn || selectedReturn.id !== found.id)) {
+          handleOpenActionModal(found);
+        } else if (showHoActionModal && (!hoActionTarget || hoActionTarget.id !== found.id)) {
+          handleOpenHoActionModal(found);
+        }
+      }
+    }
+  }, [activeReturnId, returns, showActionModal, showHoActionModal]);
 
   const filteredReturns = returns.filter(r => {
     const matchesSearch =
@@ -524,7 +547,7 @@ const ExcessFundReturns = () => {
       {/* Request Return Modal (Admin/HO only) */}
       <Modal
         isOpen={showRequestModal}
-        onClose={() => setShowRequestModal(false)}
+        onClose={closeModals}
         title="Request Excess Fund Return"
         subtitle="Capital Return Ledger"
         size="md"
@@ -582,7 +605,7 @@ const ExcessFundReturns = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={() => setShowRequestModal(false)}
+              onClick={closeModals}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submittingRequest}
             >
@@ -602,7 +625,7 @@ const ExcessFundReturns = () => {
       {/* ZO Action Modal (ZO only) */}
       <Modal
         isOpen={showActionModal && !!selectedReturn}
-        onClose={() => setShowActionModal(false)}
+        onClose={closeModals}
         title="Evaluate Return Request"
         subtitle={selectedReturn ? `Status: ${selectedReturn.status}` : ''}
         size="lg"
@@ -692,7 +715,7 @@ const ExcessFundReturns = () => {
             <div className="flex flex-wrap gap-3 justify-end pt-4 border-t border-white/5">
               <button
                 type="button"
-                onClick={() => setShowActionModal(false)}
+                onClick={closeModals}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-400 hover:bg-white/5 transition"
                 disabled={submittingAction}
               >
@@ -733,7 +756,7 @@ const ExcessFundReturns = () => {
       {/* HO Action Modal (review modifications/rejections) */}
       <Modal
         isOpen={showHoActionModal && !!hoActionTarget}
-        onClose={() => setShowHoActionModal(false)}
+        onClose={closeModals}
         title="Action Return Request"
         subtitle={hoActionTarget ? `Status: ${hoActionTarget.status}` : ''}
         size="md"
@@ -807,7 +830,7 @@ const ExcessFundReturns = () => {
             <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
               <button
                 type="button"
-                onClick={() => setShowHoActionModal(false)}
+                onClick={closeModals}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
                 disabled={submittingHoAction}
               >

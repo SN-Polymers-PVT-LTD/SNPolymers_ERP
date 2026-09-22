@@ -15,6 +15,7 @@ import ExportDateRangeModal from '../components/fundRequests/ExportDateRangeModa
 
 // API Clients
 import { getFundRequests, createFundRequestDraft, updateFundRequestDraft, submitFundRequest, cancelFundRequest } from '../api/fundRequests';
+import { useFundRequestUrlState } from '../hooks/useFundRequestUrlState';
 import { getRequisitions } from '../api/requisitionsApi';
 import { getProjects } from '../api/projectsApi';
 import { getEstimateSummary } from '../api/estimatesApi';
@@ -32,36 +33,16 @@ const FundRequests = () => {
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [search, setSearch] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
 
   // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   
-  // Dashboard navigation states
-  const [activeRequest, setActiveRequest] = useState(null); // request details panel view
-  const [showCreateFlow, setShowCreateFlow] = useState(false);
+  // Dashboard action state
   const [cancelTarget, setCancelTarget] = useState(null); // { id, no }
   const [isCancelling, setIsCancelling] = useState(false);
-  const [createWorkOrder, setCreateWorkOrder] = useState('');
-
-  // Quick Filters State
-  const [filters, setFilters] = useState({
-    myRequests: false,
-    pendingOnly: false,
-    approvedThisMonth: false,
-    onHoldRequests: false,
-    largeAmount: false,
-    notSentToHo: false,
-    remainingFundRequest: false
-  });
 
   const isZoUser = user?.role === 'zo' || user?.role === 'staff' || user?.role === 'admin';
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, filters, pageSize]);
 
   // Fetch fund requests using React Query
   const { data: requestsData, isLoading: loading, error: queryError } = useQuery({
@@ -75,6 +56,27 @@ const FundRequests = () => {
 
   const requests = useMemo(() => requestsData ?? [], [requestsData]);
   const displayError = error || queryError?.response?.data?.message || queryError?.message;
+
+  // Synchronized URL Routing & State Machine
+  const {
+    search,
+    setSearch,
+    currentPage,
+    setCurrentPage,
+    filters,
+    setFilter,
+    setFilters,
+    showCreateFlow,
+    setShowCreateFlow,
+    createWorkOrder,
+    activeRequest,
+    setActiveRequest,
+    closeDetailOrForm
+  } = useFundRequestUrlState({ requests });
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [pageSize]);
 
   const isWoLevelView = filters.notSentToHo || filters.remainingFundRequest;
 
@@ -166,7 +168,7 @@ const FundRequests = () => {
 
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilter(key, value);
   };
 
   const handleRowClick = (req) => {
@@ -174,12 +176,11 @@ const FundRequests = () => {
   };
 
   const handleReviewNowTrigger = () => {
-    setFilters(prev => ({ ...prev, pendingOnly: true }));
+    setFilter('pendingOnly', true);
   };
 
   const handleCreateForWorkOrder = (workOrderNo) => {
-    setCreateWorkOrder(workOrderNo || '');
-    setShowCreateFlow(true);
+    setShowCreateFlow(true, workOrderNo || '');
   };
 
   // Filter requests list based on search and quick checklist filters
@@ -303,9 +304,7 @@ const FundRequests = () => {
               user={user}
               request={activeRequest ? (requests.find(r => r.fund_request_id === activeRequest.fund_request_id) || activeRequest) : null}
               onClose={() => {
-                setActiveRequest(null);
-                setShowCreateFlow(false);
-                setCreateWorkOrder('');
+                closeDetailOrForm();
               }}
               initialWorkOrder={createWorkOrder}
               onSave={handleCreate}
@@ -332,7 +331,6 @@ const FundRequests = () => {
               {isZoUser && (
                 <Button
                   onClick={() => {
-                    setCreateWorkOrder('');
                     setShowCreateFlow(true);
                   }}
                   icon={

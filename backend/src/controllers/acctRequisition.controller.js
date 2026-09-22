@@ -427,6 +427,45 @@ async function getSheetById(req, res) {
 
 /**
  * POST /acct-requisitions/sheets/:sheetId/items
+/**
+ * Helper to resolve beneficiary bank id and name consistently.
+ * If bankId is supplied, validates that it exists and is active.
+ * If bankId is omitted/null but bankName is supplied, attempts to match
+ * an active bank in indian_bank_master by name (case-insensitive) to populate bankId.
+ * If neither is supplied, returns null for both.
+ */
+async function resolveBeneficiaryBankFields(bankId, bankName) {
+  let resolvedBankId = bankId || null;
+  let resolvedBankName = bankName?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return { error: { status: 422, message: 'Selected bank does not exist.' } };
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return { error: { status: 422, message: 'Selected bank is currently inactive.' } };
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
+
+  return { bankId: resolvedBankId, bankName: resolvedBankName };
+}
+
+/**
+ * POST /acct-requisitions/sheets/:sheetId/items
  * Gate (§4c): sheet_status === 'Open'.
  */
 async function addLineItem(req, res) {
@@ -434,21 +473,15 @@ async function addLineItem(req, res) {
   const { sheetId } = req.params;
 
   try {
-    if (req.body.beneficiary_bank_id) {
-      const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
-      if (!bankCheck.valid) {
-        if (bankCheck.reason === 'NOT_FOUND') {
-          return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-        }
-        if (bankCheck.reason === 'INACTIVE') {
-          return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-        }
-      }
-      req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
-    } else if (req.body.beneficiary_bank_id === null || req.body.beneficiary_bank_id === '') {
-      req.body.beneficiary_bank_id = null;
-      req.body.beneficiary_bank_name = null;
+    const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+      req.body.beneficiary_bank_id,
+      req.body.beneficiary_bank_name
+    );
+    if (bankErr) {
+      return res.status(bankErr.status).json({ success: false, message: bankErr.message });
     }
+    req.body.beneficiary_bank_id = resolvedBankId;
+    req.body.beneficiary_bank_name = resolvedBankName;
 
     // add_acct_line_item_transact (033_add_line_item_transact_and_neft_beneficiary_check.sql)
     // locks the sheet row FOR UPDATE before checking sheet_status, closing the race where a
@@ -534,22 +567,16 @@ async function updateLineItem(req, res) {
       });
     }
 
-    if ('beneficiary_bank_id' in req.body) {
-      if (req.body.beneficiary_bank_id) {
-        const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
-        if (!bankCheck.valid) {
-          if (bankCheck.reason === 'NOT_FOUND') {
-            return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-          }
-          if (bankCheck.reason === 'INACTIVE') {
-            return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-          }
-        }
-        req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
-      } else {
-        req.body.beneficiary_bank_id = null;
-        req.body.beneficiary_bank_name = null;
+    if ('beneficiary_bank_id' in req.body || 'beneficiary_bank_name' in req.body) {
+      const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+        req.body.beneficiary_bank_id,
+        req.body.beneficiary_bank_name
+      );
+      if (bankErr) {
+        return res.status(bankErr.status).json({ success: false, message: bankErr.message });
       }
+      req.body.beneficiary_bank_id = resolvedBankId;
+      req.body.beneficiary_bank_name = resolvedBankName;
     }
 
     const { data: updated, error: updateErr } = await supabase
@@ -759,7 +786,28 @@ async function actOnLineItem(req, res) {
       throw rpcErr;
     }
 
-    const { notifyAcctSheetReviewComplete } = require('../services/telegram.service');
+    const { notifyAcctSheetReviewComplete, notifyZoFundRequestApproved, notifyZoFundRequestHeld } = require('../services/telegram.service');
+
+    // If this line item was imported from a Fund Request, notify the Zonal Officer
+    if (item.source_fund_request_id) {
+      const { data: fr } = await supabase
+        .from('fund_requests')
+        .select('*')
+        .eq('fund_request_id', item.source_fund_request_id)
+        .maybeSingle();
+
+      if (fr) {
+        if (action === 'Approve' || action === 'PartiallyApprove') {
+          notifyZoFundRequestApproved(fr, fr).catch(err => {
+            console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
+          });
+        } else if (action === 'Hold') {
+          notifyZoFundRequestHeld(fr, fr).catch(err => {
+            console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
+          });
+        }
+      }
+    }
 
     // Returned/Rejected items no longer get their own immediate Telegram
     // message here — on a large sheet that meant one ping per item as HO
@@ -812,7 +860,7 @@ async function actOnLineItemsBatch(req, res) {
     const itemIds = actions.map(a => a.line_item_id);
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, debit_bank_ac_type, req_amount')
+      .select('id, debit_bank_ac_type, req_amount, source_fund_request_id')
       .eq('sheet_id', sheetId)
       .in('id', itemIds);
     if (itemsErr) throw itemsErr;
@@ -838,7 +886,40 @@ async function actOnLineItemsBatch(req, res) {
     });
     if (rpcErr) throw rpcErr;
 
-    const { notifyAcctBankBalanceInsufficient, notifyAcctSheetReviewComplete } = require('../services/telegram.service');
+    const { notifyAcctBankBalanceInsufficient, notifyAcctSheetReviewComplete, notifyZoFundRequestApproved, notifyZoFundRequestHeld } = require('../services/telegram.service');
+
+    const successfulFrs = results
+      .filter(r => r.success)
+      .map(r => {
+        const item = itemById.get(r.line_item_id);
+        const action = actions.find(a => a.line_item_id === r.line_item_id);
+        return {
+          source_fund_request_id: item?.source_fund_request_id,
+          action: action?.action
+        };
+      })
+      .filter(x => x.source_fund_request_id);
+
+    if (successfulFrs.length > 0) {
+      const frIds = successfulFrs.map(x => x.source_fund_request_id);
+      supabase.from('fund_requests')
+        .select('*')
+        .in('fund_request_id', frIds)
+        .then(({ data: frs }) => {
+          if (!frs) return;
+          const frMap = new Map(frs.map(f => [f.fund_request_id, f]));
+          for (const s of successfulFrs) {
+            const fr = frMap.get(s.source_fund_request_id);
+            if (!fr) continue;
+            if (s.action === 'Approve' || s.action === 'PartiallyApprove') {
+              notifyZoFundRequestApproved(fr, fr).catch(err => console.error(`[FUND REQUEST] Telegram notify failed: ${err.message}`));
+            } else if (s.action === 'Hold') {
+              notifyZoFundRequestHeld(fr, fr).catch(err => console.error(`[FUND REQUEST] Telegram notify failed: ${err.message}`));
+            }
+          }
+        })
+        .catch(err => console.error(`[FUND REQUEST] Batch telegram notify failed: ${err.message}`));
+    }
 
     const failed = results.filter(r => !r.success);
     // Fire-and-forget, same as the single-item path — one message per bank
@@ -926,23 +1007,12 @@ async function resubmitLineItem(req, res) {
   const { itemId } = req.params;
   const b = req.body;
 
-  let resolvedBankId = b.beneficiary_bank_id ?? null;
-  let resolvedBankName = b.beneficiary_bank_name ?? null;
-
-  if (resolvedBankId) {
-    const bankCheck = await validateActiveIndianBank(resolvedBankId);
-    if (!bankCheck.valid) {
-      if (bankCheck.reason === 'NOT_FOUND') {
-        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-      }
-      if (bankCheck.reason === 'INACTIVE') {
-        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-      }
-    }
-    resolvedBankName = bankCheck.bank.bank_name;
-  } else if ('beneficiary_bank_id' in b && (b.beneficiary_bank_id === null || b.beneficiary_bank_id === '')) {
-    resolvedBankId = null;
-    resolvedBankName = null;
+  const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+    b.beneficiary_bank_id,
+    b.beneficiary_bank_name
+  );
+  if (bankErr) {
+    return res.status(bankErr.status).json({ success: false, message: bankErr.message });
   }
 
   try {
@@ -1701,30 +1771,12 @@ async function upsertBeneficiary(req, res) {
   if (!validate(req, res, upsertBeneficiarySchema)) return;
   const { account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
 
-  let resolvedBankId = beneficiary_bank_id || null;
-  let resolvedBankName = beneficiary_bank_name?.trim() || null;
-
-  if (resolvedBankId) {
-    const bankCheck = await validateActiveIndianBank(resolvedBankId);
-    if (!bankCheck.valid) {
-      if (bankCheck.reason === 'NOT_FOUND') {
-        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-      }
-      if (bankCheck.reason === 'INACTIVE') {
-        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-      }
-    }
-    resolvedBankName = bankCheck.bank.bank_name;
-  } else if (resolvedBankName) {
-    const { data: matchedBank } = await supabase
-      .from('indian_bank_master')
-      .select('id, bank_name, is_active')
-      .ilike('bank_name', resolvedBankName)
-      .maybeSingle();
-    if (matchedBank) {
-      resolvedBankId = matchedBank.id;
-      resolvedBankName = matchedBank.bank_name;
-    }
+  const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+    beneficiary_bank_id,
+    beneficiary_bank_name
+  );
+  if (bankErr) {
+    return res.status(bankErr.status).json({ success: false, message: bankErr.message });
   }
 
   try {

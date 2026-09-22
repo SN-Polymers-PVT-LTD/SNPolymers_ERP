@@ -4,6 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSheets, createSheet, deleteSheetIfEmpty } from '../api/acctRequisitionsApi';
+import { useAcctRequisitionsUrlState } from '../hooks/useAcctRequisitionsUrlState';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -37,12 +38,20 @@ const AcctRequisitions = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState(1);
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    page,
+    setPage,
+    resetFilters
+  } = useAcctRequisitionsUrlState();
   const [limit] = useState(20);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [creating, setCreating] = useState(false);
@@ -141,13 +150,7 @@ const AcctRequisitions = () => {
     }
   };
 
-  const resetFilters = () => {
-    setSearchQuery('');
-    setDateFrom('');
-    setDateTo('');
-    setStatusFilter('All');
-    setPage(1);
-  };
+
 
   if (!isAccountsUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;

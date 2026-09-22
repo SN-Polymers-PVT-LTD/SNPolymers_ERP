@@ -1,7 +1,7 @@
 const { supabase } = require('../db/supabase');
 const { syncEditableCostEstimateForWorkOrderBestEffort } = require('../services/subcontractCostEstimateSync.service');
 const { visibleWorkOrders } = require('../helpers/workOrderAccess');
-const { notifyZoSubcontractEstimateSubmitted, notifyHoSubcontractEstimateApproved } = require('../services/telegram.service');
+const telegramService = require('../services/telegram.service');
 
 const readerRoles = ['je', 'zo', 'ho', 'admin'];
 const isUuid = (value) => /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(value);
@@ -115,6 +115,9 @@ async function transitionWorkflow(req, res) {
   try {
     const { action, remarks, expected_updated_at, deadline_hours } = req.body;
     if (action === 'REOPEN' || action === 'SUBMIT_REOPENED') {
+      if (action === 'REOPEN' && !['zo', 'admin'].includes(req.user?.role)) {
+        return res.status(403).json({ success: false, message: 'Only ZO or Admin may reopen an estimate.' });
+      }
       const rpcName = action === 'REOPEN' ? 'reopen_subcontract_estimate' : 'submit_reopened_subcontract_estimate';
       const rpcParams = action === 'REOPEN' ? {
         p_estimate_id: req.params.id,
@@ -137,7 +140,7 @@ async function transitionWorkflow(req, res) {
         }
         const { data: submitted, error: submittedReadError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
         if (submittedReadError) throw submittedReadError;
-        notifyZoSubcontractEstimateSubmitted(submitted, req.user.mobile_number, req.user.role, remarks).catch(err => {
+        telegramService.notifyZoSubcontractEstimateSubmitted(submitted, req.user.mobile_number, req.user.role, remarks).catch(err => {
           console.error(`[TELEGRAM ALERTS] notifyZoSubcontractEstimateSubmitted failed: ${err.message}`);
         });
         return res.json({ success: true, estimate: submitted, message: 'Estimate revision submitted successfully.' });
@@ -151,6 +154,9 @@ async function transitionWorkflow(req, res) {
       }
       const { data: reopened, error: readError } = await supabase.from('project_subcontract_estimates').select(detailSelect).eq('subcontract_estimate_id', req.params.id).single();
       if (readError) throw readError;
+      telegramService.notifyJeSubcontractEstimateReopened(reopened, req.user.mobile_number, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyJeSubcontractEstimateReopened failed: ${err.message}`);
+      });
       return res.json({ success: true, estimate: reopened, message: 'Estimate reopened successfully.' });
     }
     const { error } = await supabase.rpc('transition_subcontract_estimate_workflow', {
@@ -181,12 +187,28 @@ async function transitionWorkflow(req, res) {
     if (readError) throw readError;
 
     if (['SUBMIT', 'RESUBMIT'].includes(action)) {
-      notifyZoSubcontractEstimateSubmitted(estimate, req.user.mobile_number, req.user.role, remarks).catch(err => {
+      telegramService.notifyZoSubcontractEstimateSubmitted(estimate, req.user.mobile_number, req.user.role, remarks).catch(err => {
         console.error(`[TELEGRAM ALERTS] notifyZoSubcontractEstimateSubmitted failed: ${err.message}`);
       });
     } else if (action === 'ZO_APPROVE') {
-      notifyHoSubcontractEstimateApproved(estimate, req.user.mobile_number, remarks).catch(err => {
+      telegramService.notifyHoSubcontractEstimateApproved(estimate, req.user.mobile_number, remarks).catch(err => {
         console.error(`[TELEGRAM ALERTS] notifyHoSubcontractEstimateApproved failed: ${err.message}`);
+      });
+      telegramService.notifyJeSubcontractEstimateZoApproved(estimate, req.user.mobile_number, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyJeSubcontractEstimateZoApproved failed: ${err.message}`);
+      });
+    } else if (action === 'HO_APPROVE') {
+      telegramService.notifyAllSubcontractEstimateFinalApproved(estimate, req.user.mobile_number, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyAllSubcontractEstimateFinalApproved failed: ${err.message}`);
+      });
+    } else if (['ZO_REQUEST_REVISION', 'HO_REQUEST_REVISION'].includes(action)) {
+      const latestRevisionLog = (estimate.subcontract_estimate_revision_log || []).slice(-1)[0] || null;
+      telegramService.notifyJeSubcontractEstimateRevisionRequested(estimate, req.user.mobile_number, remarks, latestRevisionLog).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyJeSubcontractEstimateRevisionRequested failed: ${err.message}`);
+      });
+    } else if (['ZO_REJECT', 'HO_REJECT'].includes(action)) {
+      telegramService.notifyJeSubcontractEstimateRejected(estimate, req.user.mobile_number, remarks).catch(err => {
+        console.error(`[TELEGRAM ALERTS] notifyJeSubcontractEstimateRejected failed: ${err.message}`);
       });
     }
 

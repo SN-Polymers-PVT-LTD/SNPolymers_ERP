@@ -1812,19 +1812,38 @@ async function searchProjectsBeneficiaries(req, res) {
 
     if (error) throw error;
 
-    const enriched = (data || []).map(b => ({
-      id: b.id,
-      beneficiary_name: b.beneficiary_name,
-      beneficiary_ac_no: b.beneficiary_ac_no,
-      beneficiary_ifsc: b.beneficiary_ifsc,
-      beneficiary_bank_id: b.beneficiary_bank_id,
-      beneficiary_bank: b.indian_bank_master ? {
-        id: b.indian_bank_master.id,
-        bank_name: b.indian_bank_master.bank_name
-      } : null,
-      beneficiary_bank_name: b.indian_bank_master?.bank_name || b.beneficiary_bank_name,
-      last_used_at: b.last_used_at
-    }));
+    let activeBanks = null;
+    try {
+      activeBanks = await getActiveIndianBanks();
+    } catch {
+      activeBanks = [];
+    }
+    const bankNameMap = new Map((activeBanks || []).map(bank => [bank.bank_name.trim().toLowerCase(), bank]));
+
+    const enriched = (data || []).map(b => {
+      let bankId = b.beneficiary_bank_id || b.indian_bank_master?.id || null;
+      let bankName = b.indian_bank_master?.bank_name || b.beneficiary_bank_name || null;
+      if (!bankId && bankName) {
+        const matched = bankNameMap.get(bankName.trim().toLowerCase());
+        if (matched) {
+          bankId = matched.id;
+          bankName = matched.bank_name;
+        }
+      }
+      return {
+        id: b.id,
+        beneficiary_name: b.beneficiary_name,
+        beneficiary_ac_no: b.beneficiary_ac_no,
+        beneficiary_ifsc: b.beneficiary_ifsc,
+        beneficiary_bank_id: bankId,
+        beneficiary_bank: bankId ? {
+          id: bankId,
+          bank_name: bankName
+        } : null,
+        beneficiary_bank_name: bankName,
+        last_used_at: b.last_used_at
+      };
+    });
 
     return res.status(200).json({ success: true, beneficiaries: enriched });
   } catch (error) {

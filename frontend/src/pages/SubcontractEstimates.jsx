@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Badge, Button, Input, Select, SkeletonCard } from '../components/ui';
 import { getSubcontractEstimates, getSubcontractEstimateSummary } from '../api/subcontractEstimatesApi';
+import { useSubcontractEstimatesUrlState } from '../hooks/useSubcontractEstimatesUrlState';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -57,12 +58,19 @@ const SubcontractEstimates = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [page, setPage] = useState(1);
   const [limit] = useState(20);
-  const [hoTab, setHoTab] = useState('active'); // active | history for HO users
-  const [selectedFilter, setSelectedFilter] = useState('All'); // 'All' | 'Draft'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const {
+    hoTab,
+    setHoTab,
+    selectedFilter,
+    setSelectedFilter,
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    page,
+    setPage
+  } = useSubcontractEstimatesUrlState();
 
   const [estimates, setEstimates] = useState([]);
   const [summaryData, setSummaryData] = useState(null);
