@@ -11,6 +11,7 @@ import authApi from '../../api/authApi';
 export function describePageContract(PageComponent, {
   name = PageComponent.name || 'Page',
   route = '/',
+  routePath = null,
   allowedRoles = ['admin'],
   unauthorizedRole = null,
   headingMatch = null,
@@ -30,6 +31,7 @@ export function describePageContract(PageComponent, {
       it(`renders primary page heading for authorized role (${allowedRoles[0]})`, async () => {
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
+          routePath: routePath || (route.includes('/') ? route : '/'),
           role: allowedRoles[0],
           overrides: scenarioOverrides
         });
@@ -45,6 +47,7 @@ export function describePageContract(PageComponent, {
 
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
+          routePath: routePath || (route.includes('/') ? route : '/'),
           role: allowedRoles[0],
           scenario: 'empty',
           overrides: scenarioOverrides
@@ -59,6 +62,7 @@ export function describePageContract(PageComponent, {
       it('renders error alert or fallback when API request fails', async () => {
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
+          routePath: routePath || (route.includes('/') ? route : '/'),
           role: allowedRoles[0],
           scenario: 'apiError',
           errorMessage: 'Server unavailable',

@@ -1,7 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
-import SubcontractEstimateForm from './SubcontractEstimateForm';
+import EstimateForm from './EstimateForm';
 import {
   renderPage,
   describePageContract,
@@ -21,29 +21,28 @@ vi.mock('../api/authApi', () => ({
 }));
 
 // 1. Layer 1 & 2 Page Contract Proof
-describePageContract(SubcontractEstimateForm, {
-  name: 'SubcontractEstimateForm',
-  route: '/subcontract-estimates/new',
-  allowedRoles: ['je', 'admin'],
-  unauthorizedRole: 'zo',
-  headingMatch: /New Subcontract Estimate/i
+describePageContract(EstimateForm, {
+  name: 'EstimateForm',
+  route: '/estimates/new',
+  allowedRoles: ['staff', 'admin', 'je', 'zo', 'ho', 'accounts'],
+  headingMatch: /New Cost Estimate/i
 });
 
 // 2. Layer 3 & Domain Interactions Proof
-describe('SubcontractEstimateForm Page Domain & URL Contract', () => {
+describe('EstimateForm Page Domain & URL Contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApiScenario(authApi, { scenario: 'populated' });
   });
 
-  it('renders new subcontract estimate form with work order select and action buttons', async () => {
-    renderPage(<SubcontractEstimateForm />, {
-      initialUrl: '/subcontract-estimates/new',
-      role: 'je'
+  it('renders estimate creation form with work order select dropdown', async () => {
+    renderPage(<EstimateForm />, {
+      initialUrl: '/estimates/new',
+      role: 'admin'
     });
 
-    expect(await screen.findByText(/New Subcontract Estimate/i)).toBeInTheDocument();
+    expect(await screen.findByText(/New Cost Estimate/i)).toBeInTheDocument();
+    expect(screen.getByText(/Estimate Header/i)).toBeInTheDocument();
     expect(screen.getByText(/Select Work Order/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /\+ Add Line/i }).length).toBeGreaterThanOrEqual(1);
   });
 });

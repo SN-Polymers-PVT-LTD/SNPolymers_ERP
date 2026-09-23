@@ -97,6 +97,13 @@ export const estimatesFixture = [
     items: [
       {
         item_id: 'item-1',
+        material_main_head: 'Electrical',
+        material_sub_head: 'Cables',
+        material_details: 'Trench Excavation and Conduit Laying',
+        unit: 'Mtr',
+        qty: 500,
+        rate: 1200,
+        amount: 600000,
         description: 'Trench Excavation and Conduit Laying',
         quantity: 500,
         unit_rate: 1200,
@@ -420,3 +427,120 @@ export const indianBanksFixture = [
     is_active: true
   }
 ];
+
+
+// --- Domain 2: Estimates & Requisitions Fixtures ---
+
+export const subcontractEstimatesFixture = [
+  {
+    subcontract_estimate_id: '1',
+    id: '1',
+    work_order_no: 'WO-101',
+    estimate_status: 'Submitted',
+    subcontractor_id: 'sc-001',
+    subcontractor_name: 'Apex Infrastructure Ltd',
+    total_amount: 150000,
+    created_at: '2026-01-15T10:00:00Z',
+    project_subcontract_estimate_lines: [
+      {
+        line_id: 'line-01',
+        subcontractor_id: 'sc-001',
+        subcontractor: {
+          subcontractor_id: 'sc-001',
+          subcontractor_name: 'Apex Infrastructure Ltd',
+          is_active: true
+        },
+        subcontract_work_id: 'scw-001',
+        subcontract_work: {
+          subcontract_work_id: 'scw-001',
+          sub_head: 'Earthwork Excavation',
+          material_details: 'Soil excavation in trenches and foundation',
+          unit: 'Cum',
+          is_active: true
+        },
+        unit: 'Cum',
+        qty: 100,
+        rate: 500,
+        amount: 50000,
+        entry_kind: 'New',
+        final_approved_revision: null
+      }
+    ]
+  }
+];
+
+export const acctSubTitlesFixture = [
+  {
+    sub_title_id: 'st-01',
+    id: 'st-01',
+    sub_title_name: 'Fuel & Transportation',
+    code: 'FT01',
+    is_active: true
+  },
+  {
+    sub_title_id: 'st-02',
+    id: 'st-02',
+    sub_title_name: 'Material Procurement',
+    code: 'MP02',
+    is_active: true
+  }
+];
+
+export const acctParticularsFixture = [
+  {
+    particular_id: 'part-01',
+    id: 'part-01',
+    particular_name: 'Diesel Refill for Generator',
+    sub_title_id: 'st-01',
+    sub_title_name: 'Fuel & Transportation',
+    is_active: true
+  }
+];
+
+export const acctImportEligibleFixture = [
+  {
+    item_id: 'item-held-01',
+    id: 'item-held-01',
+    requisition_no: 'REQ-2026-001',
+    work_order_no: 'WO-101',
+    sub_head: 'Earthwork',
+    requested_amount: 25000,
+    status: 'Held',
+    reason: 'Pending verification'
+  }
+];
+
+export const acctPaymentRequisitionsFixture = [
+  {
+    payment_requisition_id: 'pay-req-01',
+    id: 'pay-req-01',
+    requisition_no: 'REQ-2026-001',
+    work_order_no: 'WO-101',
+    beneficiary_name: 'National Suppliers Corp',
+    amount: 50000,
+    status: 'Ready for Payment'
+  }
+];
+
+export const acctSheetDetailFixture = {
+  sheet_id: '1',
+  id: '1',
+  sheet_number: 'SHEET-2026-01',
+  status: 'Open', sheet_status: 'Open',
+  created_at: '2026-01-20T10:00:00Z',
+  total_amount: 100000,
+  items: [
+    {
+      item_id: 'item-01',
+      id: 'item-01',
+      requisition_no: 'REQ-2026-001',
+      work_order_no: 'WO-101',
+      particular: 'Diesel Refill for Generator',
+      amount: 50000,
+      status: 'Pending',
+      beneficiary_name: 'National Suppliers Corp',
+      account_number: '123456789012',
+      ifsc: 'SBIN0001234'
+    }
+  ]
+};

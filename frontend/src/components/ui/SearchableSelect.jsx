@@ -86,12 +86,12 @@ const SearchableSelect = ({
   }, [open]);
 
   const filtered = useMemo(() => {
-    const q = value.trim().toLowerCase();
+    const q = (value || '').trim().toLowerCase();
     if (!q) return options;
     return options.filter(o => o.label.toLowerCase().includes(q));
   }, [options, value]);
 
-  const exactMatch = options.some(o => o.label.trim().toLowerCase() === value.trim().toLowerCase());
+  const exactMatch = options.some(o => (o.label || '').trim().toLowerCase() === (value || '').trim().toLowerCase());
 
   const handlePick = (opt) => {
     onSelect?.(opt);

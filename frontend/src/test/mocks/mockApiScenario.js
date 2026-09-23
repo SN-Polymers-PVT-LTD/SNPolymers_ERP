@@ -15,7 +15,13 @@ import {
   userMappingsFixture,
   workOrderMappingsFixture,
   beneficiariesFixture,
-  indianBanksFixture
+  indianBanksFixture,
+  subcontractEstimatesFixture,
+  acctSubTitlesFixture,
+  acctParticularsFixture,
+  acctImportEligibleFixture,
+  acctPaymentRequisitionsFixture,
+  acctSheetDetailFixture
 } from '../fixtures/domainFixtures';
 
 /**
@@ -31,6 +37,17 @@ function getScenarioPayload(url, scenario, overrides = {}) {
 
   if (scenario === 'empty') {
     if (url.includes('/materials/categories')) return { success: true, mainHeads: [], subHeads: [] };
+    if (url.includes('/subcontract-estimates/summary')) return { success: true, summary: [] };
+    if (url.includes('/subcontract-estimates/init')) return { success: true, activeProjects: projectsFixture, works: [] };
+    if (url.includes('/subcontract-estimates')) return { success: true, estimates: [], subcontractEstimates: [], data: [] };
+    if (url.includes('/estimates/summary')) return { success: true, estimates: [], summary: [] };
+    if (url.includes('/acct-requisitions/sheets/')) return { success: true, sheet: null, items: [] };
+    if (url.includes('/acct-requisitions/sheets')) return { success: true, sheets: [], data: [] };
+    if (url.includes('/acct-requisitions/line-items')) return { success: true, lineItems: [], items: [], data: [] };
+    if (url.includes('/acct-requisitions/account-sub-titles')) return { success: true, subTitles: [], data: [] };
+    if (url.includes('/acct-requisitions/particulars')) return { success: true, particulars: [], data: [] };
+    if (url.includes('/acct-requisitions/import-eligible-items')) return { success: true, items: [], data: [] };
+    if (url.includes('/acct-requisitions/payment-requisitions')) return { success: true, paymentRequisitions: [], requisitions: [], data: [] };
     if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };
     if (url.includes('/subcontractors')) return { success: true, subcontractors: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };
     if (url.includes('/user-mappings/eligible-jes')) return { success: true, eligibleJEs: [] };
@@ -53,6 +70,19 @@ function getScenarioPayload(url, scenario, overrides = {}) {
 
   // Populated scenario
   if (url.includes('/materials/categories')) return { success: true, ...materialCategoriesFixture };
+  if (url.includes('/subcontract-estimates/summary')) return { success: true, summary: [] };
+  if (url.includes('/subcontract-estimates/init')) return { success: true, activeProjects: projectsFixture, works: [] };
+  if (url.includes('/subcontract-estimates/1')) return { success: true, estimate: subcontractEstimatesFixture[0], ...subcontractEstimatesFixture[0] };
+  if (url.includes('/subcontract-estimates')) return { success: true, estimates: subcontractEstimatesFixture, subcontractEstimates: subcontractEstimatesFixture, data: subcontractEstimatesFixture };
+  if (url.includes('/estimates/summary')) return { success: true, estimates: estimatesFixture, summary: estimatesFixture };
+  if (url.includes('/estimates/1')) return { success: true, estimate: estimatesFixture[0], ...estimatesFixture[0] };
+  if (url.includes('/acct-requisitions/sheets/1')) return { success: true, sheet: acctSheetDetailFixture, sheetDetail: acctSheetDetailFixture, items: acctSheetDetailFixture.items };
+  if (url.includes('/acct-requisitions/sheets')) return { success: true, sheets: [acctSheetDetailFixture], data: [acctSheetDetailFixture] };
+  if (url.includes('/acct-requisitions/line-items')) return { success: true, lineItems: acctSheetDetailFixture.items, items: acctSheetDetailFixture.items, data: acctSheetDetailFixture.items };
+  if (url.includes('/acct-requisitions/account-sub-titles')) return { success: true, subTitles: acctSubTitlesFixture, data: acctSubTitlesFixture };
+  if (url.includes('/acct-requisitions/particulars')) return { success: true, particulars: acctParticularsFixture, data: acctParticularsFixture };
+  if (url.includes('/acct-requisitions/import-eligible-items')) return { success: true, items: acctImportEligibleFixture, data: acctImportEligibleFixture };
+  if (url.includes('/acct-requisitions/payment-requisitions')) return { success: true, paymentRequisitions: acctPaymentRequisitionsFixture, requisitions: acctPaymentRequisitionsFixture, data: acctPaymentRequisitionsFixture };
   if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: subcontractWorksFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractWorksFixture.length } };
   if (url.includes('/subcontractors')) return { success: true, subcontractors: subcontractorsFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractorsFixture.length } };
   if (url.includes('/user-mappings/eligible-jes')) return { success: true, eligibleJEs: [{ mobile_number: '9876543213', display_name: 'Vikram JE' }] };
