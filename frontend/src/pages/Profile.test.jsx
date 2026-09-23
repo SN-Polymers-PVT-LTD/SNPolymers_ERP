@@ -148,7 +148,7 @@ describe('Profile URL State & Legacy Aliases', () => {
   });
 
   it('hydrates tab=appearance, preserves unrelated parameters, and drops tab when returning to profile', async () => {
-    const { container } = renderProfile('/profile?tab=appearance&source=bookmark');
+    renderProfile('/profile?tab=appearance&source=bookmark');
 
     expect(await screen.findByText('Appearance & Custom Backgrounds')).toBeInTheDocument();
 

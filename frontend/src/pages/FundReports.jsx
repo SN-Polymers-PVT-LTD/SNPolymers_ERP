@@ -279,9 +279,9 @@ const FundReports = () => {
     }
   });
 
-  const reports = reportsData || [];
-  const deletedReports = deletedReportsData || [];
-  const projects = projectsData || [];
+  const reports = useMemo(() => reportsData || [], [reportsData]);
+  const deletedReports = useMemo(() => deletedReportsData || [], [deletedReportsData]);
+  const projects = useMemo(() => projectsData || [], [projectsData]);
   const loading = loadingReports;
   const displayError = error || reportsError?.response?.data?.message || reportsError?.message;
 

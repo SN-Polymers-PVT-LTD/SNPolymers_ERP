@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useRaFinalBillUrlState } from '../hooks/useRaFinalBillUrlState';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
@@ -62,7 +61,6 @@ const formatDateTime = (dateStr) => {
 const RAFinalBill = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
   
   const {
     currentTab,
@@ -208,14 +206,6 @@ const RAFinalBill = () => {
       isSubscribed = false;
     };
   }, [urlBillId]);
-
-  // Sync create modal with createWONo from URL if pre-populated
-  useEffect(() => {
-    if (showCreatePanel && createWONo && formState.work_order_no !== createWONo) {
-      const e = { target: { value: createWONo } };
-      handleWorkOrderChange(e);
-    }
-  }, [showCreatePanel, createWONo]);
 
   // Fetch paginated bills list using React Query
   const { data: billsData, isLoading: loadingBills, error: billsError } = useQuery({
@@ -399,6 +389,15 @@ const RAFinalBill = () => {
       setError('Failed to fetch details for selected work order.');
     }
   };
+
+  // Sync create modal with createWONo from URL if pre-populated
+  useEffect(() => {
+    if (showCreatePanel && createWONo && formState.work_order_no !== createWONo) {
+      const e = { target: { value: createWONo } };
+      handleWorkOrderChange(e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreatePanel, createWONo]);
 
   // Two-step file upload
   const handleFileSelect = async (e) => {

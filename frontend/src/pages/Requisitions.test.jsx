@@ -7,8 +7,7 @@ import {
   renderPage,
   describePageContract,
   mockApiScenario,
-  readLocation,
-  assertUrlParams
+  readLocation
 } from '../test';
 import { requisitionsFixture, projectsFixture } from '../test/fixtures/domainFixtures';
 

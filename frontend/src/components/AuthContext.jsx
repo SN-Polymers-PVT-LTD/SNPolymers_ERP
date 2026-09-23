@@ -53,7 +53,7 @@ export const AuthProvider = ({
     return () => {
       window.removeEventListener('auth-failure', handleAuthFailure);
     };
-  }, [queryClient]);
+  }, [queryClient, initialUser]);
 
   const login = (userData) => {
     queryClient.clear();

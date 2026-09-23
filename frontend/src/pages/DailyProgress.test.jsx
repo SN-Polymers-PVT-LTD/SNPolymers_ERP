@@ -1,4 +1,4 @@
-import { renderPage, assertUrlParams } from '../test';
+import { renderPage } from '../test';
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -15,7 +15,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('../api/authApi');
 
-function renderWithProviders(ui, { role = 'admin', initialUrl = '/daily-progress' } = {}) {
+function renderWithProviders(ui, { role: _role = 'admin', initialUrl = '/daily-progress' } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } }
   });

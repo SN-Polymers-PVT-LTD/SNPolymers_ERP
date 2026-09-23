@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -86,8 +86,7 @@ const SubcontractorLedger = () => {
     viewingEntry,
     setViewingEntry,
     adjustingEntry,
-    setAdjustingEntry,
-    closeModal
+    setAdjustingEntry
   } = useSubcontractorLedgerUrlState();
 
   const hasContractorFilters = workOrderFilter || debouncedSearch;

@@ -2330,10 +2330,15 @@ const Requisitions = () => {
 
   // Pagination State
   const [pageSize, setPageSize] = useState(10);
+  const isPageSizeMounted = useRef(false);
 
   useEffect(() => {
+    if (!isPageSizeMounted.current) {
+      isPageSizeMounted.current = true;
+      return;
+    }
     setCurrentPage(1);
-  }, [pageSize]);
+  }, [pageSize, setCurrentPage]);
 
   const filteredRequisitions = getFilteredRequisitions();
 

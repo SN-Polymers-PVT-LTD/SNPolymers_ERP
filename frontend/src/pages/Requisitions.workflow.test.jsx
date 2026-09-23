@@ -159,11 +159,13 @@ describe('Requisitions Workflow Tests', () => {
       });
 
       // Resolve deferred promise to complete mutation
-      deferred.resolve({
-        data: {
-          success: true,
-          requisition: { ...requisitionsFixture[0], requisition_status: 'Approved', payment_destination: 'ACCOUNTS' }
-        }
+      await act(async () => {
+        deferred.resolve({
+          data: {
+            success: true,
+            requisition: { ...requisitionsFixture[0], requisition_status: 'Approved', payment_destination: 'ACCOUNTS' }
+          }
+        });
       });
 
       // Verify success feedback appears and modal closes

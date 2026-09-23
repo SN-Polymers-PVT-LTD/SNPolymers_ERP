@@ -8,7 +8,7 @@ import {
   interceptApiCall,
   assertApiCalledWith
 } from '../test';
-import { projectsFixture, raBillsFixture } from '../test/fixtures/domainFixtures';
+import { raBillsFixture } from '../test/fixtures/domainFixtures';
 import authApi from '../api/authApi';
 
 vi.mock('../api/authApi');

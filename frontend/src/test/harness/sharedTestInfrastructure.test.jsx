@@ -10,16 +10,12 @@ import {
   ledgerEntriesFixture,
   bankBalancesFixture,
   createMockAuthApi,
-  mockApiScenario,
   renderPage,
   assertUrlState,
   assertCanonicalUrl,
   describePageContract,
   readUrlParams,
-  assertUrlParams,
-  triggerRouterBack,
-  triggerRouterForward,
-  withFakeTimers
+  assertUrlParams
 } from '../index';
 import authApi from '../../api/authApi';
 
@@ -219,7 +215,7 @@ describePageContract({
 describe('urlTestHelpers utility tests', () => {
   it('reads and asserts url parameters correctly', () => {
     const TestComponent = () => <div>URL Helper Test</div>;
-    const { readLocation } = renderPage(<TestComponent />, {
+    renderPage(<TestComponent />, {
       initialUrl: '/test?tab=history&page=2&status=active'
     });
 

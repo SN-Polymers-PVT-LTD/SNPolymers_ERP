@@ -1,13 +1,12 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import UserMappings from './UserMappings';
 import {
   renderPage,
   assertUrlState,
   describePageContract,
-  mockApiScenario,
-  withFakeTimers
+  mockApiScenario
 } from '../test';
 import authApi from '../api/authApi';
 

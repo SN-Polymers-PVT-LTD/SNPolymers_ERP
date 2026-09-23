@@ -9,8 +9,7 @@ import {
   assertApiCalledWith
 } from '../test';
 import {
-  fundRequestsFixture,
-  projectsFixture
+  fundRequestsFixture
 } from '../test/fixtures/domainFixtures';
 import authApi from '../api/authApi';
 

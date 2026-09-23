@@ -763,8 +763,7 @@ const HoDashboard = () => {
     closeZoom,
     kpiModal,
     openKpiModal,
-    closeKpiModal,
-    resetFilters
+    closeKpiModal
   } = useHoDashboardUrlState();
 
   // Fetch actionable insights (runways, stalled)
@@ -1332,7 +1331,7 @@ const HoDashboard = () => {
               </svg>
             )
           },
-        ].map(({ label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
+        ].map(({ label, value, subtext, color, border, glow, bgIcon, icon }) => (
           <div
             key={label}
             onClick={() => {

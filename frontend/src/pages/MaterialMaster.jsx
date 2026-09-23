@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, TextArea, Select, Checkbox, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -118,7 +118,7 @@ const MaterialMaster = () => {
     gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  const materials = materialsData?.materials || [];
+  const materials = useMemo(() => materialsData?.materials || [], [materialsData?.materials]);
   const totalItems = materialsData?.pagination?.totalItems || 0;
   const totalPages = materialsData?.pagination?.totalPages || 1;
 

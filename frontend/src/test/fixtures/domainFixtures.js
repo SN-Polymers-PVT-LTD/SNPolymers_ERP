@@ -546,3 +546,20 @@ export const acctSheetDetailFixture = {
     }
   ]
 };
+
+export const acctSheetsFixture = accountsSheetsFixture;
+
+export const raBillsFixture = [
+  {
+    bill_id: 'bill-1',
+    id: 'bill-1',
+    work_order_no: 'WO-101',
+    bill_no: 'RA-001',
+    bill_date: '2026-08-15',
+    payment_type: 'RA Bill',
+    gross_bill: 500000,
+    agency_payment: 450000,
+    security_deposit_amount: 50000,
+    status: 'Approved'
+  }
+];

@@ -436,8 +436,7 @@ const ZoDashboard = () => {
     closeZoom,
     kpiModal,
     openKpiModal,
-    closeKpiModal,
-    resetFilters
+    closeKpiModal
   } = useZoDashboardUrlState();
 
   /* ── Data Queries ── */
@@ -544,7 +543,7 @@ const ZoDashboard = () => {
         setSelectedZo(myZoId);
       }
     }
-  }, [isZoRole, myZoId, availableZos, selectedZo, user]);
+  }, [isZoRole, myZoId, availableZos, selectedZo, user, setSelectedZo]);
 
   const zoNameMap = useMemo(() => {
     const m = {};
@@ -805,8 +804,7 @@ const ZoDashboard = () => {
                 type="date"
                 value={startDate}
                 onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setDatePreset('custom');
+                  setCustomDateRange(e.target.value, endDate);
                 }}
                 className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
               />
@@ -817,8 +815,7 @@ const ZoDashboard = () => {
                 type="date"
                 value={endDate}
                 onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setDatePreset('custom');
+                  setCustomDateRange(startDate, e.target.value);
                 }}
                 className="bg-slate-950/80 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-amber-500/50"
               />
@@ -952,7 +949,7 @@ const ZoDashboard = () => {
             icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
           { label: 'Avg Health', value: `${filteredProjects.length ? Math.round(filteredProjects.reduce((a, p) => a + Number(p.health_score || 0), 0) / filteredProjects.length) : 0}`, subtext: 'Health score', color: 'text-violet-400', border: 'border-violet-500/20 hover:border-violet-500/40', glow: 'shadow-violet-500/5', bgIcon: 'bg-violet-500/10 text-violet-400', filterFn: null,
             icon: <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
-        ].map(({ label, value, subtext, color, border, glow, bgIcon, icon, filterFn }) => (
+        ].map(({ label, value, subtext, color, border, glow, bgIcon, icon }) => (
           <div
             key={label}
             onClick={() => {

@@ -69,7 +69,7 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     if (url.includes('/indian-banks')) return { success: true, indianBanks: [], data: [] };
     if (url.includes('/beneficiary-master')) return { success: true, beneficiaries: [], data: [] };
     if (url.includes('/beneficiaries')) return { success: true, beneficiaries: [], data: [] };
-        if (url.includes('/daily-progress')) return { success: true, reports: [], data: [], data: [] };
+        if (url.includes('/daily-progress')) return { success: true, reports: [], data: [] };
     if (url.includes('/activity-breaks')) return { success: true, activityBreaks: [], data: [] };
     if (url.includes('/analytics/audit-log')) return { success: true, data: [], totalCount: 0, totalPages: 1 };
     if (url.includes('/analytics/je-leaderboard')) return { success: true, leaderboard: [] };

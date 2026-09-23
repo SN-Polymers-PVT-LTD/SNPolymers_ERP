@@ -226,7 +226,7 @@ const ProjectDigitalTwin = () => {
   const materials = twinData?.materials || [];
   const approvals = twinData?.approvals || [];
   const budget = twinData?.budget || {};
-  const media = twinData?.media || [];
+  const media = useMemo(() => twinData?.media || [], [twinData?.media]);
 
   const canManageForecast = canManageEstimatedBills({
     role: user?.role,

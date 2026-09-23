@@ -332,6 +332,7 @@ const ExcessFundReturns = () => {
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeReturnId, returns, showActionModal, showHoActionModal]);
 
   const filteredReturns = returns.filter(r => {

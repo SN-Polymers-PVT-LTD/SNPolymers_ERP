@@ -50,7 +50,7 @@ const DigitalTwinHub = () => {
     staleTime: 120 * 1000
   });
 
-  const projects = projectRes?.data || [];
+  const projects = useMemo(() => projectRes?.data || [], [projectRes?.data]);
 
   // Extract unique zones for filtering
   const uniqueZones = useMemo(() => {

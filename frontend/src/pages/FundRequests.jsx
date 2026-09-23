@@ -65,7 +65,6 @@ const FundRequests = () => {
     setCurrentPage,
     filters,
     setFilter,
-    setFilters,
     showCreateFlow,
     setShowCreateFlow,
     createWorkOrder,
@@ -76,7 +75,7 @@ const FundRequests = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [pageSize]);
+  }, [pageSize, setCurrentPage]);
 
   const isWoLevelView = filters.notSentToHo || filters.remainingFundRequest;
 
