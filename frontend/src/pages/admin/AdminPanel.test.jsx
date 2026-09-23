@@ -51,6 +51,33 @@ describe('AdminPanel Page Contract', () => {
     expect(screen.getByText(/Console System Policies/i)).toBeInTheDocument();
   });
 
+  it('renders loading state when users request is pending', async () => {
+    mockApiScenario(authApi, { scenario: 'loading', role: 'admin' });
+
+    const { container } = renderWithProviders(<AdminPanel />);
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('renders empty state guidance when no users are authorized', async () => {
+    mockApiScenario(authApi, { scenario: 'empty', role: 'admin' });
+
+    renderWithProviders(<AdminPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Authorized Access Whitelist/i })).toBeInTheDocument();
+    });
+
+    expect(await screen.findByText(/No authorized system credentials discovered/i)).toBeInTheDocument();
+  });
+
+  it('renders error alert when user fetch fails', async () => {
+    mockApiScenario(authApi, { scenario: 'apiError', errorMessage: 'Admin directory offline', role: 'admin' });
+
+    renderWithProviders(<AdminPanel />);
+
+    expect(await screen.findByText(/Admin directory offline/i)).toBeInTheDocument();
+  });
+
   it('renders controls and interacts with add account modal trigger', async () => {
     mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
 
