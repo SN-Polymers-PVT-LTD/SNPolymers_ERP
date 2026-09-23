@@ -1,5 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The service captures the bot token at import time. Use a fake token before loading it.
+const originalToken = process.env.TELEGRAM_BOT_TOKEN;
+process.env.TELEGRAM_BOT_TOKEN = '123456:mock_token';
 const telegramService = require('../../../src/services/telegram.service');
 const { supabase } = require('../../../src/db/supabase');
 const { transitionWorkflow } = require('../../../src/controllers/subcontractEstimates.controller');
@@ -7,7 +10,6 @@ const { transitionWorkflow } = require('../../../src/controllers/subcontractEsti
 describe('Subcontract Estimate JE Telegram Notifications', () => {
   const originalEnv = process.env.NODE_ENV;
   const originalMode = process.env.TELEGRAM_MODE;
-  const originalToken = process.env.TELEGRAM_BOT_TOKEN;
   const originalFetch = global.fetch;
 
   let capturedRequests = [];
@@ -17,8 +19,6 @@ describe('Subcontract Estimate JE Telegram Notifications', () => {
     capturedRequests = [];
     process.env.NODE_ENV = 'development';
     process.env.TELEGRAM_MODE = 'enabled';
-    process.env.TELEGRAM_BOT_TOKEN = '123456:mock_token';
-
     global.fetch = vi.fn(async (url) => {
       capturedRequests.push(url);
       return {
@@ -30,8 +30,15 @@ describe('Subcontract Estimate JE Telegram Notifications', () => {
   afterEach(() => {
     process.env.NODE_ENV = originalEnv;
     process.env.TELEGRAM_MODE = originalMode;
-    process.env.TELEGRAM_BOT_TOKEN = originalToken;
     global.fetch = originalFetch;
+  });
+
+  afterAll(() => {
+    if (originalToken === undefined) {
+      delete process.env.TELEGRAM_BOT_TOKEN;
+    } else {
+      process.env.TELEGRAM_BOT_TOKEN = originalToken;
+    }
   });
 
   describe('Service Exports', () => {
