@@ -120,6 +120,17 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     if (url.includes('/indian-banks')) return { success: true, indianBanks: [], data: [] };
     if (url.includes('/beneficiary-master')) return { success: true, beneficiaries: [], data: [] };
     if (url.includes('/beneficiaries')) return { success: true, beneficiaries: [], data: [] };
+        if (url.includes('/daily-progress')) return { success: true, reports: [], data: [], data: [] };
+    if (url.includes('/activity-breaks')) return { success: true, activityBreaks: [], data: [] };
+    if (url.includes('/analytics/audit-log')) return { success: true, data: [], totalCount: 0, totalPages: 1 };
+    if (url.includes('/analytics/je-leaderboard')) return { success: true, leaderboard: [] };
+    if (url.includes('/analytics/projects')) return { success: true, data: [] };
+    if (url.includes('/analytics/project/')) return { success: true, data: { overview: {}, budget: {}, materials: [], approvals: [], media: [], audits: [] } };
+    if (url.includes('/analytics/ho/kpis')) return { success: true, data: {} };
+    if (url.includes('/analytics/ho/')) return { success: true, data: [] };
+    if (url.includes('/analytics/zo/')) return { success: true, data: [] };
+    if (url.includes('/analytics/recent-activity')) return { success: true, data: [] };
+    if (url.includes('/profile')) return { success: true, data: { user: { role: 'admin' }, streak: 5 } };
     if (url.includes('/materials')) return { success: true, materials: [], total: 0, totalPages: 0, data: [] };
     if (url.includes('/projects')) return { success: true, projects: [], data: [] };
     if (url.includes('/requisitions')) return { success: true, requisitions: [], data: [] };
@@ -132,6 +143,25 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   }
 
   // Populated scenario
+  if (url.includes('/daily-progress/')) return { success: true, report: dailyProgressReportsFixture[0], data: dailyProgressReportsFixture[0] };
+  if (url.includes('/daily-progress')) return { success: true, reports: dailyProgressReportsFixture, data: dailyProgressReportsFixture };
+  if (url.includes('/activity-breaks')) return { success: true, activityBreaks: activityBreaksFixture, data: activityBreaksFixture };
+  if (url.includes('/analytics/audit-log')) return { success: true, data: auditLogsFixture, totalCount: 1, totalPages: 1 };
+  if (url.includes('/analytics/je-leaderboard')) return { success: true, leaderboard: jeLeaderboardFixture };
+  if (url.includes('/analytics/projects/dashboard/overview')) return { success: true, data: { activeCount: 5, pendingCount: 2 } };
+  if (url.includes('/analytics/projects')) return { success: true, data: projectsHealthFixture };
+  if (url.includes('/analytics/project/')) return { success: true, data: digitalTwinDataFixture, ...digitalTwinDataFixture };
+  if (url.includes('/analytics/ho/kpis')) return { success: true, data: hoKpisFixture, ...hoKpisFixture };
+  if (url.includes('/analytics/ho/zone-benchmarking')) return { success: true, data: [{ zone: 'North', performance_score: 85, budget_utilization_pct: 78, delayed_projects: 1 }] };
+  if (url.includes('/analytics/ho/budget-leakage')) return { success: true, data: [] };
+  if (url.includes('/analytics/ho/actionable-insights')) return { success: true, data: [] };
+  if (url.includes('/analytics/ho/chart-data')) return { success: true, data: { s_curve: [], waterfall: [], recovery: [], departments: [] } };
+  if (url.includes('/analytics/ho/resource-utilization')) return { success: true, data: [] };
+  if (url.includes('/analytics/ho/approval-sla')) return { success: true, data: [] };
+  if (url.includes('/analytics/zo/productivity')) return { success: true, data: [{ je_name: 'Junior Engineer', reports_count: 24, approval_rate: 96 }] };
+  if (url.includes('/analytics/recent-activity')) return { success: true, data: [] };
+  if (url.includes('/projects/dashboard/overview')) return { success: true, data: { activeCount: 5, pendingCount: 2 } };
+  if (url.includes('/profile')) return { success: true, data: { user: { role: 'admin' }, streak: 5 } };
   if (url.includes('/materials/categories')) return { success: true, ...materialCategoriesFixture };
   if (url.includes('/subcontract-estimates/summary')) return { success: true, summary: [] };
   if (url.includes('/subcontract-estimates/init')) return { success: true, activeProjects: projectsFixture, works: [] };
@@ -355,6 +385,124 @@ function getScenarioPayload(url, scenario, overrides = {}) {
 /**
  * Creates a configured mock authApi instance matching a scenario.
  */
+
+// Domain 4 Fixtures
+export const dailyProgressReportsFixture = [
+  {
+    report_id: 'dpr-1',
+    work_order_no: 'WO-101',
+    report_date: '2026-09-01',
+    work_done_details: 'Conduit laying and foundation curing completed.',
+    daily_site_photo_url: 'https://example.com/site1.jpg',
+    site_visit_date: '2026-09-01',
+    created_at: '2026-09-01T17:00:00Z',
+    author_name: 'Junior Engineer',
+    author_role: 'je',
+    authority_remarks: []
+  }
+];
+
+export const activityBreaksFixture = [
+  {
+    break_id: 'brk-1',
+    work_order_no: 'WO-101',
+    start_date: '2026-09-05',
+    end_date: null,
+    reason: 'Heavy monsoon downpour hindering outdoor masonry work.',
+    status: 'Pending ZO Review',
+    created_at: '2026-09-05T08:00:00Z',
+    requested_by: 'usr_je',
+    requester_name: 'Junior Engineer'
+  }
+];
+
+export const auditLogsFixture = [
+  {
+    id: 'aud-1',
+    action: 'UPDATE_RECORD',
+    user_id: 'usr_admin',
+    user_name: 'Super Admin',
+    module_name: 'Daily Work Progress',
+    record_identifier: 'dpr-1',
+    details: 'Status flag adjusted',
+    ip_address: '127.0.0.1',
+    created_at: '2026-09-02T10:00:00Z'
+  }
+];
+
+export const jeLeaderboardFixture = [
+  {
+    user_id: 'usr_je',
+    display_name: 'Junior Engineer',
+    mobile_number: '+919876543213',
+    score: 95,
+    rank: 1,
+    streak: 12,
+    total_reports: 48,
+    active_projects_count: 2
+  },
+  {
+    user_id: 'usr_je_2',
+    display_name: 'Rohan Sharma',
+    mobile_number: '+919876543219',
+    score: 88,
+    rank: 2,
+    streak: 8,
+    total_reports: 36,
+    active_projects_count: 1
+  }
+];
+
+export const digitalTwinDataFixture = {
+  overview: {
+    work_order_no: 'WO-101',
+    site_details: 'Substation Alpha, North District',
+    work_order_value: 5000000,
+    status: 'Running',
+    estimate_id: 'EST-101',
+    zone: 'North',
+    client_name: 'WBSEDCL'
+  },
+  budget: {
+    work_order_value: 5000000,
+    approved_requisitions_amount: 3200000,
+    budget_variance_pct: 64,
+    estimated_bill_amount: 3500000
+  },
+  materials: [
+    { material_name: 'Cement OPC 53', total_estimated_qty: 500, consumed_qty: 320, unit: 'Bags' }
+  ],
+  approvals: [
+    { type: 'Technical Approval', status: 'Approved', approved_by: 'Zonal Officer' }
+  ],
+  media: [
+    { daily_site_photo_url: 'https://example.com/site1.jpg', site_visit_date: '2026-09-01' }
+  ],
+  audits: []
+};
+
+export const projectsHealthFixture = [
+  {
+    work_order_no: 'WO-101',
+    site_details: 'Substation Alpha, North District',
+    district: 'North 24 Parganas',
+    zone: 'North',
+    health_status: 'Healthy',
+    physical_progress: 65,
+    financial_progress: 58,
+    total_value: 5000000,
+    active_alerts: 0
+  }
+];
+
+export const hoKpisFixture = {
+  active_projects: 12,
+  delayed_projects: 2,
+  total_portfolio_value: 65000000,
+  disbursed_funds: 34000000,
+  leakage_risk_count: 1
+};
+
 export function createMockAuthApi({
   scenario = 'populated',
   role = 'admin',
