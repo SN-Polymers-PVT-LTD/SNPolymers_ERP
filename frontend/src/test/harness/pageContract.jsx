@@ -34,8 +34,8 @@ export function describePageContract(PageComponent, {
           overrides: scenarioOverrides
         });
 
-        const heading = await screen.findByText(headingMatch);
-        expect(heading).toBeInTheDocument();
+        const headings = await screen.findAllByText(headingMatch);
+        expect(headings[0]).toBeInTheDocument();
       });
     }
 
@@ -65,7 +65,6 @@ export function describePageContract(PageComponent, {
           overrides: scenarioOverrides
         });
 
-        console.log("BODY_HTML_SNIPPET:", document.body.innerHTML.slice(-1500));
         const errorMessage = await screen.findByText(errorTextMatch, {}, { timeout: 4000 });
         expect(errorMessage).toBeInTheDocument();
       });

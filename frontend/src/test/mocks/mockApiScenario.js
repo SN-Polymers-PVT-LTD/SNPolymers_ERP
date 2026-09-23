@@ -9,7 +9,13 @@ import {
   materialCategoriesFixture,
   accountsSheetsFixture,
   ledgerEntriesFixture,
-  bankBalancesFixture
+  bankBalancesFixture,
+  subcontractWorksFixture,
+  subcontractorsFixture,
+  userMappingsFixture,
+  workOrderMappingsFixture,
+  beneficiariesFixture,
+  indianBanksFixture
 } from '../fixtures/domainFixtures';
 
 /**
@@ -25,6 +31,15 @@ function getScenarioPayload(url, scenario, overrides = {}) {
 
   if (scenario === 'empty') {
     if (url.includes('/materials/categories')) return { success: true, mainHeads: [], subHeads: [] };
+    if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };
+    if (url.includes('/subcontractors')) return { success: true, subcontractors: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };
+    if (url.includes('/user-mappings/eligible-jes')) return { success: true, eligibleJEs: [] };
+    if (url.includes('/user-mappings/eligible-zos')) return { success: true, eligibleZOs: [] };
+    if (url.includes('/user-mappings')) return { success: true, mappings: [], data: [] };
+    if (url.includes('/work-order-mappings')) return { success: true, mappings: [], data: [] };
+    if (url.includes('/indian-banks')) return { success: true, indianBanks: [], data: [] };
+    if (url.includes('/beneficiary-master')) return { success: true, beneficiaries: [], data: [] };
+    if (url.includes('/beneficiaries')) return { success: true, beneficiaries: [], data: [] };
     if (url.includes('/materials')) return { success: true, materials: [], total: 0, totalPages: 0, data: [] };
     if (url.includes('/projects')) return { success: true, projects: [], data: [] };
     if (url.includes('/requisitions')) return { success: true, requisitions: [], data: [] };
@@ -38,6 +53,15 @@ function getScenarioPayload(url, scenario, overrides = {}) {
 
   // Populated scenario
   if (url.includes('/materials/categories')) return { success: true, ...materialCategoriesFixture };
+  if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: subcontractWorksFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractWorksFixture.length } };
+  if (url.includes('/subcontractors')) return { success: true, subcontractors: subcontractorsFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractorsFixture.length } };
+  if (url.includes('/user-mappings/eligible-jes')) return { success: true, eligibleJEs: [{ mobile_number: '9876543213', display_name: 'Vikram JE' }] };
+  if (url.includes('/user-mappings/eligible-zos')) return { success: true, eligibleZOs: [{ mobile_number: '9876543212', display_name: 'Priya ZO' }] };
+  if (url.includes('/user-mappings')) return { success: true, mappings: userMappingsFixture, data: userMappingsFixture };
+  if (url.includes('/work-order-mappings')) return { success: true, mappings: workOrderMappingsFixture, data: workOrderMappingsFixture };
+  if (url.includes('/indian-banks')) return { success: true, indianBanks: indianBanksFixture, data: indianBanksFixture };
+  if (url.includes('/beneficiary-master')) return { success: true, beneficiaries: beneficiariesFixture, data: beneficiariesFixture };
+  if (url.includes('/beneficiaries')) return { success: true, beneficiaries: beneficiariesFixture, data: beneficiariesFixture };
   if (url.includes('/materials')) return { success: true, materials: materialsFixture, total: materialsFixture.length, totalPages: 1 };
   if (url.includes('/projects')) return { success: true, projects: projectsFixture, data: projectsFixture };
   if (url.includes('/requisitions')) return { success: true, requisitions: requisitionsFixture, data: requisitionsFixture };

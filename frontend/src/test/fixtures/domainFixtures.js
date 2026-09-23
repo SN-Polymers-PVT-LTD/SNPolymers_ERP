@@ -244,6 +244,7 @@ export const materialCategoriesFixture = {
 // ─── Accounts Sheets & Queues ───────────────────────────────────────────────
 export const accountsSheetsFixture = [
   {
+    id: 'sheet-401',
     sheet_id: 'sheet-401',
     sheet_number: 'ACCT-SHT-2026-09-01',
     sheet_status: 'Submitted',
@@ -306,6 +307,116 @@ export const bankBalancesFixture = [
     bank_name: 'HDFC Bank',
     account_number: 'XXXXXX8899',
     current_balance: 9200000,
+    is_active: true
+  }
+];
+
+
+// --- Domain 1: Masters and Project Setup Fixtures ---
+
+export const subcontractWorksFixture = [
+  {
+    subcontract_work_id: 'scw-001',
+    id: 'scw-001',
+    sub_head: 'Earthwork Excavation',
+    material_details: 'Soil excavation in trenches and foundation',
+    unit: 'Cum',
+    is_active: true
+  },
+  {
+    subcontract_work_id: 'scw-002',
+    id: 'scw-002',
+    sub_head: 'RCC Works',
+    material_details: 'M25 grade concrete laying and casting',
+    unit: 'Cum',
+    is_active: true
+  }
+];
+
+export const subcontractorsFixture = [
+  {
+    subcontractor_id: 'sc-001',
+    id: 'sc-001',
+    name: 'Apex Infrastructure Ltd',
+    subcontractor_name: 'Apex Infrastructure Ltd',
+    is_active: true,
+    works: [subcontractWorksFixture[0]],
+    capabilities: [
+      {
+        capability_id: 'cap-001',
+        subcontract_work_id: 'scw-001',
+        subcontract_work: subcontractWorksFixture[0]
+      }
+    ]
+  },
+  {
+    subcontractor_id: 'sc-002',
+    id: 'sc-002',
+    name: 'BuildWell Constructions',
+    subcontractor_name: 'BuildWell Constructions',
+    is_active: true,
+    works: [subcontractWorksFixture[1]],
+    capabilities: [
+      {
+        capability_id: 'cap-002',
+        subcontract_work_id: 'scw-002',
+        subcontract_work: subcontractWorksFixture[1]
+      }
+    ]
+  }
+];
+
+export const userMappingsFixture = [
+  {
+    mapping_id: 'um-101',
+    id: 'um-101',
+    je_mobile_number: '9876543213',
+    je_name: 'Vikram JE',
+    zo_mobile_number: '9876543212',
+    zo_name: 'Priya ZO',
+    is_active: true,
+    assigned_at: '2026-01-10T10:00:00Z',
+    deactivated_at: null
+  }
+];
+
+export const workOrderMappingsFixture = [
+  {
+    id: 'wom-201',
+    work_order_no: 'WO-101',
+    je_mobile_number: '9876543213',
+    je_name: 'Vikram JE',
+    assigned_by: '9876543210',
+    assigned_at: '2026-01-12T10:00:00Z',
+    is_active: true
+  }
+];
+
+export const beneficiariesFixture = [
+  {
+    beneficiary_id: 'ben-001',
+    id: 'ben-001',
+    beneficiary_name: 'National Suppliers Corp',
+    account_number: '123456789012',
+    beneficiary_ac_no: '123456789012',
+    ifsc: 'SBIN0001234',
+    beneficiary_ifsc: 'SBIN0001234',
+    bank_name: 'State Bank of India',
+    is_active: true
+  }
+];
+
+export const indianBanksFixture = [
+  {
+    bank_id: 'bank-01',
+    id: 'bank-01',
+    bank_name: 'State Bank of India',
+    is_active: true
+  },
+  {
+    bank_id: 'bank-02',
+    id: 'bank-02',
+    bank_name: 'HDFC Bank',
     is_active: true
   }
 ];
