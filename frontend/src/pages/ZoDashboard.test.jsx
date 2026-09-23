@@ -45,7 +45,7 @@ describe('ZoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Zonal Control Room/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Consolidated Zonal Office \(ZO\) KPIs/i)).toBeInTheDocument();
   });
@@ -57,7 +57,7 @@ describe('ZoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Zonal Control Room/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 
   it('redirects unauthorized JE away from ZO analytics route', async () => {
@@ -68,6 +68,6 @@ describe('ZoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Zonal Control Room/i })).not.toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 });

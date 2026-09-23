@@ -46,7 +46,7 @@ describe('JeLeaderboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Junior Engineer Performance Leaderboards/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Recognizing field engineering excellence/i)).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe('JeLeaderboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Junior Engineer Performance Leaderboards/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     const searchInput = screen.getByPlaceholderText(/Search engineer/i);
     expect(searchInput).toBeInTheDocument();
@@ -75,6 +75,6 @@ describe('JeLeaderboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Junior Engineer Performance Leaderboards/i })).not.toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 });

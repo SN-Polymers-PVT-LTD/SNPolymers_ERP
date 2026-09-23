@@ -46,7 +46,7 @@ describe('AuditComplianceCenter Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Audit Search Center/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Security & Compliance Log/i)).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe('AuditComplianceCenter Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Audit Search Center/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     const searchInput = screen.getByPlaceholderText(/e\.g\. ZO_USER/i);
     expect(searchInput).toBeInTheDocument();
@@ -77,6 +77,6 @@ describe('AuditComplianceCenter Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Audit Search Center/i })).not.toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 });

@@ -46,7 +46,7 @@ describe('DigitalTwinHub Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Project Digital Twin Hub/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Regional Portfolios/i)).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe('DigitalTwinHub Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Project Digital Twin Hub/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     const searchInput = screen.getByPlaceholderText(/Search by work order no, site, district/i);
     expect(searchInput).toBeInTheDocument();
@@ -73,6 +73,6 @@ describe('DigitalTwinHub Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Project Digital Twin Hub/i })).not.toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 });

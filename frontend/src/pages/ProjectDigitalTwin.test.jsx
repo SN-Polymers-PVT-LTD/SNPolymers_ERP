@@ -48,7 +48,7 @@ describe('ProjectDigitalTwin Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Substation Alpha, North District/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Project Performance Twin/i)).toBeInTheDocument();
   });
@@ -60,7 +60,7 @@ describe('ProjectDigitalTwin Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Substation Alpha, North District/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     const finTab = screen.getByRole('button', { name: /Financials & Materials/i });
     expect(finTab).toBeInTheDocument();

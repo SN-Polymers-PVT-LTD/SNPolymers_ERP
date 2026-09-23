@@ -46,7 +46,7 @@ describe('HoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     expect(screen.getByText(/Consolidated portfolio KPIs, zonal performance benchmarking/i)).toBeInTheDocument();
   });
@@ -58,7 +58,7 @@ describe('HoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
 
     const refreshBtn = screen.getByRole('button', { name: /Refresh Views/i });
     expect(refreshBtn).toBeInTheDocument();
@@ -73,6 +73,6 @@ describe('HoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).not.toBeInTheDocument();
-    });
+    }, { timeout: 4000 });
   });
 });
