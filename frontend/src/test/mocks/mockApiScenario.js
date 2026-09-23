@@ -57,58 +57,10 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     if (url.includes('/estimated-bills')) return { success: true, data: [] };
     if (url.includes('/zo-balances/ledger')) return { success: true, ledger: [], pagination: { total: 0, page: 1, limit: 20 } };
     if (url.includes('/zo-balances')) return { success: true, balances: [] };
-    if (url.includes('/acct-requisitions/logs')) return {
-    success: true,
-    entries: overrides.acctLogs || [
-      {
-        id: 'log-1',
-        action: 'PENDING_HO_REVIEW_FIRST_SUBMIT',
-        created_at: '2026-08-01T10:00:00Z',
-        line_item: {
-          sheet_number: 'SHEET-2026-01',
-          account_sub_title_text: 'Material Procurement',
-          beneficiary_ac_no: '9876543210',
-          amount: 50000
-        }
-      }
-    ],
-    pagination: { total: 1, page: 1, limit: 20 }
-  };
-  if (url.includes('/acct-requisitions/credit-ledger')) return {
-    success: true,
-    entries: overrides.acctCreditLedger || [
-      {
-        credit_ledger_id: 'cl-1',
-        dealer_name: 'Industrial Spares Ltd', beneficiary: { beneficiary_name: 'Industrial Spares Ltd', account_number: '9876543210' },
-        work_order_no: 'WO-101',
-        material_details: 'Conduit pipes and brackets',
-        opening_balance: 100000,
-        paid_amount: 30000,
-        remaining_balance: 70000,
-        status: 'Open',
-        created_at: '2026-08-01T10:00:00Z',
-        source: { sheet_number: 'SHEET-2026-01' }
-      }
-    ]
-  };
+    
+  
   if (url.includes('/reports')) return { success: true, reports: [] };
-    if (url.includes('/acct-requisitions/logs')) return {
-    success: true,
-    entries: overrides.acctLogs || [
-      {
-        id: 'log-1',
-        action: 'PENDING_HO_REVIEW_FIRST_SUBMIT',
-        created_at: '2026-08-01T10:00:00Z',
-        line_item: {
-          sheet_number: 'SHEET-2026-01',
-          account_sub_title_text: 'Material Procurement',
-          beneficiary_ac_no: '9876543210',
-          amount: 50000
-        }
-      }
-    ],
-    pagination: { total: 1, page: 1, limit: 20 }
-  };
+    
   if (url.includes('/acct-requisitions/credit-ledger')) return { success: true, entries: [] };
     if (url.includes('/acct-requisitions/logs')) return { success: true, logs: [], entries: [], data: { logs: [], entries: [] } };
     if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };

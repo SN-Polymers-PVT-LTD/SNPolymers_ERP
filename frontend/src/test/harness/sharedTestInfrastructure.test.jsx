@@ -165,3 +165,20 @@ describePageContract(SampleOperationalPage, {
     expect(await screen.findByRole('heading', { name: /Requisition Management/i })).toBeInTheDocument();
   }
 });
+
+describe('describePageContract Argument Guarding & Signature Flexibility', () => {
+  it('throws descriptive error when passed an empty or invalid options object without PageComponent/PageUnderContract', () => {
+    expect(() => describePageContract({ route: '/test' })).toThrow(
+      /Invalid describePageContract call.*PageUnderContract/i
+    );
+  });
+
+  it('throws descriptive error when passed null, undefined, or primitive', () => {
+    expect(() => describePageContract(null)).toThrow(
+      /Invalid describePageContract call/i
+    );
+    expect(() => describePageContract(123)).toThrow(
+      /Invalid describePageContract call/i
+    );
+  });
+});
