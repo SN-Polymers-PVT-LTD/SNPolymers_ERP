@@ -218,6 +218,11 @@ describe('RAFinalBill URL State, Modals, Aliases & Reset', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /RA \/ Final Bill Entry/i })).toBeInTheDocument();
+      expect(screen.getByText('RA-001')).toBeInTheDocument();
     });
+
+    // Modals and detail drawers must stay closed
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Create RA \/ Final Bill/i)).not.toBeInTheDocument();
   });
 });

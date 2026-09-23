@@ -29,16 +29,23 @@ export const useAuditComplianceUrlState = () => {
 
   const applyFilters = useCallback(({ module_name, user_id, record_identifier }) => {
     setSearchParams((prev) => {
-      const next = new URLSearchParams();
+      const next = new URLSearchParams(prev);
       if (module_name && module_name.trim()) {
         next.set('module', module_name.trim());
+      } else {
+        next.delete('module');
       }
       if (user_id && user_id.trim()) {
         next.set('user_id', user_id.trim());
+      } else {
+        next.delete('user_id');
       }
       if (record_identifier && record_identifier.trim()) {
         next.set('record', record_identifier.trim());
+      } else {
+        next.delete('record');
       }
+      next.delete('page');
       return next;
     });
   }, [setSearchParams]);
@@ -57,7 +64,12 @@ export const useAuditComplianceUrlState = () => {
 
   const resetFilters = useCallback(() => {
     setSearchParams((prev) => {
-      return new URLSearchParams();
+      const next = new URLSearchParams(prev);
+      next.delete('module');
+      next.delete('user_id');
+      next.delete('record');
+      next.delete('page');
+      return next;
     }, { replace: true });
   }, [setSearchParams]);
 

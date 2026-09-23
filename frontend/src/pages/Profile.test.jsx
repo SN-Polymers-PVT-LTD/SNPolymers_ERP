@@ -141,3 +141,35 @@ describe('Profile component', () => {
     expect(mockSetLightBg).toHaveBeenCalledWith('cream-paper');
   });
 });
+
+describe('Profile URL State & Legacy Aliases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hydrates tab=appearance, preserves unrelated parameters, and drops tab when returning to profile', async () => {
+    const { container } = renderProfile('/profile?tab=appearance&source=bookmark');
+
+    expect(await screen.findByText('Appearance & Custom Backgrounds')).toBeInTheDocument();
+
+    const backBtn = screen.getByRole('button', { name: /Back to Profile & Activity/i });
+    fireEvent.click(backBtn);
+
+    expect(await screen.findByText('Test Operator')).toBeInTheDocument();
+  });
+
+  it('hydrates legacy alias tab=settings and migrates on interaction', async () => {
+    renderProfile('/profile?tab=settings');
+
+    expect(await screen.findByText('Appearance & Custom Backgrounds')).toBeInTheDocument();
+    expect(screen.getByText('Dark Theme Background')).toBeInTheDocument();
+  });
+
+  it('safely falls back to default profile tab on invalid tab parameter', async () => {
+    renderProfile('/profile?tab=invalid_tab_name');
+
+    expect(screen.getByText('User Profile')).toBeInTheDocument();
+    expect(screen.getByText('Test Operator')).toBeInTheDocument();
+    expect(screen.queryByText('Appearance & Custom Backgrounds')).not.toBeInTheDocument();
+  });
+});

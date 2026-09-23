@@ -85,3 +85,68 @@ describe('ExcessFundReturns Page', () => {
     expect(screen.getByText('Request Fund Return')).toBeInTheDocument();
   });
 });
+
+describe('ExcessFundReturns URL State, Modals & Aliases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hydrates status, search alias, and modal=request from deep link', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<ExcessFundReturns />, {
+      role: 'admin',
+      initialUrl: '/excess-fund-returns?status=Requested&search=WO-101&modal=request&source=bookmark',
+      routePath: '/excess-fund-returns'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Request Excess Fund Return')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search by Work Order, Zonal Office/i);
+    expect(searchInput).toHaveValue('WO-101');
+  });
+
+  it('closes request modal while preserving status, search, and bookmark parameter', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    const { readLocation } = renderPage(<ExcessFundReturns />, {
+      role: 'admin',
+      initialUrl: '/excess-fund-returns?status=Requested&q=WO-101&modal=request&source=bookmark',
+      routePath: '/excess-fund-returns'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Request Excess Fund Return')).toBeInTheDocument();
+    });
+
+    const closeBtn = screen.getByTitle('Close');
+    closeBtn.click();
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('modal=');
+      expect(loc).toContain('status=Requested');
+      expect(loc).toContain('q=WO-101');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('safely handles invalid status and invalid modal parameter without opening dialog', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<ExcessFundReturns />, {
+      role: 'admin',
+      initialUrl: '/excess-fund-returns?status=INVALID_STATUS&modal=corrupted_modal',
+      routePath: '/excess-fund-returns'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Excess Fund Returns/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Request Excess Fund Return')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});

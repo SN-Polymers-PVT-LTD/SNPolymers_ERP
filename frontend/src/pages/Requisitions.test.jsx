@@ -108,4 +108,98 @@ describe('Requisitions URL State Hydration & Canonical Writes', () => {
       expect(readLocation()).toContain('tab=hold');
     });
   });
+
+  it('hydrates legacy search alias and writes canonical q while resetting page', async () => {
+    mockApiScenario(authApi, { scenario: 'populated' });
+
+    const { readLocation } = renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=all&search=REQ-502&page=2',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Requisition Management')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search requisitions/i);
+    expect(searchInput).toHaveValue('REQ-502');
+
+    fireEvent.change(searchInput, { target: { value: 'REQ-501' } });
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).toContain('q=REQ-501');
+      expect(loc).not.toContain('search=REQ-502');
+      expect(loc).not.toContain('page=2');
+    });
+  });
+
+  it('opens Create Requisition modal from deep link and preserves active tab and bookmark on close', async () => {
+    mockApiScenario(authApi, { scenario: 'populated' });
+
+    const { readLocation } = renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=approved&create=true&source=bookmark',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Create Requisition')).toBeInTheDocument();
+    });
+
+    const closeBtn = screen.getByTitle('Close');
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('create=');
+      expect(loc).toContain('tab=approved');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('opens workflow action modal from deep link and closes cleanly', async () => {
+    mockApiScenario(authApi, { scenario: 'populated' });
+
+    const { readLocation } = renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=pending&req=REQ-501&action=review',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Take Workflow Action')).toBeInTheDocument();
+    });
+
+    const closeBtn = screen.getByTitle('Close');
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('action=review');
+      expect(loc).not.toContain('req=');
+      expect(loc).toContain('tab=pending');
+    });
+  });
+
+  it('safely handles invalid tab, negative page, and unknown requisition without crashing', async () => {
+    mockApiScenario(authApi, { scenario: 'populated' });
+
+    renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=invalid_tab&page=-9&req=UNKNOWN_REQ&action=review',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Requisition Management')).toBeInTheDocument();
+    });
+
+    // Unknown requisition should not render the action modal dialog
+    expect(screen.queryByText('Take Workflow Action')).not.toBeInTheDocument();
+    // Admin default tab should be 'pending'
+    const pendingTabBtn = screen.getByRole('button', { name: /Pending \(/i });
+    expect(pendingTabBtn.className).toContain('bg-white/10');
+  });
 });

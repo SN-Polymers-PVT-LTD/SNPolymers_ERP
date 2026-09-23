@@ -225,6 +225,10 @@ describe('SubcontractorLedger URL State, Aliases, Modals & Debounce', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Subcontractor Ledger/i })).toBeInTheDocument();
     });
+
+    // Modal should stay closed and not render dialog
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ledger Entry Details/i)).not.toBeInTheDocument();
   });
 
   it('debounces search input by 300ms using withFakeTimers', async () => {
@@ -256,6 +260,93 @@ describe('SubcontractorLedger URL State, Aliases, Modals & Debounce', () => {
         advanceTimers(160);
       });
       expect(readLocation()).toContain('q=Buildcon');
+    });
+  });
+
+  it('persists only final typed value when typing rapidly before debounce expiry', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      role: 'je',
+      overrides: { subcontractorLedger: ledgerFixture }
+    });
+
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { readLocation } = renderPage(<SubcontractorLedger />, {
+        role: 'je',
+        initialUrl: '/subcontractor-ledger',
+        routePath: '/subcontractor-ledger',
+        overrides: { subcontractorLedger: ledgerFixture }
+      });
+
+      const searchInput = screen.getByPlaceholderText(/Search contractor, work type, or WO/i);
+      fireEvent.change(searchInput, { target: { value: 'B' } });
+      await act(async () => { advanceTimers(100); });
+      fireEvent.change(searchInput, { target: { value: 'Build' } });
+      await act(async () => { advanceTimers(100); });
+      fireEvent.change(searchInput, { target: { value: 'Buildcon' } });
+
+      // Before 300ms after last stroke
+      expect(readLocation()).not.toContain('q=');
+
+      await act(async () => { advanceTimers(310); });
+      const loc = readLocation();
+      expect(loc).toContain('q=Buildcon');
+      expect(loc).not.toContain('q=Build&');
+      expect(loc).not.toContain('q=B&');
+    });
+  });
+
+  it('cancels pending debounce when input is cleared before expiry', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      role: 'je',
+      overrides: { subcontractorLedger: ledgerFixture }
+    });
+
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { readLocation } = renderPage(<SubcontractorLedger />, {
+        role: 'je',
+        initialUrl: '/subcontractor-ledger',
+        routePath: '/subcontractor-ledger',
+        overrides: { subcontractorLedger: ledgerFixture }
+      });
+
+      const searchInput = screen.getByPlaceholderText(/Search contractor, work type, or WO/i);
+      fireEvent.change(searchInput, { target: { value: 'Temporary' } });
+      await act(async () => { advanceTimers(150); });
+
+      // Clear before expiry
+      fireEvent.change(searchInput, { target: { value: '' } });
+      await act(async () => { advanceTimers(310); });
+
+      expect(readLocation()).not.toContain('q=Temporary');
+    });
+  });
+
+  it('safely handles unmount before debounce expiry without error', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      role: 'je',
+      overrides: { subcontractorLedger: ledgerFixture }
+    });
+
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { unmount } = renderPage(<SubcontractorLedger />, {
+        role: 'je',
+        initialUrl: '/subcontractor-ledger',
+        routePath: '/subcontractor-ledger',
+        overrides: { subcontractorLedger: ledgerFixture }
+      });
+
+      const searchInput = screen.getByPlaceholderText(/Search contractor, work type, or WO/i);
+      fireEvent.change(searchInput, { target: { value: 'UnmountingSoon' } });
+
+      unmount();
+
+      // Advancing timers should not throw an uncaught error
+      await act(async () => {
+        advanceTimers(400);
+      });
     });
   });
 });

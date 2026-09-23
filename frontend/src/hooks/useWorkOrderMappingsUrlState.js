@@ -121,7 +121,7 @@ export function useWorkOrderMappingsUrlState() {
   }, [setSearchParams]);
 
   const closeMapModal = useCallback(() => {
-    if ((modalParam === 'map' || modalParam === 'create') && window.history.length > 1) {
+    if ((modalParam === 'map' || modalParam === 'create') && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {
@@ -152,7 +152,7 @@ export function useWorkOrderMappingsUrlState() {
   }, [setSearchParams]);
 
   const closeDeactivateModal = useCallback(() => {
-    if (modalParam === 'deactivate' && window.history.length > 1) {
+    if (modalParam === 'deactivate' && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {

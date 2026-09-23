@@ -1,12 +1,13 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import UserMappings from './UserMappings';
 import {
   renderPage,
   assertUrlState,
   describePageContract,
-  mockApiScenario
+  mockApiScenario,
+  withFakeTimers
 } from '../test';
 import authApi from '../api/authApi';
 
@@ -73,5 +74,61 @@ describe('UserMappings Page Domain & URL Contract', () => {
     fireEvent.click(assignBtn);
 
     expect(await screen.findByText(/Assign \/ Transfer Junior Engineer/i)).toBeInTheDocument();
+  });
+});
+
+describe('UserMappings URL State, Modals & Aliases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiScenario(authApi, { scenario: 'populated' });
+  });
+
+  it('hydrates tab=history, search alias, and modal=assign from deep link', async () => {
+    renderPage(<UserMappings />, {
+      role: 'admin',
+      initialUrl: '/user-mappings?tab=history&search=Vikram&modal=assign&source=bookmark',
+      routePath: '/user-mappings'
+    });
+
+    expect(await screen.findByText(/Assign \/ Transfer Junior Engineer/i)).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText(/Search JEs or ZOs by name\/mobile/i);
+    expect(searchInput).toHaveValue('Vikram');
+  });
+
+  it('closes assign modal while preserving tab, search, and bookmark parameter', async () => {
+    const { readLocation } = renderPage(<UserMappings />, {
+      role: 'admin',
+      initialUrl: '/user-mappings?tab=history&search=Vikram&modal=assign&source=bookmark',
+      routePath: '/user-mappings'
+    });
+
+    expect(await screen.findByText(/Assign \/ Transfer Junior Engineer/i)).toBeInTheDocument();
+
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+    fireEvent.click(cancelBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('modal=');
+      expect(loc).toContain('tab=history');
+      expect(loc).toContain('search=Vikram');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('safely handles invalid modal parameter without opening dialog', async () => {
+    renderPage(<UserMappings />, {
+      role: 'admin',
+      initialUrl: '/user-mappings?modal=corrupted_modal&id=fake_id',
+      routePath: '/user-mappings'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /JE-to-ZO User Mappings/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText(/Assign \/ Transfer Junior Engineer/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

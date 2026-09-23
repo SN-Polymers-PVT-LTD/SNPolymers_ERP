@@ -126,19 +126,20 @@ describe('AcctRequisitions URL State, Aliases & Reset', () => {
   it('handles invalid status and page number gracefully without crashing', async () => {
     mockApiScenario(authApi, {
       scenario: 'populated',
-      role: 'accounts',
-      overrides: { acctSheets: [] }
+      role: 'accounts'
     });
 
     renderPage(<AcctRequisitions />, {
       role: 'accounts',
       initialUrl: '/acct-requisitions?status=NON_EXISTENT&page=-10',
-      routePath: '/acct-requisitions',
-      overrides: { acctSheets: [] }
+      routePath: '/acct-requisitions'
     });
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Requisition Sheets/i })).toBeInTheDocument();
+      expect(screen.getByText('SHEET-2026-01')).toBeInTheDocument();
     });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

@@ -36,7 +36,7 @@ export function useZonalBalancesUrlState() {
   }, [setSearchParams]);
 
   const clearZo = useCallback(() => {
-    if (selectedZo && window.history.length > 1) {
+    if (selectedZo && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {

@@ -64,3 +64,57 @@ describe('SubcontractEstimates Page Domain & URL Contract', () => {
     expect(readLocation()).toContain('filter=Draft');
   });
 });
+
+describe('SubcontractEstimates URL State, Aliases & Pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiScenario(authApi, { scenario: 'populated' });
+  });
+
+  it('hydrates legacy search alias, filter, and preserves bookmark param', async () => {
+    const { readLocation } = renderPage(<SubcontractEstimates />, {
+      initialUrl: '/subcontract-estimates?filter=Draft&search=WO-101&source=bookmark',
+      role: 'admin'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Subcontract Estimates/i })).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Enter WO or Est No/i);
+    expect(searchInput).toHaveValue('WO-101');
+    expect(readLocation()).toContain('source=bookmark');
+  });
+
+  it('writes canonical q and drops legacy search alias while resetting page', async () => {
+    const { readLocation } = renderPage(<SubcontractEstimates />, {
+      initialUrl: '/subcontract-estimates?search=WO-old&page=2',
+      role: 'admin'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Subcontract Estimates/i })).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Enter WO or Est No/i);
+    fireEvent.change(searchInput, { target: { value: 'WO-101' } });
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).toContain('q=WO-101');
+      expect(loc).not.toContain('search=WO-old');
+      expect(loc).not.toContain('page=2');
+    });
+  });
+
+  it('safely handles invalid status and negative page number without crashing', async () => {
+    renderPage(<SubcontractEstimates />, {
+      initialUrl: '/subcontract-estimates?status=INVALID_STATUS&page=-5',
+      role: 'admin'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Subcontract Estimates/i })).toBeInTheDocument();
+    });
+  });
+});

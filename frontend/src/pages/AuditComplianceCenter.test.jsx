@@ -1,12 +1,13 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import AuditComplianceCenter from './AuditComplianceCenter';
 import App from '../App';
 import authApi from '../api/authApi';
 import { mockApiScenario } from '../test/mocks/mockApiScenario';
+import { renderPage } from '../test';
 import { AuthProvider } from '../components/AuthContext';
 import { ModalProvider } from '../components/ModalContext';
 import { ThemeProvider } from '../components/ThemeContext';
@@ -78,5 +79,70 @@ describe('AuditComplianceCenter Page Contract', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Audit Search Center/i })).not.toBeInTheDocument();
     }, { timeout: 4000 });
+  });
+});
+
+describe('AuditComplianceCenter URL State, Filters & Pagination', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('hydrates module, user_id, record, and page from deep link', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<AuditComplianceCenter />, {
+      role: 'admin',
+      initialUrl: '/analytics/audit?module=Requisitions&user_id=usr_12&record=REQ-001&page=2&source=bookmark',
+      routePath: '/analytics/audit'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Audit Search Center/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByDisplayValue('usr_12')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('REQ-001')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Requisitions')).toBeInTheDocument();
+  });
+
+  it('clears filters while preserving bookmark parameter', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    const { readLocation } = renderPage(<AuditComplianceCenter />, {
+      role: 'admin',
+      initialUrl: '/analytics/audit?module=Requisitions&user_id=usr_12&record=REQ-001&source=bookmark',
+      routePath: '/analytics/audit'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Audit Search Center/i })).toBeInTheDocument();
+    });
+
+    const clearBtn = screen.getByRole('button', { name: /Clear/i });
+    fireEvent.click(clearBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('module=');
+      expect(loc).not.toContain('user_id=');
+      expect(loc).not.toContain('record=');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('safely falls back to page 1 on invalid page parameter', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<AuditComplianceCenter />, {
+      role: 'admin',
+      initialUrl: '/analytics/audit?page=-5',
+      routePath: '/analytics/audit'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Audit Search Center/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Security & Compliance Log/i)).toBeInTheDocument();
   });
 });

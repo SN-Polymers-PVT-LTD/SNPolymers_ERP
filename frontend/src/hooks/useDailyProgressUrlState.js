@@ -52,7 +52,7 @@ export function useDailyProgressUrlState() {
   }, [setSearchParams]);
 
   const clearWO = useCallback(() => {
-    if (window.history.length > 1) {
+    if (window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {

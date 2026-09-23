@@ -195,6 +195,10 @@ describe('EstimatedBill URL State, Aliases, Modals & Filters', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Estimated Bill Module/i })).toBeInTheDocument();
+      expect(screen.getByText('WO-101')).toBeInTheDocument();
     });
+
+    // Modal stays closed and table renders safely
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

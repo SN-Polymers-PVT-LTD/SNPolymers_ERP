@@ -1,12 +1,13 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import MaterialMaster from './MaterialMaster';
 import {
   renderPage,
   assertUrlState,
   describePageContract,
-  mockApiScenario
+  mockApiScenario,
+  withFakeTimers
 } from '../test';
 import authApi from '../api/authApi';
 
@@ -105,6 +106,66 @@ describe('MaterialMaster URL State Hydration & Canonical Writes', () => {
 
     await waitFor(() => {
       expect(readLocation()).toContain('main_head=Electrical');
+    });
+  });
+
+  it('persists only final typed value when typing rapidly before debounce expiry', async () => {
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { readLocation } = renderPage(<MaterialMaster />, {
+        initialUrl: '/materials',
+        role: 'admin'
+      });
+
+      const searchInput = await screen.findByPlaceholderText(/Search by Main Head/i);
+      fireEvent.change(searchInput, { target: { value: 'P' } });
+      await act(async () => { advanceTimers(100); });
+      fireEvent.change(searchInput, { target: { value: 'PV' } });
+      await act(async () => { advanceTimers(100); });
+      fireEvent.change(searchInput, { target: { value: 'PVC' } });
+
+      expect(readLocation()).not.toContain('q=');
+
+      await act(async () => { advanceTimers(450); });
+      const loc = readLocation();
+      expect(loc).toContain('q=PVC');
+      expect(loc).not.toContain('q=PV&');
+      expect(loc).not.toContain('q=P&');
+    });
+  });
+
+  it('cancels pending debounce when input is cleared before expiry', async () => {
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { readLocation } = renderPage(<MaterialMaster />, {
+        initialUrl: '/materials',
+        role: 'admin'
+      });
+
+      const searchInput = await screen.findByPlaceholderText(/Search by Main Head/i);
+      fireEvent.change(searchInput, { target: { value: 'Steel' } });
+      await act(async () => { advanceTimers(150); });
+
+      fireEvent.change(searchInput, { target: { value: '' } });
+      await act(async () => { advanceTimers(450); });
+
+      expect(readLocation()).not.toContain('q=Steel');
+    });
+  });
+
+  it('safely handles unmount before debounce expiry without error', async () => {
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { unmount } = renderPage(<MaterialMaster />, {
+        initialUrl: '/materials',
+        role: 'admin'
+      });
+
+      const searchInput = await screen.findByPlaceholderText(/Search by Main Head/i);
+      fireEvent.change(searchInput, { target: { value: 'Dismantle' } });
+
+      unmount();
+
+      await act(async () => {
+        advanceTimers(400);
+      });
     });
   });
 });

@@ -123,19 +123,20 @@ describe('AcctHoQueue URL State, Aliases & Filters', () => {
   it('handles invalid status or page numbers safely without crashing', async () => {
     mockApiScenario(authApi, {
       scenario: 'populated',
-      role: 'ho',
-      overrides: { acctSheets: [] }
+      role: 'ho'
     });
 
     renderPage(<AcctHoQueue />, {
       role: 'ho',
       initialUrl: '/acct-requisitions/ho-queue?status=INVALID&page=-99',
-      routePath: '/acct-requisitions/ho-queue',
-      overrides: { acctSheets: [] }
+      routePath: '/acct-requisitions/ho-queue'
     });
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /HO Approval Queue/i })).toBeInTheDocument();
+      expect(screen.getByText('SHEET-2026-01')).toBeInTheDocument();
     });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

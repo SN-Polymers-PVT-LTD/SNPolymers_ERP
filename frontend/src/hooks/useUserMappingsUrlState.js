@@ -113,7 +113,7 @@ export function useUserMappingsUrlState() {
   }, [setSearchParams]);
 
   const closeModal = useCallback(() => {
-    if ((modalParam === 'assign' || modalParam === 'create') && window.history.length > 1) {
+    if ((modalParam === 'assign' || modalParam === 'create') && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {
@@ -142,7 +142,7 @@ export function useUserMappingsUrlState() {
   }, [setSearchParams]);
 
   const closeUnmapModal = useCallback(() => {
-    if (modalParam === 'unmap' && window.history.length > 1) {
+    if (modalParam === 'unmap' && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {

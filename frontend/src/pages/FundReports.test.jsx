@@ -1,11 +1,12 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import FundReports from './FundReports';
 import {
   renderPage,
   describePageContract,
-  mockApiScenario
+  mockApiScenario,
+  withFakeTimers
 } from '../test';
 import authApi from '../api/authApi';
 
@@ -84,5 +85,93 @@ describe('FundReports Page', () => {
     await waitFor(() => {
       expect(screen.getByText('Submit Fund Report')).toBeInTheDocument();
     });
+  });
+});
+
+describe('FundReports URL State, Aliases, Modals & Debounce', () => {
+  it('hydrates legacy search alias, tab, and modal from deep link', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<FundReports />, {
+      role: 'admin',
+      initialUrl: '/fund-reports?tab=deleted&search=WO-101&modal=create&source=bookmark',
+      routePath: '/fund-reports'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Submit Fund Report')).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search reports/i);
+    expect(searchInput).toHaveValue('WO-101');
+  });
+
+  it('closes create modal while preserving filters and bookmark parameter', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    const { readLocation } = renderPage(<FundReports />, {
+      role: 'admin',
+      initialUrl: '/fund-reports?q=WO-101&modal=create&source=bookmark',
+      routePath: '/fund-reports'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Submit Fund Report')).toBeInTheDocument();
+    });
+
+    const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+    fireEvent.click(cancelBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('modal=create');
+      expect(loc).toContain('q=WO-101');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('debounces live search input and drops legacy search alias while resetting page', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    await withFakeTimers(async ({ advanceTimers }) => {
+      const { readLocation } = renderPage(<FundReports />, {
+        role: 'admin',
+        initialUrl: '/fund-reports?search=WO-old&page=2',
+        routePath: '/fund-reports'
+      });
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 1, name: /Fund Reports/i })).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText(/Search reports/i);
+      fireEvent.change(searchInput, { target: { value: 'WO-new' } });
+
+      await act(async () => { advanceTimers(150); });
+      expect(readLocation()).not.toContain('q=WO-new');
+
+      await act(async () => { advanceTimers(200); });
+      const loc = readLocation();
+      expect(loc).toContain('q=WO-new');
+      expect(loc).not.toContain('search=WO-old');
+      expect(loc).not.toContain('page=2');
+    });
+  });
+
+  it('handles invalid modal params and negative page safely with modal closed', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    renderPage(<FundReports />, {
+      role: 'admin',
+      initialUrl: '/fund-reports?modal=invalid_modal_type&page=-10',
+      routePath: '/fund-reports'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Fund Reports/i })).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Submit Fund Report')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
