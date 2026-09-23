@@ -36,7 +36,7 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   }
 
   if (scenario === 'empty') {
-    if (url.includes('/materials/categories')) return { success: true, mainHeads: [], subHeads: [] };
+  if (url.includes('/materials/categories')) return { success: true, mainHeads: [], subHeads: [] };
     if (url.includes('/subcontract-estimates/summary')) return { success: true, summary: [] };
     if (url.includes('/subcontract-estimates/init')) return { success: true, activeProjects: projectsFixture, works: [] };
     if (url.includes('/subcontract-estimates')) return { success: true, estimates: [], subcontractEstimates: [], data: [] };
@@ -131,6 +131,8 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     if (url.includes('/analytics/zo/')) return { success: true, data: [] };
     if (url.includes('/analytics/recent-activity')) return { success: true, data: [] };
     if (url.includes('/profile')) return { success: true, data: { user: { role: 'admin' }, streak: 5 } };
+        if (url.includes('/admin/users')) return { success: true, users: [] };
+    if (url.includes('/purchase-data')) return { success: true, options: [], data: [], purchaseOptions: [] };
     if (url.includes('/materials')) return { success: true, materials: [], total: 0, totalPages: 0, data: [] };
     if (url.includes('/projects')) return { success: true, projects: [], data: [] };
     if (url.includes('/requisitions')) return { success: true, requisitions: [], data: [] };
@@ -143,6 +145,8 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   }
 
   // Populated scenario
+  if (url.includes('/admin/users')) return { success: true, users: adminUsersFixture };
+  if (url.includes('/purchase-data')) return { success: true, options: purchaseDataFixture, data: purchaseDataFixture, purchaseOptions: purchaseDataFixture };
   if (url.includes('/daily-progress/')) return { success: true, report: dailyProgressReportsFixture[0], data: dailyProgressReportsFixture[0] };
   if (url.includes('/daily-progress')) return { success: true, reports: dailyProgressReportsFixture, data: dailyProgressReportsFixture };
   if (url.includes('/activity-breaks')) return { success: true, activityBreaks: activityBreaksFixture, data: activityBreaksFixture };
@@ -502,6 +506,46 @@ export const hoKpisFixture = {
   disbursed_funds: 34000000,
   leakage_risk_count: 1
 };
+
+
+// Domain 5 Fixtures
+export const adminUsersFixture = [
+  {
+    id: 'usr-1',
+    mobile_number: '+919876543210',
+    display_name: 'Super Admin',
+    role: 'admin',
+    is_active: true,
+    telegram_chat_id: '123456789',
+    created_at: '2026-08-01T00:00:00Z'
+  },
+  {
+    id: 'usr-2',
+    mobile_number: '+919876543213',
+    display_name: 'Junior Engineer',
+    role: 'je',
+    is_active: true,
+    telegram_chat_id: null,
+    created_at: '2026-08-05T00:00:00Z'
+  }
+];
+
+export const purchaseDataFixture = [
+  {
+    id: 'po-1',
+    name: 'Standard Cash Purchase',
+    description: 'Immediate cash purchase from local hardware supplier',
+    is_active: true,
+    created_at: '2026-08-01T00:00:00Z'
+  },
+  {
+    id: 'po-2',
+    name: 'Credit Note Procurement',
+    description: 'Procurement processed via vendor credit ledger',
+    is_active: true,
+    created_at: '2026-08-05T00:00:00Z'
+  }
+];
 
 export function createMockAuthApi({
   scenario = 'populated',
