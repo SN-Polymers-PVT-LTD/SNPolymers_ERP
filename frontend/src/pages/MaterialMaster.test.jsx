@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import MaterialMaster from './MaterialMaster';
 import {
   renderPage,
@@ -69,5 +69,42 @@ describe('MaterialMaster Page Domain & URL Contract', () => {
     expect(await screen.findByText('Create Material Record')).toBeInTheDocument();
     expect(screen.getByText('Add New Catalog Entry')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Create Record/i })).toBeInTheDocument();
+  });
+});
+
+describe('MaterialMaster URL State Hydration & Canonical Writes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiScenario(authApi, { scenario: 'populated' });
+  });
+
+  it('visibly hydrates Main Head dropdown and search input from deep link', async () => {
+    renderPage(<MaterialMaster />, {
+      initialUrl: '/materials?q=PVC&main_head=Civil',
+      role: 'admin'
+    });
+
+    const searchInput = await screen.findByPlaceholderText(/Search by Main Head/i);
+    expect(searchInput).toHaveValue('PVC');
+
+    const select = screen.getByLabelText(/Main Head/i);
+    await waitFor(() => {
+      expect(select).toHaveValue('Civil');
+    });
+  });
+
+  it('interactively writes canonical category filter parameter to URL on select change', async () => {
+    const { readLocation } = renderPage(<MaterialMaster />, {
+      initialUrl: '/materials',
+      role: 'admin'
+    });
+
+    const select = await screen.findByLabelText(/Main Head/i);
+    await screen.findByRole('option', { name: 'Electrical' });
+    fireEvent.change(select, { target: { value: 'Electrical' } });
+
+    await waitFor(() => {
+      expect(readLocation()).toContain('main_head=Electrical');
+    });
   });
 });

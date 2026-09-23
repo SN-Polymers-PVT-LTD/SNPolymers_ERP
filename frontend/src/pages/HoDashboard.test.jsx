@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import HoDashboard from './HoDashboard';
 import App from '../App';
 import authApi from '../api/authApi';
-import { mockApiScenario } from '../test/mocks/mockApiScenario';
+import { mockApiScenario, renderPage } from '../test';
 import { AuthProvider } from '../components/AuthContext';
 import { ModalProvider } from '../components/ModalContext';
 import { ThemeProvider } from '../components/ThemeContext';
@@ -74,5 +74,49 @@ describe('HoDashboard Page Contract', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).not.toBeInTheDocument();
     }, { timeout: 4000 });
+  });
+});
+
+describe('HoDashboard URL State, Modals & Filters', () => {
+  it('hydrates perspective view, date range, and preserves filters when closing zoom modal', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'ho' });
+
+    const { readLocation } = renderPage(<HoDashboard />, {
+      role: 'ho',
+      initialUrl: '/analytics/ho?view=zo&from=2026-09-01&to=2026-09-30&zone=North&source=bookmark&zoom=physical_progress',
+      routePath: '/analytics/ho'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).toBeInTheDocument();
+    });
+
+    // Close zoom modal
+    const closeBtn = await screen.findByTitle('Close (ESC)');
+    expect(closeBtn).toBeInTheDocument();
+    await userEvent.click(closeBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('zoom=');
+      expect(loc).toContain('zone=North');
+      expect(loc).toContain('from=2026-09-01');
+      expect(loc).toContain('to=2026-09-30');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('handles invalid zoom key safely without crashing', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'ho' });
+
+    renderPage(<HoDashboard />, {
+      role: 'ho',
+      initialUrl: '/analytics/ho?zoom=nonexistent_chart',
+      routePath: '/analytics/ho'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).toBeInTheDocument();
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { renderPage, assertUrlParams } from '../test';
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -101,6 +102,51 @@ describe('DailyProgress Page Contract', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Daily Work Progress/i })).not.toBeInTheDocument();
       expect(window.location.pathname).toBe('/dashboard');
+    });
+  });
+});
+
+describe('DailyProgress URL State Hydration & Canonical Writes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+  });
+
+  it('visibly hydrates tab and search_wo input from deep link', async () => {
+    renderPage(<DailyProgress />, {
+      role: 'admin',
+      initialUrl: '/daily-progress?tab=directory&search_wo=WO-101'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Daily Work Progress/i })).toBeInTheDocument();
+    });
+
+    // Check directory tab button has active styling
+    const directoryBtn = screen.getByRole('button', { name: /Projects Directory/i });
+    expect(directoryBtn.className).toContain('bg-white');
+
+    // Check search_wo input has hydrated value
+    const searchInput = screen.getByPlaceholderText(/Search Work Order Number/i);
+    expect(searchInput).toHaveValue('WO-101');
+  });
+
+  it('interactively writes canonical tab parameter to URL on tab switch', async () => {
+    const { readLocation } = renderPage(<DailyProgress />, {
+      role: 'admin',
+      initialUrl: '/daily-progress?tab=directory'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Daily Work Progress/i })).toBeInTheDocument();
+    });
+
+    const overviewBtn = screen.getByRole('button', { name: /Overview Dashboard/i });
+    await userEvent.click(overviewBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('tab=directory');
     });
   });
 });

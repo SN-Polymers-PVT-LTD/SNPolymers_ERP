@@ -58,7 +58,7 @@ export function useRaFinalBillUrlState() {
   }, [setSearchParams]);
 
   const clearWO = useCallback(() => {
-    if (window.history.length > 1) {
+    if (window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {
@@ -264,7 +264,7 @@ export function useRaFinalBillUrlState() {
   }, [setSearchParams]);
 
   const closeCreatePanel = useCallback(() => {
-    if (modalParam === 'create' && window.history.length > 1) {
+    if (modalParam === 'create' && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {
@@ -290,7 +290,7 @@ export function useRaFinalBillUrlState() {
   }, [setSearchParams]);
 
   const closeBillDetail = useCallback(() => {
-    if (billId && window.history.length > 1) {
+    if (billId && window.history.state && window.history.state.idx > 0) {
       navigate(-1);
     } else {
       setSearchParams((prev) => {

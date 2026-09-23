@@ -80,3 +80,86 @@ describe('ZonalBalances Page', () => {
     expect(screen.getByText('Transaction Ledger Logs')).toBeInTheDocument();
   });
 });
+
+describe('ZonalBalances URL State Hydration & Canonical Writes', () => {
+  const testBalances = [
+    {
+      zo_user_id: 'zo-1',
+      zo_name: 'Western Zone Office',
+      available_balance: 750000,
+      total_credited: 1500000,
+      total_debited: 750000,
+      last_updated: '2026-09-01T00:00:00Z'
+    },
+    {
+      zo_user_id: 'zo-2',
+      zo_name: 'Northern Zone Office',
+      available_balance: 500000,
+      total_credited: 1000000,
+      total_debited: 500000,
+      last_updated: '2026-09-01T00:00:00Z'
+    }
+  ];
+
+  it('visibly hydrates ZO dropdown and search input from deep link', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      role: 'admin',
+      overrides: {
+        zonalBalances: testBalances
+      }
+    });
+
+    renderPage(<ZonalBalances />, {
+      role: 'admin',
+      initialUrl: '/zonal-balances?zo=zo-1&q=Western',
+      routePath: '/zonal-balances',
+      overrides: {
+        zonalBalances: testBalances
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Zonal Office Credit Control/i })).toBeInTheDocument();
+    });
+
+    const searchInput = screen.getByPlaceholderText(/Search Zonal Office by name\/mobile/i);
+    expect(searchInput).toHaveValue('Western');
+
+    const zoSelect = screen.getByRole('combobox');
+    await waitFor(() => {
+      expect(zoSelect).toHaveValue('zo-1');
+    });
+  });
+
+  it('interactively writes canonical zo parameter to URL on selection change', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      role: 'admin',
+      overrides: {
+        zonalBalances: testBalances
+      }
+    });
+
+    const { readLocation } = renderPage(<ZonalBalances />, {
+      role: 'admin',
+      initialUrl: '/zonal-balances',
+      routePath: '/zonal-balances',
+      overrides: {
+        zonalBalances: testBalances
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Zonal Office Credit Control/i })).toBeInTheDocument();
+    });
+
+    const zoSelect = screen.getByRole('combobox');
+    await screen.findByRole('option', { name: /(Northern Zone Office|zo-2)/i });
+    fireEvent.change(zoSelect, { target: { value: 'zo-2' } });
+
+    await waitFor(() => {
+      expect(readLocation()).toContain('zo=zo-2');
+    });
+  });
+});

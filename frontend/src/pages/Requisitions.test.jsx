@@ -1,3 +1,4 @@
+import authApi from '../api/authApi';
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
@@ -5,17 +6,13 @@ import Requisitions from './Requisitions';
 import {
   renderPage,
   describePageContract,
-  mockApiScenario
+  mockApiScenario,
+  readLocation,
+  assertUrlParams
 } from '../test';
 import { requisitionsFixture, projectsFixture } from '../test/fixtures/domainFixtures';
 
-vi.mock('../services/api', async () => {
-  const actual = await vi.importActual('../test/mocks/mockApiScenario');
-  return {
-    default: actual.mockAxios,
-    api: actual.mockAxios,
-  };
-});
+vi.mock('../api/authApi');
 
 describe('Requisitions Page', () => {
   describePageContract({
@@ -39,9 +36,8 @@ describe('Requisitions Page', () => {
   });
 
   it('allows filtering by tab', async () => {
-    mockApiScenario({
-      requisitions: requisitionsFixture,
-      projects: projectsFixture,
+    mockApiScenario(authApi, {
+      scenario: "populated"
     });
 
     renderPage(<Requisitions />, {
@@ -59,6 +55,57 @@ describe('Requisitions Page', () => {
 
     await waitFor(() => {
       expect(screen.getByText('REQ-502')).toBeInTheDocument();
+    });
+  });
+});
+
+describe('Requisitions URL State Hydration & Canonical Writes', () => {
+  it('visibly hydrates active tab and search input from deep link', async () => {
+    mockApiScenario(authApi, {
+      scenario: "populated"
+    });
+
+    renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=approved&q=REQ-502',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Requisition Management')).toBeInTheDocument();
+    });
+
+    const approvedBtn = screen.getByRole('button', { name: /Approved \(/i });
+    expect(approvedBtn.className).toContain('bg-white/10');
+
+    const searchInput = screen.getByPlaceholderText(/Search requisitions/i);
+    expect(searchInput).toHaveValue('REQ-502');
+
+    await waitFor(() => {
+      expect(screen.getByText('REQ-502')).toBeInTheDocument();
+    });
+  });
+
+  it('interactively writes canonical tab parameter to URL', async () => {
+    mockApiScenario(authApi, {
+      scenario: "populated"
+    });
+
+    renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=approved',
+      routePath: '/requisitions'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Requisition Management')).toBeInTheDocument();
+    });
+
+    const holdBtn = screen.getByRole('button', { name: /Hold \/ Rejected \(/i });
+    fireEvent.click(holdBtn);
+
+    await waitFor(() => {
+      expect(readLocation()).toContain('tab=hold');
     });
   });
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import FundRequests from './FundRequests';
 import {
   renderPage,
@@ -84,5 +84,44 @@ describe('FundRequests Page Domain & URL Contract', () => {
 
     expect(await screen.findByText('Fund Request Management')).toBeInTheDocument();
     assertUrlState({ create: 'true', wo: 'WO-101' });
+  });
+});
+
+describe('FundRequests URL State Hydration & Canonical Writes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiScenario(authApi, { scenario: 'populated' });
+  });
+
+  it('visibly hydrates search input and filter checkboxes from deep link', async () => {
+    renderPage(<FundRequests />, {
+      initialUrl: '/fund-requests?q=FR-301&filter=pendingOnly',
+      role: 'zo'
+    });
+
+    const searchInput = await screen.findByPlaceholderText(/Search requests/i);
+    expect(searchInput).toHaveValue('FR-301');
+
+    const pendingCheckbox = screen.getByLabelText(/Pending Only/i);
+    expect(pendingCheckbox).toBeChecked();
+
+    const myRequestsCheckbox = screen.getByLabelText(/My Requests/i);
+    expect(myRequestsCheckbox).not.toBeChecked();
+  });
+
+  it('interactively writes canonical filter parameter to URL on toggle', async () => {
+    const { readLocation } = renderPage(<FundRequests />, {
+      initialUrl: '/fund-requests?filter=pendingOnly',
+      role: 'zo'
+    });
+
+    const myRequestsCheckbox = await screen.findByLabelText(/My Requests/i);
+    myRequestsCheckbox.click();
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).toContain('filter=');
+      expect(loc).toContain('myRequests');
+    });
   });
 });

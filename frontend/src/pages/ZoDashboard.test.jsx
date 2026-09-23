@@ -1,11 +1,12 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import ZoDashboard from './ZoDashboard';
 import App from '../App';
 import authApi from '../api/authApi';
-import { mockApiScenario } from '../test/mocks/mockApiScenario';
+import { mockApiScenario, renderPage } from '../test';
 import { AuthProvider } from '../components/AuthContext';
 import { ModalProvider } from '../components/ModalContext';
 import { ThemeProvider } from '../components/ThemeContext';
@@ -69,5 +70,49 @@ describe('ZoDashboard Page Contract', () => {
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Zonal Control Room/i })).not.toBeInTheDocument();
     }, { timeout: 4000 });
+  });
+});
+
+describe('ZoDashboard URL State, Modals & Filters', () => {
+  it('hydrates date range, ZO filter, and preserves filters when closing zoom modal', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+
+    const { readLocation } = renderPage(<ZoDashboard />, {
+      role: 'admin',
+      initialUrl: '/analytics/zo?from=2026-09-01&to=2026-09-30&zo=zo-1&source=bookmark&zoom=physical_progress',
+      routePath: '/analytics/zo'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Zonal Control Room/i })).toBeInTheDocument();
+    });
+
+    // Close zoom modal
+    const closeBtn = await screen.findByTitle('Close (ESC)');
+    expect(closeBtn).toBeInTheDocument();
+    await userEvent.click(closeBtn);
+
+    await waitFor(() => {
+      const loc = readLocation();
+      expect(loc).not.toContain('zoom=');
+      expect(loc).toContain('from=2026-09-01');
+      expect(loc).toContain('to=2026-09-30');
+      expect(loc).toContain('zo=zo-1');
+      expect(loc).toContain('source=bookmark');
+    });
+  });
+
+  it('handles invalid zoom key safely without crashing', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'zo' });
+
+    renderPage(<ZoDashboard />, {
+      role: 'zo',
+      initialUrl: '/analytics/zo?zoom=invalid_chart_key',
+      routePath: '/analytics/zo'
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Zonal Control Room/i })).toBeInTheDocument();
+    });
   });
 });

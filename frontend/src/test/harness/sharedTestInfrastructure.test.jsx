@@ -14,7 +14,12 @@ import {
   renderPage,
   assertUrlState,
   assertCanonicalUrl,
-  describePageContract
+  describePageContract,
+  readUrlParams,
+  assertUrlParams,
+  triggerRouterBack,
+  triggerRouterForward,
+  withFakeTimers
 } from '../index';
 import authApi from '../../api/authApi';
 
@@ -209,4 +214,22 @@ describePageContract({
   emptyScenario: {
     customQueue: []
   }
+});
+
+describe('urlTestHelpers utility tests', () => {
+  it('reads and asserts url parameters correctly', () => {
+    const TestComponent = () => <div>URL Helper Test</div>;
+    const { readLocation } = renderPage(<TestComponent />, {
+      initialUrl: '/test?tab=history&page=2&status=active'
+    });
+
+    const params = readUrlParams();
+    expect(params.tab).toBe('history');
+    expect(params.page).toBe('2');
+    expect(params.status).toBe('active');
+
+    assertUrlParams({ tab: 'history', page: 2, missing: undefined });
+    expect(() => assertUrlParams({ tab: 'wrong' })).toThrow(/Expected query param "tab"/);
+    expect(() => assertUrlParams({ page: undefined })).toThrow(/Expected query param "page" to be absent/);
+  });
 });

@@ -161,7 +161,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               type="text"
               placeholder="Enter account number..."
               value={beneficiaryAcNo}
-              onChange={(e) => { setBeneficiaryAcNo(e.target.value); setPage(1); }}
+              onChange={(e) => setBeneficiaryAcNo(e.target.value)}
               size="sm"
             />
           </div>
@@ -172,7 +172,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               type="text"
               placeholder="Enter beneficiary name..."
               value={beneficiaryName}
-              onChange={(e) => { setBeneficiaryName(e.target.value); setPage(1); }}
+              onChange={(e) => setBeneficiaryName(e.target.value)}
               size="sm"
             />
           </div>
