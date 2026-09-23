@@ -54,8 +54,8 @@ describe('DailyProgress Page Contract', () => {
   it('renders loading indicators when API calls are in progress', async () => {
     mockApiScenario(authApi, { scenario: 'loading', role: 'admin' });
 
-    renderWithProviders(<DailyProgress />, { initialUrl: '/daily-progress?tab=directory' });
-    expect(screen.getByText(/Projects Directory/i)).toBeInTheDocument();
+    const { container } = renderWithProviders(<DailyProgress />, { initialUrl: '/daily-progress?tab=directory' });
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders empty state guidance when no daily reports exist', async () => {
@@ -100,6 +100,7 @@ describe('DailyProgress Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Daily Work Progress/i })).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe('/dashboard');
     });
   });
 });

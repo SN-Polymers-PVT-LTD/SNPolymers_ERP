@@ -94,7 +94,7 @@ describe('AdminPanel Page Contract', () => {
     expect(screen.getByText(/Authorize New Account/i)).toBeInTheDocument();
   });
 
-  it('redirects unauthorized JE away from /admin route', async () => {
+  it('redirects unauthorized JE away from /admin route to /dashboard', async () => {
     mockApiScenario(authApi, { scenario: 'populated', role: 'je' });
 
     window.history.pushState({}, 'Admin Panel', '/admin');
@@ -102,6 +102,7 @@ describe('AdminPanel Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Authorized Access Whitelist/i })).not.toBeInTheDocument();
+      expect(window.location.pathname).toBe('/dashboard');
     });
   });
 });

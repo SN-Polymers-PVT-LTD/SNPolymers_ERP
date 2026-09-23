@@ -43,7 +43,9 @@ function normalizeContractArgs(arg1, arg2) {
     errorTextMatch = options.errorScenarioText ? (typeof options.errorScenarioText === 'string' ? new RegExp(options.errorScenarioText, 'i') : options.errorScenarioText) : null,
     expectDom = options.expectDom || null,
     customProps = options.customProps || {},
-    scenarioOverrides = options.initialScenario || options.scenarioOverrides || {}
+    scenarioOverrides = options.initialScenario || options.scenarioOverrides || {},
+    emptyScenario = options.emptyScenario || null,
+    errorScenario = options.errorScenario || null
   } = options;
 
   return {
@@ -58,7 +60,9 @@ function normalizeContractArgs(arg1, arg2) {
     errorTextMatch,
     expectDom,
     customProps,
-    scenarioOverrides
+    scenarioOverrides,
+    emptyScenario,
+    errorScenario
   };
 }
 
@@ -78,7 +82,9 @@ export function describePageContract(arg1, arg2) {
     errorTextMatch,
     expectDom,
     customProps,
-    scenarioOverrides
+    scenarioOverrides,
+    emptyScenario,
+    errorScenario
   } = normalizeContractArgs(arg1, arg2);
 
   describe(`${name} - Page DOM & Route Contract`, () => {
@@ -103,14 +109,18 @@ export function describePageContract(arg1, arg2) {
 
     if (emptyTextMatch) {
       it('renders empty state guidance when API returns empty dataset', async () => {
-        mockApiScenario(authApi, { scenario: 'empty', overrides: scenarioOverrides });
+        const emptyOverrides = {
+          ...scenarioOverrides,
+          ...(emptyScenario || {})
+        };
+        mockApiScenario(authApi, { scenario: 'empty', overrides: emptyOverrides });
 
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
           routePath: routePath || (route.includes('/') ? route : '/'),
           role: allowedRoles[0],
           scenario: 'empty',
-          overrides: scenarioOverrides
+          overrides: emptyOverrides
         });
 
         const emptyMessage = await screen.findByText(emptyTextMatch);
@@ -120,13 +130,17 @@ export function describePageContract(arg1, arg2) {
 
     if (errorTextMatch) {
       it('renders error alert or fallback when API request fails', async () => {
+        const errorOverrides = {
+          ...scenarioOverrides,
+          ...(errorScenario || {})
+        };
         renderPage(<PageComponent {...customProps} />, {
           initialUrl: route,
           routePath: routePath || (route.includes('/') ? route : '/'),
           role: allowedRoles[0],
           scenario: 'apiError',
           errorMessage: 'Server unavailable',
-          overrides: scenarioOverrides
+          overrides: errorOverrides
         });
 
         const errorMessage = await screen.findByText(errorTextMatch, {}, { timeout: 4000 });

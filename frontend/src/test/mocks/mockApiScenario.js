@@ -57,11 +57,8 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     if (url.includes('/estimated-bills')) return { success: true, data: [] };
     if (url.includes('/zo-balances/ledger')) return { success: true, ledger: [], pagination: { total: 0, page: 1, limit: 20 } };
     if (url.includes('/zo-balances')) return { success: true, balances: [] };
-    
-  
-  if (url.includes('/reports')) return { success: true, reports: [] };
-    
-  if (url.includes('/acct-requisitions/credit-ledger')) return { success: true, entries: [] };
+    if (url.includes('/reports')) return { success: true, reports: [] };
+    if (url.includes('/acct-requisitions/credit-ledger')) return { success: true, entries: [] };
     if (url.includes('/acct-requisitions/logs')) return { success: true, logs: [], entries: [], data: { logs: [], entries: [] } };
     if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };
     if (url.includes('/subcontractors')) return { success: true, subcontractors: [], pagination: { page: 1, totalPages: 0, totalItems: 0 } };

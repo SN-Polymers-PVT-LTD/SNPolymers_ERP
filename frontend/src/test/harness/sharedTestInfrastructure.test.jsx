@@ -182,3 +182,31 @@ describe('describePageContract Argument Guarding & Signature Flexibility', () =>
     );
   });
 });
+
+const SampleEmptyScenarioPage = () => {
+  const [data, setData] = React.useState(null);
+  React.useEffect(() => {
+    authApi.get("/acct-requisitions/ho-queue").then((res) => {
+      setData(res.data?.customQueue || []);
+    });
+  }, []);
+
+  if (data && data.length === 0) {
+    return <div>No queue items found for empty state</div>;
+  }
+  return <div>Active Queue Items Present</div>;
+};
+
+describePageContract({
+  PageUnderContract: SampleEmptyScenarioPage,
+  name: "SampleEmptyScenarioPage",
+  route: "/acct-requisitions/ho-queue",
+  allowedRoles: ["ho"],
+  emptyScenarioText: /No queue items found for empty state/i,
+  initialScenario: {
+    customQueue: [{ id: 1 }]
+  },
+  emptyScenario: {
+    customQueue: []
+  }
+});
