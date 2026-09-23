@@ -59,6 +59,36 @@ describe('Requisitions Page', () => {
 });
 
 describe('Requisitions URL State Hydration & Canonical Writes', () => {
+  it('keeps page-2 deep links and pagination until page size changes', async () => {
+    const requisitions = Array.from({ length: 12 }, (_, index) => ({
+      ...requisitionsFixture[0],
+      requisition_id: `req-page-${index + 1}`,
+      requisition_no: `REQ-PAGE-${index + 1}`
+    }));
+    const { readLocation } = renderPage(<Requisitions />, {
+      role: 'admin',
+      initialUrl: '/requisitions?tab=all&page=2&source=bookmark',
+      customWrapper: (children) => <React.StrictMode>{children}</React.StrictMode>,
+      overrides: { '/requisitions': { success: true, requisitions } }
+    });
+
+    expect(await screen.findByText('REQ-PAGE-11')).toBeInTheDocument();
+    expect(screen.queryByText('REQ-PAGE-1')).not.toBeInTheDocument();
+    expect(readLocation()).toContain('page=2');
+    fireEvent.click(screen.getByRole('button', { name: /^1$/ }));
+    await waitFor(() => expect(readLocation()).not.toContain('page='));
+    fireEvent.click(screen.getByRole('button', { name: /^2$/ }));
+    await waitFor(() => expect(readLocation()).toContain('page=2'));
+    expect(screen.getByText('REQ-PAGE-11')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue('10 / pg'), { target: { value: '5' } });
+    await waitFor(() => {
+      expect(readLocation()).not.toContain('page=');
+      expect(readLocation()).toContain('source=bookmark');
+      expect(screen.getByText('REQ-PAGE-1')).toBeInTheDocument();
+    });
+  });
+
   it('visibly hydrates active tab and search input from deep link', async () => {
     mockApiScenario(authApi, {
       scenario: "populated"

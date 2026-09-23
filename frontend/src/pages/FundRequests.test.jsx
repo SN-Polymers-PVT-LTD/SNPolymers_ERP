@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import FundRequests from './FundRequests';
 import {
   renderPage,
@@ -9,6 +9,7 @@ import {
   mockApiScenario
 } from '../test';
 import authApi from '../api/authApi';
+import { fundRequestsFixture } from '../test/fixtures/domainFixtures';
 
 vi.mock('../api/authApi', () => ({
   default: {
@@ -91,6 +92,38 @@ describe('FundRequests URL State Hydration & Canonical Writes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockApiScenario(authApi, { scenario: 'populated' });
+  });
+
+  it('keeps page-2 deep links and pagination until page size changes', async () => {
+    const requests = Array.from({ length: 12 }, (_, index) => ({
+      ...fundRequestsFixture[0],
+      fund_request_id: `fr-page-${index + 1}`,
+      request_id: `fr-page-${index + 1}`,
+      zo_fr_no: `FR-PAGE-${index + 1}`,
+      request_no: `FR-PAGE-${index + 1}`
+    }));
+    const { readLocation } = renderPage(<FundRequests />, {
+      role: 'zo',
+      initialUrl: '/fund-requests?page=2&source=bookmark',
+      customWrapper: (children) => <React.StrictMode>{children}</React.StrictMode>,
+      overrides: { '/fund-requests': { success: true, fundRequests: requests } }
+    });
+
+    expect(await screen.findByText('FR-PAGE-11')).toBeInTheDocument();
+    expect(screen.queryByText('FR-PAGE-1')).not.toBeInTheDocument();
+    expect(readLocation()).toContain('page=2');
+    fireEvent.click(screen.getByRole('button', { name: /^1$/ }));
+    await waitFor(() => expect(readLocation()).not.toContain('page='));
+    fireEvent.click(screen.getByRole('button', { name: /^2$/ }));
+    await waitFor(() => expect(readLocation()).toContain('page=2'));
+    expect(screen.getByText('FR-PAGE-11')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue('10 / pg'), { target: { value: '5' } });
+    await waitFor(() => {
+      expect(readLocation()).not.toContain('page=');
+      expect(readLocation()).toContain('source=bookmark');
+      expect(screen.getByText('FR-PAGE-1')).toBeInTheDocument();
+    });
   });
 
   it('visibly hydrates search input and filter checkboxes from deep link', async () => {

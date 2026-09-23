@@ -2330,15 +2330,10 @@ const Requisitions = () => {
 
   // Pagination State
   const [pageSize, setPageSize] = useState(10);
-  const isPageSizeMounted = useRef(false);
-
-  useEffect(() => {
-    if (!isPageSizeMounted.current) {
-      isPageSizeMounted.current = true;
-      return;
-    }
+  const handlePageSizeChange = (event) => {
+    setPageSize(Number(event.target.value));
     setCurrentPage(1);
-  }, [pageSize, setCurrentPage]);
+  };
 
   const filteredRequisitions = getFilteredRequisitions();
 
@@ -2664,7 +2659,7 @@ const Requisitions = () => {
                     <span className="text-[10px] text-slate-500 font-bold uppercase">Show:</span>
                     <select
                       value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      onChange={handlePageSizeChange}
                       className="px-2.5 py-1.5 rounded-xl text-xs bg-slate-950/80 border border-white/10 text-slate-300 focus:outline-none focus:border-amber-500/50 font-bold cursor-pointer"
                     >
                       <option value={5}>5 / pg</option>
