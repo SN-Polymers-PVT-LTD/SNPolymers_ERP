@@ -109,8 +109,10 @@ describe('Workflow Test Helpers Suite', () => {
   });
 
   describe('waitForQueryRefresh', () => {
-    it('resolves once the target query is not fetching', async () => {
+    it('waits for a new data update rather than passing while idle', async () => {
       const client = createTestQueryClient({ queries: { gcTime: 10000 } });
+      client.setQueryData(['test-key'], { val: 1 });
+      const beforeUpdateCount = client.getQueryState(['test-key']).dataUpdateCount;
       const deferred = createDeferred();
 
       const fetchPromise = client.fetchQuery({
@@ -120,9 +122,10 @@ describe('Workflow Test Helpers Suite', () => {
 
       expect(client.isFetching({ queryKey: ['test-key'] })).toBe(1);
 
+      const refreshed = waitForQueryRefresh(client, ['test-key'], beforeUpdateCount);
       deferred.resolve({ val: 42 });
       await fetchPromise;
-      await waitForQueryRefresh(client, ['test-key']);
+      await refreshed;
       expect(client.getQueryData(['test-key'])).toEqual({ val: 42 });
     });
   });

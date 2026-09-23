@@ -117,11 +117,16 @@ export function assertApiCalledWith(target, { url, body, partialBody, callIndex 
 }
 
 /**
- * Waits until an active query key in TanStack Query has completed refetching.
+ * Waits for a new successful data update after a captured pre-action count.
+ * Capture queryClient.getQueryState(queryKey)?.dataUpdateCount before the action.
  */
-export async function waitForQueryRefresh(queryClient, queryKey) {
+export async function waitForQueryRefresh(queryClient, queryKey, beforeUpdateCount) {
+  if (!queryKey || !Number.isInteger(beforeUpdateCount)) {
+    throw new Error('waitForQueryRefresh requires a query key and pre-action dataUpdateCount');
+  }
   await waitFor(() => {
-    const isFetching = queryClient.isFetching(queryKey ? { queryKey } : undefined);
-    expect(isFetching).toBe(0);
+    const state = queryClient.getQueryState(queryKey);
+    expect(state?.dataUpdateCount).toBeGreaterThan(beforeUpdateCount);
+    expect(state?.fetchStatus).toBe('idle');
   });
 }

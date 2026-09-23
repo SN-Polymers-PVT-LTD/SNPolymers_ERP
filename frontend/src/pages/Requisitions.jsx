@@ -2185,8 +2185,7 @@ const Requisitions = () => {
     routeTargetReq,
     setRouteTargetReq,
     showCreateModal,
-    setShowCreateModal,
-    closeAllModals
+    setShowCreateModal
   } = useRequisitionUrlState({ user, requisitions, projects });
 
   // Filter projects list for the directory tab
@@ -2250,6 +2249,7 @@ const Requisitions = () => {
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create requisition.');
+      throw err;
     }
   };
 

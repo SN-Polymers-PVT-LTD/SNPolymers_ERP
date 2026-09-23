@@ -36,6 +36,7 @@ export const EstimatedBill = () => {
     title: 'Estimate Saved',
     description: 'Your changes are live in reports and analytics right away — no approval needed.'
   });
+  const [saveError, setSaveError] = useState('');
 
   // Query: Estimated Bills List
   const {
@@ -70,10 +71,14 @@ export const EstimatedBill = () => {
         title: 'Estimate Saved',
         description: `Estimate for ${variables.work_order_no} is live in cash-flow forecasts and analytics.`
       });
+    },
+    onError: (error) => {
+      setSaveError(error.response?.data?.message || 'Failed to save estimated bill. Please try again.');
     }
   });
 
   const handleOpenNewModal = () => {
+    setSaveError('');
     openNewModal();
   };
 
@@ -82,10 +87,12 @@ export const EstimatedBill = () => {
   };
 
   const handleCloseModal = () => {
+    setSaveError('');
     closeModal();
   };
 
   const handleSaveSubmit = (payload) => {
+    setSaveError('');
     saveMutation.mutate(payload);
   };
 
@@ -147,6 +154,7 @@ export const EstimatedBill = () => {
         workOrderOptions={workOrdersData || []}
         onSave={handleSaveSubmit}
         isSaving={saveMutation.isPending}
+        saveError={saveError}
       />
 
       {/* Success Feedback Popup */}

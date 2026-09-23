@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import EstimatedBill from './EstimatedBill';
 import {
   renderPage,
@@ -31,13 +31,26 @@ describe('EstimatedBill Workflow Tests', () => {
     }
   ];
 
+  async function fillEstimateForm() {
+    fireEvent.click(screen.getByRole('button', { name: /New Estimate/i }));
+    await screen.findByRole('heading', { name: /Estimated Bill Entry/i });
+    fireEvent.change(screen.getByDisplayValue('Select a Work Order...'), { target: { value: 'WO-101' } });
+    fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '150000' } });
+    const modalDateInput = [...document.querySelectorAll('input[type="date"]')].at(-1);
+    fireEvent.change(modalDateInput, { target: { value: '2026-10-15' } });
+  }
+
   it('creates an estimated bill entry with in-flight state, payload assertion, and success popup', async () => {
-    renderPage(<EstimatedBill />, {
+    let listFetches = 0;
+    const { readLocation } = renderPage(<EstimatedBill />, {
       role: 'ho',
-      initialUrl: '/estimated-bills',
+      initialUrl: '/estimated-bills?zone=North&unrelated=keep',
       overrides: {
         '/estimated-bills/work-orders': { success: true, workOrders: mockWorkOrders },
-        '/estimated-bills': { success: true, data: [] }
+        '/estimated-bills': () => {
+          listFetches += 1;
+          return { success: true, data: listFetches > 1 ? [{ ...mockWorkOrders[0], estimated_bill_amount: 150000, surety_pct: 80, entry_count: 1 }] : [] };
+        }
       }
     });
 
@@ -59,26 +72,7 @@ describe('EstimatedBill Workflow Tests', () => {
       expect(screen.getByRole('heading', { level: 1, name: /Estimated Bill Module/i })).toBeInTheDocument();
     });
 
-    // Click "New Estimate"
-    const newEstBtn = screen.getByRole('button', { name: /New Estimate/i });
-    fireEvent.click(newEstBtn);
-
-    // Modal opens
-    expect(await screen.findByRole('heading', { name: /Estimated Bill Entry/i })).toBeInTheDocument();
-
-    // Select Work Order
-    const woSelect = screen.getByDisplayValue('Select a Work Order...');
-    fireEvent.change(woSelect, { target: { value: 'WO-101' } });
-
-    // Enter Amount
-    const amountInput = screen.getByPlaceholderText('0.00');
-    fireEvent.change(amountInput, { target: { value: '150000' } });
-
-    // Enter Estimated Date in modal
-    const dateInputs = document.querySelectorAll('input[type="date"]');
-    const modalDateInput = dateInputs[dateInputs.length - 1];
-    expect(modalDateInput).toBeInTheDocument();
-    fireEvent.change(modalDateInput, { target: { value: '2026-10-15' } });
+    await fillEstimateForm();
 
     // Click Save Estimate
     const saveBtn = screen.getByRole('button', { name: /Save Estimate/i });
@@ -116,7 +110,39 @@ describe('EstimatedBill Workflow Tests', () => {
     // Verify success popup
     await waitFor(() => {
       expect(screen.getByText('Estimate Saved')).toBeInTheDocument();
+      expect(listFetches).toBeGreaterThan(1);
+      expect(screen.getByText('WO-101')).toBeInTheDocument();
+      expect(readLocation()).toContain('unrelated=keep');
+      expect(readLocation()).not.toContain('modal=');
     });
+  });
+
+  it('shows server errors without discarding input or navigating away', async () => {
+    let listFetches = 0;
+    const { readLocation } = renderPage(<EstimatedBill />, {
+      role: 'ho',
+      initialUrl: '/estimated-bills?unrelated=keep',
+      overrides: {
+        '/estimated-bills/work-orders': { success: true, workOrders: mockWorkOrders },
+        '/estimated-bills': () => { listFetches += 1; return { success: true, data: [] }; }
+      }
+    });
+    const deferred = createDeferred();
+    interceptApiCall(authApi, 'post', '/estimated-bills', { deferred });
+    await screen.findByRole('heading', { name: /Estimated Bill Module/i });
+    await fillEstimateForm();
+    fireEvent.click(screen.getByRole('button', { name: /Save Estimate/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /Saving/i })).toBeDisabled());
+    const error = new Error('Forecast save failed');
+    error.response = { data: { message: 'Forecast save failed' } };
+    await act(async () => { deferred.reject(error); });
+    expect(await screen.findByRole('alert')).toHaveTextContent('Forecast save failed');
+    expect(screen.getByPlaceholderText('0.00')).toHaveValue('1,50,000');
+    expect(screen.getByRole('button', { name: /Save Estimate/i })).toBeEnabled();
+    expect(screen.queryByText('Estimate Saved')).not.toBeInTheDocument();
+    expect(readLocation()).toContain('unrelated=keep');
+    expect(readLocation()).toContain('modal=new');
+    expect(listFetches).toBe(1);
   });
 
   it('validates remaining capacity and blocks submission if amount exceeds remaining capacity', async () => {

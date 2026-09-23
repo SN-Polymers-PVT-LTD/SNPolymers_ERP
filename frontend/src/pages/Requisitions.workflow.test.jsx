@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import Requisitions from './Requisitions';
 import {
   renderPage,
@@ -9,7 +9,9 @@ import {
   assertApiCalledWith
 } from '../test';
 import {
-  requisitionsFixture
+  requisitionsFixture,
+  estimatesFixture,
+  indianBanksFixture
 } from '../test/fixtures/domainFixtures';
 import authApi from '../api/authApi';
 
@@ -18,6 +20,90 @@ vi.mock('../api/authApi');
 describe('Requisitions Workflow Tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  async function fillJeRequisitionForm() {
+    fireEvent.click(await screen.findByRole('button', { name: /New Requisition/i }));
+    const modal = (await screen.findByRole('heading', { name: /Create Requisition/i })).closest('.glass-panel');
+    fireEvent.click(within(modal).getByRole('button', { name: /Next Step/i }));
+    fireEvent.change(within(modal).getByLabelText(/Work Order No/i), { target: { value: 'WO-101' } });
+    fireEvent.click(within(modal).getByRole('button', { name: /Next Step/i }));
+    fireEvent.change(within(modal).getByPlaceholderText('e.g. REQ-WO-001'), { target: { value: 'REQ-WO-99' } });
+    await waitFor(() => expect(within(modal).getByLabelText(/Material Main Head/i).options.length).toBeGreaterThan(1));
+    fireEvent.change(within(modal).getByLabelText(/Material Main Head/i), { target: { value: 'Electrical' } });
+    const upload = modal.querySelector('input[type="file"]');
+    fireEvent.change(upload, { target: { files: [new File(['%PDF-1.4'], 'REQ-WO-99.pdf', { type: 'application/pdf' })] } });
+    await within(modal).findByText('REQ-WO-99.pdf');
+    fireEvent.change(within(modal).getByPlaceholderText('0.00'), { target: { value: '15000' } });
+    fireEvent.change(within(modal).getByPlaceholderText(/Enter payee/i), { target: { value: 'Test Contractor' } });
+    fireEvent.change(within(modal).getByPlaceholderText(/Enter bank account no/i), { target: { value: '123456789012' } });
+    fireEvent.change(within(modal).getByPlaceholderText('e.g. SBIN0001234'), { target: { value: 'SBIN0001234' } });
+    await waitFor(() => expect(within(modal).getByLabelText(/Indian Banks/i).options.length).toBeGreaterThan(1));
+    fireEvent.change(within(modal).getByLabelText(/Indian Banks/i), { target: { value: 'bank-01' } });
+    return modal;
+  }
+
+  it('JE creates a requisition, keeps the URL, and refreshes the list; a rejected retry stays editable', async () => {
+    let listFetches = 0;
+    const { readLocation } = renderPage(<Requisitions />, {
+      role: 'je',
+      initialUrl: '/requisitions?tab=pending&unrelated=keep',
+      overrides: {
+        '/estimates/est-cost-1': { success: true, items: estimatesFixture[0].items },
+        '/estimates': { success: true, estimates: [estimatesFixture[0]] },
+        '/requisitions/indian-banks': { success: true, indianBanks: indianBanksFixture },
+        '/requisitions/capacity': { success: true, mainHeadEstimate: 500000, cumulativeApproved: 100000, remainingCapacity: 400000 },
+        '/requisitions': (url) => {
+          if (url === '/requisitions') {
+            listFetches += 1;
+            const rows = listFetches > 1 ? [{ ...requisitionsFixture[0], requisition_no: 'REQ-WO-99' }] : requisitionsFixture;
+            return { success: true, requisitions: rows, data: rows };
+          }
+          return undefined;
+        }
+      }
+    });
+    const deferred = createDeferred();
+    const createCall = interceptApiCall(authApi, 'post', (url) => url === '/requisitions', { deferred });
+    const uploadCall = interceptApiCall(authApi, 'post', '/requisitions/upload/requisition-pdf', {
+      response: { storagePath: 'test/path.pdf', attachmentId: 'attachment-99', signedUrl: 'https://example.test/path.pdf' }
+    });
+    const modal = await fillJeRequisitionForm();
+    expect(uploadCall.calls).toHaveLength(1);
+    fireEvent.submit(modal.querySelector('#requisition-creation-form'));
+    expect(createCall.calls).toHaveLength(1);
+    await waitFor(() => expect(within(modal).getByRole('button', { name: /Save Requisition/i })).toBeDisabled());
+    assertApiCalledWith(createCall, {
+      url: '/requisitions',
+      partialBody: {
+        work_order_no: 'WO-101', requisition_no: 'REQ-WO-99', material_main_head: 'Electrical',
+        requisition_pdf_attachment_id: 'attachment-99', requisition_amount: 15000,
+        beneficiary_name: 'Test Contractor', beneficiary_ac_no: '123456789012',
+        beneficiary_ifsc: 'SBIN0001234', beneficiary_bank_id: 'bank-01'
+      }
+    });
+    const error = new Error('Requisition rejected');
+    error.response = { data: { message: 'Requisition rejected' } };
+    await act(async () => { deferred.reject(error); });
+    expect(within(modal).getByText('Requisition rejected')).toBeInTheDocument();
+    expect(within(modal).getByRole('button', { name: /Save Requisition/i })).toBeEnabled();
+    expect(readLocation()).toContain('unrelated=keep');
+    expect(readLocation()).toContain('create=true');
+    expect(listFetches).toBe(1);
+
+    createCall.restore();
+    const retry = interceptApiCall(authApi, 'post', (url) => url === '/requisitions', { response: { success: true } });
+    fireEvent.submit(modal.querySelector('#requisition-creation-form'));
+    await waitFor(() => {
+      expect(retry.calls).toHaveLength(1);
+      expect(screen.getByText(/REQ-WO-99 submitted successfully/i)).toBeInTheDocument();
+      expect(listFetches).toBeGreaterThan(1);
+    });
+    await waitFor(() => {
+      expect(modal).not.toBeInTheDocument();
+      expect(readLocation()).toContain('unrelated=keep');
+      expect(readLocation()).not.toContain('create=');
+    });
   });
 
   describe('ZO / HO Action Workflow (Approve & Hold)', () => {

@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { Route, Routes } from 'react-router-dom';
 import AcctRequisitions from './AcctRequisitions';
 import {
   renderPage,
@@ -8,7 +9,6 @@ import {
   interceptApiCall,
   assertApiCalledWith
 } from '../test';
-import { acctSheetDetailFixture } from '../test/fixtures/domainFixtures';
 import authApi from '../api/authApi';
 
 vi.mock('../api/authApi');
@@ -22,7 +22,13 @@ describe('AcctRequisitions Workflow Tests', () => {
     it('creates a new sheet with deferred in-flight state and navigates to the created sheet', async () => {
       const { readLocation } = renderPage(<AcctRequisitions />, {
         role: 'accounts',
-        initialUrl: '/acct-requisitions'
+        initialUrl: '/acct-requisitions',
+        customWrapper: () => (
+          <Routes>
+            <Route path="/acct-requisitions" element={<AcctRequisitions />} />
+            <Route path="/acct-requisitions/sheets/:sheetId" element={<div>Created sheet detail</div>} />
+          </Routes>
+        )
       });
 
       const deferred = createDeferred();
@@ -59,21 +65,25 @@ describe('AcctRequisitions Workflow Tests', () => {
       });
 
       // Resolve deferred
-      deferred.resolve({
-        data: {
-          success: true,
-          sheet: {
-            id: 'sheet-new-99',
-            sheet_number: 'SHEET-2026-99',
-            sheet_status: 'Open'
+      await act(async () => {
+        deferred.resolve({
+          data: {
+            success: true,
+            sheet: {
+              id: 'sheet-new-99',
+              sheet_number: 'SHEET-2026-99',
+              sheet_status: 'Open'
+            }
           }
-        }
+        });
       });
 
       // Verify navigation to new sheet detail URL
       await waitFor(() => {
         expect(readLocation()).toBe('/acct-requisitions/sheets/sheet-new-99');
-      }, { timeout: 3000 });
+        expect(screen.getByText('Created sheet detail')).toBeInTheDocument();
+        expect(screen.queryByText('Failed to create sheet.')).not.toBeInTheDocument();
+      }, { timeout: 10000 });
     });
 
     it('surfaces error banner when create sheet fails and stays on list view', async () => {

@@ -18,7 +18,7 @@ describe('ExcessFundReturns Workflows', () => {
   });
 
   it('admin/ho: opens request modal, validates inputs, shows in-flight state, submits payload, and closes modal', async () => {
-    renderPage(<ExcessFundReturns />, {
+    const { readLocation } = renderPage(<ExcessFundReturns />, {
       role: 'admin',
       initialUrl: '/excess-fund-returns',
       overrides: {
@@ -98,7 +98,10 @@ describe('ExcessFundReturns Workflows', () => {
     });
 
     // Modal should be closed
-    expect(screen.queryByText('Request Excess Fund Return')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Request Excess Fund Return')).not.toBeInTheDocument();
+      expect(new URLSearchParams(readLocation().split('?')[1] || '').has('modal')).toBe(false);
+    });
   });
 
   it('zo: opens evaluation drawer, fills work order breakdown allocations, verifies in-flight state, and accepts return', async () => {
@@ -151,7 +154,7 @@ describe('ExcessFundReturns Workflows', () => {
       expect(screen.getByRole('heading', { level: 1, name: /Excess Fund Returns/i })).toBeInTheDocument();
     });
 
-    const getProjectsInterceptor = interceptApiCall(authApi, 'get', '/projects', {
+    interceptApiCall(authApi, 'get', '/projects', {
       response: {
         success: true,
         projects: [
@@ -165,7 +168,7 @@ describe('ExcessFundReturns Workflows', () => {
       }
     });
 
-    const getBalancesInterceptor = interceptApiCall(authApi, 'get', '/zo-balances', {
+    interceptApiCall(authApi, 'get', '/zo-balances', {
       response: {
         success: true,
         balances: [
@@ -232,7 +235,7 @@ describe('ExcessFundReturns Workflows', () => {
     });
 
     // Modal should be closed
-    expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument());
   });
 
   it('zo: enforces mandatory remarks before rejecting and sends PATCH /reject with remarks', async () => {
@@ -333,6 +336,6 @@ describe('ExcessFundReturns Workflows', () => {
     });
 
     // Modal closes
-    expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument());
   });
 });
