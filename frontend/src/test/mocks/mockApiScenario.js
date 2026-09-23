@@ -155,26 +155,45 @@ function getScenarioPayload(url, scenario, overrides = {}) {
     balances: [],
     pagination: { page: 1, limit: 15, total: 1, totalPages: 1 }
   };
-  if (url.includes('/excess-fund-returns/target-zos')) return {
-    success: true,
-    targetZOs: [{ zo_user_id: 'zo-1', full_name: 'Western Zone Office', available_balance: 750000 }]
-  };
-  if (url.includes('/excess-fund-returns')) return {
-    success: true,
-    returnRequests: overrides.excessFundReturns || [
+  if (url.includes('/excess-fund-returns/target-zos')) {
+    const defaultZos = [
       {
+        mobile_number: '9876543212',
+        display_name: 'Western Zone Office',
+        full_name: 'Western Zone Office',
+        zo_user_id: '9876543212',
+        available_balance: 750000
+      }
+    ];
+    const zosList = overrides.targetZOs || defaultZos;
+    return {
+      success: true,
+      zos: zosList,
+      targetZOs: zosList
+    };
+  }
+  if (url.includes('/excess-fund-returns')) {
+    const rawList = overrides.excessFundReturns || [
+      {
+        id: 'efr-1',
         return_request_id: 'efr-1',
-        zo_user_id: 'zo-1',
+        zo_user_id: '9876543212',
         zo_name: 'Western Zone Office',
         work_order_no: 'WO-101',
         requested_amount: 100000,
-        status: 'Pending',
+        status: 'Requested',
         remarks_ho: 'Excess return required',
         created_at: '2026-08-25T10:00:00Z',
         updated_at: '2026-08-25T10:00:00Z'
       }
-    ]
-  };
+    ];
+    const returnsList = rawList.map(r => ({ id: r.id || r.return_request_id, ...r }));
+    return {
+      success: true,
+      returns: returnsList,
+      returnRequests: returnsList
+    };
+  }
   if (url.includes('/ra-final-bills/work-orders/without-ra-bill')) return { success: true, projects: [] };
   if (url.includes('/ra-final-bills/summary/')) return { success: true, total_billed: 1500000, remaining_balance: 3300000, billing_cap: 4800000 };
   if (url.includes('/ra-final-bills')) return {
@@ -315,14 +334,49 @@ function getScenarioPayload(url, scenario, overrides = {}) {
   if (url.includes('/subcontract-works')) return { success: true, subcontractWorks: subcontractWorksFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractWorksFixture.length } };
   if (url.includes('/subcontractors')) return { success: true, subcontractors: subcontractorsFixture, pagination: { page: 1, totalPages: 1, totalItems: subcontractorsFixture.length } };
   if (url.includes('/user-mappings/eligible-jes')) return { success: true, eligibleJEs: [{ mobile_number: '9876543213', display_name: 'Vikram JE' }] };
-  if (url.includes('/user-mappings/eligible-zos')) return { success: true, eligibleZOs: [{ mobile_number: '9876543212', display_name: 'Priya ZO' }] };
+  if (url.includes('/user-mappings/eligible-zos')) {
+    const list = overrides.eligibleZOs || [{ mobile_number: '9876543212', display_name: 'Priya ZO' }];
+    return { success: true, eligibleZOs: list, zos: list };
+  }
   if (url.includes('/user-mappings')) return { success: true, mappings: userMappingsFixture, data: userMappingsFixture };
   if (url.includes('/work-order-mappings')) return { success: true, mappings: workOrderMappingsFixture, data: workOrderMappingsFixture };
   if (url.includes('/indian-banks')) return { success: true, indianBanks: indianBanksFixture, data: indianBanksFixture };
   if (url.includes('/beneficiary-master')) return { success: true, beneficiaries: beneficiariesFixture, data: beneficiariesFixture };
   if (url.includes('/beneficiaries')) return { success: true, beneficiaries: beneficiariesFixture, data: beneficiariesFixture };
   if (url.includes('/materials')) return { success: true, materials: materialsFixture, total: materialsFixture.length, totalPages: 1 };
-  if (url.includes('/projects')) return { success: true, projects: projectsFixture, data: projectsFixture };
+  if (url.includes('/projects') && url.includes('/capacity')) {
+    const cap = {
+      estimate_amount: 5000000,
+      work_order_value: 5000000,
+      fr_submitted_total: 1000000,
+      remaining: 4000000
+    };
+    return {
+      success: true,
+      ...cap,
+      capacity: cap,
+      data: {
+        ...cap,
+        capacity: cap
+      }
+    };
+  }
+  if (url.includes('/projects')) return { success: true, projects: overrides.projects || projectsFixture, data: overrides.projects || projectsFixture };
+  if (url.includes('/requisitions/capacity')) {
+    return {
+      success: true,
+      mainHeadEstimate: 500000,
+      cumulativeApproved: 100000,
+      remainingCapacity: 400000,
+      estimateLifecycle: null
+    };
+  }
+  if (url.match(/\/requisitions\/([^/?]+)$/)) {
+    const match = url.match(/\/requisitions\/([^/?]+)$/);
+    const idOrNo = match[1];
+    const found = requisitionsFixture.find(r => r.requisition_id === idOrNo || r.requisition_no === idOrNo) || requisitionsFixture[0];
+    return { success: true, requisition: found };
+  }
   if (url.includes('/requisitions')) return { success: true, requisitions: requisitionsFixture, data: requisitionsFixture };
   if (url.includes('/fund-requests')) return { success: true, fundRequests: fundRequestsFixture, data: fundRequestsFixture };
   if (url.includes('/estimates')) return { success: true, estimates: estimatesFixture, data: estimatesFixture };

@@ -62,8 +62,8 @@ export const EstimatedBill = () => {
   const saveMutation = useMutation({
     mutationFn: (payload) => createEstimatedBillEntry(payload),
     onSuccess: (res, variables) => {
-      queryClient.invalidateQueries(['estimated-bills']);
-      queryClient.invalidateQueries(['estimated-bill-work-orders']);
+      queryClient.invalidateQueries({ queryKey: ['estimated-bills'] });
+      queryClient.invalidateQueries({ queryKey: ['estimated-bill-work-orders'] });
       closeModal();
       setSuccessPopup({
         isOpen: true,

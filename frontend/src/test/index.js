@@ -4,3 +4,4 @@ export * from './harness/renderHelpers';
 export * from './harness/pageContract';
 export * from './routerTestUtils';
 export * from './harness/urlTestHelpers';
+export * from './harness/workflowTestHelpers';

@@ -53,6 +53,7 @@ export const projectsFixture = [
     zone: 'North',
     status: 'Running',
     physical_progress: 45,
+    zo_user_id: '+919876543212',
     assigned_jes: [
       { name: 'Junior Engineer', mobile_number: '+919876543213' }
     ],
@@ -491,6 +492,7 @@ export const acctParticularsFixture = [
     particular_id: 'part-01',
     id: 'part-01',
     particular_name: 'Diesel Refill for Generator',
+    title: 'Diesel Refill for Generator',
     sub_title_id: 'st-01',
     sub_title_name: 'Fuel & Transportation',
     is_active: true
