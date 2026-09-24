@@ -16,7 +16,7 @@ function sendPayError(res, error) {
   if (error?.message?.includes('not found') || error?.code === 'P0002') {
     return res.status(404).json({ success: false, message: error.message || 'Record not found.' });
   }
-  if (error?.message?.includes('cannot be modified') || error?.message?.includes('superseded') || error?.code === '23505') {
+  if (error?.message?.includes('cannot be modified') || error?.message?.includes('superseded') || error?.message?.includes('Only active pay structures can be suspended') || error?.code === '23505') {
     return res.status(409).json({ success: false, message: error.message || 'Pay structure version conflict.' });
   }
   console.error('HR pay structure operation failed:', error);
@@ -77,7 +77,7 @@ async function createPayStructure(req, res) {
       other_fixed_components = null,
       epf_enrolment = false,
       esi_enrolment = false,
-      status = 'Draft'
+      status = 'Active'
     } = req.body;
 
     const { data: employee, error: empErr } = await supabase
@@ -197,9 +197,27 @@ async function updateDraftPayStructure(req, res) {
   }
 }
 
+async function suspendPayStructure(req, res) {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase.rpc('suspend_hr_pay_structure', {
+      p_pay_structure_id: id,
+      p_actor_id: req.user.id
+    });
+
+    if (error) throw error;
+
+    return res.json({ success: true, pay_structure: data });
+  } catch (error) {
+    return sendPayError(res, error);
+  }
+}
+
 module.exports = {
   getEmployeePayStructures,
   createPayStructure,
   activatePayStructure,
+  suspendPayStructure,
   updateDraftPayStructure
 };

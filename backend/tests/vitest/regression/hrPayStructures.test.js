@@ -63,7 +63,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
       body: {
         employee_name: `Perm Worker ${suffix}`,
         employee_category: 'SNP Permanent Factory Labour',
-        department: 'Manufacturing Factory',
+        department: 'SNP Factory',
         joining_date: '2026-01-15',
         active_status: 'Active'
       }
@@ -78,7 +78,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
       body: {
         employee_name: `Casual Worker ${suffix}`,
         employee_category: 'SNP Casual Factory Labour',
-        department: 'Manufacturing Factory',
+        department: 'SNP Factory',
         joining_date: '2026-02-01',
         active_status: 'Active'
       }
@@ -208,6 +208,67 @@ describe('HR permanent pay structures (Stage 2)', () => {
       body: { guaranteed_monthly_gross: 50000 }
     }, editActive);
     expect(editActive.statusCode).toBe(409);
+  });
+
+  test('suspends an active pay structure and supersedes on subsequent new active creation', async () => {
+    const fetchRes = mockRes();
+    await payController.getEmployeePayStructures({
+      params: { employeeId: permanentEmp.id }
+    }, fetchRes);
+    const activeId = fetchRes.jsonData.active_structure.id;
+    expect(activeId).toBeDefined();
+
+    // Suspend active pay structure
+    const suspendRes = mockRes();
+    await payController.suspendPayStructure({
+      user: admin,
+      params: { id: activeId }
+    }, suspendRes);
+    expect(suspendRes.statusCode).toBe(200);
+    expect(suspendRes.jsonData.pay_structure.status).toBe('Suspended');
+
+    // Fetch again -> active_structure is null, revision has Suspended
+    const fetchAfterSuspend = mockRes();
+    await payController.getEmployeePayStructures({
+      params: { employeeId: permanentEmp.id }
+    }, fetchAfterSuspend);
+    expect(fetchAfterSuspend.jsonData.active_structure).toBeNull();
+    const suspendedRev = fetchAfterSuspend.jsonData.revisions.find(r => r.id === activeId);
+    expect(suspendedRev.status).toBe('Suspended');
+
+    // Trying to suspend again is idempotent
+    const suspendAgain = mockRes();
+    await payController.suspendPayStructure({
+      user: admin,
+      params: { id: activeId }
+    }, suspendAgain);
+    expect(suspendAgain.statusCode).toBe(200);
+
+    // Creating a new active pay structure supersedes the suspended one
+    const newActiveRes = mockRes();
+    await payController.createPayStructure({
+      user: admin,
+      body: {
+        employee_id: permanentEmp.id,
+        pay_basis: 'Monthly salary',
+        guaranteed_monthly_gross: 45000,
+        basic_salary: 30000,
+        staff_welfare: 5000,
+        other_fixed_components: 10000,
+        epf_enrolment: true,
+        esi_enrolment: false
+      }
+    }, newActiveRes);
+    expect(newActiveRes.statusCode).toBe(201);
+    expect(newActiveRes.jsonData.pay_structure.status).toBe('Active');
+
+    const fetchFinal = mockRes();
+    await payController.getEmployeePayStructures({
+      params: { employeeId: permanentEmp.id }
+    }, fetchFinal);
+    expect(fetchFinal.jsonData.active_structure.id).toBe(newActiveRes.jsonData.pay_structure.id);
+    const oldSuspended = fetchFinal.jsonData.revisions.find(r => r.id === activeId);
+    expect(oldSuspended.status).toBe('Superseded');
   });
 
   test('directory endpoint preserves privacy and does not expose compensation fields', async () => {

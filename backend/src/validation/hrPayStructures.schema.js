@@ -2,7 +2,7 @@ const { z } = require('zod');
 
 const uuid = z.string().uuid();
 const payBases = ['Monthly salary', 'Special package'];
-const statuses = ['Draft', 'Active', 'Superseded'];
+const statuses = ['Draft', 'Active', 'Superseded', 'Suspended'];
 
 const money = z.coerce.number().min(0).max(99999999.99);
 const optionalMoney = z.union([money, z.null()]).optional();
@@ -26,7 +26,7 @@ const createBody = z.object({
   other_fixed_components: optionalMoney,
   epf_enrolment: z.boolean().default(false),
   esi_enrolment: z.boolean().default(false),
-  status: z.enum(['Draft', 'Active']).default('Draft')
+  status: z.enum(['Draft', 'Active']).default('Active')
 }).strict().refine(validateReconciliation, {
   message: 'Sum of fixed components (Basic + Staff Welfare + Other Fixed) cannot exceed Guaranteed Monthly Gross.',
   path: ['guaranteed_monthly_gross']

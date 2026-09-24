@@ -213,7 +213,7 @@ module.exports = {
           "type": "text",
           "udtName": "text",
           "nullable": false,
-          "default": "'Draft'::text"
+          "default": "'Active'::text"
         },
         "created_at": {
           "type": "timestamp with time zone",

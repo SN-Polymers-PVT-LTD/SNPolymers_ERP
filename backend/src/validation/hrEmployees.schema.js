@@ -5,7 +5,7 @@ const categories = [
   'HO Staff', 'Fabric Factory Permanent Employees', 'SNP Casual Factory Labour',
   'SNP Permanent Factory Labour', 'Projects Department Employees', 'Local Daily-Wage Workers'
 ];
-const departments = ['Head Office', 'Accounts', 'Fabric Factory', 'Manufacturing Factory', 'Projects'];
+const departments = ['Head Office', 'Fabric Factory', 'SNP Factory', 'Projects'];
 const statuses = ['Active', 'Inactive', 'Exited'];
 const roles = ['admin', 'je', 'zo', 'ho', 'accounts'];
 const date = z.iso.date();

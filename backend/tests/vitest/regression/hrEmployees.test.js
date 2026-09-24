@@ -13,7 +13,7 @@ describe('HR employee master', () => {
   let account;
   const suffix = crypto.randomUUID().slice(0, 8);
   const base = {
-    employee_category: 'SNP Permanent Factory Labour', department: 'Manufacturing Factory',
+    employee_category: 'SNP Permanent Factory Labour', department: 'SNP Factory',
     joining_date: '2026-01-01', active_status: 'Active'
   };
 
