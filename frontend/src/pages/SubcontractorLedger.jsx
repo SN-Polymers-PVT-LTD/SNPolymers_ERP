@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,21 +16,21 @@ import {
   exportAllSubcontractorLedgersToExcel
 } from '../utils/exportHelpers';
 import { formatPaymentOffice, getRequisitionFinancialState } from '../utils/requisitionUtils';
+import { useSubcontractorLedgerUrlState } from '../hooks/useSubcontractorLedgerUrlState';
 
 const VIEW_TABS = [
-  { value: 'balances', label: 'Balances' },
-  { value: 'requisitions', label: 'Requisitions by Subcontractor' }
+  { value: 'contractors', label: 'Contractor Ledger' },
+  { value: 'requisitions', label: 'Requisitions by Contractor' }
 ];
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
 
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '—');
-const formatDateTime = (dateStr) => (dateStr ? new Date(dateStr).toLocaleString('en-IN') : '—');
 
 const TX_TYPE_LABELS = {
-  ESTIMATE_ITEM_APPROVAL: 'Credit (Estimate Item)',
-  ESTIMATE_ITEM_REVERSAL: 'Reversal (Estimate Rejected)',
+  ESTIMATE_ITEM_APPROVAL: 'Credit (Approved Scope)',
+  ESTIMATE_ITEM_REVERSAL: 'Reversal (Revision Reduced)',
   REQUISITION_APPROVAL: 'Debit (Requisition)',
   REQUISITION_PAYMENT: 'Debit (Paid)',
   REQUISITION_RELEASE: 'Release (Internal)',
@@ -48,101 +48,10 @@ const formatTransactionLabel = (entry) => {
 };
 
 /**
- * Modal to resolve multi-work-order ambiguity when viewing or exporting a
- * grouped subcontractor's ledger statement.
- */
-const MultiWorkOrderModal = ({ group, action, onClose, onSelect }) => {
-  const distinctWOs = useMemo(() => {
-    const wos = [...new Set((group.rows || []).map(r => r.work_order_no).filter(Boolean))];
-    return wos.map(wo => {
-      const rowsForWo = group.rows.filter(r => r.work_order_no === wo);
-      const sample = rowsForWo[0] || {};
-      const totalAmount = rowsForWo.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
-      const approvedAmount = rowsForWo.reduce((sum, r) => sum + Number(r.approved_amount || 0), 0);
-      return {
-        work_order_no: wo,
-        department: sample.department || '—',
-        site_details: sample.site_details || '—',
-        count: rowsForWo.length,
-        totalAmount,
-        approvedAmount
-      };
-    });
-  }, [group]);
-
-  return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      title={`${action === 'view' ? 'View' : 'Export'} Ledger — Select Work Order`}
-      size="lg"
-      footer={
-        <div className="flex justify-between items-center w-full">
-          <Button
-            variant="glass"
-            size="sm"
-            onClick={() => onSelect('')}
-            className="text-xs border-indigo-500/30 text-indigo-300 hover:text-indigo-200"
-          >
-            {action === 'view' ? 'View Combined (All Work Orders)' : 'Export Combined (All Work Orders)'}
-          </Button>
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 text-left">
-        <p className="text-xs text-slate-400">
-          <span className="font-semibold text-slate-200">{group.material_details}</span> ({group.material_sub_head}) is associated with{' '}
-          <span className="text-amber-400 font-bold">{distinctWOs.length} work orders</span>. Select a specific work order to scope the statement, or view combined:
-        </p>
-
-        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-          {distinctWOs.map((wo) => (
-            <div
-              key={wo.work_order_no}
-              className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/40 hover:bg-white/[0.06] transition flex flex-col sm:flex-row justify-between sm:items-center gap-3"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-bold text-slate-100">{wo.work_order_no}</span>
-                  {wo.department !== '—' && (
-                    <Badge variant="slate" className="text-[10px]">{wo.department}</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Site: <span className="text-slate-300">{wo.site_details}</span>
-                </p>
-                <div className="flex gap-3 text-[11px] text-slate-400 mt-1.5">
-                  <span>Requisitions: <strong className="text-slate-200">{wo.count}</strong></span>
-                  <span>Requested: <strong className="text-slate-200 font-mono">{formatCurrency(wo.totalAmount)}</strong></span>
-                  <span>Approved: <strong className="text-emerald-400 font-mono">{formatCurrency(wo.approvedAmount)}</strong></span>
-                </div>
-              </div>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => onSelect(wo.work_order_no)}
-                className="shrink-0 text-xs"
-              >
-                {action === 'view' ? 'Select & View' : 'Select & Export'}
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Modal>
-  );
-};
-
-/**
- * Browse view over the Subcontractor Ledger (047_subcontractor_ledger.sql / 049).
- * Two tabs:
- *  - Balances: running balances per (work_order_no, material_sub_head, material_details),
- *    with export and audited administrative balance adjustments for HO/Admin.
- *  - Requisitions by Subcontractor: grouped requisition history with creation vs approval
- *    date filtering, comprehensive subcontractor ledger statements, and Excel exports.
+ * Contractor-Centric Subcontractor Ledger
+ * Organizes finances by canonical subcontractor_id:
+ * Contractor -> Work Orders -> Work Scopes
+ * Strictly enforces that capacity is isolated per (work_order_no, subcontractor_id, subcontract_work_id).
  */
 const SubcontractorLedger = () => {
   const { user } = useAuth();
@@ -151,38 +60,39 @@ const SubcontractorLedger = () => {
   const canView = ['je', 'zo', 'ho', 'admin'].includes(user?.role);
   const canAdjust = ['ho', 'admin'].includes(user?.role);
 
-  const [viewMode, setViewMode] = useState('balances');
-  const [workOrderFilter, setWorkOrderFilter] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
-  const [dateBasis, setDateBasis] = useState('created'); // 'created' | 'approved'
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [viewingEntry, setViewingEntry] = useState(null);
-  const [adjustingEntry, setAdjustingEntry] = useState(null);
+  const pageSize = 15;
   const [isExporting, setIsExporting] = useState(false);
-  const [multiWoPicker, setMultiWoPicker] = useState(null); // { group, action: 'view' | 'export' }
-  const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [expandedContractors, setExpandedContractors] = useState({});
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
-      setPage(1);
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // Synchronized URL Routing & State Machine
+  const {
+    viewMode,
+    setViewMode,
+    workOrderFilter,
+    setWorkOrderFilter,
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    page,
+    setPage,
+    dateBasis,
+    setDateBasis,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    resetFilters,
+    viewingEntry,
+    setViewingEntry,
+    adjustingEntry,
+    setAdjustingEntry
+  } = useSubcontractorLedgerUrlState();
 
-  // Reset page to 1 whenever any filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [workOrderFilter, dateFrom, dateTo, dateBasis]);
-
-  const hasBalanceFilters = workOrderFilter || debouncedSearch;
+  const hasContractorFilters = workOrderFilter || debouncedSearch;
   const hasRequisitionFilters = workOrderFilter || debouncedSearch || dateFrom || dateTo || dateBasis !== 'created';
 
-  const { data: balancesData, isLoading: loadingBalances, error: balancesError } = useQuery({
+  // Primary Contractor-Centric Query
+  const { data: ledgerData, isLoading: loadingContractors, error: ledgerError } = useQuery({
     queryKey: ['subcontractorLedger', workOrderFilter, debouncedSearch, page],
     queryFn: async () => (await getSubcontractorLedger({
       page,
@@ -190,13 +100,15 @@ const SubcontractorLedger = () => {
       work_order_no: workOrderFilter || undefined,
       search: debouncedSearch || undefined
     })).data,
-    enabled: canView && viewMode === 'balances'
+    enabled: canView && viewMode === 'contractors'
   });
 
-  const balances = balancesData?.balances || [];
-  const totalBalances = balancesData?.pagination?.total || 0;
-  const totalPages = balancesData?.pagination?.totalPages || 1;
+  const contractors = useMemo(() => ledgerData?.contractors || [], [ledgerData?.contractors]);
+  const flatBalances = useMemo(() => ledgerData?.balances || [], [ledgerData?.balances]);
+  const totalContractors = ledgerData?.pagination?.total || 0;
+  const totalPages = ledgerData?.pagination?.totalPages || 1;
 
+  // Requisitions Query
   const { data: requisitions = [], isLoading: loadingRequisitions, error: requisitionsError } = useQuery({
     queryKey: ['subcontractorRequisitions', workOrderFilter, debouncedSearch, dateFrom, dateTo, dateBasis],
     queryFn: async () => (await getSubcontractorRequisitions({
@@ -209,62 +121,49 @@ const SubcontractorLedger = () => {
     enabled: canView && viewMode === 'requisitions'
   });
 
+  // Group requisitions by canonical contractor
   const groupedRequisitions = useMemo(() => {
     const groups = [];
     const indexByKey = {};
     for (const r of requisitions) {
-      const key = `${r.material_sub_head}|||${r.material_details}`;
+      const key = r.subcontractor_id || r.material_details || 'unknown';
+      const contractorName = r.subcontractor?.subcontractor_name || r.material_details || 'Unnamed Contractor';
       if (!(key in indexByKey)) {
         indexByKey[key] = groups.length;
-        groups.push({ material_sub_head: r.material_sub_head, material_details: r.material_details, rows: [] });
+        groups.push({
+          subcontractor_id: r.subcontractor_id,
+          contractorName,
+          rows: []
+        });
       }
       groups[indexByKey[key]].rows.push(r);
     }
     return groups;
   }, [requisitions]);
 
-  const toggleGroupCollapse = (key) => {
-    setCollapsedGroups(prev => ({
+  const toggleContractorExpand = (contractorId) => {
+    setExpandedContractors(prev => ({
       ...prev,
-      [key]: !prev[key]
+      [contractorId]: !prev[contractorId]
     }));
   };
 
-  const allGroupsCollapsed = useMemo(() => {
-    if (!groupedRequisitions || groupedRequisitions.length === 0) return false;
-    return groupedRequisitions.every(g => {
-      const key = `${g.material_sub_head}|||${g.material_details}`;
-      return Boolean(collapsedGroups[key]);
-    });
-  }, [groupedRequisitions, collapsedGroups]);
-
-  const toggleAllGroups = () => {
-    if (allGroupsCollapsed) {
-      setCollapsedGroups({});
-    } else {
-      const next = {};
-      groupedRequisitions.forEach(g => {
-        const key = `${g.material_sub_head}|||${g.material_details}`;
-        next[key] = true;
-      });
-      setCollapsedGroups(next);
-    }
+  const expandAllContractors = () => {
+    const all = {};
+    contractors.forEach(c => { all[c.subcontractor_id] = true; });
+    setExpandedContractors(all);
   };
 
-  const isLoading = viewMode === 'balances' ? loadingBalances : loadingRequisitions;
-  const queryError = viewMode === 'balances' ? balancesError : requisitionsError;
-  const hasFilters = viewMode === 'balances' ? hasBalanceFilters : hasRequisitionFilters;
-  const displayError = queryError?.response?.data?.message || queryError?.message || '';
-
-  const resetFilters = () => {
-    setWorkOrderFilter('');
-    setSearchInput('');
-    setDebouncedSearch('');
-    setDateFrom('');
-    setDateTo('');
-    setDateBasis('created');
-    setPage(1);
+  const collapseAllContractors = () => {
+    setExpandedContractors({});
   };
+
+  const allContractorsExpanded = useMemo(() => {
+    if (contractors.length === 0) return false;
+    return contractors.every(c => expandedContractors[c.subcontractor_id]);
+  }, [contractors, expandedContractors]);
+
+
 
   const handleExportRequisitions = () => {
     exportSubcontractorRequisitionsToExcel(requisitions, {
@@ -276,46 +175,16 @@ const SubcontractorLedger = () => {
     });
   };
 
-  /**
-   * Reusable batch-fetcher that loops through all pages and enforces a hard
-   * failure if the retrieved row count does not strictly match the server-filtered total.
-   */
-  const fetchAllBalancesWithCountInvariant = async (filters) => {
-    const allBalances = [];
-    let fetchPage = 1;
-    let totalPages_;
-    let serverFilteredTotal;
-    do {
-      const res = await getSubcontractorLedger({
-        page: fetchPage,
-        limit: 100,
-        work_order_no: filters.workOrder || undefined,
-        search: filters.search || undefined
-      });
-      const batch = res.data?.balances || [];
-      allBalances.push(...batch);
-      totalPages_ = res.data?.pagination?.totalPages || 1;
-      serverFilteredTotal = res.data?.pagination?.total || 0;
-      fetchPage += 1;
-    } while (fetchPage <= totalPages_);
-
-    if (serverFilteredTotal > 0 && allBalances.length !== serverFilteredTotal) {
-      throw new Error(
-        `Export data integrity check failed: retrieved ${allBalances.length} rows but expected ${serverFilteredTotal}. Export aborted to prevent partial data download.`
-      );
-    }
-    return allBalances;
-  };
-
   const handleExportBalances = async () => {
     try {
       setIsExporting(true);
-      const allBalances = await fetchAllBalancesWithCountInvariant({
-        workOrder: workOrderFilter,
-        search: debouncedSearch
+      const res = await getSubcontractorLedger({
+        work_order_no: workOrderFilter || undefined,
+        search: debouncedSearch || undefined,
+        export: 'true'
       });
-
-      exportSubcontractorBalancesToExcel(allBalances, {
+      const balancesToExport = res.data?.balances || res.data?.contractors?.flatMap((c) => c.balances || []) || [];
+      exportSubcontractorBalancesToExcel(balancesToExport, {
         workOrderFilter,
         searchFilter: debouncedSearch
       });
@@ -327,24 +196,63 @@ const SubcontractorLedger = () => {
     }
   };
 
-  const handleExportFullLedger = async () => {
+  const handleExportContractorStatement = async (contractor, chosenWorkOrder) => {
     try {
       setIsExporting(true);
       const res = await getSubcontractorLedgerEntries({
-        work_order_no: workOrderFilter || undefined,
-        search: debouncedSearch || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined
+        subcontractor_id: contractor.subcontractor_id,
+        work_order_no: chosenWorkOrder || workOrderFilter || undefined
       });
       const entries = res.data?.entries || [];
 
-      // Collect all balances matching current filters across pages with count invariant check
-      const allBalances = await fetchAllBalancesWithCountInvariant({
-        workOrder: workOrderFilter,
-        search: debouncedSearch
+      await exportSubcontractorLedgerStatementToExcel({
+        subcontractor: contractor.subcontractor_name,
+        subHead: 'Consolidated Statement',
+        workOrder: chosenWorkOrder || workOrderFilter || 'All Work Orders',
+        balance: {
+          approved_scope: contractor.total_approved,
+          reserved: contractor.total_reserved,
+          paid: contractor.total_paid,
+          remaining: contractor.total_remaining
+        },
+        entries
       });
+    } catch (err) {
+      console.error('Export statement failed:', err);
+      alert('Failed to export statement: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
-      await exportAllSubcontractorLedgersToExcel(entries, allBalances, requisitions, {
+  const handleExportFullLedger = async () => {
+    try {
+      setIsExporting(true);
+      const [entriesRes, balancesRes, requisitionsRes] = await Promise.all([
+        getSubcontractorLedgerEntries({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined
+        }),
+        getSubcontractorLedger({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          export: 'true'
+        }),
+        getSubcontractorRequisitions({
+          work_order_no: workOrderFilter || undefined,
+          search: debouncedSearch || undefined,
+          date_basis: dateBasis,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined
+        })
+      ]);
+      const entries = entriesRes.data?.entries || [];
+      const allBalances = balancesRes.data?.balances || balancesRes.data?.contractors?.flatMap((c) => c.balances || []) || [];
+      const exportRequisitions = requisitionsRes.data?.requisitions || [];
+
+      await exportAllSubcontractorLedgersToExcel(entries, allBalances, exportRequisitions, {
         workOrderFilter,
         searchFilter: debouncedSearch,
         dateBasis,
@@ -359,70 +267,26 @@ const SubcontractorLedger = () => {
     }
   };
 
-  const handleExportSubcontractorLedger = async (group, chosenWorkOrder) => {
-    try {
-      setIsExporting(true);
-      const workOrder = chosenWorkOrder !== undefined ? chosenWorkOrder : (workOrderFilter || group.rows[0]?.work_order_no);
-      const res = await getSubcontractorLedgerEntries({
-        work_order_no: workOrder || undefined,
-        material_sub_head: group.material_sub_head,
-        material_details: group.material_details
-      });
-      const entries = res.data?.entries || [];
-
-      const relevantRows = workOrder
-        ? group.rows.filter(r => r.work_order_no === workOrder)
-        : group.rows;
-
-      await exportSubcontractorLedgerStatementToExcel({
-        subcontractor: group.material_details,
-        subHead: group.material_sub_head,
-        workOrder: workOrder || 'All Work Orders',
-        requisitions: relevantRows,
-        entries
-      });
-    } catch (err) {
-      console.error('Export subcontractor ledger failed:', err);
-      alert('Failed to export subcontractor ledger: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const handleGroupAction = (group, action) => {
-    const distinct = [...new Set((group.rows || []).map(r => r.work_order_no).filter(Boolean))];
-    if (distinct.length > 1 && !workOrderFilter) {
-      setMultiWoPicker({ group, action });
-    } else {
-      const wo = workOrderFilter || distinct[0] || '';
-      if (action === 'view') {
-        setViewingEntry({
-          work_order_no: wo,
-          material_sub_head: group.material_sub_head,
-          material_details: group.material_details
-        });
-      } else {
-        handleExportSubcontractorLedger(group, wo);
-      }
-    }
-  };
+  const isLoading = viewMode === 'contractors' ? loadingContractors : loadingRequisitions;
+  const queryError = viewMode === 'contractors' ? ledgerError : requisitionsError;
+  const hasFilters = viewMode === 'contractors' ? hasContractorFilters : hasRequisitionFilters;
+  const displayError = queryError?.response?.data?.message || queryError?.message || '';
 
   if (!canView) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
 
   return (
-    <>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
+    <div className="p-4 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-5 border-b border-white/5">
         <div>
           <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-400 font-mono">
-            Cost Estimates &amp; Requisitions · Subcontractor Ledger
+            FINANCE &amp; REQUISITIONS · SUBCONTRACTOR LEDGER
           </span>
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Subcontractor Ledger</h1>
-          <p className="text-xs text-slate-400 font-medium mt-1.5">
-            Every subcontractor's running balance, scoped to its own work order. Credited the moment HO
-            approves a Sub Contractor estimate line item; debited the moment a Requisition against that
-            subcontractor is approved.
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mt-1">Subcontractor Ledger</h1>
+          <p className="text-xs text-slate-400 mt-1">
+            Contractor-centric financial position across Work Orders and Work Scopes with strict capacity isolation.
           </p>
         </div>
         <Button variant="glass" size="sm" onClick={() => navigate('/requisitions')}>
@@ -431,13 +295,14 @@ const SubcontractorLedger = () => {
       </div>
 
       {displayError && (
-        <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 mb-6 flex items-center gap-2.5">
+        <div className="p-4 bg-red-950/20 border border-red-900/30 rounded-2xl text-xs text-red-300 flex items-center gap-2.5">
           <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
           {displayError}
         </div>
       )}
 
-      <div className="flex gap-2 mb-6">
+      {/* View Tabs */}
+      <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900/60 border border-white/5 w-fit">
         {VIEW_TABS.map((tab) => {
           const isActive = viewMode === tab.value;
           return (
@@ -447,8 +312,8 @@ const SubcontractorLedger = () => {
               onClick={() => setViewMode(tab.value)}
               className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-200 select-none ${
                 isActive
-                  ? 'bg-indigo-500 text-slate-950 shadow-md shadow-indigo-500/20 font-extrabold ring-1 ring-indigo-400'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 bg-white/[0.02] border border-white/5'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20 ring-1 ring-indigo-400'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'
               }`}
             >
               {tab.label}
@@ -457,22 +322,23 @@ const SubcontractorLedger = () => {
         })}
       </div>
 
-      <div className="glass-panel p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row flex-wrap items-end gap-3 mb-6">
+      {/* Filters Bar */}
+      <div className="p-4 rounded-2xl bg-slate-900/60 border border-white/5 flex flex-col sm:flex-row flex-wrap items-end gap-3">
         <div className="w-full sm:w-56">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Work Order No.</span>
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Work Order No.</span>
           <Input
             type="text"
-            placeholder="Filter by work order..."
+            placeholder="Filter by Work Order..."
             value={workOrderFilter}
             onChange={(e) => setWorkOrderFilter(e.target.value)}
             size="sm"
           />
         </div>
-        <div className="w-full sm:w-56">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Search</span>
+        <div className="w-full sm:w-64">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Search</span>
           <Input
             type="text"
-            placeholder="Sub head, name, WO or Req..."
+            placeholder="Search contractor, work type, or WO..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             size="sm"
@@ -482,22 +348,23 @@ const SubcontractorLedger = () => {
         {viewMode === 'requisitions' && (
           <>
             <div className="w-full sm:w-36">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Date Basis</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">Date Basis</span>
               <select
                 value={dateBasis}
                 onChange={(e) => setDateBasis(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full bg-slate-900 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-400"
               >
-                <option value="created" className="bg-slate-900 text-slate-200">Creation Date</option>
-                <option value="approved" className="bg-slate-900 text-slate-200">Approval Date</option>
+                <option value="created">Creation Date</option>
+                <option value="approved">Approval Date</option>
+                <option value="paid">Payment Date</option>
               </select>
             </div>
             <div className="w-full sm:w-36">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">From</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">From</span>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} size="sm" />
             </div>
             <div className="w-full sm:w-36">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">To</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block mb-1.5">To</span>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} size="sm" />
             </div>
           </>
@@ -509,291 +376,506 @@ const SubcontractorLedger = () => {
           </Button>
         )}
 
-        {viewMode === 'balances' ? (
-          <Button
-            variant="glass"
-            size="sm"
-            onClick={handleExportBalances}
-            disabled={balances.length === 0}
-            className="ml-auto"
-          >
-            Export Balances to Excel
-          </Button>
-        ) : (
-          <div className="flex items-center gap-2 ml-auto">
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleExportFullLedger}
-              disabled={requisitions.length === 0 || isExporting}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20"
-            >
-              {isExporting ? 'Exporting…' : 'Export Full Ledger to Excel'}
-            </Button>
+        <div className="flex items-center gap-2 ml-auto">
+          {viewMode === 'contractors' ? (
+            <>
+              <Button
+                variant="glass"
+                size="sm"
+                onClick={handleExportBalances}
+                disabled={(contractors.length === 0 && flatBalances.length === 0) || isExporting}
+                className="text-xs"
+              >
+                {isExporting ? 'Exporting…' : 'Export Summary to Excel'}
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleExportFullLedger}
+                disabled={(contractors.length === 0 && flatBalances.length === 0) || isExporting}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs"
+              >
+                {isExporting ? 'Exporting…' : 'Export Full Ledger'}
+              </Button>
+            </>
+          ) : (
             <Button
               variant="glass"
               size="sm"
               onClick={handleExportRequisitions}
               disabled={requisitions.length === 0}
+              className="text-xs"
             >
               Export Requisitions to Excel
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
+      {/* Content */}
       {isLoading ? (
-        <div className="py-12 text-center text-xs text-slate-500">Loading…</div>
-      ) : viewMode === 'balances' ? (
-        balances.length === 0 ? (
-          <div className="glass-panel rounded-3xl p-8 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
-            {hasFilters ? 'No entries match these filters.' : 'No subcontractor balances yet.'}
-          </div>
+        <div className="py-16 text-center text-xs text-slate-400">Loading Subcontractor Ledger data…</div>
+      ) : viewMode === 'contractors' ? (
+        contractors.length === 0 ? (
+          flatBalances.length > 0 ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                    <h3 className="text-sm font-bold text-amber-300">Legacy / Unlinked Scopes</h3>
+                  </div>
+                  <p className="text-xs text-amber-200/80 mt-1">
+                    These scopes originate from legacy Cost Estimates prior to Subcontractor Master linking. Capacities are strictly isolated per Work Order.
+                  </p>
+                </div>
+                <span className="text-xs font-mono font-bold text-amber-300 bg-amber-500/10 px-3 py-1 rounded-xl border border-amber-500/20 shrink-0 self-start sm:self-auto">
+                  {flatBalances.length} {flatBalances.length === 1 ? 'Legacy Scope' : 'Legacy Scopes'}
+                </span>
+              </div>
+
+              {/* Legacy Scopes Table */}
+              <div className="rounded-2xl border border-white/5 overflow-hidden">
+                <Table containerClassName="min-w-[850px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader>Work Order</TableCell>
+                      <TableCell isHeader>Subcontractor (Legacy Name)</TableCell>
+                      <TableCell isHeader>Sub Head</TableCell>
+                      <TableCell isHeader align="right">Estimated Total</TableCell>
+                      <TableCell isHeader align="right">Paid Total</TableCell>
+                      <TableCell isHeader align="right">Available Balance</TableCell>
+                      <TableCell isHeader className="text-right">Actions</TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {flatBalances.map((b) => (
+                      <TableRow key={`${b.work_order_no}-${b.material_sub_head}-${b.material_details}`}>
+                        <TableCell>
+                          <div className="font-mono text-xs font-bold text-indigo-300">{b.work_order_no}</div>
+                          {b.project?.department && (
+                            <div className="text-[10px] text-slate-400">{b.project.department}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-semibold text-white text-xs">{b.material_details}</div>
+                          {b.project?.site_details && (
+                            <div className="text-[10px] text-slate-400 truncate max-w-[200px]" title={b.project.site_details}>
+                              {b.project.site_details}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-300">{b.material_sub_head}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-slate-300">{formatCurrency(b.estimated_total)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-slate-300">{formatCurrency(b.paid_total)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                            {formatCurrency(b.available_balance)}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1.5 items-center">
+                            <Button
+                              variant="glass"
+                              size="sm"
+                              onClick={() => setViewingEntry({
+                                work_order_no: b.work_order_no,
+                                material_sub_head: b.material_sub_head,
+                                material_details: b.material_details,
+                                subcontractor_name: b.material_details,
+                                department: b.project?.department,
+                                approved_scope: b.estimated_total,
+                                reserved: b.reserved_total || b.reserved_amount || 0,
+                                paid: b.paid_total || 0,
+                                remaining: b.available_balance || 0
+                              })}
+                              className="text-xs h-7 px-2.5"
+                            >
+                              View Transactions
+                            </Button>
+                            {canAdjust && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setAdjustingEntry(b)}
+                                className="text-xs h-7 px-2 text-slate-400 hover:text-white"
+                              >
+                                Adjust
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {totalPages > 1 && (
+                <Pagination
+                  currentPage={page}
+                  totalPages={totalPages}
+                  onPageChange={setPage}
+                  maxVisible={5}
+                  showLabel={true}
+                  totalRecords={totalContractors}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-white/5 p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+              {hasFilters ? 'No contractors match the active filters.' : 'No subcontractor ledger records found.'}
+            </div>
+          )
         ) : (
-          <div className="glass-panel rounded-3xl border border-white/5 overflow-hidden">
-            <Table containerClassName="min-w-[1250px]">
-              <TableHeader>
-                <TableRow hover={false}>
-                  <TableCell isHeader>Work Order</TableCell>
-                  <TableCell isHeader>Sub Head</TableCell>
-                  <TableCell isHeader>Subcontractor</TableCell>
-                  <TableCell isHeader align="right">Estimated Total</TableCell>
-                  <TableCell isHeader align="right">Committed</TableCell>
-                  <TableCell isHeader align="right">Actually Paid</TableCell>
-                  <TableCell isHeader align="right">Reserved</TableCell>
-                  <TableCell isHeader align="right">Available Capacity</TableCell>
-                  <TableCell isHeader>Actions</TableCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {balances.map((b) => (
-                  <TableRow key={`${b.work_order_no}-${b.material_sub_head}-${b.material_details}`}>
-                    <TableCell>
-                      <span className="font-mono text-slate-300">{b.work_order_no}</span>
-                      {b.project?.department && (
-                        <div className="text-[10px] text-slate-500 mt-0.5">{b.project.department}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-slate-300">{b.material_sub_head}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-slate-300">{b.material_details}</span>
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="text-slate-400">{formatCurrency(b.estimated_total)}</span>
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="text-slate-400">{formatCurrency(b.committed_total ?? b.paid_total)}</span>
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="text-slate-400">{formatCurrency(b.settled_total)}</span>
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="text-amber-300">{formatCurrency(b.reserved_total)}</span>
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="font-bold text-emerald-400">{formatCurrency(b.available_capacity ?? b.available_balance)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button variant="glass" size="sm" onClick={() => setViewingEntry(b)}>
-                          View Ledger
-                        </Button>
-                        {canAdjust && (
-                          <Button variant="ghost" size="sm" onClick={() => setAdjustingEntry(b)}>
-                            Adjust
-                          </Button>
-                        )}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs text-slate-400 font-medium">
+                Showing <strong className="text-white">{contractors.length}</strong> {contractors.length === 1 ? 'contractor' : 'contractors'}
+              </span>
+              <button
+                type="button"
+                onClick={allContractorsExpanded ? collapseAllContractors : expandAllContractors}
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition cursor-pointer"
+              >
+                {allContractorsExpanded ? 'Collapse All Contractors' : 'Expand All Contractors'}
+              </button>
+            </div>
+
+            {/* Contractor Cards */}
+            {contractors.map((c) => {
+              const isExpanded = Boolean(expandedContractors[c.subcontractor_id]);
+              const scopes = c.scopes || [];
+
+              return (
+                <div
+                  key={c.subcontractor_id}
+                  className="rounded-3xl border border-white/10 bg-slate-900/60 overflow-hidden shadow-lg transition-all"
+                >
+                  {/* Contractor Header */}
+                  <div
+                    onClick={() => toggleContractorExpand(c.subcontractor_id)}
+                    className="p-5 cursor-pointer hover:bg-white/[0.03] transition flex flex-col lg:flex-row lg:items-center justify-between gap-4 select-none"
+                  >
+                    <div className="flex items-start sm:items-center gap-3.5">
+                      <div className="w-7 h-7 rounded-xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center text-indigo-400 shrink-0 mt-0.5 sm:mt-0">
+                        <svg
+                          className={`w-4 h-4 transform transition-transform duration-200 ${isExpanded ? 'rotate-90' : 'rotate-0'}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                        </svg>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <div>
+                        <div className="flex items-center gap-2.5">
+                          <h2 className="text-lg font-bold text-white tracking-tight">{c.subcontractor_name}</h2>
+                          <Badge variant={c.is_active ? 'success' : 'slate'} className="text-[10px]">
+                            {c.is_active ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-1 flex items-center gap-2">
+                          <span>{c.work_order_count} {c.work_order_count === 1 ? 'Work Order' : 'Work Orders'}</span>
+                          <span>•</span>
+                          <span>{c.scope_count} {c.scope_count === 1 ? 'Work Scope' : 'Work Scopes'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contractor Totals Ribbon */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/5 text-right">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Total Approved</div>
+                        <div className="text-xs font-mono font-semibold text-slate-200">{formatCurrency(c.total_approved)}</div>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/5 text-right">
+                        <div className="text-[10px] uppercase font-bold text-amber-400">Total Reserved</div>
+                        <div className="text-xs font-mono font-semibold text-amber-300">{formatCurrency(c.total_reserved)}</div>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/5 text-right">
+                        <div className="text-[10px] uppercase font-bold text-slate-400">Total Paid</div>
+                        <div className="text-xs font-mono font-semibold text-slate-300">{formatCurrency(c.total_paid)}</div>
+                      </div>
+                      <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-right">
+                        <div className="text-[10px] uppercase font-bold text-emerald-400">Remaining (Info)</div>
+                        <div className="text-xs font-mono font-bold text-emerald-300">{formatCurrency(c.total_remaining)}</div>
+                      </div>
+
+                      <Button
+                        variant="glass"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleExportContractorStatement(c);
+                        }}
+                        className="text-xs text-indigo-300 hover:text-white border-indigo-500/30 shrink-0 ml-1"
+                      >
+                        Export Statement
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Expanded: Work Orders & Scopes Breakdown */}
+                  {isExpanded && (
+                    <div className="border-t border-white/5 bg-slate-950/40 p-4 sm:p-6 space-y-5">
+                      {scopes.map((woScope) => {
+                        const works = woScope.works || [];
+                        return (
+                          <div
+                            key={woScope.work_order_no}
+                            className="rounded-2xl border border-white/10 bg-slate-900/90 overflow-hidden shadow-sm"
+                          >
+                            {/* Work Order Header */}
+                            <div className="p-3.5 bg-white/[0.02] border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-sm font-bold text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                                    {woScope.work_order_no}
+                                  </span>
+                                  {woScope.department && (
+                                    <span className="text-xs font-medium text-slate-400">· {woScope.department}</span>
+                                  )}
+                                </div>
+                                {woScope.site_details && (
+                                  <p className="text-xs text-slate-400 mt-1">Site: {woScope.site_details}</p>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <div className="text-right text-xs">
+                                  <span className="text-slate-400">WO Approved: </span>
+                                  <span className="font-mono font-semibold text-slate-200">{formatCurrency(woScope.approved_scope)}</span>
+                                  <span className="text-slate-500 mx-1.5">|</span>
+                                  <span className="text-slate-400">Remaining: </span>
+                                  <span className="font-mono font-bold text-emerald-400">{formatCurrency(woScope.remaining)}</span>
+                                </div>
+                                <Button
+                                  variant="glass"
+                                  size="sm"
+                                  onClick={() => setViewingEntry({
+                                    subcontractor_id: c.subcontractor_id,
+                                    subcontractor_name: c.subcontractor_name,
+                                    work_order_no: woScope.work_order_no,
+                                    department: woScope.department,
+                                    approved_scope: woScope.approved_scope,
+                                    reserved: woScope.reserved,
+                                    paid: woScope.paid,
+                                    remaining: woScope.remaining
+                                  })}
+                                  className="text-xs h-7 px-2.5 text-indigo-300"
+                                >
+                                  View WO Ledger
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Scopes Table */}
+                            <Table containerClassName="min-w-[750px]">
+                              <TableHeader>
+                                <TableRow hover={false}>
+                                  <TableCell isHeader className="w-1/3">Work Scope / Details</TableCell>
+                                  <TableCell isHeader align="right">Approved Scope</TableCell>
+                                  <TableCell isHeader align="right">Reserved</TableCell>
+                                  <TableCell isHeader align="right">Actually Paid</TableCell>
+                                  <TableCell isHeader align="right">Remaining Balance</TableCell>
+                                  <TableCell isHeader className="text-right">Actions</TableCell>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {works.map((w) => (
+                                  <TableRow key={w.subcontract_work_id || w.material_details}>
+                                    <TableCell>
+                                      <div className="font-semibold text-white text-xs">{w.material_details}</div>
+                                      <div className="text-[11px] text-slate-400">
+                                        Sub Head: {w.sub_head} · Unit: <span className="font-mono">{w.unit}</span>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <span className="font-mono text-xs text-slate-300">{formatCurrency(w.approved_scope)}</span>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <span className="font-mono text-xs text-amber-300">{formatCurrency(w.reserved)}</span>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <span className="font-mono text-xs text-slate-300">{formatCurrency(w.paid)}</span>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <span className="font-mono text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                        {formatCurrency(w.remaining)}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                      <div className="flex justify-end gap-1.5 items-center">
+                                        <Button
+                                          variant="glass"
+                                          size="sm"
+                                          onClick={() => setViewingEntry({
+                                            subcontractor_id: c.subcontractor_id,
+                                            subcontractor_name: c.subcontractor_name,
+                                            work_order_no: woScope.work_order_no,
+                                            subcontract_work_id: w.subcontract_work_id,
+                                            material_details: w.material_details,
+                                            sub_head: w.sub_head,
+                                            department: woScope.department,
+                                            approved_scope: w.approved_scope,
+                                            reserved: w.reserved,
+                                            paid: w.paid,
+                                            remaining: w.remaining
+                                          })}
+                                          className="text-xs h-7 px-2.5"
+                                        >
+                                          View Transactions
+                                        </Button>
+                                        {canAdjust && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setAdjustingEntry({
+                                              work_order_no: woScope.work_order_no,
+                                              material_sub_head: w.sub_head,
+                                              material_details: w.material_details,
+                                              estimated_total: w.approved_scope,
+                                              paid_total: w.paid,
+                                              available_balance: w.remaining
+                                            })}
+                                            className="text-xs h-7 px-2 text-slate-400 hover:text-white"
+                                          >
+                                            Adjust
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
             <Pagination
               currentPage={page}
               totalPages={totalPages}
               onPageChange={setPage}
               maxVisible={5}
               showLabel={true}
-              totalRecords={totalBalances}
+              totalRecords={totalContractors}
             />
           </div>
         )
       ) : groupedRequisitions.length === 0 ? (
-        <div className="glass-panel rounded-3xl p-8 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
-          {hasFilters ? 'No requisitions match these filters.' : 'No Subcontractor requisitions yet.'}
+        <div className="rounded-3xl border border-white/5 p-12 text-center text-slate-500 text-xs font-bold uppercase tracking-wider">
+          {hasFilters ? 'No requisitions match these filters.' : 'No Subcontractor requisitions found.'}
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs text-slate-400 font-medium">
-              Showing <strong className="text-slate-200">{groupedRequisitions.length}</strong> {groupedRequisitions.length === 1 ? 'subcontractor' : 'subcontractors'}
-            </span>
-            <button
-              type="button"
-              onClick={toggleAllGroups}
-              className="text-[11px] font-semibold px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition flex items-center gap-1.5 cursor-pointer select-none"
-            >
-              <svg
-                className={`w-3.5 h-3.5 transform transition-transform duration-200 ${allGroupsCollapsed ? '-rotate-90' : 'rotate-0'}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              <span>{allGroupsCollapsed ? 'Expand All' : 'Collapse All'}</span>
-            </button>
+          <div className="px-1 text-xs text-slate-400">
+            Showing <strong className="text-white">{groupedRequisitions.length}</strong> contractors with requisitions
           </div>
 
           {groupedRequisitions.map((group) => {
-            const groupKey = `${group.material_sub_head}|||${group.material_details}`;
-            const isCollapsed = Boolean(collapsedGroups[groupKey]);
-            // GAP-07: Use authoritative predicate to filter active requisitions for liabilities
             const activeRows = group.rows.filter((r) => getRequisitionFinancialState(r).financiallyActive);
-            const totalRequisitioned = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
+            const totalRequested = activeRows.reduce((sum, r) => sum + Number(r.requisition_amount || 0), 0);
             const totalApproved = activeRows.reduce((sum, r) => sum + getRequisitionFinancialState(r).effectiveLiability, 0);
-            const inactiveCount = group.rows.length - activeRows.length;
 
             return (
-              <div key={groupKey} className="glass-panel rounded-3xl border border-white/5 overflow-hidden transition-all duration-200">
-                <div
-                  onClick={() => toggleGroupCollapse(groupKey)}
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer transition-colors select-none ${
-                    isCollapsed ? '' : 'border-b border-white/5'
-                  }`}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      toggleGroupCollapse(groupKey);
-                    }
-                  }}
-                  title={isCollapsed ? 'Click to expand' : 'Click to collapse'}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-white transition-colors shrink-0">
-                      <svg
-                        className={`w-3.5 h-3.5 transform transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    <div>
-                      <span className="text-sm font-bold text-slate-200">{group.material_details}</span>
-                      <span className="text-xs text-slate-500 ml-2">· {group.material_sub_head}</span>
-                      <span className="ml-2.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-white/5 border border-white/10 text-slate-400">
-                        {group.rows.length} {group.rows.length === 1 ? 'requisition' : 'requisitions'}
-                      </span>
-                      {inactiveCount > 0 && (
-                        <span className="text-[10px] text-slate-500 ml-2 italic">({inactiveCount} cancelled / rejected excluded)</span>
-                      )}
+              <div key={group.subcontractor_id || group.contractorName} className="rounded-3xl border border-white/10 bg-slate-900/60 overflow-hidden">
+                <div className="p-4 bg-white/[0.02] border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white">{group.contractorName}</h3>
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      {group.rows.length} {group.rows.length === 1 ? 'requisition' : 'requisitions'}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="flex gap-4 text-[11px]">
-                      <span className="text-slate-400">Active Requested: <span className="text-slate-200 font-mono font-bold">{formatCurrency(totalRequisitioned)}</span></span>
-                      <span className="text-slate-400">Active Approved: <span className="text-emerald-400 font-mono font-bold">{formatCurrency(totalApproved)}</span></span>
+                  <div className="flex items-center gap-4 text-xs">
+                    <div>
+                      <span className="text-slate-400">Active Requested: </span>
+                      <span className="font-mono font-bold text-white">{formatCurrency(totalRequested)}</span>
                     </div>
-                    <div className="flex items-center gap-2 pl-3 border-l border-white/10">
-                      <Button
-                        variant="glass"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGroupAction(group, 'view');
-                        }}
-                        className="text-[11px] h-7 px-2.5"
-                      >
-                        View Ledger
-                      </Button>
-                      <Button
-                        variant="glass"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGroupAction(group, 'export');
-                        }}
-                        disabled={isExporting}
-                        className="text-[11px] h-7 px-2.5 text-indigo-300 hover:text-indigo-200 border-indigo-500/20"
-                      >
-                        Export Ledger
-                      </Button>
+                    <div>
+                      <span className="text-slate-400">Active Approved: </span>
+                      <span className="font-mono font-bold text-emerald-400">{formatCurrency(totalApproved)}</span>
                     </div>
                   </div>
                 </div>
 
-                {!isCollapsed && (
-                  <Table containerClassName="min-w-[900px]">
-                    <TableHeader>
-                      <TableRow hover={false}>
-                        <TableCell isHeader>Requisition No.</TableCell>
-                        <TableCell isHeader>Work Order</TableCell>
-                        <TableCell isHeader align="right">Requested</TableCell>
-                        <TableCell isHeader align="right">Approved</TableCell>
-                        <TableCell isHeader>Status</TableCell>
-                        <TableCell isHeader>Payment Office</TableCell>
-                        <TableCell isHeader>Requested By</TableCell>
-                        <TableCell isHeader>Creation Date</TableCell>
-                        <TableCell isHeader>Approved On</TableCell>
-                        <TableCell isHeader>Paid On</TableCell>
+                <Table containerClassName="min-w-[900px]">
+                  <TableHeader>
+                    <TableRow hover={false}>
+                      <TableCell isHeader>Requisition No.</TableCell>
+                      <TableCell isHeader>Work Order</TableCell>
+                      <TableCell isHeader>Scope / Work</TableCell>
+                      <TableCell isHeader align="right">Requested</TableCell>
+                      <TableCell isHeader align="right">Approved</TableCell>
+                      <TableCell isHeader>Status</TableCell>
+                      <TableCell isHeader>Payment Office</TableCell>
+                      <TableCell isHeader>Requested By</TableCell>
+                      <TableCell isHeader>Date</TableCell>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.rows.map((r) => (
+                      <TableRow key={r.requisition_id}>
+                        <TableCell>
+                          <span className="font-mono font-semibold text-slate-200">{r.requisition_no}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-mono text-xs text-indigo-300">{r.work_order_no}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-300">
+                            {r.subcontract_work?.material_details || r.material_details || r.material_sub_head}
+                          </span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-slate-200">{formatCurrency(r.requisition_amount)}</span>
+                        </TableCell>
+                        <TableCell align="right">
+                          <span className="font-mono text-xs text-emerald-400 font-semibold">{formatCurrency(r.approved_amount)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={getRequisitionFinancialState(r).status === 'Paid' ? 'emerald' : ['Released', 'Rejected', 'Cancelled'].includes(getRequisitionFinancialState(r).status) ? 'red' : 'amber'}>
+                            {getRequisitionFinancialState(r).status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-300">{formatPaymentOffice(r.payment_destination)}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-400">{r.requester_name || r.requester_user_id}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs text-slate-400">{formatDate(r.created_at)}</span>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {group.rows.map((r) => (
-                        <TableRow key={r.requisition_id}>
-                          <TableCell>
-                            <span className="font-mono text-slate-300">{r.requisition_no}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-mono text-slate-400 text-xs">{r.work_order_no}</span>
-                          </TableCell>
-                          <TableCell align="right">
-                            <span className="text-slate-300 font-mono">{formatCurrency(r.requisition_amount)}</span>
-                          </TableCell>
-                          <TableCell align="right">
-                            <span className="text-slate-300 font-mono">{formatCurrency(r.approved_amount)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={getRequisitionFinancialState(r).status === 'Paid' ? 'emerald' : ['Released', 'Rejected', 'Cancelled'].includes(getRequisitionFinancialState(r).status) ? 'red' : 'amber'}>
-                              {getRequisitionFinancialState(r).status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell><span className="text-slate-300 text-xs">{formatPaymentOffice(r.payment_destination)}</span></TableCell>
-                          <TableCell>
-                            <span className="text-slate-400 text-xs">{r.requester_name}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-slate-400 text-xs">{formatDate(r.created_at)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-slate-400 text-xs">{formatDate(r.zo_actioned_at)}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-slate-400 text-xs">{formatDate(r.payment_date)}</span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
             );
           })}
         </div>
       )}
 
+      {/* Transaction Entries Modal */}
       <SubcontractorLedgerEntriesModal
         entry={viewingEntry}
         onClose={() => setViewingEntry(null)}
       />
 
+      {/* Admin Balance Adjustment Modal */}
       <AdjustBalanceModal
         entry={adjustingEntry}
         onClose={() => setAdjustingEntry(null)}
@@ -802,107 +884,125 @@ const SubcontractorLedger = () => {
           queryClient.invalidateQueries({ queryKey: ['subcontractorLedger'] });
         }}
       />
-
-      {multiWoPicker && (
-        <MultiWorkOrderModal
-          group={multiWoPicker.group}
-          action={multiWoPicker.action}
-          onClose={() => setMultiWoPicker(null)}
-          onSelect={(selectedWo) => {
-            const group = multiWoPicker.group;
-            const action = multiWoPicker.action;
-            setMultiWoPicker(null);
-            if (action === 'view') {
-              setViewingEntry({
-                work_order_no: selectedWo,
-                material_sub_head: group.material_sub_head,
-                material_details: group.material_details
-              });
-            } else {
-              handleExportSubcontractorLedger(group, selectedWo);
-            }
-          }}
-        />
-      )}
-    </>
+    </div>
   );
 };
 
 const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['subcontractorLedgerEntries', entry?.work_order_no, entry?.material_sub_head, entry?.material_details],
-    queryFn: async () => (await getSubcontractorLedgerEntries(
-      entry.work_order_no || undefined, entry.material_sub_head, entry.material_details
-    )).data?.entries || [],
+    queryKey: ['subcontractorLedgerEntries', entry?.subcontractor_id, entry?.work_order_no, entry?.subcontract_work_id, entry?.material_sub_head, entry?.material_details],
+    queryFn: async () => (await getSubcontractorLedgerEntries({
+      subcontractor_id: entry.subcontractor_id || undefined,
+      work_order_no: entry.work_order_no || undefined,
+      subcontract_work_id: entry.subcontract_work_id || undefined,
+      material_sub_head: entry.material_sub_head || entry.sub_head || undefined,
+      material_details: entry.material_details || undefined
+    })).data?.entries || [],
     enabled: !!entry
   });
 
   const handleExportModalLedger = () => {
     if (!entry) return;
     exportSubcontractorLedgerStatementToExcel({
-      subcontractor: entry.material_details,
-      subHead: entry.material_sub_head,
-      workOrder: entry.work_order_no,
-      balance: entry,
+      subcontractor: entry.subcontractor_name || entry.material_details,
+      subHead: entry.material_sub_head || entry.sub_head || 'All Scopes',
+      workOrder: entry.work_order_no || 'All Work Orders',
+      balance: {
+        department: entry.department,
+        approved_scope: entry.approved_scope,
+        reserved: entry.reserved,
+        paid: entry.paid,
+        remaining: entry.remaining
+      },
       entries
     });
   };
+
+  const titleSubtitle = entry
+    ? `${entry.subcontractor_name || entry.material_details} · ${entry.work_order_no || 'All Work Orders'}${entry.material_details ? ` · ${entry.material_details}` : ''}`
+    : '';
 
   return (
     <Modal
       isOpen={!!entry}
       onClose={onClose}
-      title="Subcontractor Ledger — Transaction Trail"
-      subtitle={entry ? `${entry.material_details} · ${entry.material_sub_head} · ${entry.work_order_no}` : ''}
+      title="Subcontractor Ledger — Payment Statement"
+      subtitle={titleSubtitle}
       size="xl"
     >
-      <div className="flex justify-between items-center mb-4">
+      {/* Scope Capacity KPI Strip */}
+      {entry && entry.approved_scope != null && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 p-3 bg-white/[0.02] border border-white/5 rounded-2xl">
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Approved Scope</span>
+            <span className="text-sm font-mono font-bold text-slate-200">{formatCurrency(entry.approved_scope)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-amber-400 block uppercase font-bold tracking-wider">Reserved (Pending)</span>
+            <span className="text-sm font-mono font-bold text-amber-300">{formatCurrency(entry.reserved || 0)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Actually Paid</span>
+            <span className="text-sm font-mono font-bold text-slate-200">{formatCurrency(entry.paid || 0)}</span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <span className="text-[10px] text-emerald-400 block uppercase font-bold tracking-wider">Remaining Capacity</span>
+            <span className="text-sm font-mono font-bold text-emerald-300">{formatCurrency(entry.remaining || 0)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
         <span className="text-xs text-slate-400">
-          Chronological dual-entry transaction trail with running balances.
+          Chronological disbursement and payment statement. Capacity is strictly governed by approved Work Order scope.
         </span>
         <Button
           variant="glass"
           size="sm"
           onClick={handleExportModalLedger}
           disabled={entries.length === 0}
-          className="text-xs font-bold text-indigo-300 border-indigo-500/20"
+          className="text-xs font-bold text-indigo-300 border-indigo-500/20 shrink-0"
         >
           Export Statement to Excel
         </Button>
       </div>
       {isLoading ? (
-        <div className="py-8 text-center text-xs text-slate-500">Loading…</div>
+        <div className="py-8 text-center text-xs text-slate-400">Loading transaction history…</div>
       ) : entries.length === 0 ? (
         <div className="py-8 text-center text-xs text-slate-500 font-bold uppercase tracking-wider">
-          No transactions yet.
+          No payment transactions found for this scope.
         </div>
       ) : (
         <div className="rounded-2xl border border-white/5 overflow-hidden">
-          <Table containerClassName="min-w-[850px]">
+          <Table className="min-w-[1050px]">
             <TableHeader>
               <TableRow hover={false}>
-                <TableCell isHeader>Date</TableCell>
+                <TableCell isHeader className="w-24 min-w-[6rem]">Date</TableCell>
                 <TableCell isHeader>Type</TableCell>
                 <TableCell isHeader>Doc / Ref No.</TableCell>
                 <TableCell isHeader>Description / Remarks</TableCell>
-                <TableCell isHeader align="right">Estimate Amt (+)</TableCell>
-                <TableCell isHeader align="right">Debit (-)</TableCell>
-                <TableCell isHeader align="right">Running Balance</TableCell>
+                <TableCell isHeader align="right" className="w-40 min-w-[10rem]">Paid Amount</TableCell>
+                <TableCell isHeader align="right" className="w-44 min-w-[11rem]">Cumulative Paid</TableCell>
                 <TableCell isHeader>By</TableCell>
               </TableRow>
             </TableHeader>
             <TableBody>
               {entries.map((e) => {
-                const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
-                const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
+                const paidAmount = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : (Number(e.amount) > 0 ? Number(e.amount) : 0));
+                const cumPaid = e.cumulative_paid != null 
+                  ? Number(e.cumulative_paid) 
+                  : (e.scope_running_balance != null && e.scope_running_balance < 0 ? Math.abs(Number(e.scope_running_balance)) : paidAmount);
 
                 return (
                   <TableRow key={e.ledger_id}>
-                    <TableCell>
-                      <span className="text-slate-400 text-xs whitespace-nowrap">{formatDateTime(e.created_at)}</span>
+                    <TableCell className="w-24 min-w-[6rem]">
+                      <span className="block text-slate-400 text-xs leading-4">
+                        <span className="block whitespace-nowrap">{new Date(e.created_at).toLocaleDateString('en-IN')}</span>
+                        <span className="block whitespace-nowrap">{new Date(e.created_at).toLocaleTimeString('en-IN')}</span>
+                      </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
                         {formatTransactionLabel(e)}
                       </span>
                     </TableCell>
@@ -920,23 +1020,16 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                         {e.remarks || e.item_description || '—'}
                       </span>
                     </TableCell>
-                    <TableCell align="right">
-                      {credit > 0 ? (
-                        <span className="font-mono font-bold text-emerald-400">+{formatCurrency(credit)}</span>
+                    <TableCell align="right" className="w-40 min-w-[10rem] whitespace-nowrap">
+                      {paidAmount > 0 ? (
+                        <span className="font-mono font-bold text-slate-200">+{formatCurrency(paidAmount)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
                     </TableCell>
-                    <TableCell align="right">
-                      {debit > 0 ? (
-                        <span className="font-mono font-bold text-red-400">-{formatCurrency(debit)}</span>
-                      ) : (
-                        <span className="text-slate-600">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="font-mono font-bold text-slate-200">
-                        {e.running_balance != null ? formatCurrency(e.running_balance) : '—'}
+                    <TableCell align="right" className="w-44 min-w-[11rem] whitespace-nowrap">
+                      <span className="font-mono font-bold text-indigo-300">
+                        {formatCurrency(cumPaid)}
                       </span>
                     </TableCell>
                     <TableCell>

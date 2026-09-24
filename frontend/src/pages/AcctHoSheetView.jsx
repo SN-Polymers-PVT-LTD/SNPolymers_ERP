@@ -261,6 +261,14 @@ const AcctHoSheetView = () => {
     />
   );
 
+  const handleBackToQueue = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/acct-requisitions/ho-queue');
+    }
+  };
+
   if (!isHoUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
@@ -370,7 +378,7 @@ const AcctHoSheetView = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">Review and action every line item on this submitted sheet.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/ho-queue')}>
+          <Button variant="glass" size="sm" onClick={handleBackToQueue}>
             ← Back to Queue
           </Button>
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>

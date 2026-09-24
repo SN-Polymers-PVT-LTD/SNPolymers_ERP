@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
 const DocTOC = ({ headings = [] }) => {
-  const [activeId, setActiveId] = useState('');
+  const [activeId, setActiveId] = useState(() => {
+    return typeof window !== 'undefined' ? window.location.hash.replace('#', '') : '';
+  });
 
   useEffect(() => {
     if (headings.length === 0) return;
+    if (typeof window === 'undefined' || !window.IntersectionObserver) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -40,10 +43,12 @@ const DocTOC = ({ headings = [] }) => {
     e.preventDefault();
     const el = document.getElementById(id);
     if (el) {
-      const yOffset = -90; // Header offset
-      const y = el.getBoundingClientRect().top + window.pageYOffset + yOffset;
-      window.scrollTo({ top: y, behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       setActiveId(id);
+      if (typeof window !== 'undefined') {
+        const newUrl = `${window.location.pathname}${window.location.search}#${id}`;
+        window.history.replaceState(window.history.state, '', newUrl);
+      }
     }
   };
 

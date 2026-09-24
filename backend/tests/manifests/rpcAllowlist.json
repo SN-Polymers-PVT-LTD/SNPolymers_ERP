@@ -4,10 +4,18 @@
   "approve_requisition_transact",
   "create_ra_final_bill_secure",
   "create_requisition_secure",
+  "create_subcontract_requisition_secure",
+  "get_subcontract_financial_consumption",
   "increment_otp_attempts",
   "refresh_analytics_views",
   "lock_estimate_quotations",
   "get_accounts_import_queue",
   "get_accounts_import_queue_export",
-  "get_subcontractor_ledger_entries"
+  "get_subcontractor_ledger_entries",
+  "transition_subcontract_estimate_workflow",
+  "review_subcontract_estimate_rows",
+  "reopen_subcontract_estimate",
+  "reconcile_subcontract_estimate_lines",
+  "sync_subcontract_contributions_to_cost_estimate",
+  "submit_reopened_subcontract_estimate"
 ]

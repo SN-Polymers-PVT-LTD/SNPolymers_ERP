@@ -106,9 +106,16 @@ describe('Estimate Reopened — new items stay freely editable/deletable, old it
     await submitReview({ params: { id: estimateId }, user: { mobile_number: hoMobile, role: 'ho' }, body: { remarks: 'ok' } }, finalRes);
     expect(finalRes.jsonData.estimate.estimate_status).toBe('Final Approved');
 
-    // 2. HO reopens it.
+    // 2. HO attempts to reopen it -> rejected with 403
+    const hoReopenRes = mockRes();
+    await reopenEstimate({ params: { id: estimateId }, user: { mobile_number: hoMobile, role: 'ho' } }, hoReopenRes);
+    expect(hoReopenRes.statusCode).toBe(403);
+    expect(hoReopenRes.jsonData.message).toBe('Access denied. Only ZO or Admin can reopen estimates.');
+
+    // 3. ZO reopens it -> succeeds with 200 and Estimate Reopened
     const reopenRes = mockRes();
-    await reopenEstimate({ params: { id: estimateId }, user: { mobile_number: hoMobile, role: 'ho' } }, reopenRes);
+    await reopenEstimate({ params: { id: estimateId }, user: { mobile_number: zoMobile, role: 'zo' } }, reopenRes);
+    expect(reopenRes.statusCode).toBe(200);
     expect(reopenRes.jsonData.estimate.estimate_status).toBe('Estimate Reopened');
   });
 

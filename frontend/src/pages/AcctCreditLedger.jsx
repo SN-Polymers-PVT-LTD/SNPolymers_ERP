@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
@@ -35,10 +35,72 @@ const AcctCreditLedger = () => {
   const canView = user?.role === 'accounts' || user?.role === 'ho' || user?.role === 'admin';
   const canAdjust = user?.role === 'ho' || user?.role === 'admin';
 
-  const [statusFilter, setStatusFilter] = useState('Open');
-  const [dealerFilter, setDealerFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Tab (Open | Settled)
+  const urlTab = searchParams.get('tab') || searchParams.get('status') || 'Open';
+  const statusFilter = urlTab === 'Settled' ? 'Settled' : 'Open';
+  const setStatusFilter = useCallback((tab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (tab === 'Settled') next.set('tab', 'Settled');
+      else next.delete('tab');
+      next.delete('status');
+      return next;
+    });
+  }, [setSearchParams]);
+
+  // Dealer search
+  const urlDealer = searchParams.get('dealer') || searchParams.get('q') || '';
+  const [dealerFilter, setDealerFilter] = useState(urlDealer);
+
+  useEffect(() => {
+    setDealerFilter(urlDealer);
+  }, [urlDealer]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = dealerFilter.trim();
+        const current = next.get('dealer') || next.get('q') || '';
+        if (trimmed === current) return prev;
+        if (trimmed) {
+          next.set('dealer', trimmed);
+          next.delete('q');
+        } else {
+          next.delete('dealer');
+          next.delete('q');
+        }
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [dealerFilter, setSearchParams]);
+
+  // Dates
+  const dateFrom = searchParams.get('from') || searchParams.get('date_from') || '';
+  const setDateFrom = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('from', val);
+      else next.delete('from');
+      next.delete('date_from');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const dateTo = searchParams.get('to') || searchParams.get('date_to') || '';
+  const setDateTo = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('to', val);
+      else next.delete('to');
+      next.delete('date_to');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const [adjustingEntry, setAdjustingEntry] = useState(null);
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
@@ -59,11 +121,19 @@ const AcctCreditLedger = () => {
 
   const displayError = queryError?.response?.data?.message || queryError?.message || '';
 
-  const resetFilters = () => {
+  const resetFilters = useCallback(() => {
     setDealerFilter('');
-    setDateFrom('');
-    setDateTo('');
-  };
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('dealer');
+      next.delete('q');
+      next.delete('from');
+      next.delete('date_from');
+      next.delete('to');
+      next.delete('date_to');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const handleAdjusted = () => {
     queryClient.invalidateQueries({ queryKey: ['acctCreditLedger'] });
@@ -87,7 +157,7 @@ const AcctCreditLedger = () => {
             once fully paid off.
           </p>
         </div>
-        <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+        <Button variant="glass" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/acct-requisitions'))}>
           ← Back to Sheets
         </Button>
       </div>

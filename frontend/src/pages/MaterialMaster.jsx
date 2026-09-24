@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, TextArea, Select, Checkbox, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, SuccessPopup, ErrorPopup } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,6 +10,7 @@ import {
   updateMaterialStatus
 } from '../api/materialsApi';
 import { exportMaterialsToExcel } from '../utils/exportHelpers';
+import { useMaterialMasterUrlState } from '../hooks/useMaterialMasterUrlState';
 
 const MaterialMaster = () => {
   const { user } = useAuth();
@@ -17,27 +18,45 @@ const MaterialMaster = () => {
   const canManageMaterials = isAdmin || user?.role === 'je';
   const queryClient = useQueryClient();
 
-  // Core Messaging & Modal / Form States
+  // Core Messaging & Export States
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [exportLoading, setExportLoading] = useState(false);
 
-  // Filtering & Pagination States
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [mainHeadFilter, setMainHeadFilter] = useState('');
-  const [subHeadFilter, setSubHeadFilter] = useState('');
-  const [activeFilter, setActiveFilter] = useState(isAdmin ? 'true' : ''); // Admins see active by default, non-admins only see active (forced by backend)
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [sortBy, setSortBy] = useState('Material_Details');
-  const [sortOrder, setSortOrder] = useState('asc');
+  // URL State Management
+  const {
+    searchQuery,
+    setSearchQuery,
+    mainHeadFilter,
+    setMainHeadFilter,
+    subHeadFilter,
+    setSubHeadFilter,
+    activeFilter,
+    setActiveFilter,
+    sortBy,
+    sortOrder,
+    handleSort,
+    page,
+    setPage,
+    limit,
+    materialId,
+    isCreateModalOpen,
+    isEditModalOpen,
+    openCreateModal: hookOpenCreateModal,
+    openEditModal: hookOpenEditModal,
+    closeModal: hookCloseModal,
+    resetFilters
+  } = useMaterialMasterUrlState({ isAdmin });
 
-  // Modal / Form States
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
-  const [currentMaterialId, setCurrentMaterialId] = useState(null);
-  
+  const [localSearch, setLocalSearch] = useState(searchQuery);
+
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  const isModalOpen = isCreateModalOpen || isEditModalOpen;
+  const modalMode = isEditModalOpen ? 'edit' : 'create';
+
   const [formData, setFormData] = useState({
     Material_Main_Head: '',
     Material_Sub_Head: '',
@@ -45,16 +64,6 @@ const MaterialMaster = () => {
     M_Unit: '',
     is_active: true
   });
-
-  // Debounce search input
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(handler);
-  }, [search]);
-
 
   // Fetch unique categories for filtering dropdowns using React Query
   const { data: categoriesData } = useQuery({
@@ -83,7 +92,7 @@ const MaterialMaster = () => {
       {
         page,
         limit,
-        search: debouncedSearch,
+        search: searchQuery,
         main_head: mainHeadFilter,
         sub_head: subHeadFilter,
         is_active: activeFilter,
@@ -95,7 +104,7 @@ const MaterialMaster = () => {
       const params = {
         page,
         limit,
-        search: debouncedSearch,
+        search: searchQuery,
         main_head: mainHeadFilter,
         sub_head: subHeadFilter,
         is_active: activeFilter,
@@ -109,7 +118,7 @@ const MaterialMaster = () => {
     gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
-  const materials = materialsData?.materials || [];
+  const materials = useMemo(() => materialsData?.materials || [], [materialsData?.materials]);
   const totalItems = materialsData?.pagination?.totalItems || 0;
   const totalPages = materialsData?.pagination?.totalPages || 1;
 
@@ -119,6 +128,22 @@ const MaterialMaster = () => {
       setErrorMsg(queryError.response?.data?.message || 'Failed to load Material Master items. Please try again.');
     }
   }, [queryError]);
+
+  // When deep-linking to an edit modal by materialId, automatically pre-fill formData from materials
+  useEffect(() => {
+    if (isEditModalOpen && materialId && materials.length > 0) {
+      const found = materials.find(m => String(m.id) === String(materialId));
+      if (found) {
+        setFormData({
+          Material_Main_Head: found.Material_Main_Head || '',
+          Material_Sub_Head: found.Material_Sub_Head || '',
+          Material_Details: found.Material_Details || '',
+          M_Unit: found.M_Unit || '',
+          is_active: found.is_active ?? true
+        });
+      }
+    }
+  }, [isEditModalOpen, materialId, materials]);
 
   // Prefetch the next page of results
   useEffect(() => {
@@ -130,7 +155,7 @@ const MaterialMaster = () => {
           {
             page: nextPage,
             limit,
-            search: debouncedSearch,
+            search: searchQuery,
             main_head: mainHeadFilter,
             sub_head: subHeadFilter,
             is_active: activeFilter,
@@ -142,7 +167,7 @@ const MaterialMaster = () => {
           const params = {
             page: nextPage,
             limit,
-            search: debouncedSearch,
+            search: searchQuery,
             main_head: mainHeadFilter,
             sub_head: subHeadFilter,
             is_active: activeFilter,
@@ -156,31 +181,16 @@ const MaterialMaster = () => {
         gcTime: 10 * 60 * 1000,
       });
     }
-  }, [page, totalPages, limit, debouncedSearch, mainHeadFilter, subHeadFilter, activeFilter, sortBy, sortOrder, queryClient]);
+  }, [page, totalPages, limit, searchQuery, mainHeadFilter, subHeadFilter, activeFilter, sortBy, sortOrder, queryClient]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    setPage(1);
-    setDebouncedSearch(search);
+    setSearchQuery(localSearch);
   };
 
   const handleClearFilters = () => {
-    setSearch('');
-    setDebouncedSearch('');
-    setMainHeadFilter('');
-    setSubHeadFilter('');
-    setActiveFilter(isAdmin ? 'true' : '');
-    setPage(1);
-  };
-
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
-    }
-    setPage(1);
+    setLocalSearch('');
+    resetFilters();
   };
 
   const handleExportExcel = async () => {
@@ -190,7 +200,7 @@ const MaterialMaster = () => {
       const params = {
         page: 1,
         limit: 1000,
-        search: debouncedSearch,
+        search: searchQuery,
         main_head: mainHeadFilter,
         sub_head: subHeadFilter,
         is_active: activeFilter,
@@ -210,7 +220,6 @@ const MaterialMaster = () => {
 
   // Form handlers
   const openCreateModal = () => {
-    setModalMode('create');
     setFormData({
       Material_Main_Head: '',
       Material_Sub_Head: '',
@@ -220,12 +229,10 @@ const MaterialMaster = () => {
     });
     setErrorMsg('');
     setSuccessMsg('');
-    setIsModalOpen(true);
+    hookOpenCreateModal();
   };
 
   const openEditModal = (material) => {
-    setModalMode('edit');
-    setCurrentMaterialId(material.id);
     setFormData({
       Material_Main_Head: material.Material_Main_Head,
       Material_Sub_Head: material.Material_Sub_Head,
@@ -235,7 +242,7 @@ const MaterialMaster = () => {
     });
     setErrorMsg('');
     setSuccessMsg('');
-    setIsModalOpen(true);
+    hookOpenEditModal(material.id);
   };
 
   const handleFormChange = (e) => {
@@ -261,15 +268,15 @@ const MaterialMaster = () => {
         const res = await createMaterial(formData);
         if (res.data?.success) {
           setSuccessMsg('Material created successfully!');
-          setTimeout(() => setIsModalOpen(false), 1200);
+          setTimeout(() => hookCloseModal(), 1200);
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           queryClient.invalidateQueries({ queryKey: ['materialCategories'] });
         }
       } else {
-        const res = await updateMaterial(currentMaterialId, formData);
+        const res = await updateMaterial(materialId, formData);
         if (res.data?.success) {
           setSuccessMsg('Material updated successfully!');
-          setTimeout(() => setIsModalOpen(false), 1200);
+          setTimeout(() => hookCloseModal(), 1200);
           queryClient.invalidateQueries({ queryKey: ['materials'] });
           queryClient.invalidateQueries({ queryKey: ['materialCategories'] });
         }
@@ -300,263 +307,268 @@ const MaterialMaster = () => {
 
   return (
     <>
-        
-        {/* Module Header */}
-        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
-          <div>
-            <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Inventory Registry</span>
-            <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Material Master</h1>
-            <p className="text-xs text-slate-400 font-medium mt-1">Centralised catalog of construction resources, aggregates, components, and tools.</p>
-          </div>
-          {canManageMaterials && (
-            <Button
-              onClick={openCreateModal}
-              variant="amber"
-            >
-              + Create Material
-            </Button>
-          )}
+      {/* Module Header */}
+      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-6 border-b border-white/5">
+        <div>
+          <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500">Inventory Registry</span>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Material Master</h1>
+          <p className="text-xs text-slate-400 font-medium mt-1">Centralised catalog of construction resources, aggregates, components, and tools.</p>
         </div>
+        {canManageMaterials && (
+          <Button
+            onClick={openCreateModal}
+            variant="amber"
+          >
+            + Create Material
+          </Button>
+        )}
+      </div>
 
-        {/* Global Notifications via Premium Popups */}
-        <SuccessPopup
-          isOpen={!!successMsg}
-          title="Success"
-          description={successMsg}
-          onClose={() => setSuccessMsg('')}
-        />
-        <ErrorPopup
-          isOpen={!!errorMsg}
-          title="Error"
-          description={errorMsg}
-          onClose={() => setErrorMsg('')}
-        />
+      {/* Global Notifications via Premium Popups */}
+      <SuccessPopup
+        isOpen={!!successMsg}
+        title="Success"
+        description={successMsg}
+        onClose={() => setSuccessMsg('')}
+      />
+      <ErrorPopup
+        isOpen={!!errorMsg}
+        title="Error"
+        description={errorMsg}
+        onClose={() => setErrorMsg('')}
+      />
 
-        {/* Search and Filters Bar */}
-        <div className="glass-panel p-4 rounded-2xl mb-6 space-y-4">
-          <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
-            <div className="flex-grow relative">
-              <Input
-                type="text"
-                placeholder="Search by Main Head, Sub Head or Material Details..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                size="sm"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-200 text-xs"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <Button
-              type="submit"
-              variant="secondary"
+      {/* Search and Filters Bar */}
+      <div className="glass-panel p-4 rounded-2xl mb-6 space-y-4">
+        <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
+          <div className="flex-grow relative">
+            <Input
+              type="text"
+              placeholder="Search by Main Head, Sub Head or Material Details..."
+              value={localSearch}
+              onChange={(e) => {
+                setLocalSearch(e.target.value);
+                setSearchQuery(e.target.value);
+              }}
+              size="sm"
+            />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalSearch('');
+                  setSearchQuery('');
+                }}
+                className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-200 text-xs"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <Button
+            type="submit"
+            variant="secondary"
+            size="sm"
+          >
+            Search
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={handleExportExcel}
+            disabled={exportLoading}
+            className="border border-white/10 text-slate-300 hover:text-white flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {exportLoading ? 'Exporting...' : 'Export Excel'}
+          </Button>
+        </form>
+
+        {/* Filtering Dropdowns */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+          <Select
+            label="Main Head"
+            value={mainHeadFilter}
+            onChange={(e) => setMainHeadFilter(e.target.value)}
+            size="sm"
+          >
+            <option value="">All Categories</option>
+            {categories.mainHeads.map((mh) => (
+              <option key={mh} value={mh}>{mh}</option>
+            ))}
+          </Select>
+
+          <Select
+            label="Sub Head"
+            value={subHeadFilter}
+            onChange={(e) => setSubHeadFilter(e.target.value)}
+            size="sm"
+          >
+            <option value="">All Sub categories</option>
+            {categories.subHeads.map((sh) => (
+              <option key={sh} value={sh}>{sh}</option>
+            ))}
+          </Select>
+
+          {isAdmin && (
+            <Select
+              label="Operational Status"
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
               size="sm"
             >
-              Search
-            </Button>
+              <option value="">All Statuses</option>
+              <option value="true">Active Materials Only</option>
+              <option value="false">Inactive Materials Only</option>
+            </Select>
+          )}
+
+          <div className="flex items-end">
             <Button
-              type="button"
+              onClick={handleClearFilters}
               variant="ghost"
               size="sm"
-              onClick={handleExportExcel}
-              disabled={exportLoading}
-              className="border border-white/10 text-slate-300 hover:text-white flex items-center gap-1.5"
+              className="w-full border border-dashed border-white/10 text-slate-400 hover:text-slate-200"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              {exportLoading ? 'Exporting...' : 'Export Excel'}
+              Reset All Filters
             </Button>
-          </form>
-
-          {/* Filtering Dropdowns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2">
-            <Select
-              label="Main Head"
-              value={mainHeadFilter}
-              onChange={(e) => { setMainHeadFilter(e.target.value); setPage(1); }}
-              size="sm"
-            >
-              <option value="">All Categories</option>
-              {categories.mainHeads.map((mh) => (
-                <option key={mh} value={mh}>{mh}</option>
-              ))}
-            </Select>
-
-            <Select
-              label="Sub Head"
-              value={subHeadFilter}
-              onChange={(e) => { setSubHeadFilter(e.target.value); setPage(1); }}
-              size="sm"
-            >
-              <option value="">All Sub categories</option>
-              {categories.subHeads.map((sh) => (
-                <option key={sh} value={sh}>{sh}</option>
-              ))}
-            </Select>
-
-            {isAdmin && (
-              <Select
-                label="Operational Status"
-                value={activeFilter}
-                onChange={(e) => { setActiveFilter(e.target.value); setPage(1); }}
-                size="sm"
-              >
-                <option value="">All Statuses</option>
-                <option value="true">Active Materials Only</option>
-                <option value="false">Inactive Materials Only</option>
-              </Select>
-            )}
-
-            <div className="flex items-end">
-              <Button
-                onClick={handleClearFilters}
-                variant="ghost"
-                size="sm"
-                className="w-full border border-dashed border-white/10 text-slate-400 hover:text-slate-200"
-              >
-                Reset All Filters
-              </Button>
-            </div>
           </div>
         </div>
+      </div>
 
-        {/* Data Table */}
-        <div className="glass-panel rounded-2xl overflow-hidden mb-6">
-          <Table>
-            <TableHeader className="bg-white/5 text-slate-400">
-              <TableRow hover={false} className="text-[10px] select-none">
-                <TableCell
-                  isHeader={true}
-                  onClick={() => handleSort('Material_Main_Head')}
-                  className="cursor-pointer hover:text-slate-200 transition-colors"
-                >
-                  Main Head {sortBy === 'Material_Main_Head' && (sortOrder === 'asc' ? '▲' : '▼')}
+      {/* Data Table */}
+      <div className="glass-panel rounded-2xl overflow-hidden mb-6">
+        <Table>
+          <TableHeader className="bg-white/5 text-slate-400">
+            <TableRow hover={false} className="text-[10px] select-none">
+              <TableCell
+                isHeader={true}
+                onClick={() => handleSort('Material_Main_Head')}
+                className="cursor-pointer hover:text-slate-200 transition-colors"
+              >
+                Main Head {sortBy === 'Material_Main_Head' && (sortOrder === 'asc' ? '▲' : '▼')}
+              </TableCell>
+              <TableCell
+                isHeader={true}
+                onClick={() => handleSort('Material_Sub_Head')}
+                className="cursor-pointer hover:text-slate-200 transition-colors"
+              >
+                Sub Head {sortBy === 'Material_Sub_Head' && (sortOrder === 'asc' ? '▲' : '▼')}
+              </TableCell>
+              <TableCell
+                isHeader={true}
+                onClick={() => handleSort('Material_Details')}
+                className="cursor-pointer hover:text-slate-200 transition-colors"
+              >
+                Material Description {sortBy === 'Material_Details' && (sortOrder === 'asc' ? '▲' : '▼')}
+              </TableCell>
+              <TableCell isHeader={true}>Unit</TableCell>
+              {canManageMaterials && <TableCell isHeader={true} align="center">Status</TableCell>}
+              {isAdmin && <TableCell isHeader={true} align="right">Actions</TableCell>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow hover={false}>
+                <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-medium">
+                  <div className="flex justify-center items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                    Loading material registry logs...
+                  </div>
                 </TableCell>
-                <TableCell
-                  isHeader={true}
-                  onClick={() => handleSort('Material_Sub_Head')}
-                  className="cursor-pointer hover:text-slate-200 transition-colors"
-                >
-                  Sub Head {sortBy === 'Material_Sub_Head' && (sortOrder === 'asc' ? '▲' : '▼')}
-                </TableCell>
-                <TableCell
-                  isHeader={true}
-                  onClick={() => handleSort('Material_Details')}
-                  className="cursor-pointer hover:text-slate-200 transition-colors"
-                >
-                  Material Description {sortBy === 'Material_Details' && (sortOrder === 'asc' ? '▲' : '▼')}
-                </TableCell>
-                <TableCell isHeader={true}>Unit</TableCell>
-                {canManageMaterials && <TableCell isHeader={true} align="center">Status</TableCell>}
-                {isAdmin && <TableCell isHeader={true} align="right">Actions</TableCell>}
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow hover={false}>
-                  <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-medium">
-                    <div className="flex justify-center items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                      Loading material registry logs...
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : materials.length === 0 ? (
-                <TableRow hover={false}>
-                  <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-semibold">
-                    No materials found matching criteria.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                materials.map((material) => (
-                  <TableRow
-                    key={material.id}
-                    className={!material.is_active ? 'opacity-50' : ''}
-                  >
-                    <TableCell className="font-semibold text-slate-200 max-w-[180px] truncate">{material.Material_Main_Head}</TableCell>
-                    <TableCell className="text-slate-300 max-w-[180px] truncate">{material.Material_Sub_Head}</TableCell>
-                    <TableCell className="text-slate-100 font-medium max-w-sm whitespace-pre-wrap">{material.Material_Details}</TableCell>
-                    <TableCell className="font-mono text-slate-400">{material.M_Unit}</TableCell>
-                    {canManageMaterials && (
-                      <TableCell align="center">
-                        <button
-                          onClick={() => handleToggleStatus(material.id, material.is_active)}
-                          className="focus:outline-none"
+            ) : materials.length === 0 ? (
+              <TableRow hover={false}>
+                <TableCell colSpan={isAdmin ? 6 : canManageMaterials ? 5 : 4} align="center" className="p-10 text-slate-500 font-semibold">
+                  No materials found matching criteria.
+                </TableCell>
+              </TableRow>
+            ) : (
+              materials.map((material) => (
+                <TableRow
+                  key={material.id}
+                  className={!material.is_active ? 'opacity-50' : ''}
+                >
+                  <TableCell className="font-semibold text-slate-200 max-w-[180px] truncate">{material.Material_Main_Head}</TableCell>
+                  <TableCell className="text-slate-300 max-w-[180px] truncate">{material.Material_Sub_Head}</TableCell>
+                  <TableCell className="text-slate-100 font-medium max-w-sm whitespace-pre-wrap">{material.Material_Details}</TableCell>
+                  <TableCell className="font-mono text-slate-400">{material.M_Unit}</TableCell>
+                  {canManageMaterials && (
+                    <TableCell align="center">
+                      <button
+                        onClick={() => handleToggleStatus(material.id, material.is_active)}
+                        className="focus:outline-none"
+                      >
+                        <Badge
+                          variant={material.is_active ? 'emerald' : 'red'}
+                          showDot={true}
                         >
-                          <Badge
-                            variant={material.is_active ? 'emerald' : 'red'}
-                            showDot={true}
-                          >
-                            {material.is_active ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </button>
-                      </TableCell>
-                    )}
-                    {isAdmin && (
-                      <TableCell align="right">
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            onClick={() => openEditModal(material)}
-                            variant="secondary"
-                            size="xs"
-                          >
-                            Edit
-                          </Button>
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                          {material.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </button>
+                    </TableCell>
+                  )}
+                  {isAdmin && (
+                    <TableCell align="right">
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          onClick={() => openEditModal(material)}
+                          variant="secondary"
+                          size="xs"
+                        >
+                          Edit
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
 
-          {/* Pagination Footer */}
-          <div className="p-4 bg-white/5 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs select-none">
-            <span className="text-slate-400 font-medium">
-              Showing <span className="font-extrabold text-slate-200">{materials.length}</span> of <span className="font-extrabold text-slate-200">{totalItems}</span> items
-            </span>
-            <div className="flex gap-1.5 items-center">
-              <Button
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-                size="xs"
-                variant="secondary"
-              >
-                Prev
-              </Button>
-              
-              <div className="flex items-center gap-1.5 px-3 py-1">
-                <span className="text-slate-400">Page</span>
-                <span className="font-mono font-bold text-amber-500">{page}</span>
-                <span className="text-slate-400">of</span>
-                <span className="font-mono font-bold text-slate-300">{totalPages}</span>
-              </div>
-
-              <Button
-                onClick={() => setPage(Math.min(totalPages, page + 1))}
-                disabled={page === totalPages}
-                size="xs"
-                variant="secondary"
-              >
-                Next
-              </Button>
+        {/* Pagination Footer */}
+        <div className="p-4 bg-white/5 border-t border-white/5 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs select-none">
+          <span className="text-slate-400 font-medium">
+            Showing <span className="font-extrabold text-slate-200">{materials.length}</span> of <span className="font-extrabold text-slate-200">{totalItems}</span> items
+          </span>
+          <div className="flex gap-1.5 items-center">
+            <Button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+              size="xs"
+              variant="secondary"
+            >
+              Prev
+            </Button>
+            
+            <div className="flex items-center gap-1.5 px-3 py-1">
+              <span className="text-slate-400">Page</span>
+              <span className="font-mono font-bold text-amber-500">{page}</span>
+              <span className="text-slate-400">of</span>
+              <span className="font-mono font-bold text-slate-300">{totalPages}</span>
             </div>
+
+            <Button
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+              size="xs"
+              variant="secondary"
+            >
+              Next
+            </Button>
           </div>
         </div>
+      </div>
 
       {/* Create / Edit Modal Dialog */}
       {isModalOpen && (
         <Modal
           isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
+          onClose={hookCloseModal}
           title={modalMode === 'create' ? 'Create Material Record' : 'Edit Material Record'}
           subtitle={modalMode === 'create' ? 'Add New Catalog Entry' : 'Modify Catalog Entry'}
           size="md"
@@ -564,7 +576,7 @@ const MaterialMaster = () => {
             <div className="flex justify-end gap-3 w-full">
               <Button
                 variant="secondary"
-                onClick={() => setIsModalOpen(false)}
+                onClick={hookCloseModal}
               >
                 Cancel
               </Button>

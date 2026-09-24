@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Input, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
@@ -24,7 +24,33 @@ const AcctPaymentRequisitions = () => {
   const navigate = useNavigate();
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlQ = searchParams.get('q') || searchParams.get('search') || '';
+  const [search, setSearch] = useState(urlQ);
+
+  useEffect(() => {
+    setSearch(urlQ);
+  }, [urlQ]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = search.trim();
+        const current = next.get('q') || next.get('search') || '';
+        if (trimmed === current) return prev;
+        if (trimmed) {
+          next.set('q', trimmed);
+          next.delete('search');
+        } else {
+          next.delete('q');
+          next.delete('search');
+        }
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, setSearchParams]);
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['acctPaymentRequisitions'],
@@ -57,10 +83,10 @@ const AcctPaymentRequisitions = () => {
           </span>
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Payment Requisitions</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">
-            Approved requisitions the Zonal Office sent to Accounts. These are saved to the Import List — open any sheet and click &quot;Import Held / Rejected&quot; to import one into a sheet.
+            Approved requisitions the Zonal Office sent to Accounts. These are saved to the Import List — open any sheet and click &quot;Import List&quot; to import one into a sheet.
           </p>
         </div>
-        <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+        <Button variant="glass" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/acct-requisitions'))}>
           ← Back to Sheets
         </Button>
       </div>

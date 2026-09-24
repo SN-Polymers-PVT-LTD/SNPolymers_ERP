@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../components/AuthContext';
 import { Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
@@ -31,9 +32,43 @@ const AcctRequisitionLogs = () => {
   const { user } = useAuth();
   const canAccess = ['accounts', 'ho', 'admin'].includes(user?.role);
 
-  const [page, setPage] = useState(1);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const dateFrom = searchParams.get('from') || searchParams.get('date_from') || '';
+  const setDateFrom = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('from', val);
+      else next.delete('from');
+      next.delete('date_from');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const dateTo = searchParams.get('to') || searchParams.get('date_to') || '';
+  const setDateTo = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('to', val);
+      else next.delete('to');
+      next.delete('date_to');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const pageParam = parseInt(searchParams.get('page'), 10);
+  const page = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1;
+  const setPage = useCallback((newPage) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const val = typeof newPage === 'function' ? newPage(page) : newPage;
+      if (val > 1) next.set('page', String(val));
+      else next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [page, setSearchParams]);
 
   const { data, isLoading, error: queryError } = useQuery({
     queryKey: ['acctRequisitionLogs', { page, dateFrom, dateTo }],

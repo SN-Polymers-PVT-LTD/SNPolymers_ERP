@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useEstimatedBillLedgerUrlState } from '../hooks/useEstimatedBillLedgerUrlState';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../components/AuthContext';
 import {
@@ -45,14 +46,22 @@ const EMPTY_ARRAY = [];
 export const EstimatedBillLedger = () => {
   const { work_order_no } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [successPopup, setSuccessPopup] = useState({ isOpen: false, message: '' });
+  const {
+    paymentDateFrom,
+    setPaymentDateFrom,
+    paymentDateTo,
+    setPaymentDateTo,
+    sortConfig,
+    handleSort,
+    isModalOpen,
+    openModal,
+    closeModal
+  } = useEstimatedBillLedgerUrlState();
 
-  // Date filters state
-  const [paymentDateFrom, setPaymentDateFrom] = useState('');
-  const [paymentDateTo, setPaymentDateTo] = useState('');
+  const [successPopup, setSuccessPopup] = useState({ isOpen: false, message: '' });
 
   // Query: Fetch timeline ledger for this Work Order
   const { data: ledgerData, isLoading: isLedgerLoading } = useQuery({
@@ -90,17 +99,7 @@ export const EstimatedBillLedger = () => {
     });
   }, [entries, paymentDateFrom, paymentDateTo]);
 
-  // Sorting state
-  const [sortConfig, setSortConfig] = useState({ key: '', direction: 'desc' });
 
-  const handleSort = (key) => {
-    setSortConfig(prev => {
-      if (prev.key === key) {
-        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' };
-      }
-      return { key, direction: key === 'estimated_bill_amount' || key === 'surety_pct' || key === 'surety_amount' ? 'desc' : 'asc' };
-    });
-  };
 
   const renderSortIcon = (columnKey) => {
     const isActive = sortConfig.key === columnKey;
@@ -150,7 +149,7 @@ export const EstimatedBillLedger = () => {
     onSuccess: () => {
       queryClient.invalidateQueries(['estimated-bill-ledger', work_order_no]);
       queryClient.invalidateQueries(['estimated-bills']);
-      setIsModalOpen(false);
+      closeModal();
       setSuccessPopup({
         isOpen: true,
         message: 'New estimate entry successfully added to the timeline ledger.'
@@ -226,9 +225,13 @@ export const EstimatedBillLedger = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Link to="/estimated-bills" className="text-xs font-black text-amber-500 uppercase hover:underline flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/estimated-bills'))}
+              className="text-xs font-black text-amber-500 uppercase hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+            >
               ← Back to Overview
-            </Link>
+            </button>
           </div>
           <h1 className="text-3xl font-extrabold text-slate-100 tracking-tight">
             Work Order Ledger Sheet
@@ -241,7 +244,7 @@ export const EstimatedBillLedger = () => {
         {canAddEntry && (
           <Button
             variant="primary"
-            onClick={() => setIsModalOpen(true)}
+            onClick={openModal}
             className="shadow-lg shadow-amber-500/20"
           >
             <svg className="w-4 h-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -442,7 +445,7 @@ export const EstimatedBillLedger = () => {
       {/* Entry Modal preset and locked to this WO */}
       <EstimatedBillEntryModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={closeModal}
         initialWorkOrderNo={work_order_no}
         workOrderOptions={workOrdersData || []}
         onSave={handleSaveSubmit}

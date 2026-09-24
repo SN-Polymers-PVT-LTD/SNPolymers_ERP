@@ -43,5 +43,11 @@ export default defineConfig([
       'import/named': 'error',
     },
   },
+  {
+    files: ['src/**/*.test.{js,jsx}', 'src/test/**/*.{js,jsx}'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
 

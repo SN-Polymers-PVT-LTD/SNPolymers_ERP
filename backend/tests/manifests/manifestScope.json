@@ -11,6 +11,21 @@
     "zo_fund_ledger",
     "estimated_bills",
     "estimate_quotations",
-    "work_order_activity_breaks"
+    "work_order_activity_breaks",
+    "project_cost_estimate_items",
+    "estimate_revision_log",
+    "projects_beneficiary_master",
+    "indian_bank_master",
+    "subcontractor_balances",
+    "subcontractor_ledger",
+    "subcontract_work_master",
+    "subcontractor_master",
+    "subcontractor_work_capabilities",
+    "subcontractor_work_assignments",
+    "project_subcontract_estimates",
+    "project_subcontract_estimate_lines",
+    "subcontract_estimate_revision_log",
+    "cost_estimate_subcontract_contributions",
+    "project_subcontract_estimate_workflow_log"
   ]
 }
