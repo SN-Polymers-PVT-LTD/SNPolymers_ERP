@@ -18,6 +18,7 @@ import SystemPolicy from './pages/SystemPolicy';
 // Dynamic Lazy Views for chunk splitting & optimistic preloading
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
+const EmployeeManagement = React.lazy(() => import('./pages/admin/EmployeeManagement'));
 const AuditLog = React.lazy(() => import('./pages/admin/AuditLog'));
 const MasterData = React.lazy(() => import('./pages/admin/MasterData'));
 const PurchaseOptions = React.lazy(() => import('./pages/admin/PurchaseOptions'));
@@ -195,6 +196,7 @@ function App() {
                 {/* Admin Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                   <Route path="/admin" element={<React.Suspense fallback={<AppChunkLoader />}><AdminPanel /></React.Suspense>} />
+                  <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
                   <Route path="/admin/sessions" element={<React.Suspense fallback={<AppChunkLoader />}><AuditLog /></React.Suspense>} />
                   <Route path="/admin/master-data" element={<React.Suspense fallback={<AppChunkLoader />}><MasterData /></React.Suspense>} />
                   <Route path="/admin/purchase-options" element={<React.Suspense fallback={<AppChunkLoader />}><PurchaseOptions /></React.Suspense>} />
