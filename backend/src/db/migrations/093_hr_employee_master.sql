@@ -47,24 +47,17 @@ BEGIN
   INSERT INTO public.audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
   VALUES (CASE WHEN TG_OP = 'INSERT' THEN NEW.created_by ELSE NEW.updated_by END::text,
           TG_OP, 'HR Employee Master', NEW.employee_code,
-          CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object(
-            'employee_name', OLD.employee_name,
-            'employee_category', OLD.employee_category,
-            'department', OLD.department,
-            'contact_number', OLD.contact_number,
-            'erp_user_id', OLD.erp_user_id,
-            'joining_date', OLD.joining_date,
-            'active_status', OLD.active_status
-          ) ELSE NULL END,
-          jsonb_build_object(
-            'employee_name', NEW.employee_name,
-            'employee_category', NEW.employee_category,
-            'department', NEW.department,
-            'contact_number', NEW.contact_number,
-            'erp_user_id', NEW.erp_user_id,
-            'joining_date', NEW.joining_date,
-            'active_status', NEW.active_status
-          ));
+          NULL,
+          jsonb_build_object('changed_fields', CASE WHEN TG_OP = 'INSERT' THEN ARRAY['created']::text[]
+            ELSE array_remove(ARRAY[
+              CASE WHEN NEW.employee_name IS DISTINCT FROM OLD.employee_name THEN 'employee_name' END,
+              CASE WHEN NEW.employee_category IS DISTINCT FROM OLD.employee_category THEN 'employee_category' END,
+              CASE WHEN NEW.department IS DISTINCT FROM OLD.department THEN 'department' END,
+              CASE WHEN NEW.contact_number IS DISTINCT FROM OLD.contact_number THEN 'contact_number' END,
+              CASE WHEN NEW.erp_user_id IS DISTINCT FROM OLD.erp_user_id THEN 'erp_user_id' END,
+              CASE WHEN NEW.joining_date IS DISTINCT FROM OLD.joining_date THEN 'joining_date' END,
+              CASE WHEN NEW.active_status IS DISTINCT FROM OLD.active_status THEN 'active_status' END
+            ], NULL) END));
   RETURN NEW;
 END;
 $$;
@@ -168,16 +161,16 @@ BEGIN
     CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object(
       'status', OLD.status,
       'revision_number', OLD.revision_number,
-      'pay_basis', OLD.pay_basis,
-      'epf_enrolment', OLD.epf_enrolment,
-      'esi_enrolment', OLD.esi_enrolment
+      'pay_basis_changed', NEW.pay_basis IS DISTINCT FROM OLD.pay_basis,
+      'epf_enrolment_changed', NEW.epf_enrolment IS DISTINCT FROM OLD.epf_enrolment,
+      'esi_enrolment_changed', NEW.esi_enrolment IS DISTINCT FROM OLD.esi_enrolment
     ) ELSE NULL END,
     jsonb_build_object(
       'status', NEW.status,
       'revision_number', NEW.revision_number,
-      'pay_basis', NEW.pay_basis,
-      'epf_enrolment', NEW.epf_enrolment,
-      'esi_enrolment', NEW.esi_enrolment
+      'pay_basis_changed', CASE WHEN TG_OP = 'INSERT' THEN true ELSE NEW.pay_basis IS DISTINCT FROM OLD.pay_basis END,
+      'epf_enrolment_changed', CASE WHEN TG_OP = 'INSERT' THEN true ELSE NEW.epf_enrolment IS DISTINCT FROM OLD.epf_enrolment END,
+      'esi_enrolment_changed', CASE WHEN TG_OP = 'INSERT' THEN true ELSE NEW.esi_enrolment IS DISTINCT FROM OLD.esi_enrolment END
     )
   );
 
@@ -202,6 +195,17 @@ DECLARE
   v_target public.hr_permanent_pay_structures%ROWTYPE;
   v_employee_id uuid;
 BEGIN
+  SELECT employee_id INTO v_employee_id
+  FROM public.hr_permanent_pay_structures
+  WHERE id = p_pay_structure_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pay structure revision not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Use the same lock order as creation so all revisions of an employee serialize.
+  PERFORM 1 FROM public.hr_employees WHERE id = v_employee_id FOR UPDATE;
+
   SELECT * INTO v_target
   FROM public.hr_permanent_pay_structures
   WHERE id = p_pay_structure_id
@@ -218,8 +222,6 @@ BEGIN
   IF v_target.status = 'Superseded' THEN
     RAISE EXCEPTION 'Cannot activate a superseded pay structure revision' USING ERRCODE = 'P0001';
   END IF;
-
-  v_employee_id := v_target.employee_id;
 
   UPDATE public.hr_permanent_pay_structures
   SET status = 'Superseded',
@@ -258,7 +260,14 @@ DECLARE
   v_next_rev integer;
   v_res public.hr_permanent_pay_structures%ROWTYPE;
 BEGIN
-  -- Perform category and existence verification in table trigger
+  -- Lock the employee before reading revision state. This serializes concurrent
+  -- creates and activation for the same employee without blocking other staff.
+  PERFORM 1 FROM public.hr_employees WHERE id = p_employee_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Target employee does not exist' USING ERRCODE = 'P0002';
+  END IF;
+
+  -- Perform category verification in the table trigger.
   SELECT COALESCE(MAX(revision_number), 0) + 1 INTO v_next_rev
   FROM public.hr_permanent_pay_structures
   WHERE employee_id = p_employee_id;

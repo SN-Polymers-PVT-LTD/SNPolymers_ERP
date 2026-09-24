@@ -7,6 +7,34 @@ const requireRole = require('../../../src/middleware/requireRole');
 const { requireCurrentAdmin } = require('../../../src/routes/hrEmployees.routes');
 const employeeController = require('../../../src/controllers/hrEmployees.controller');
 const payController = require('../../../src/controllers/hrPayStructures.controller');
+const app = require('../../../src/app');
+const { generateTokens } = require('../../../src/services/session.service');
+
+async function requestRoute(method, path, token, body) {
+  const server = await new Promise(resolve => {
+    const listener = app.listen(0, '127.0.0.1', () => resolve(listener));
+  });
+  try {
+    const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+      method,
+      headers: {
+        ...(token ? { Cookie: `accessToken=${token}` } : {}),
+        ...(body ? { 'Content-Type': 'application/json' } : {})
+      },
+      ...(body ? { body: JSON.stringify(body) } : {})
+    });
+    return { status: response.status, body: await response.json() };
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+  }
+}
+
+async function tokenFor(user) {
+  const { data: session, error } = await supabase.from('sessions')
+    .insert({ user_id: user.id, is_active: true }).select('id').single();
+  if (error) throw error;
+  return generateTokens(user, session.id, crypto.randomUUID()).accessToken;
+}
 
 describe('HR permanent pay structures (Stage 2)', () => {
   let admin;
@@ -207,5 +235,81 @@ describe('HR permanent pay structures (Stage 2)', () => {
     }, res);
 
     expect(res.statusCode).toBe(400);
+  });
+
+  test('concurrent creations get distinct sequential revisions', async () => {
+    const employeeRes = mockRes();
+    await employeeController.createEmployee({ user: admin, body: {
+      employee_name: `Concurrent Pay ${suffix}`,
+      employee_category: 'HO Staff', department: 'Head Office',
+      joining_date: '2026-01-15'
+    } }, employeeRes);
+    expect(employeeRes.statusCode).toBe(201);
+    const employeeId = employeeRes.jsonData.employee.id;
+    const args = {
+      p_employee_id: employeeId,
+      p_pay_basis: 'Monthly salary',
+      p_guaranteed_monthly_gross: 10000,
+      p_basic_salary: 10000,
+      p_staff_welfare: null,
+      p_other_fixed_components: null,
+      p_epf_enrolment: false,
+      p_esi_enrolment: false,
+      p_status: 'Draft',
+      p_actor_id: admin.id
+    };
+    const results = await Promise.all([
+      supabase.rpc('create_hr_pay_structure', args),
+      supabase.rpc('create_hr_pay_structure', args)
+    ]);
+    expect(results.map(r => r.error)).toEqual([null, null]);
+    expect(results.map(r => r.data.revision_number).sort()).toEqual([1, 2]);
+  });
+
+  test('mounted pay and audit routes enforce roles without exposing HR values to HO', async () => {
+    const employeeRes = mockRes();
+    const secretName = `Private Worker ${suffix}`;
+    const secretContact = `7777${suffix}`;
+    await employeeController.createEmployee({ user: admin, body: {
+      employee_name: secretName,
+      employee_category: 'HO Staff', department: 'Head Office',
+      contact_number: secretContact, joining_date: '2026-01-15'
+    } }, employeeRes);
+    expect(employeeRes.statusCode).toBe(201);
+    const employeeId = employeeRes.jsonData.employee.id;
+    const adminToken = await tokenFor(admin);
+    const jeToken = await tokenFor(nonAdmin);
+    const { data: hoUser, error: hoError } = await supabase.from('authorised_users')
+      .insert({ mobile_number: `8613${suffix}`, role: 'ho', display_name: 'Pay HO' })
+      .select('id,role,mobile_number').single();
+    if (hoError) throw hoError;
+    const hoToken = await tokenFor(hoUser);
+
+    const path = `/api/v1/auth/hr/pay-structures/employees/${employeeId}`;
+    expect((await requestRoute('GET', path)).status).toBe(401);
+    expect((await requestRoute('GET', path, jeToken)).status).toBe(403);
+    expect((await requestRoute('GET', path, hoToken)).status).toBe(403);
+    expect((await requestRoute('GET', path, adminToken)).status).toBe(200);
+
+    const created = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
+      employee_id: employeeId, pay_basis: 'Monthly salary',
+      guaranteed_monthly_gross: 12000, basic_salary: 12000,
+      epf_enrolment: true, esi_enrolment: false, status: 'Draft'
+    });
+    expect(created.status).toBe(201);
+
+    const auditPath = '/api/v1/auth/analytics/audit-log?module_name=HR%20Employee%20Master';
+    const hoAudit = await requestRoute('GET', auditPath, hoToken);
+    expect(hoAudit.status).toBe(200);
+    expect(hoAudit.body.data).toEqual([]);
+    const adminAudit = await requestRoute('GET', auditPath, adminToken);
+    expect(adminAudit.status).toBe(200);
+    expect(adminAudit.body.data.length).toBeGreaterThan(0);
+    expect(JSON.stringify(adminAudit.body.data)).not.toContain(secretName);
+    expect(JSON.stringify(adminAudit.body.data)).not.toContain(secretContact);
+
+    const hoRecent = await requestRoute('GET', '/api/v1/auth/analytics/recent-activity', hoToken);
+    expect(hoRecent.status).toBe(200);
+    expect(hoRecent.body.activities.every(row => !String(row.module_name).startsWith('HR '))).toBe(true);
   });
 });

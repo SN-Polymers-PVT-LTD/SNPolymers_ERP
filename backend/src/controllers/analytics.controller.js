@@ -247,11 +247,15 @@ async function getRecentActivity(req, res) {
       return res.status(200).json({ success: true, activities: enrichedAudits });
     } else {
       // HO or Admin: fetch global recent activity
-      const { data: audits, error } = await supabase
+      let auditsQuery = supabase
         .from('audit_log')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(50);
+        .select('*');
+      if (req.user.role !== 'admin') {
+        auditsQuery = auditsQuery.neq('module_name', 'HR Employee Master')
+          .neq('module_name', 'HR Permanent Pay Structure');
+      }
+      const { data: audits, error } = await auditsQuery
+        .order('timestamp', { ascending: false }).limit(50);
 
       if (error) throw error;
 
@@ -286,6 +290,10 @@ async function getAuditLog(req, res) {
     }
     if (req.query.record_identifier) {
       query = query.eq('record_identifier', req.query.record_identifier);
+    }
+    if (req.user.role !== 'admin') {
+      query = query.neq('module_name', 'HR Employee Master')
+        .neq('module_name', 'HR Permanent Pay Structure');
     }
 
     const { data, error, count } = await query
@@ -1494,4 +1502,3 @@ module.exports = {
   getHoChartData,
   getJeLeaderboard
 };
-
