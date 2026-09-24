@@ -27,7 +27,6 @@ const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
 
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString('en-IN') : '—');
-const formatDateTime = (dateStr) => (dateStr ? new Date(dateStr).toLocaleString('en-IN') : '—');
 
 const TX_TYPE_LABELS = {
   ESTIMATE_ITEM_APPROVAL: 'Credit (Approved Scope)',
@@ -301,18 +300,6 @@ const SubcontractorLedger = () => {
           {displayError}
         </div>
       )}
-
-      {/* Accounting Notice Banner */}
-      <div className="rounded-2xl bg-indigo-950/30 border border-indigo-500/20 p-4 text-xs flex items-start gap-3">
-        <span className="text-indigo-500 dark:text-indigo-400 text-base mt-0.5 shrink-0">ℹ️</span>
-        <div>
-          <strong className="text-slate-900 dark:text-white font-bold block mb-0.5">Authoritative Accounting Invariant:</strong>
-          <span className="text-slate-700 dark:text-indigo-200">
-            Contractor-level consolidated totals are informational for visibility. Financial capacity and funds remain
-            strictly isolated per Work Order and Work Type — capacity is never spendable or transferable across scopes.
-          </span>
-        </div>
-      </div>
 
       {/* View Tabs */}
       <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-900/60 border border-white/5 w-fit">
@@ -987,15 +974,15 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
         </div>
       ) : (
         <div className="rounded-2xl border border-white/5 overflow-hidden">
-          <Table containerClassName="min-w-[850px]">
+          <Table className="min-w-[1050px]">
             <TableHeader>
               <TableRow hover={false}>
-                <TableCell isHeader>Date</TableCell>
+                <TableCell isHeader className="w-24 min-w-[6rem]">Date</TableCell>
                 <TableCell isHeader>Type</TableCell>
                 <TableCell isHeader>Doc / Ref No.</TableCell>
                 <TableCell isHeader>Description / Remarks</TableCell>
-                <TableCell isHeader align="right">Paid Amount</TableCell>
-                <TableCell isHeader align="right">Cumulative Paid</TableCell>
+                <TableCell isHeader align="right" className="w-40 min-w-[10rem]">Paid Amount</TableCell>
+                <TableCell isHeader align="right" className="w-44 min-w-[11rem]">Cumulative Paid</TableCell>
                 <TableCell isHeader>By</TableCell>
               </TableRow>
             </TableHeader>
@@ -1008,8 +995,11 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
 
                 return (
                   <TableRow key={e.ledger_id}>
-                    <TableCell>
-                      <span className="text-slate-400 text-xs whitespace-nowrap">{formatDateTime(e.created_at)}</span>
+                    <TableCell className="w-24 min-w-[6rem]">
+                      <span className="block text-slate-400 text-xs leading-4">
+                        <span className="block whitespace-nowrap">{new Date(e.created_at).toLocaleDateString('en-IN')}</span>
+                        <span className="block whitespace-nowrap">{new Date(e.created_at).toLocaleTimeString('en-IN')}</span>
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
@@ -1030,14 +1020,14 @@ const SubcontractorLedgerEntriesModal = ({ entry, onClose }) => {
                         {e.remarks || e.item_description || '—'}
                       </span>
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" className="w-40 min-w-[10rem] whitespace-nowrap">
                       {paidAmount > 0 ? (
                         <span className="font-mono font-bold text-slate-200">+{formatCurrency(paidAmount)}</span>
                       ) : (
                         <span className="text-slate-600">—</span>
                       )}
                     </TableCell>
-                    <TableCell align="right">
+                    <TableCell align="right" className="w-44 min-w-[11rem] whitespace-nowrap">
                       <span className="font-mono font-bold text-indigo-300">
                         {formatCurrency(cumPaid)}
                       </span>

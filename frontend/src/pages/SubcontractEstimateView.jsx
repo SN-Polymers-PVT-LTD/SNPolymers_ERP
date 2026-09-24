@@ -19,6 +19,7 @@ import {
   transitionSubcontractEstimateWorkflow
 } from '../api/subcontractEstimatesApi';
 import { useAuth } from '../components/AuthContext';
+import { exportSubcontractEstimateToExcel } from '../utils/subcontractEstimateExport';
 
 const money = (value) =>
   `₹${Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -90,6 +91,7 @@ const SubcontractEstimateView = () => {
   const [remarks, setRemarks] = useState({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Workflow Dialog State (Header-level transition remarks)
   const [remarkDialog, setRemarkDialog] = useState({ action: null, value: '' });
@@ -212,6 +214,18 @@ const SubcontractEstimateView = () => {
   const currentDelta = currentLines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
   const historicalTotal = historicalLines.reduce((sum, line) => sum + Number(line.amount || 0), 0);
   const projectedAmount = Number(estimate?.estimate_amount || 0);
+
+  const exportEstimate = async () => {
+    setExporting(true);
+    setError('');
+    try {
+      await exportSubcontractEstimateToExcel(estimate);
+    } catch (e) {
+      setError(e.message || 'Failed to export subcontract estimate.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Check missing decision remarks for unapproved rows in active review
   const missingDecisionRemarks = currentLines.some(
@@ -420,7 +434,7 @@ const SubcontractEstimateView = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="subcontract-estimate-view space-y-6">
       {/* ── HEADER TOOLBAR ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/5 pb-5">
         <div>
@@ -434,7 +448,10 @@ const SubcontractEstimateView = () => {
         </div>
 
         {/* Action Toolbar */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="estimate-action-toolbar flex flex-wrap items-center gap-2">
+          <Button variant="success" size="sm" onClick={exportEstimate} loading={exporting}>
+            Export Excel
+          </Button>
           {canEdit && (
             <Button onClick={() => navigate(`/subcontract-estimates/${id}/edit`)}>
               {isReopened ? 'Edit Revision' : 'Edit Draft'}
@@ -517,7 +534,7 @@ const SubcontractEstimateView = () => {
           )}
 
           {canReopen && (
-            <Button variant="secondary" disabled={saving} onClick={() => workflow('REOPEN')}>
+            <Button variant="secondary" size="sm" disabled={saving} onClick={() => workflow('REOPEN')}>
               Reopen
             </Button>
           )}
@@ -527,7 +544,7 @@ const SubcontractEstimateView = () => {
       {error && <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</div>}
 
       {/* ── KEY FINANCIAL METRICS BAR ── */}
-      <div className="grid grid-cols-2 gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-5 md:grid-cols-4">
+      <div className="estimate-glass-panel grid grid-cols-2 gap-4 rounded-2xl border border-white/5 bg-white/[0.02] p-5 md:grid-cols-4">
         <div>
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Work Order</span>
           <div className="font-mono text-white text-sm font-semibold mt-0.5">{estimate.work_order_no}</div>
@@ -725,7 +742,7 @@ const SubcontractEstimateView = () => {
           </div>
 
           {/* Current Working Lines Table */}
-          <div className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
+          <div className="estimate-glass-panel rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
             <Table containerClassName="min-w-[1250px]">
               <TableHeader>
                 <TableRow hover={false}>
@@ -947,7 +964,7 @@ const SubcontractEstimateView = () => {
             </div>
 
             {/* Accounting Baseline Strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border border-white/5 bg-white/[0.02] text-xs">
+            <div className="estimate-glass-panel grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl border border-white/5 bg-white/[0.02] text-xs">
               <div>
                 <span className="text-slate-500 block uppercase tracking-wider text-[10px] font-bold">Approved Baseline</span>
                 <span className="font-mono text-emerald-400 font-bold text-sm mt-0.5 block">{money(historicalTotal)}</span>
@@ -962,7 +979,7 @@ const SubcontractEstimateView = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
+            <div className="estimate-glass-panel rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
               <Table containerClassName="min-w-[1000px]">
                 <TableHeader>
                   <TableRow hover={false}>
@@ -1042,7 +1059,7 @@ const SubcontractEstimateView = () => {
                 onClick={() => setIsRevisionCyclesOpen((prev) => !prev)}
                 aria-expanded={isRevisionCyclesOpen}
                 aria-controls="revision-cycles-content"
-                className="w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
+                className="estimate-glass-panel w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2.5">
@@ -1068,7 +1085,7 @@ const SubcontractEstimateView = () => {
               </button>
 
               {isRevisionCyclesOpen && (
-                <div id="revision-cycles-content" className="divide-y divide-white/5 rounded-2xl border border-white/5 bg-white/[0.01]">
+                <div id="revision-cycles-content" className="estimate-glass-panel divide-y divide-white/5 rounded-2xl border border-white/5 bg-white/[0.01]">
                   {revisionLog.map((rev) => (
                     <div key={rev.id} className="p-5 hover:bg-white/[0.01] transition-colors duration-150 space-y-3">
                       <div className="flex justify-between items-center text-xs">
@@ -1119,7 +1136,7 @@ const SubcontractEstimateView = () => {
               onClick={() => setIsWorkflowHistoryOpen((prev) => !prev)}
               aria-expanded={isWorkflowHistoryOpen}
               aria-controls="workflow-history-content"
-              className="w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
+              className="estimate-glass-panel w-full flex items-center justify-between p-4 rounded-2xl border border-white/5 bg-white/[0.015] hover:bg-white/[0.03] transition-colors duration-150 text-left group cursor-pointer"
             >
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5">
@@ -1150,7 +1167,7 @@ const SubcontractEstimateView = () => {
             </button>
 
             {isWorkflowHistoryOpen && (
-              <div id="workflow-history-content" className="rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
+              <div id="workflow-history-content" className="estimate-glass-panel rounded-2xl border border-white/5 overflow-hidden bg-white/[0.01]">
                 <Table containerClassName="min-w-[900px]">
                   <TableHeader>
                     <TableRow hover={false}>

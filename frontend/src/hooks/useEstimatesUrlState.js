@@ -5,7 +5,6 @@ import { useSearchParams } from 'react-router-dom';
  * useEstimatesUrlState
  *
  * Bi-directionally synchronizes Cost Estimates dashboard state with URL search parameters:
- * - tab: 'active' | 'history' (for HO review queue)
  * - status: 'All' | 'Under HO Review' | 'Final Approved' | etc.
  * - filter: 'All' | 'Draft'
  * - q: search query string (debounced replace)
@@ -14,22 +13,13 @@ import { useSearchParams } from 'react-router-dom';
 export function useEstimatesUrlState() {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 1. HO Queue Tab (active | history)
-  const urlTab = searchParams.get('tab');
-  const hoTab = urlTab === 'history' ? 'history' : 'active';
-
-  const setHoTab = useCallback((newTab) => {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (newTab === 'history') {
-        next.set('tab', 'history');
-      } else {
-        next.delete('tab');
-      }
-      next.delete('page');
-      return next;
-    });
-  }, [setSearchParams]);
+  // Remove the retired HO history view parameter from existing bookmarks.
+  useEffect(() => {
+    if (!searchParams.has('tab')) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('tab');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   // 2. Draft / All quick filter
   const urlFilter = searchParams.get('filter');
@@ -113,8 +103,6 @@ export function useEstimatesUrlState() {
   }, [page, setSearchParams]);
 
   return {
-    hoTab,
-    setHoTab,
     selectedFilter,
     setSelectedFilter,
     statusFilter,

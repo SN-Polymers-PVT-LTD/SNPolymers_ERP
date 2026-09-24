@@ -53,8 +53,6 @@ const Estimates = () => {
   
   // Synchronized URL Routing & State Machine
   const {
-    hoTab,
-    setHoTab,
     selectedFilter,
     setSelectedFilter,
     statusFilter,
@@ -66,20 +64,14 @@ const Estimates = () => {
   } = useEstimatesUrlState();
 
   const isJE = user?.role === 'je' || user?.role === 'staff';
-  const isHO = user?.role === 'ho';
-
   // Fetch estimates list using React Query
   const { data: estimatesData, isLoading: loading, error: queryError } = useQuery({
-    queryKey: ['estimates', { page, view: isHO ? hoTab : undefined }],
+    queryKey: ['estimates', { page }],
     queryFn: async () => {
       const params = {
         page,
         limit
       };
-      
-      if (isHO) {
-        params.view = hoTab === 'history' ? 'history' : 'active';
-      }
       
       const response = await authApi.get('/estimates', { params });
       return response.data;
@@ -138,24 +130,6 @@ const Estimates = () => {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Cost Estimate Sheets</h1>
             <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, review, and track the workflow status of all cost estimate sheets.</p>
           </div>
-          {isHO && (
-            <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
-              <Button
-                onClick={() => { setHoTab('active'); setPage(1); }}
-                variant={hoTab === 'active' ? 'amber' : 'ghost'}
-                size="sm"
-              >
-                Active Queue
-              </Button>
-              <Button
-                onClick={() => { setHoTab('history'); setPage(1); }}
-                variant={hoTab === 'history' ? 'amber' : 'ghost'}
-                size="sm"
-              >
-                History Log
-              </Button>
-            </div>
-          )}
         </div>
 
         {displayError && (

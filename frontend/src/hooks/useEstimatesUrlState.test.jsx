@@ -14,27 +14,14 @@ function createWrapper(initialUrl = '/estimates') {
 }
 
 describe('useEstimatesUrlState hook', () => {
-  it('parses initial hoTab, status, and filter from URL', () => {
+  it('ignores the retired history tab while preserving status and filter URL state', () => {
     const { result } = renderHook(
       () => useEstimatesUrlState(),
       { wrapper: createWrapper('/estimates?tab=history&status=Final+Approved&filter=Draft') }
     );
-    expect(result.current.hoTab).toBe('history');
+    expect(result.current).not.toHaveProperty('hoTab');
     expect(result.current.statusFilter).toBe('Final Approved');
     expect(result.current.selectedFilter).toBe('Draft');
-  });
-
-  it('switches hoTab between active and history', () => {
-    const { result } = renderHook(
-      () => useEstimatesUrlState(),
-      { wrapper: createWrapper('/estimates') }
-    );
-    expect(result.current.hoTab).toBe('active');
-
-    act(() => {
-      result.current.setHoTab('history');
-    });
-    expect(result.current.hoTab).toBe('history');
   });
 
   it('updates status and resets page', () => {

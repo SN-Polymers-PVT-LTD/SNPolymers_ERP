@@ -2,8 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Badge, Button, Input, Select, SkeletonCard } from '../components/ui';
-import { getSubcontractEstimates, getSubcontractEstimateSummary } from '../api/subcontractEstimatesApi';
+import { getSubcontractEstimate, getSubcontractEstimates, getSubcontractEstimateSummary } from '../api/subcontractEstimatesApi';
 import { useSubcontractEstimatesUrlState } from '../hooks/useSubcontractEstimatesUrlState';
+import {
+  exportSubcontractEstimateToExcel,
+  exportSubcontractEstimatesListToExcel,
+  fetchSubcontractEstimateDetails,
+  fetchFilteredSubcontractEstimates,
+  filterSubcontractEstimates
+} from '../utils/subcontractEstimateExport';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -60,8 +67,6 @@ const SubcontractEstimates = () => {
 
   const [limit] = useState(20);
   const {
-    hoTab,
-    setHoTab,
     selectedFilter,
     setSelectedFilter,
     statusFilter,
@@ -77,8 +82,9 @@ const SubcontractEstimates = () => {
   const [pagination, setPagination] = useState({ totalPages: 1, totalItems: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [exportingList, setExportingList] = useState(false);
+  const [exportingEstimateId, setExportingEstimateId] = useState(null);
 
-  const isHO = user?.role === 'ho';
   const canCreate = ['je', 'admin'].includes(user?.role);
 
   // Fetch estimates list & summary
@@ -115,34 +121,44 @@ const SubcontractEstimates = () => {
     e => ['Submitted', 'Under ZO Review', 'Under HO Review'].includes(e.estimate_status)
   ).length;
 
-  // Filtered estimates based on sidebar, search, status filter, and HO tab
-  const filteredEstimates = useMemo(() => {
-    return estimates.filter((est) => {
-      // 1. Sidebar tab filter ('All' vs 'Draft')
-      if (selectedFilter === 'Draft' && est.estimate_status !== 'Draft') {
-        return false;
+  // Filtered estimates based on the selected sheet, search, and status filters.
+  const activeFilters = { selectedFilter, statusFilter, searchQuery };
+  const filteredEstimates = useMemo(
+    () => filterSubcontractEstimates(estimates, activeFilters),
+    [estimates, selectedFilter, statusFilter, searchQuery]
+  );
+
+  const exportList = async () => {
+    setExportingList(true);
+    setError('');
+    try {
+      const matching = await fetchFilteredSubcontractEstimates(getSubcontractEstimates, activeFilters);
+      if (!matching.length) {
+        setError('No subcontract estimates match the selected filters.');
+        return;
       }
-      // 2. Status dropdown filter
-      if (statusFilter !== 'All' && est.estimate_status !== statusFilter) {
-        return false;
-      }
-      // 3. Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.trim().toLowerCase();
-        const matchWO = est.work_order_no?.toLowerCase().includes(query);
-        const matchSite = est.projects_master?.site_details?.toLowerCase().includes(query);
-        const matchId = est.subcontract_estimate_id?.toLowerCase().includes(query);
-        if (!matchWO && !matchSite && !matchId) return false;
-      }
-      // 4. HO active vs history tab
-      if (isHO) {
-        const isHistory = ['Final Approved', 'Rejected by HO'].includes(est.estimate_status);
-        if (hoTab === 'active' && isHistory) return false;
-        if (hoTab === 'history' && !isHistory) return false;
-      }
-      return true;
-    });
-  }, [estimates, selectedFilter, statusFilter, searchQuery, isHO, hoTab]);
+      const detailedEstimates = await fetchSubcontractEstimateDetails(matching, getSubcontractEstimate);
+      await exportSubcontractEstimatesListToExcel(matching, activeFilters, detailedEstimates);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to export subcontract estimates.');
+    } finally {
+      setExportingList(false);
+    }
+  };
+
+  const exportEstimate = async (event, estimateId) => {
+    event.stopPropagation();
+    setExportingEstimateId(estimateId);
+    setError('');
+    try {
+      const response = await getSubcontractEstimate(estimateId);
+      await exportSubcontractEstimateToExcel(response.data.estimate);
+    } catch (err) {
+      setError(err.response?.data?.message || err.message || 'Failed to export this subcontract estimate.');
+    } finally {
+      setExportingEstimateId(null);
+    }
+  };
 
   return (
     <>
@@ -153,24 +169,19 @@ const SubcontractEstimates = () => {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Subcontract Estimates</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, review, and track the workflow status of all subcontract estimates.</p>
         </div>
-        {isHO && (
-          <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
-            <Button
-              onClick={() => { setHoTab('active'); setPage(1); }}
-              variant={hoTab === 'active' ? 'amber' : 'ghost'}
-              size="sm"
-            >
-              Active Queue
-            </Button>
-            <Button
-              onClick={() => { setHoTab('history'); setPage(1); }}
-              variant={hoTab === 'history' ? 'amber' : 'ghost'}
-              size="sm"
-            >
-              History Log
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="success"
+            size="sm"
+            className="border-emerald-400/50 !bg-emerald-400/25 !text-emerald-200 hover:!bg-emerald-400/35 hover:!text-white"
+            onClick={exportList}
+            loading={exportingList}
+            disabled={loading}
+            title="Export matching estimates across all pages"
+          >
+            Export Filtered Excel
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -208,7 +219,9 @@ const SubcontractEstimates = () => {
                   onClick={() => setSelectedFilter('All')}
                   variant={selectedFilter === 'All' ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="w-full justify-start"
+                  className={`w-full justify-start ${selectedFilter === 'All'
+                    ? 'border border-amber-400/40 !bg-amber-500/20 !text-amber-200 hover:!bg-amber-500/30'
+                    : 'border border-white/10 !bg-slate-900/75 !text-slate-300 hover:!bg-slate-800/90 hover:!text-white'}`}
                 >
                   All Sheets
                 </Button>
@@ -216,7 +229,9 @@ const SubcontractEstimates = () => {
                   onClick={() => setSelectedFilter('Draft')}
                   variant={selectedFilter === 'Draft' ? 'secondary' : 'ghost'}
                   size="sm"
-                  className="w-full justify-start"
+                  className={`w-full justify-start ${selectedFilter === 'Draft'
+                    ? 'border border-amber-400/40 !bg-amber-500/20 !text-amber-200 hover:!bg-amber-500/30'
+                    : 'border border-white/10 !bg-slate-900/75 !text-slate-300 hover:!bg-slate-800/90 hover:!text-white'}`}
                 >
                   Draft Sheets
                 </Button>
@@ -264,7 +279,7 @@ const SubcontractEstimates = () => {
 
           <div className="flex justify-between items-center mb-6 shrink-0 z-10">
             <h3 className="text-xs uppercase font-extrabold tracking-widest text-slate-400">
-              Active Project Subcontract Estimates
+              Project Subcontract Estimates
             </h3>
             <span className="text-[10px] font-bold text-slate-500 font-mono">
               Found {filteredEstimates.length} results
@@ -329,9 +344,23 @@ const SubcontractEstimates = () => {
                         >
                           {est.estimate_status}
                         </Badge>
-                        <div className="text-right">
-                          <span className="text-[9px] text-slate-500 uppercase font-bold block">Estimated Amount</span>
-                          <span className="text-lg font-black text-slate-200 font-mono">{formatINR(est.estimate_amount)}</span>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="success"
+                            size="xs"
+                            className="border-emerald-400/50 !bg-emerald-400/25 !text-emerald-200 hover:!bg-emerald-400/35 hover:!text-white"
+                            onClick={(event) => exportEstimate(event, est.subcontract_estimate_id)}
+                            loading={exportingEstimateId === est.subcontract_estimate_id}
+                            disabled={Boolean(exportingEstimateId)}
+                            aria-label={`Export ${est.work_order_no} subcontract estimate to Excel`}
+                            title={`Export ${est.work_order_no} to Excel`}
+                          >
+                            Excel
+                          </Button>
+                          <div className="text-right">
+                            <span className="text-[9px] text-slate-500 uppercase font-bold block">Estimated Amount</span>
+                            <span className="text-lg font-black text-slate-200 font-mono">{formatINR(est.estimate_amount)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>

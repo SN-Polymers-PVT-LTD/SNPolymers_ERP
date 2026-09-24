@@ -401,6 +401,51 @@
   }
 }
 
+/* Subcontract estimate panels use a stronger, component-scoped glass surface
+   so the animated page artwork does not compete with financial data. */
+.subcontract-estimate-view .estimate-glass-panel {
+  background: rgba(15, 23, 42, 0.84) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.subcontract-estimate-view .estimate-action-toolbar {
+  padding: 0.375rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+}
+
+.subcontract-estimate-view .estimate-action-toolbar > button {
+  border-radius: 9999px !important;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+}
+
+.subcontract-estimate-view .estimate-action-toolbar > button[class*="dark:text-slate-400"] {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+body.light .subcontract-estimate-view .estimate-glass-panel {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: rgba(148, 163, 184, 0.36) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+body.light .subcontract-estimate-view .estimate-action-toolbar {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+body.light .subcontract-estimate-view .estimate-action-toolbar > button[class*="dark:text-slate-400"] {
+  background-color: rgba(255, 255, 255, 0.92);
+}
+
 /* Print-specific layout styling for PDF snapshot exports */
 @media print {
   tr {

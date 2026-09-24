@@ -501,18 +501,36 @@ const EstimateView = () => {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Estimate Detail Console</h1>
             <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, audit, and audit trail logs for cost estimate entry.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/85 p-2 shadow-lg shadow-black/30 backdrop-blur-sm">
             <Button
               onClick={() => exportToExcel(estimate, items)}
               variant="success"
+              size="sm"
+              className="min-h-10 border-emerald-400/50 bg-emerald-400/25 px-4 text-emerald-200 hover:bg-emerald-400/35 hover:text-white"
+              title="Export this cost estimate to Excel"
             >
-              Excel
+              <span className="mr-2 inline-flex" aria-hidden="true">
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 2.5H5.5A1.5 1.5 0 0 0 4 4v12a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 16V7.5L11 2.5Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 2.5V7h4.5M7 10l4 5m0-5-4 5" />
+                </svg>
+              </span>
+              Export Excel
             </Button>
 
             <Button
               onClick={() => exportArchiveToZip(estimate, items, estimateData?.quotations || [])}
               variant="secondary"
+              size="sm"
+              className="min-h-10 border border-sky-300/45 bg-sky-400/20 px-4 text-sky-100 hover:border-sky-200/60 hover:bg-sky-400/30 hover:text-white"
+              title="Download estimate documents and quotations as a ZIP archive"
             >
+              <span className="mr-2 inline-flex" aria-hidden="true">
+                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 6.5 10 3l7 3.5v9L10 19l-7-3.5v-9Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 6.8 10 10l6.5-3.2M10 10v8.5M7.5 4.2v3h5v-3" />
+                </svg>
+              </span>
               Download ZIP
             </Button>
 

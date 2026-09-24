@@ -14,27 +14,14 @@ function createWrapper(initialUrl = '/subcontract-estimates') {
 }
 
 describe('useSubcontractEstimatesUrlState hook', () => {
-  it('parses hoTab, status, and filter from URL', () => {
+  it('ignores the retired history tab while preserving status and filter URL state', () => {
     const { result } = renderHook(
       () => useSubcontractEstimatesUrlState(),
       { wrapper: createWrapper('/subcontract-estimates?tab=history&status=Final+Approved&filter=Draft') }
     );
-    expect(result.current.hoTab).toBe('history');
+    expect(result.current).not.toHaveProperty('hoTab');
     expect(result.current.statusFilter).toBe('Final Approved');
     expect(result.current.selectedFilter).toBe('Draft');
-  });
-
-  it('switches hoTab and updates URL state', () => {
-    const { result } = renderHook(
-      () => useSubcontractEstimatesUrlState(),
-      { wrapper: createWrapper('/subcontract-estimates') }
-    );
-    expect(result.current.hoTab).toBe('active');
-
-    act(() => {
-      result.current.setHoTab('history');
-    });
-    expect(result.current.hoTab).toBe('history');
   });
 
   it('updates status and resets page', () => {
