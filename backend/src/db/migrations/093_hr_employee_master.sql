@@ -1,4 +1,5 @@
--- Phase 1 HR directory. Employee identity is independent of ERP login identity.
+-- Phase 1 HR directory and Permanent Pay Structures.
+-- Employee identity is independent of ERP login identity.
 CREATE SEQUENCE public.hr_employee_code_seq;
 
 CREATE TABLE public.hr_employees (
@@ -34,13 +35,36 @@ BEGIN
        OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.created_by IS DISTINCT FROM OLD.created_by THEN
       RAISE EXCEPTION 'Employee identity and creation audit fields are immutable' USING ERRCODE = 'P0001';
     END IF;
+
+    IF NEW.employee_category IS DISTINCT FROM OLD.employee_category
+       AND NEW.employee_category IN ('SNP Casual Factory Labour', 'Local Daily-Wage Workers')
+       AND EXISTS (SELECT 1 FROM public.hr_permanent_pay_structures WHERE employee_id = OLD.id) THEN
+      RAISE EXCEPTION 'Cannot change category to non-permanent because permanent pay structure records exist' USING ERRCODE = 'P0001';
+    END IF;
+
     NEW.updated_at := now();
   END IF;
   INSERT INTO public.audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
   VALUES (CASE WHEN TG_OP = 'INSERT' THEN NEW.created_by ELSE NEW.updated_by END::text,
           TG_OP, 'HR Employee Master', NEW.employee_code,
-          CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object('active_status', OLD.active_status, 'erp_user_id', OLD.erp_user_id) ELSE NULL END,
-          jsonb_build_object('active_status', NEW.active_status, 'erp_user_id', NEW.erp_user_id));
+          CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object(
+            'employee_name', OLD.employee_name,
+            'employee_category', OLD.employee_category,
+            'department', OLD.department,
+            'contact_number', OLD.contact_number,
+            'erp_user_id', OLD.erp_user_id,
+            'joining_date', OLD.joining_date,
+            'active_status', OLD.active_status
+          ) ELSE NULL END,
+          jsonb_build_object(
+            'employee_name', NEW.employee_name,
+            'employee_category', NEW.employee_category,
+            'department', NEW.department,
+            'contact_number', NEW.contact_number,
+            'erp_user_id', NEW.erp_user_id,
+            'joining_date', NEW.joining_date,
+            'active_status', NEW.active_status
+          ));
   RETURN NEW;
 END;
 $$;
@@ -52,3 +76,216 @@ CREATE TRIGGER hr_employee_no_delete BEFORE DELETE ON public.hr_employees
 ALTER TABLE public.hr_employees ENABLE ROW LEVEL SECURITY;
 GRANT SELECT, INSERT, UPDATE ON public.hr_employees TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE public.hr_employee_code_seq TO service_role;
+
+-- ---------------------------------------------------------------------------
+-- Stage 2: Permanent Employee Pay Structure
+-- Available only for permanent categories: HO Staff, Fabric Factory Permanent,
+-- SNP Permanent Factory Labour, Projects Department Employees.
+-- ---------------------------------------------------------------------------
+CREATE TABLE public.hr_permanent_pay_structures (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid NOT NULL REFERENCES public.hr_employees(id) ON DELETE RESTRICT,
+  revision_number integer NOT NULL DEFAULT 1 CHECK (revision_number >= 1),
+  pay_basis text NOT NULL CHECK (pay_basis IN ('Monthly salary', 'Special package')),
+  guaranteed_monthly_gross numeric(12,2) NOT NULL CHECK (guaranteed_monthly_gross >= 0),
+  basic_salary numeric(12,2) CHECK (basic_salary IS NULL OR basic_salary >= 0),
+  staff_welfare numeric(12,2) CHECK (staff_welfare IS NULL OR staff_welfare >= 0),
+  other_fixed_components numeric(12,2) CHECK (other_fixed_components IS NULL OR other_fixed_components >= 0),
+  epf_enrolment boolean NOT NULL DEFAULT false,
+  esi_enrolment boolean NOT NULL DEFAULT false,
+  status text NOT NULL DEFAULT 'Draft' CHECK (status IN ('Draft', 'Active', 'Superseded')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid NOT NULL REFERENCES public.authorised_users(id) ON DELETE RESTRICT,
+  updated_by uuid NOT NULL REFERENCES public.authorised_users(id) ON DELETE RESTRICT,
+  CONSTRAINT hr_pay_fixed_components_reconcile CHECK (
+    COALESCE(basic_salary, 0) + COALESCE(staff_welfare, 0) + COALESCE(other_fixed_components, 0) <= guaranteed_monthly_gross
+  ),
+  CONSTRAINT hr_pay_revision_unique UNIQUE (employee_id, revision_number)
+);
+
+CREATE UNIQUE INDEX hr_pay_structures_one_active_idx ON public.hr_permanent_pay_structures (employee_id) WHERE (status = 'Active');
+CREATE INDEX hr_pay_structures_employee_idx ON public.hr_permanent_pay_structures (employee_id, status);
+
+CREATE OR REPLACE FUNCTION public.hr_permanent_pay_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+  v_category text;
+  v_emp_code text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'Pay structure records cannot be deleted' USING ERRCODE = 'P0001';
+  END IF;
+
+  SELECT employee_category, employee_code INTO v_category, v_emp_code
+  FROM public.hr_employees
+  WHERE id = NEW.employee_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Target employee does not exist' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_category NOT IN (
+    'HO Staff', 'Fabric Factory Permanent Employees', 'SNP Permanent Factory Labour', 'Projects Department Employees'
+  ) THEN
+    RAISE EXCEPTION 'Permanent pay structures can only be created for permanent employee categories' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.id IS DISTINCT FROM OLD.id OR NEW.employee_id IS DISTINCT FROM OLD.employee_id
+       OR NEW.revision_number IS DISTINCT FROM OLD.revision_number
+       OR NEW.created_at IS DISTINCT FROM OLD.created_at OR NEW.created_by IS DISTINCT FROM OLD.created_by THEN
+      RAISE EXCEPTION 'Pay structure identity, revision sequence, and creation audit fields are immutable' USING ERRCODE = 'P0001';
+    END IF;
+
+    IF OLD.status IN ('Active', 'Superseded') THEN
+      IF NEW.pay_basis IS DISTINCT FROM OLD.pay_basis
+         OR NEW.guaranteed_monthly_gross IS DISTINCT FROM OLD.guaranteed_monthly_gross
+         OR NEW.basic_salary IS DISTINCT FROM OLD.basic_salary
+         OR NEW.staff_welfare IS DISTINCT FROM OLD.staff_welfare
+         OR NEW.other_fixed_components IS DISTINCT FROM OLD.other_fixed_components
+         OR NEW.epf_enrolment IS DISTINCT FROM OLD.epf_enrolment
+         OR NEW.esi_enrolment IS DISTINCT FROM OLD.esi_enrolment THEN
+        RAISE EXCEPTION 'Active or Superseded pay structures cannot have their compensation terms modified. Create a new revision instead.' USING ERRCODE = 'P0001';
+      END IF;
+      IF OLD.status = 'Active' AND NEW.status NOT IN ('Active', 'Superseded') THEN
+        RAISE EXCEPTION 'Active pay structures can only transition to Superseded' USING ERRCODE = 'P0001';
+      END IF;
+      IF OLD.status = 'Superseded' AND NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'Superseded pay structure status cannot be changed' USING ERRCODE = 'P0001';
+      END IF;
+    END IF;
+
+    NEW.updated_at := now();
+  END IF;
+
+  -- Audit without exposing monetary gross amounts (Spec §5)
+  INSERT INTO public.audit_log (user_id, action, module_name, record_identifier, old_value, new_value)
+  VALUES (
+    CASE WHEN TG_OP = 'INSERT' THEN NEW.created_by ELSE NEW.updated_by END::text,
+    CASE WHEN TG_OP = 'INSERT' THEN 'CREATE_PAY_STRUCTURE' ELSE 'UPDATE_PAY_STRUCTURE' END,
+    'HR Permanent Pay Structure',
+    v_emp_code,
+    CASE WHEN TG_OP = 'UPDATE' THEN jsonb_build_object(
+      'status', OLD.status,
+      'revision_number', OLD.revision_number,
+      'pay_basis', OLD.pay_basis,
+      'epf_enrolment', OLD.epf_enrolment,
+      'esi_enrolment', OLD.esi_enrolment
+    ) ELSE NULL END,
+    jsonb_build_object(
+      'status', NEW.status,
+      'revision_number', NEW.revision_number,
+      'pay_basis', NEW.pay_basis,
+      'epf_enrolment', NEW.epf_enrolment,
+      'esi_enrolment', NEW.esi_enrolment
+    )
+  );
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER hr_permanent_pay_audit_write BEFORE INSERT OR UPDATE ON public.hr_permanent_pay_structures
+  FOR EACH ROW EXECUTE FUNCTION public.hr_permanent_pay_audit();
+CREATE TRIGGER hr_permanent_pay_no_delete BEFORE DELETE ON public.hr_permanent_pay_structures
+  FOR EACH ROW EXECUTE FUNCTION public.hr_permanent_pay_audit();
+
+ALTER TABLE public.hr_permanent_pay_structures ENABLE ROW LEVEL SECURITY;
+GRANT SELECT, INSERT, UPDATE ON public.hr_permanent_pay_structures TO service_role;
+
+-- Atomic activation RPC
+CREATE OR REPLACE FUNCTION public.activate_hr_pay_structure(
+  p_pay_structure_id uuid,
+  p_actor_id uuid
+) RETURNS public.hr_permanent_pay_structures LANGUAGE plpgsql AS $$
+DECLARE
+  v_target public.hr_permanent_pay_structures%ROWTYPE;
+  v_employee_id uuid;
+BEGIN
+  SELECT * INTO v_target
+  FROM public.hr_permanent_pay_structures
+  WHERE id = p_pay_structure_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Pay structure revision not found' USING ERRCODE = 'P0002';
+  END IF;
+
+  IF v_target.status = 'Active' THEN
+    RETURN v_target;
+  END IF;
+
+  IF v_target.status = 'Superseded' THEN
+    RAISE EXCEPTION 'Cannot activate a superseded pay structure revision' USING ERRCODE = 'P0001';
+  END IF;
+
+  v_employee_id := v_target.employee_id;
+
+  UPDATE public.hr_permanent_pay_structures
+  SET status = 'Superseded',
+      updated_at = now(),
+      updated_by = p_actor_id
+  WHERE employee_id = v_employee_id
+    AND status = 'Active';
+
+  UPDATE public.hr_permanent_pay_structures
+  SET status = 'Active',
+      updated_at = now(),
+      updated_by = p_actor_id
+  WHERE id = p_pay_structure_id
+  RETURNING * INTO v_target;
+
+  RETURN v_target;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.activate_hr_pay_structure(uuid, uuid) TO service_role;
+
+-- Atomic creation RPC (handles sequential revision number and optional immediate activation)
+CREATE OR REPLACE FUNCTION public.create_hr_pay_structure(
+  p_employee_id uuid,
+  p_pay_basis text,
+  p_guaranteed_monthly_gross numeric,
+  p_basic_salary numeric,
+  p_staff_welfare numeric,
+  p_other_fixed_components numeric,
+  p_epf_enrolment boolean,
+  p_esi_enrolment boolean,
+  p_status text,
+  p_actor_id uuid
+) RETURNS public.hr_permanent_pay_structures LANGUAGE plpgsql AS $$
+DECLARE
+  v_next_rev integer;
+  v_res public.hr_permanent_pay_structures%ROWTYPE;
+BEGIN
+  -- Perform category and existence verification in table trigger
+  SELECT COALESCE(MAX(revision_number), 0) + 1 INTO v_next_rev
+  FROM public.hr_permanent_pay_structures
+  WHERE employee_id = p_employee_id;
+
+  IF p_status = 'Active' THEN
+    UPDATE public.hr_permanent_pay_structures
+    SET status = 'Superseded',
+        updated_at = now(),
+        updated_by = p_actor_id
+    WHERE employee_id = p_employee_id
+      AND status = 'Active';
+  END IF;
+
+  INSERT INTO public.hr_permanent_pay_structures (
+    employee_id, revision_number, pay_basis, guaranteed_monthly_gross,
+    basic_salary, staff_welfare, other_fixed_components,
+    epf_enrolment, esi_enrolment, status,
+    created_by, updated_by
+  ) VALUES (
+    p_employee_id, v_next_rev, p_pay_basis, p_guaranteed_monthly_gross,
+    p_basic_salary, p_staff_welfare, p_other_fixed_components,
+    COALESCE(p_epf_enrolment, false), COALESCE(p_esi_enrolment, false), COALESCE(p_status, 'Draft'),
+    p_actor_id, p_actor_id
+  ) RETURNING * INTO v_res;
+
+  RETURN v_res;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.create_hr_pay_structure(uuid, text, numeric, numeric, numeric, numeric, boolean, boolean, text, uuid) TO service_role;

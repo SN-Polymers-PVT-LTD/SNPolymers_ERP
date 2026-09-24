@@ -39,5 +39,5 @@ module.exports = {
   }) },
   create: { body: z.object({ ...fields, active_status: fields.active_status.optional() }).strict() },
   update: { params: z.object({ id: uuid }), body: z.object(fields).partial().strict().refine(v => Object.keys(v).length > 0) },
-  status: { params: z.object({ id: uuid }), body: z.object({ active_status: z.enum(['Inactive', 'Exited']) }).strict() }
+  status: { params: z.object({ id: uuid }), body: z.object({ active_status: z.enum(statuses) }).strict() }
 };

@@ -2,6 +2,7 @@
   "tables": [
     "authorised_users",
     "hr_employees",
+    "hr_permanent_pay_structures",
     "sessions",
     "otp_requests",
     "requisitions",

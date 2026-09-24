@@ -7,6 +7,7 @@ function sendError(res, error) {
   if (error?.code === '23505') return res.status(409).json({ success: false, message: 'Employee code or ERP account is already assigned.' });
   if (error?.code === '23503') return res.status(400).json({ success: false, message: 'Referenced ERP account does not exist.' });
   if (error?.code === '23514') return res.status(400).json({ success: false, message: 'Invalid employee field value.' });
+  if (error?.code === 'P0001') return res.status(400).json({ success: false, message: error.message || 'Business rule violation.' });
   console.error('HR employee operation failed:', error);
   return res.status(500).json({ success: false, message: 'Employee operation failed.' });
 }
@@ -40,8 +41,14 @@ async function listEmployees(req, res) {
     let query = supabase.from('hr_employees').select(listSelect, { count: 'exact' });
     if (employee_category) query = query.eq('employee_category', employee_category);
     if (active_status) query = query.eq('active_status', active_status);
-    if (search) query = query.ilike('employee_name', `%${search.replace(/[\\%_]/g, '\\$&')}%`);
-    const { data, count, error } = await query.order('employee_code').range((page - 1) * limit, page * limit - 1);
+    if (search) {
+      const escaped = search.replace(/[\\%_]/g, '\\$&');
+      query = query.or(`employee_name.ilike.%${escaped}%,employee_code.ilike.%${escaped}%`);
+    }
+    const { data, count, error } = await query
+      .order('created_at', { ascending: true })
+      .order('employee_code', { ascending: true })
+      .range((page - 1) * limit, page * limit - 1);
     if (error) throw error;
     return res.json({ success: true, employees: data || [], pagination: {
       page, limit, totalItems: count || 0, totalPages: Math.max(1, Math.ceil((count || 0) / limit))

@@ -29,6 +29,22 @@ module.exports = {
       "table": "hr_employees",
       "definition": "CREATE INDEX hr_employees_status_category_idx ON public.hr_employees USING btree (active_status, employee_category)"
     },
+    "hr_pay_revision_unique": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_pay_revision_unique ON public.hr_permanent_pay_structures USING btree (employee_id, revision_number)"
+    },
+    "hr_pay_structures_employee_idx": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE INDEX hr_pay_structures_employee_idx ON public.hr_permanent_pay_structures USING btree (employee_id, status)"
+    },
+    "hr_pay_structures_one_active_idx": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_pay_structures_one_active_idx ON public.hr_permanent_pay_structures USING btree (employee_id) WHERE (status = 'Active'::text)"
+    },
+    "hr_permanent_pay_structures_pkey": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_permanent_pay_structures_pkey ON public.hr_permanent_pay_structures USING btree (id)"
+    },
     "idx_activity_breaks_active": {
       "table": "work_order_activity_breaks",
       "definition": "CREATE INDEX idx_activity_breaks_active ON public.work_order_activity_breaks USING btree (work_order_no) WHERE ((status)::text = ANY ((ARRAY['Active'::character varying, 'Reopen Requested'::character varying])::text[]))"
