@@ -43,6 +43,12 @@ const ExcessFundReturns = () => {
     closeModals
   } = useExcessFundReturnsUrlState();
 
+  const handleCloseModals = () => {
+    setSelectedReturn(null);
+    setHoActionTarget(null);
+    closeModals();
+  };
+
   // Request Return Modal (Admin/HO only)
   const [selectedZO, setSelectedZO] = useState('');
   const [requestAmount, setRequestAmount] = useState('');
@@ -152,7 +158,7 @@ const ExcessFundReturns = () => {
 
       if (response.data?.success) {
         setSuccess('Excess fund return request successfully sent to Zonal Office.');
-        closeModals();
+        handleCloseModals();
         fetchReturns();
       }
     } catch (err) {
@@ -236,7 +242,7 @@ const ExcessFundReturns = () => {
       const response = await acceptReturnRequest(selectedReturn.id, selectedReturn.updated_at, breakdown);
       if (response.data?.success) {
         setSuccess('Fund return accepted. Balance updated and logged in ledger.');
-        closeModals();
+        handleCloseModals();
         fetchReturns();
         fetchDropdownAndBalanceData(); // Refresh available ZO balance
       }
@@ -276,7 +282,7 @@ const ExcessFundReturns = () => {
 
       if (response.data?.success) {
         setSuccess(`Return request successfully ${actionType === 'REJECT' ? 'rejected' : 'sent for modification'}.`);
-        closeModals();
+        handleCloseModals();
         fetchReturns();
       }
     } catch (err) {
@@ -309,7 +315,7 @@ const ExcessFundReturns = () => {
       const response = await actionOnReturnRequest(hoActionTarget.id, hoSelectedAction, hoActionRemarks, reqAmt);
       if (response.data?.success) {
         setSuccess(`Return request successfully actioned (${hoSelectedAction}).`);
-        closeModals();
+        handleCloseModals();
         fetchReturns();
       }
     } catch (err) {
@@ -333,7 +339,7 @@ const ExcessFundReturns = () => {
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeReturnId, returns, showActionModal, showHoActionModal]);
+  }, [activeReturnId, returns, showActionModal, showHoActionModal, selectedReturn, hoActionTarget]);
 
   const filteredReturns = returns.filter(r => {
     const matchesSearch =
@@ -548,7 +554,7 @@ const ExcessFundReturns = () => {
       {/* Request Return Modal (Admin/HO only) */}
       <Modal
         isOpen={showRequestModal}
-        onClose={closeModals}
+        onClose={handleCloseModals}
         title="Request Excess Fund Return"
         subtitle="Capital Return Ledger"
         size="md"
@@ -606,7 +612,7 @@ const ExcessFundReturns = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={closeModals}
+              onClick={handleCloseModals}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submittingRequest}
             >
@@ -626,7 +632,7 @@ const ExcessFundReturns = () => {
       {/* ZO Action Modal (ZO only) */}
       <Modal
         isOpen={showActionModal && !!selectedReturn}
-        onClose={closeModals}
+        onClose={handleCloseModals}
         title="Evaluate Return Request"
         subtitle={selectedReturn ? `Status: ${selectedReturn.status}` : ''}
         size="lg"
@@ -716,7 +722,7 @@ const ExcessFundReturns = () => {
             <div className="flex flex-wrap gap-3 justify-end pt-4 border-t border-white/5">
               <button
                 type="button"
-                onClick={closeModals}
+                onClick={handleCloseModals}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-400 hover:bg-white/5 transition"
                 disabled={submittingAction}
               >
@@ -757,7 +763,7 @@ const ExcessFundReturns = () => {
       {/* HO Action Modal (review modifications/rejections) */}
       <Modal
         isOpen={showHoActionModal && !!hoActionTarget}
-        onClose={closeModals}
+        onClose={handleCloseModals}
         title="Action Return Request"
         subtitle={hoActionTarget ? `Status: ${hoActionTarget.status}` : ''}
         size="md"
@@ -831,7 +837,7 @@ const ExcessFundReturns = () => {
             <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
               <button
                 type="button"
-                onClick={closeModals}
+                onClick={handleCloseModals}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
                 disabled={submittingHoAction}
               >

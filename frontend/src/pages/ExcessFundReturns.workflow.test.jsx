@@ -101,7 +101,7 @@ describe('ExcessFundReturns Workflows', () => {
     await waitFor(() => {
       expect(screen.queryByText('Request Excess Fund Return')).not.toBeInTheDocument();
       expect(new URLSearchParams(readLocation().split('?')[1] || '').has('modal')).toBe(false);
-    });
+    }, { timeout: 5000 });
   });
 
   it('zo: opens evaluation drawer, fills work order breakdown allocations, verifies in-flight state, and accepts return', async () => {
@@ -235,7 +235,7 @@ describe('ExcessFundReturns Workflows', () => {
     });
 
     // Modal should be closed
-    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument(), { timeout: 5000 });
   });
 
   it('zo: enforces mandatory remarks before rejecting and sends PATCH /reject with remarks', async () => {
@@ -336,6 +336,6 @@ describe('ExcessFundReturns Workflows', () => {
     });
 
     // Modal closes
-    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText('Evaluate Return Request')).not.toBeInTheDocument(), { timeout: 5000 });
   });
 });

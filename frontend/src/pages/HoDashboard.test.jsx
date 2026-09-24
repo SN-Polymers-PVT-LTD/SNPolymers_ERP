@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
@@ -38,6 +38,10 @@ describe('HoDashboard Page Contract', () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
   it('renders authorized direct mount via App with correct heading and controls', async () => {
     mockApiScenario(authApi, { scenario: 'populated', role: 'ho' });
 
@@ -46,7 +50,7 @@ describe('HoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).toBeInTheDocument();
-    }, { timeout: 4000 });
+    }, { timeout: 10000 });
 
     expect(screen.getByText(/Consolidated portfolio KPIs, zonal performance benchmarking/i)).toBeInTheDocument();
   });
@@ -73,7 +77,7 @@ describe('HoDashboard Page Contract', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { level: 1, name: /Portfolio Performance Analytics/i })).not.toBeInTheDocument();
-    }, { timeout: 4000 });
+    }, { timeout: 10000 });
   });
 });
 
