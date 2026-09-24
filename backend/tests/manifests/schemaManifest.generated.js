@@ -65,6 +65,88 @@ module.exports = {
         }
       }
     },
+    "hr_employees": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "('EMP-'::text || (nextval('hr_employee_code_seq'::regclass))::text)"
+        },
+        "employee_name": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "contact_number": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "erp_user_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "joining_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "active_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Active'::text"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
     "sessions": {
       "columns": {
         "id": {

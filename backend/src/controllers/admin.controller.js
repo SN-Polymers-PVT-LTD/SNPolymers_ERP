@@ -159,6 +159,21 @@ async function removeUser(req, res) {
       .maybeSingle();
 
     if (userRecord) {
+      // A linked employee must retain this account and its history. Check before
+      // invalidating sessions or removing mappings in the delete path below.
+      const { count: linkedEmployeeCount, error: linkedEmployeeErr } = await supabase
+        .from('hr_employees')
+        .select('id', { count: 'exact', head: true })
+        .eq('erp_user_id', id);
+
+      if (linkedEmployeeErr) throw linkedEmployeeErr;
+      if (linkedEmployeeCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Cannot delete user: they are linked to an employee record. Deactivate the ERP account instead.'
+        });
+      }
+
       // Check for active estimates
       const { count: estimateCount, error: estErr } = await supabase
         .from('project_cost_estimates')

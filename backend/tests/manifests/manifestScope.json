@@ -1,6 +1,7 @@
 {
   "tables": [
     "authorised_users",
+    "hr_employees",
     "sessions",
     "otp_requests",
     "requisitions",

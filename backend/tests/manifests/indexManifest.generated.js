@@ -9,6 +9,26 @@ module.exports = {
       "table": "authorised_users",
       "definition": "CREATE UNIQUE INDEX authorised_users_pkey ON public.authorised_users USING btree (id)"
     },
+    "hr_employees_employee_code_key": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_employee_code_key ON public.hr_employees USING btree (employee_code)"
+    },
+    "hr_employees_erp_user_id_key": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_erp_user_id_key ON public.hr_employees USING btree (erp_user_id)"
+    },
+    "hr_employees_name_idx": {
+      "table": "hr_employees",
+      "definition": "CREATE INDEX hr_employees_name_idx ON public.hr_employees USING btree (lower(employee_name))"
+    },
+    "hr_employees_pkey": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_pkey ON public.hr_employees USING btree (id)"
+    },
+    "hr_employees_status_category_idx": {
+      "table": "hr_employees",
+      "definition": "CREATE INDEX hr_employees_status_category_idx ON public.hr_employees USING btree (active_status, employee_category)"
+    },
     "idx_activity_breaks_active": {
       "table": "work_order_activity_breaks",
       "definition": "CREATE INDEX idx_activity_breaks_active ON public.work_order_activity_breaks USING btree (work_order_no) WHERE ((status)::text = ANY ((ARRAY['Active'::character varying, 'Reopen Requested'::character varying])::text[]))"
