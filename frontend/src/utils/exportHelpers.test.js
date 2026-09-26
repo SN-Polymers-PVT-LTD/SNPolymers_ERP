@@ -63,11 +63,13 @@ describe('full subcontractor ledger requisition export contract', () => {
 
 const mockAppendSheet = vi.fn();
 const mockWriteFile = vi.fn();
+const mockJsonToSheet = vi.fn((json) => ({ json }));
 
 vi.mock('xlsx', () => ({
   utils: {
     book_new: () => ({ SheetNames: [], Sheets: {} }),
     aoa_to_sheet: (aoa) => ({ aoa }),
+    json_to_sheet: (json) => mockJsonToSheet(json),
     book_append_sheet: (...args) => mockAppendSheet(...args)
   },
   writeFile: (...args) => mockWriteFile(...args)
@@ -77,6 +79,7 @@ describe('exportAllSubcontractorLedgersToExcel', () => {
   beforeEach(() => {
     mockAppendSheet.mockClear();
     mockWriteFile.mockClear();
+    mockJsonToSheet.mockClear();
   });
 
   test('includes Requisitions sheet when requisitions array is non-empty', async () => {
@@ -119,5 +122,99 @@ describe('exportAllSubcontractorLedgersToExcel', () => {
     expect(sheetNames).toContain('Balances Summary');
     expect(sheetNames).not.toContain('Requisitions');
     expect(mockWriteFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('employee and permanent pay structure export contracts', () => {
+  beforeEach(() => {
+    mockAppendSheet.mockClear();
+    mockWriteFile.mockClear();
+    mockJsonToSheet.mockClear();
+  });
+
+  test('exportEmployeesToExcel maps 9 approved columns to Employee Master sheet', async () => {
+    const { exportEmployeesToExcel } = await import('./exportHelpers');
+    await exportEmployeesToExcel([
+      {
+        employee_code: 'EMP-001',
+        employee_name: 'John Doe',
+        employee_category: 'HO Staff',
+        department: 'Head Office',
+        contact_number: '9876543210',
+        erp_user: { role: 'admin', display_name: 'John Admin' },
+        joining_date: '2026-01-01',
+        active_status: 'Active'
+      }
+    ]);
+
+    expect(mockJsonToSheet).toHaveBeenCalledWith([
+      {
+        "Sl. No.": 1,
+        "Employee ID": 'EMP-001',
+        "Employee Name": 'John Doe',
+        "Employee Category": 'HO Staff',
+        "Department / Function": 'Head Office',
+        "Contact Number": '9876543210',
+        "Existing ERP Role": 'admin',
+        "Existing ERP Account": 'John Admin (admin)',
+        "Joining Date": '2026-01-01',
+        "Active Status": 'Active'
+      }
+    ]);
+    expect(mockAppendSheet).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'Employee & Worker Master');
+    expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^Employee_Master_/));
+  });
+
+  test('exportPermanentPayStructuresToExcel maps 11 approved fields to Permanent Pay Structure sheet', async () => {
+    const { exportPermanentPayStructuresToExcel } = await import('./exportHelpers');
+    await exportPermanentPayStructuresToExcel([
+      {
+        employee_code: 'EMP-001',
+        employee_name: 'John Doe',
+        employee_category: 'HO Staff',
+        active_structure: {
+          pay_basis: 'Special package',
+          guaranteed_monthly_gross: 50000,
+          basic_salary: 45000,
+          staff_welfare: 5000,
+          other_fixed_components: 0,
+          epf_enrolment: true,
+          esi_enrolment: false,
+          status: 'Active'
+        }
+      }
+    ]);
+
+    expect(mockJsonToSheet).toHaveBeenCalledWith([
+      {
+        "Sl. No.": 1,
+        "Employee ID": 'EMP-001',
+        "Employee Name": 'John Doe',
+        "Permanent Employee Category": 'HO Staff',
+        "Pay Basis": 'Special package',
+        "Guaranteed Monthly Gross (₹)": 50000,
+        "Basic Salary (₹/month)": 45000,
+        "Staff Welfare (₹/month)": 5000,
+        "Other Fixed Components (₹/month)": 0,
+        "EPF Enrolment": 'Enrolled',
+        "ESI Enrolment": 'Not enrolled',
+        "Pay Structure Status": 'Active'
+      }
+    ]);
+    expect(mockAppendSheet).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'Permanent Pay Structure');
+    expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^Permanent_Pay_Structures_/));
+  });
+
+  test('exportAllEmployeeSheetsToExcel exports single workbook with both sheets', async () => {
+    const { exportAllEmployeeSheetsToExcel } = await import('./exportHelpers');
+    await exportAllEmployeeSheetsToExcel(
+      [{ employee_code: 'EMP-001', employee_name: 'John Doe', employee_category: 'HO Staff', active_status: 'Active' }],
+      [{ employee_code: 'EMP-001', employee_name: 'John Doe', employee_category: 'HO Staff', active_structure: { guaranteed_monthly_gross: 50000, status: 'Active' } }]
+    );
+
+    const sheetNames = mockAppendSheet.mock.calls.map(c => c[2]);
+    expect(sheetNames).toContain('Employee & Worker Master');
+    expect(sheetNames).toContain('Permanent Pay Structure');
+    expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^SN_Polymers_Employee_Master_and_Pay_/));
   });
 });

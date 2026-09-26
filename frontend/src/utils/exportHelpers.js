@@ -1116,3 +1116,199 @@ export async function exportCombinedExpenditureSheet({
   const filename = `Expenditure_Sheet${cleanWo}_${dateSuffix}.xlsx`;
   XLSX.writeFile(workbook, filename);
 }
+
+/**
+ * Exports Employee & Worker Master directory records to Excel.
+ * Follows the approved 9-column UI specification order.
+ *
+ * @param {Array} employees
+ */
+export async function exportEmployeesToExcel(employees) {
+  if (!employees || employees.length === 0) {
+    alert('No employee records to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = employees.map((emp, index) => {
+    const erpUser = emp.erp_user;
+    const erpRole = erpUser?.role || emp.erp_role || (erpUser ? erpUser.role : 'No ERP account');
+    const erpAccount = erpUser
+      ? (erpUser.display_name ? `${erpUser.display_name} (${erpUser.role || ''})` : (erpUser.email || 'ERP User'))
+      : 'No ERP account';
+
+    return {
+      "Sl. No.": index + 1,
+      "Employee ID": emp.employee_code || '',
+      "Employee Name": emp.employee_name || '',
+      "Employee Category": emp.employee_category || '',
+      "Department / Function": emp.department || '',
+      "Contact Number": emp.contact_number || '—',
+      "Existing ERP Role": erpRole || 'No ERP account',
+      "Existing ERP Account": erpAccount,
+      "Joining Date": emp.joining_date || '',
+      "Active Status": emp.active_status || 'Active'
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Employee & Worker Master");
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Employee_Master_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports Permanent Employee Pay Structure records to Excel.
+ * Follows the approved 11-field specification order.
+ *
+ * @param {Array} payRecords Array of permanent employees with active pay structures
+ */
+export async function exportPermanentPayStructuresToExcel(payRecords) {
+  if (!payRecords || payRecords.length === 0) {
+    alert('No permanent employee pay structure records to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = payRecords.map((item, index) => {
+    const emp = item.employee || item;
+    const active = item.active_structure
+      || (Array.isArray(item.pay_structures) ? (item.pay_structures.find(p => p.status === 'Active') || item.pay_structures[0]) : null);
+
+    return {
+      "Sl. No.": index + 1,
+      "Employee ID": emp.employee_code || '',
+      "Employee Name": emp.employee_name || '',
+      "Permanent Employee Category": emp.employee_category || '',
+      "Pay Basis": active?.pay_basis || '—',
+      "Guaranteed Monthly Gross (₹)": active?.guaranteed_monthly_gross != null ? Number(active.guaranteed_monthly_gross) : 0,
+      "Basic Salary (₹/month)": active?.basic_salary != null ? Number(active.basic_salary) : 0,
+      "Staff Welfare (₹/month)": active?.staff_welfare != null ? Number(active.staff_welfare) : 0,
+      "Other Fixed Components (₹/month)": active?.other_fixed_components != null ? Number(active.other_fixed_components) : 0,
+      "EPF Enrolment": active ? (active.epf_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+      "ESI Enrolment": active ? (active.esi_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+      "Pay Structure Status": active?.status || 'No Pay Structure'
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Permanent Pay Structure");
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Permanent_Pay_Structures_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports the revision history of a specific permanent employee to Excel.
+ *
+ * @param {Object} employee
+ * @param {Array} revisions
+ */
+export async function exportEmployeeRevisionsToExcel(employee, revisions) {
+  if (!revisions || revisions.length === 0) {
+    alert('No pay revisions found to export for this employee.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = revisions.map((rev, index) => ({
+    "Sl. No.": index + 1,
+    "Employee ID": employee?.employee_code || '',
+    "Employee Name": employee?.employee_name || '',
+    "Permanent Employee Category": employee?.employee_category || '',
+    "Revision": `Rev #${rev.revision_number}`,
+    "Pay Basis": rev.pay_basis || '',
+    "Guaranteed Monthly Gross (₹)": rev.guaranteed_monthly_gross != null ? Number(rev.guaranteed_monthly_gross) : 0,
+    "Basic Salary (₹/month)": rev.basic_salary != null ? Number(rev.basic_salary) : 0,
+    "Staff Welfare (₹/month)": rev.staff_welfare != null ? Number(rev.staff_welfare) : 0,
+    "Other Fixed Components (₹/month)": rev.other_fixed_components != null ? Number(rev.other_fixed_components) : 0,
+    "EPF Enrolment": rev.epf_enrolment ? 'Enrolled' : 'Not enrolled',
+    "ESI Enrolment": rev.esi_enrolment ? 'Enrolled' : 'Not enrolled',
+    "Status": rev.status || '',
+    "Updated Date": rev.updated_at ? new Date(rev.updated_at).toLocaleDateString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, `Revisions - ${employee?.employee_code || 'EMP'}`);
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Pay_Revisions_${employee?.employee_code || 'EMP'}_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports both Employee Master and Permanent Pay Structure sheets in a single Excel workbook.
+ *
+ * @param {Array} employees
+ * @param {Array} payRecords
+ */
+export async function exportAllEmployeeSheetsToExcel(employees, payRecords) {
+  if ((!employees || employees.length === 0) && (!payRecords || payRecords.length === 0)) {
+    alert('No employee data available to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.utils.book_new();
+
+  // Sheet 1: Employee & Worker Master
+  if (employees && employees.length > 0) {
+    const empRows = employees.map((emp, index) => {
+      const erpUser = emp.erp_user;
+      const erpRole = erpUser?.role || emp.erp_role || (erpUser ? erpUser.role : 'No ERP account');
+      const erpAccount = erpUser
+        ? (erpUser.display_name ? `${erpUser.display_name} (${erpUser.role || ''})` : (erpUser.email || 'ERP User'))
+        : 'No ERP account';
+
+      return {
+        "Sl. No.": index + 1,
+        "Employee ID": emp.employee_code || '',
+        "Employee Name": emp.employee_name || '',
+        "Employee Category": emp.employee_category || '',
+        "Department / Function": emp.department || '',
+        "Contact Number": emp.contact_number || '—',
+        "Existing ERP Role": erpRole || 'No ERP account',
+        "Existing ERP Account": erpAccount,
+        "Joining Date": emp.joining_date || '',
+        "Active Status": emp.active_status || 'Active'
+      };
+    });
+    const empSheet = XLSX.utils.json_to_sheet(empRows);
+    XLSX.utils.book_append_sheet(workbook, empSheet, "Employee & Worker Master");
+  }
+
+  // Sheet 2: Permanent Employee Pay Structure
+  if (payRecords && payRecords.length > 0) {
+    const payRows = payRecords.map((item, index) => {
+      const emp = item.employee || item;
+      const active = item.active_structure
+        || (Array.isArray(item.pay_structures) ? (item.pay_structures.find(p => p.status === 'Active') || item.pay_structures[0]) : null);
+
+      return {
+        "Sl. No.": index + 1,
+        "Employee ID": emp.employee_code || '',
+        "Employee Name": emp.employee_name || '',
+        "Permanent Employee Category": emp.employee_category || '',
+        "Pay Basis": active?.pay_basis || '—',
+        "Guaranteed Monthly Gross (₹)": active?.guaranteed_monthly_gross != null ? Number(active.guaranteed_monthly_gross) : 0,
+        "Basic Salary (₹/month)": active?.basic_salary != null ? Number(active.basic_salary) : 0,
+        "Staff Welfare (₹/month)": active?.staff_welfare != null ? Number(active.staff_welfare) : 0,
+        "Other Fixed Components (₹/month)": active?.other_fixed_components != null ? Number(active.other_fixed_components) : 0,
+        "EPF Enrolment": active ? (active.epf_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+        "ESI Enrolment": active ? (active.esi_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+        "Pay Structure Status": active?.status || 'No Pay Structure'
+      };
+    });
+    const paySheet = XLSX.utils.json_to_sheet(payRows);
+    XLSX.utils.book_append_sheet(workbook, paySheet, "Permanent Pay Structure");
+  }
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `SN_Polymers_Employee_Master_and_Pay_${dateSuffix}.xlsx`);
+}

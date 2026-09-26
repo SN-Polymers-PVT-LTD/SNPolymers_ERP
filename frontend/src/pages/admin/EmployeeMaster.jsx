@@ -30,6 +30,7 @@ import {
   STATUS_OPTIONS,
   ERP_ROLES
 } from './employeeConstants';
+import { exportEmployeesToExcel } from '../../utils/exportHelpers';
 
 const INITIAL_FORM = {
   employee_name: '',
@@ -60,8 +61,6 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   const [form, setForm] = useState(INITIAL_FORM);
   const [formErrors, setFormErrors] = useState({});
 
-  // Account search within modal
-  const [accountSearch, setAccountSearch] = useState('');
 
   // Status Action Modal
   const [statusModalEmployee, setStatusModalEmployee] = useState(null);
@@ -70,6 +69,35 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   // Popups
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Export full filtered/unfiltered employee directory to Excel
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      const params = { page: 1, limit: 1000 };
+      if (debouncedSearch) params.search = debouncedSearch;
+      if (categoryFilter) params.employee_category = categoryFilter;
+      if (statusFilter) params.active_status = statusFilter;
+
+      const firstRes = await getEmployees(params);
+      const allEmps = [...(firstRes.data?.employees || [])];
+      const totalPages = firstRes.data?.pagination?.totalPages || 1;
+
+      for (let p = 2; p <= totalPages; p++) {
+        const nextRes = await getEmployees({ ...params, page: p });
+        allEmps.push(...(nextRes.data?.employees || []));
+      }
+
+      await exportEmployeesToExcel(allEmps);
+      setSuccessMsg('Employee Master exported to Excel successfully.');
+    } catch (err) {
+      console.error('Failed to export employee master:', err);
+      setErrorMsg(err.message || 'Failed to export Employee Master.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Debounce search input
   useEffect(() => {
@@ -108,18 +136,17 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   useEffect(() => {
     setLoadedErpUsersMap({});
     setErpUserPage(1);
-  }, [form.erp_role, accountSearch]);
+  }, [form.erp_role]);
 
-  // Fetch ERP Users when role or account search changes in modal
+  // Fetch ERP Users when role changes in modal
   const {
     data: erpUsersResp,
     isLoading: isLoadingUsers
   } = useQuery({
-    queryKey: ['hr-erp-users', form.erp_role, accountSearch, erpUserPage],
+    queryKey: ['hr-erp-users', form.erp_role, erpUserPage],
     queryFn: async () => {
       const params = { page: erpUserPage, limit: 50 };
       if (form.erp_role) params.role = form.erp_role;
-      if (accountSearch) params.search = accountSearch;
       const res = await getErpUsers(params);
       return res.data;
     },
@@ -163,7 +190,6 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   const handleOpenAdd = () => {
     setEditingEmployee(null);
     setForm(INITIAL_FORM);
-    setAccountSearch('');
     setErpUserPage(1);
     setLoadedErpUsersMap({});
     setFormErrors({});
@@ -183,7 +209,6 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
       joining_date: emp.joining_date || '',
       active_status: emp.active_status || 'Active'
     });
-    setAccountSearch('');
     setErpUserPage(1);
     setLoadedErpUsersMap({});
     setFormErrors({});
@@ -229,6 +254,20 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     }
   });
 
+  const handleContactNumberChange = (e) => {
+    let val = e.target.value;
+    // Allow digits, leading '+', spaces, and hyphens
+    val = val.replace(/[^\d+\s-]/g, '');
+    // Ensure '+' can only be at the very start
+    if (val.indexOf('+') > 0) {
+      val = val[0] + val.slice(1).replace(/\+/g, '');
+    }
+    setForm((prev) => ({ ...prev, contact_number: val }));
+    if (formErrors.contact_number) {
+      setFormErrors((prev) => ({ ...prev, contact_number: '' }));
+    }
+  };
+
   // Validate and submit modal form
   const handleFormSubmit = (e) => {
     e.preventDefault();
@@ -245,6 +284,19 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     }
     if (!form.joining_date) {
       errors.joining_date = 'Joining date is required.';
+    }
+    if (form.contact_number && form.contact_number.trim()) {
+      const raw = form.contact_number.trim();
+      const digits = raw.replace(/\D/g, '');
+      const core10 = (digits.startsWith('91') && digits.length === 12)
+        ? digits.slice(2)
+        : (digits.startsWith('0') && digits.length === 11)
+          ? digits.slice(1)
+          : digits;
+
+      if (core10.length !== 10 || !/^[6-9]\d{9}$/.test(core10)) {
+        errors.contact_number = 'Please enter a valid 10-digit mobile number (e.g. +91 98765 43210 or 9876543210).';
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -291,17 +343,32 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               Company-wide employee identity, workforce classification, and ERP link directory.
             </p>
           </div>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleOpenAdd}
-            className="flex items-center gap-2 self-start md:self-auto shadow-lg shadow-emerald-500/20"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Employee
-          </Button>
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <Button
+              variant="ghost"
+              size="md"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="flex items-center gap-2 border border-white/10 hover:border-white/20 text-slate-300 hover:text-white"
+              title="Export Employee Master to Excel"
+            >
+              <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>{isExporting ? 'Exporting...' : 'Export Excel'}</span>
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={handleOpenAdd}
+              className="flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Employee
+            </Button>
+          </div>
         </div>
 
         {/* Filter Toolbar */}
@@ -602,10 +669,13 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
                 Contact Number (Optional)
               </label>
               <Input
-                type="text"
+                type="tel"
                 placeholder="+91 98765 43210"
+                maxLength={16}
                 value={form.contact_number}
-                onChange={(e) => setForm({ ...form, contact_number: e.target.value })}
+                onChange={handleContactNumberChange}
+                error={formErrors.contact_number}
+                helperText={!formErrors.contact_number ? '10-digit Indian mobile number with optional +91 prefix' : undefined}
               />
             </div>
 
@@ -653,7 +723,6 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
                   onChange={(e) => {
                     const nextRole = e.target.value;
                     setForm({ ...form, erp_role: nextRole, erp_user_id: '' });
-                    setAccountSearch('');
                   }}
                 >
                   <option value="">No ERP account / All Roles</option>
@@ -666,64 +735,52 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               </div>
 
               <div>
-                <div className="space-y-1.5">
-                  {form.erp_role && (
-                    <Input
-                      type="text"
-                      size="sm"
-                      placeholder="Type to filter users..."
-                      value={accountSearch}
-                      onChange={(e) => setAccountSearch(e.target.value)}
-                      className="text-xs"
-                    />
-                  )}
-                  {isLoadingUsers ? (
-                    <div className="h-10 rounded-xl bg-white/5 animate-pulse" />
-                  ) : (
-                    <>
-                      <Select
-                        label="Select ERP Account"
-                        value={form.erp_user_id}
-                        onChange={(e) => setForm({ ...form, erp_user_id: e.target.value })}
-                        disabled={!form.erp_role && availableErpUsers.length === 0}
-                      >
-                        <option value="">— Unlinked / None —</option>
-                        {availableErpUsers.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.display_name || 'User'} {u.mobile_number ? `(${u.mobile_number})` : ''} [{u.role?.toUpperCase() || ''}]
-                          </option>
-                        ))}
-                      </Select>
-                      {erpUsersPagination.totalPages > 1 && (
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
-                          <span>
-                            Page {erpUsersPagination.page} of {erpUsersPagination.totalPages} ({erpUsersPagination.totalItems} accounts)
-                          </span>
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              aria-label="Previous ERP account page"
-                              disabled={erpUserPage <= 1 || isLoadingUsers}
-                              onClick={() => setErpUserPage((p) => Math.max(1, p - 1))}
-                              className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-xs"
-                            >
-                              Previous
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="Next ERP account page"
-                              disabled={erpUserPage >= erpUsersPagination.totalPages || isLoadingUsers}
-                              onClick={() => setErpUserPage((p) => p + 1)}
-                              className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-xs"
-                            >
-                              Next
-                            </button>
-                          </div>
+                {isLoadingUsers ? (
+                  <div className="h-10 rounded-xl bg-white/5 animate-pulse mt-6" />
+                ) : (
+                  <>
+                    <Select
+                      label="Select ERP Account"
+                      value={form.erp_user_id}
+                      onChange={(e) => setForm({ ...form, erp_user_id: e.target.value })}
+                      disabled={!form.erp_role && availableErpUsers.length === 0}
+                    >
+                      <option value="">— Unlinked / None —</option>
+                      {availableErpUsers.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.display_name || 'User'} {u.mobile_number ? `(${u.mobile_number})` : ''} [{u.role?.toUpperCase() || ''}]
+                        </option>
+                      ))}
+                    </Select>
+                    {erpUsersPagination.totalPages > 1 && (
+                      <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+                        <span>
+                          Page {erpUsersPagination.page} of {erpUsersPagination.totalPages} ({erpUsersPagination.totalItems} accounts)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            aria-label="Previous ERP account page"
+                            disabled={erpUserPage <= 1 || isLoadingUsers}
+                            onClick={() => setErpUserPage((p) => Math.max(1, p - 1))}
+                            className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-xs"
+                          >
+                            Previous
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Next ERP account page"
+                            disabled={erpUserPage >= erpUsersPagination.totalPages || isLoadingUsers}
+                            onClick={() => setErpUserPage((p) => p + 1)}
+                            className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed border border-white/10 text-xs"
+                          >
+                            Next
+                          </button>
                         </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>

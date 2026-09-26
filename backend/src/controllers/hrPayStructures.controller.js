@@ -214,7 +214,46 @@ async function suspendPayStructure(req, res) {
   }
 }
 
+async function listPayStructures(req, res) {
+  try {
+    const { data: employees, error } = await supabase
+      .from('hr_employees')
+      .select(`
+        id,
+        employee_code,
+        employee_name,
+        employee_category,
+        department,
+        active_status,
+        pay_structures:hr_permanent_pay_structures(
+          id,
+          revision_number,
+          pay_basis,
+          guaranteed_monthly_gross,
+          basic_salary,
+          staff_welfare,
+          other_fixed_components,
+          epf_enrolment,
+          esi_enrolment,
+          status,
+          created_at,
+          updated_at
+        )
+      `)
+      .in('employee_category', Array.from(PERMANENT_CATEGORIES))
+      .order('employee_code', { ascending: true })
+      .order('revision_number', { foreignTable: 'hr_permanent_pay_structures', ascending: false });
+
+    if (error) throw error;
+
+    return res.json({ success: true, pay_structures: employees || [] });
+  } catch (error) {
+    return sendPayError(res, error);
+  }
+}
+
 module.exports = {
+  listPayStructures,
   getEmployeePayStructures,
   createPayStructure,
   activatePayStructure,

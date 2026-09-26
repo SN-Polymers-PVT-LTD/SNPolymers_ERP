@@ -16,9 +16,8 @@ export const PERMANENT_CATEGORIES = new Set([
 
 export const DEPARTMENTS = [
   'Head Office',
-  'Accounts',
   'Fabric Factory',
-  'Manufacturing Factory',
+  'SNP Factory',
   'Projects'
 ];
 

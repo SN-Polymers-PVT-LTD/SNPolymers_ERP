@@ -8,6 +8,11 @@ import { ModalProvider } from '../../components/ModalContext';
 import EmployeeManagement from './EmployeeManagement';
 import { CATEGORIES, DEPARTMENTS } from './employeeConstants';
 import authApi from '../../api/authApi';
+import {
+  exportEmployeesToExcel,
+  exportPermanentPayStructuresToExcel,
+  exportAllEmployeeSheetsToExcel
+} from '../../utils/exportHelpers';
 
 vi.mock('../../api/authApi', () => ({
   default: {
@@ -17,6 +22,17 @@ vi.mock('../../api/authApi', () => ({
     delete: vi.fn()
   }
 }));
+
+vi.mock('../../utils/exportHelpers', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    exportEmployeesToExcel: vi.fn(),
+    exportPermanentPayStructuresToExcel: vi.fn(),
+    exportEmployeeRevisionsToExcel: vi.fn(),
+    exportAllEmployeeSheetsToExcel: vi.fn()
+  };
+});
 
 const mockEmployees = [
   {
@@ -218,7 +234,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(headers[8]).toHaveTextContent('Active Status');
   });
 
-  it('contains the approved 6 category labels and 5 department options', () => {
+  it('contains the approved 6 category labels and 4 department options', () => {
     const expectedCategories = [
       'HO Staff',
       'Fabric Factory Permanent Employees',
@@ -231,9 +247,8 @@ describe('Phase 1 Employee Management Component Contracts', () => {
 
     const expectedDepartments = [
       'Head Office',
-      'Accounts',
       'Fabric Factory',
-      'Manufacturing Factory',
+      'SNP Factory',
       'Projects'
     ];
     expect(DEPARTMENTS).toEqual(expectedDepartments);
@@ -261,6 +276,51 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     await waitFor(() => {
       expect(authApi.get).toHaveBeenCalledWith('/hr/employees/erp-users', expect.objectContaining({
         params: expect.objectContaining({ role: 'admin' })
+      }));
+    });
+  });
+
+  it('enforces frontend contact number restriction and validation', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<EmployeeManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('EMP-001')).toBeInTheDocument();
+    });
+
+    const addBtn = screen.getByRole('button', { name: /Add Employee/i });
+    await user.click(addBtn);
+
+    const contactInput = screen.getByPlaceholderText('+91 98765 43210');
+    expect(contactInput).toHaveAttribute('maxLength', '16');
+
+    // Filter non-phone characters
+    await user.type(contactInput, 'abc98765');
+    expect(contactInput).toHaveValue('98765');
+
+    // Fill in required fields
+    const nameInput = screen.getByPlaceholderText(/e\.g\. Ramesh Chandra Sen/i);
+    await user.type(nameInput, 'Test Employee');
+    const dateInput = screen.getByDisplayValue(new Date().toISOString().split('T')[0]);
+    expect(dateInput).toBeInTheDocument();
+
+    // Try submitting with invalid short contact number
+    const submitBtn = screen.getByRole('button', { name: /Create Employee/i });
+    await user.click(submitBtn);
+
+    expect(screen.getByText(/Please enter a valid 10-digit mobile number/i)).toBeInTheDocument();
+
+    // Now complete with valid 10-digit number
+    await user.clear(contactInput);
+    await user.type(contactInput, '+91 98765 43210');
+    expect(contactInput).toHaveValue('+91 98765 43210');
+
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(authApi.post).toHaveBeenCalledWith('/hr/employees', expect.objectContaining({
+        employee_name: 'Test Employee',
+        contact_number: '+91 98765 43210'
       }));
     });
   });
@@ -333,9 +393,11 @@ describe('Phase 1 Employee Management Component Contracts', () => {
 
     await user.clear(grossInput);
     await user.type(grossInput, '20000');
+    expect(grossInput.value).toBe('20,000');
 
     await user.clear(basicInput);
     await user.type(basicInput, '25000');
+    expect(basicInput.value).toBe('25,000');
 
     // Reconciliation warning should appear and submit button disabled
     await waitFor(() => {
@@ -385,10 +447,9 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     });
   });
 
-  it('handles pay structure draft activation via API', async () => {
+  it('creates a new pay structure revision immediately as Active', async () => {
     const user = userEvent.setup();
 
-    // Mock pay structure with an existing pending draft
     authApi.get.mockImplementation((url) => {
       if (url === '/hr/employees') {
         return Promise.resolve({
@@ -405,23 +466,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
             success: true,
             employee: mockEmployees[0],
             active_structure: mockPayStructure.active_structure,
-            revisions: [
-              mockPayStructure.active_structure,
-              {
-                id: 'ps-draft-uuid',
-                employee_id: 'emp-1-uuid',
-                revision_number: 2,
-                pay_basis: 'Monthly salary',
-                guaranteed_monthly_gross: 55000,
-                basic_salary: 32000,
-                staff_welfare: 5000,
-                other_fixed_components: 5000,
-                epf_enrolment: true,
-                esi_enrolment: false,
-                status: 'Draft',
-                updated_at: '2025-02-01T10:00:00.000Z'
-              }
-            ]
+            revisions: [mockPayStructure.active_structure]
           }
         });
       }
@@ -431,14 +476,29 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     renderWithClient(<EmployeeManagement />, ['/admin/employee-management?tab=pay-structure&employeeId=emp-1-uuid']);
 
     await waitFor(() => {
-      expect(screen.getByText(/Pending Draft Revision #2/i)).toBeInTheDocument();
+      expect(screen.getByText('Current Active Pay Structure')).toBeInTheDocument();
     });
 
-    const activateBtn = screen.getByRole('button', { name: /Activate Revision/i });
-    await user.click(activateBtn);
+    const createRevBtn = screen.getByRole('button', { name: /Create New Revision/i });
+    await user.click(createRevBtn);
 
     await waitFor(() => {
-      expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures/ps-draft-uuid/activate');
+      expect(screen.getByRole('heading', { name: /Configure Pay Structure Revision/i })).toBeInTheDocument();
+    });
+
+    const grossInput = screen.getByPlaceholderText(/e\.g\. 45000/i);
+    await user.clear(grossInput);
+    await user.type(grossInput, '60000');
+
+    const saveBtn = screen.getByRole('button', { name: /Save Pay Structure/i });
+    await user.click(saveBtn);
+
+    await waitFor(() => {
+      expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures', expect.objectContaining({
+        employee_id: 'emp-1-uuid',
+        guaranteed_monthly_gross: 60000,
+        status: 'Active'
+      }));
     });
   });
 
@@ -478,10 +538,9 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(screen.queryByRole('button', { name: /Configure Pay Structure/i })).not.toBeInTheDocument();
   });
 
-  it('submits an edited draft without employee_id in the PATCH payload', async () => {
+  it('suspends an active pay structure via confirmation modal and API', async () => {
     const user = userEvent.setup();
 
-    // Mock pay structure with an existing pending draft
     authApi.get.mockImplementation((url) => {
       if (url === '/hr/employees') {
         return Promise.resolve({
@@ -498,23 +557,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
             success: true,
             employee: mockEmployees[0],
             active_structure: mockPayStructure.active_structure,
-            revisions: [
-              mockPayStructure.active_structure,
-              {
-                id: 'ps-draft-uuid',
-                employee_id: 'emp-1-uuid',
-                revision_number: 2,
-                pay_basis: 'Monthly salary',
-                guaranteed_monthly_gross: 55000,
-                basic_salary: 32000,
-                staff_welfare: 5000,
-                other_fixed_components: 5000,
-                epf_enrolment: true,
-                esi_enrolment: false,
-                status: 'Draft',
-                updated_at: '2025-02-01T10:00:00.000Z'
-              }
-            ]
+            revisions: [mockPayStructure.active_structure]
           }
         });
       }
@@ -524,35 +567,23 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     renderWithClient(<EmployeeManagement />, ['/admin/employee-management?tab=pay-structure&employeeId=emp-1-uuid']);
 
     await waitFor(() => {
-      expect(screen.getByText(/Pending Draft Revision #2/i)).toBeInTheDocument();
+      expect(screen.getByText('Current Active Pay Structure')).toBeInTheDocument();
     });
 
-    const editDraftBtn = screen.getByRole('button', { name: /Edit Draft/i });
-    await user.click(editDraftBtn);
+    const suspendBtn = screen.getByRole('button', { name: /Suspend Pay Structure/i });
+    await user.click(suspendBtn);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /Edit Draft Pay Structure/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Suspend Pay Structure/i })).toBeInTheDocument();
     });
 
-    const basicSalaryInput = screen.getByLabelText(/6\. Basic Salary/i);
-    await user.clear(basicSalaryInput);
-    await user.type(basicSalaryInput, '34000');
+    expect(screen.getByText(/While suspended, this employee will have no active pay structure/i)).toBeInTheDocument();
 
-    const updateDraftBtn = screen.getByRole('button', { name: /Update Draft/i });
-    await user.click(updateDraftBtn);
+    const confirmBtn = screen.getByRole('button', { name: /Confirm Suspension/i });
+    await user.click(confirmBtn);
 
     await waitFor(() => {
-      expect(authApi.patch).toHaveBeenCalledWith('/hr/pay-structures/ps-draft-uuid', expect.any(Object));
-    });
-
-    const patchCall = authApi.patch.mock.calls.find((call) => call[0] === '/hr/pay-structures/ps-draft-uuid');
-    expect(patchCall).toBeDefined();
-    expect(patchCall[1]).not.toHaveProperty('employee_id');
-    expect(patchCall[1]).toMatchObject({
-      pay_basis: 'Monthly salary',
-      guaranteed_monthly_gross: 55000,
-      basic_salary: 34000,
-      status: 'Draft'
+      expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures/ps-active-uuid/suspend');
     });
   });
 
@@ -717,6 +748,115 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     const accountSelect = screen.getByLabelText(/Select ERP Account/i);
     await user.selectOptions(accountSelect, 'usr-je-page2');
     expect(accountSelect.value).toBe('usr-je-page2');
+  });
+
+  it('provides Excel export for Employee Master, Permanent Pay Structure, and combined workbook', async () => {
+    const user = userEvent.setup();
+    authApi.get.mockImplementation((url) => {
+      if (url === '/hr/employees') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            employees: mockEmployees,
+            pagination: { page: 1, totalPages: 1, totalItems: 2, limit: 15 }
+          }
+        });
+      }
+      if (url === '/hr/pay-structures') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            pay_structures: [
+              {
+                id: 'emp-1-uuid',
+                employee_code: 'EMP-001',
+                employee_name: 'Amit Sharma',
+                employee_category: 'HO Staff',
+                department: 'Head Office',
+                active_status: 'Active',
+                pay_structures: [
+                  {
+                    id: 'ps-1-uuid',
+                    revision_number: 1,
+                    pay_basis: 'Special package',
+                    guaranteed_monthly_gross: 50000,
+                    basic_salary: 45000,
+                    staff_welfare: 5000,
+                    other_fixed_components: 0,
+                    epf_enrolment: true,
+                    esi_enrolment: false,
+                    status: 'Active'
+                  }
+                ]
+              }
+            ]
+          }
+        });
+      }
+      if (url.startsWith('/hr/pay-structures/employees/')) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            employee: mockEmployees[0],
+            active_structure: {
+              id: 'ps-1-uuid',
+              revision_number: 1,
+              pay_basis: 'Special package',
+              guaranteed_monthly_gross: 50000,
+              basic_salary: 45000,
+              staff_welfare: 5000,
+              other_fixed_components: 0,
+              epf_enrolment: true,
+              esi_enrolment: false,
+              status: 'Active'
+            },
+            revisions: []
+          }
+        });
+      }
+      return Promise.resolve({ data: { success: true } });
+    });
+
+    renderWithClient(<EmployeeManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('EMP-001')).toBeInTheDocument();
+    });
+
+    // 1. Test Export Excel on Employee Master tab
+    const exportMasterBtn = screen.getByRole('button', { name: /Export Excel/i });
+    await user.click(exportMasterBtn);
+
+    await waitFor(() => {
+      expect(exportEmployeesToExcel).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ employee_code: 'EMP-001' })
+      ]));
+    });
+
+    // 2. Test Combined Workbook Export from header
+    const exportBothBtn = screen.getByRole('button', { name: /Export Both Sheets/i });
+    await user.click(exportBothBtn);
+
+    await waitFor(() => {
+      expect(exportAllEmployeeSheetsToExcel).toHaveBeenCalled();
+    });
+
+    // 3. Switch to Permanent Pay Structure tab and test Export Excel
+    const payTabBtn = screen.getByRole('button', { name: /Permanent Employee Pay Structure/i });
+    await user.click(payTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: /Permanent Employee Pay Structure/i })).toBeInTheDocument();
+    });
+
+    const exportPayBtn = screen.getByRole('button', { name: /Export Excel/i });
+    await user.click(exportPayBtn);
+
+    await waitFor(() => {
+      expect(exportPermanentPayStructuresToExcel).toHaveBeenCalledWith(expect.arrayContaining([
+        expect.objectContaining({ employee_code: 'EMP-001' })
+      ]));
+    });
   });
 });
 

@@ -2,7 +2,7 @@
 
 **Phase:** 1 — Employee & Worker Master and Permanent Employee Pay Structure  
 **Document status:** Implementation specification / working agreement; not evidence of completed code  
-**Last updated:** 24 September 2026  
+**Last updated:** 26 September 2026
 **Navigation / ownership:** Existing Admin module → Employee Management; Admin-only maintenance (confirmed client decision)  
 **UI source of truth:** `SN_Polymers_Employee_Master_Pay_Structure_Client_UI.xlsx` (client-renamed copy of the latest approved v2 workbook)  
 **Related input:** Codex Phase 1 repository inspection and updated plan. The workbook defines the **user-facing screens**; it is **not** a database schema.
@@ -45,9 +45,9 @@ Category-based behaviour for future modules (attendance required, leave applicat
 | 2 | Employee Name | Admin-entered full name. |
 | 3 | Employee Category | Dropdown containing the six exact labels in §2. |
 | 4 | Department / Function | Controlled selection; do **not** include worksite or project assignment in this screen. |
-| 5 | Contact Number | Optional contact field; not the employee identity key or automatically a login. |
+| 5 | Contact Number | Optional Indian mobile number; accept a 10-digit Indian mobile number with optional `+91` or leading `0` prefix. It is not the employee identity key or automatically a login. |
 | 6 | Existing ERP Role | Dropdown used to filter account choices when an existing ERP login is linked. For an unlinked worker, show **No ERP account**. Do not persist this as a second, conflicting ERP role. |
-| 7 | Existing ERP Account | Searchable, role-filtered dropdown populated from actual existing ERP users. Optional and unique: one ERP user cannot be linked to multiple employee records. No arbitrary typed account ID and no automatic account creation. |
+| 7 | Existing ERP Account | Native searchable, role-filtered dropdown populated from actual existing ERP users. Use the browser's built-in select search; a separate search field is not required. Optional and unique: one ERP user cannot be linked to multiple employee records. No arbitrary typed account ID and no automatic account creation. |
 | 8 | Joining Date | Admin-entered date; do not infer a joining date from the existing login. |
 | 9 | Active Status | **Final visible column**; Active, Inactive or Exited. Preserve the record and historical references when changing status. |
 
@@ -71,7 +71,9 @@ This is a **separate screen linked to the same Employee ID**, available only for
 | 8 | Other Fixed Components (₹/month) | Fixed recurring components only; variable allowances, bonus, holiday duty and OT are outside this screen. |
 | 9 | EPF Enrolment | Admin-recorded selection; keep separate from ESI. |
 | 10 | ESI Enrolment | Admin-recorded selection; keep separate from EPF. |
-| 11 | Pay Structure Status | Draft / Active / Superseded; this is separate from an employee's Active Status. |
+| 11 | Pay Structure Status | Active / Superseded; a newly created revision becomes Active immediately and supersedes the previously active revision. This is separate from an employee's Active Status. |
+
+**Client decision, 26 September 2026:** Pay structures do not require a Draft review/activation step. Creating a revision activates it immediately; suspension is an available explicit action, and prior revisions remain in history. The earlier Draft → Activate workflow is superseded by this decision.
 
 **Not present in this screen or Phase 1 pay API write contract:** Annual Package amount; `Annual package` pay-basis option; Salary Effective From; Payment Method; Payment Details Verified; bank details; casual/local wage/duty rates.
 
@@ -118,7 +120,9 @@ Codex suggested the next forward HR migration and module-specific routes/control
 - [ ] Employee records can exist without ERP login accounts; linking an existing user neither creates a new login nor changes their existing role.
 - [ ] ERP role and user choices come from the live directory; account links cannot be duplicated, fabricated or reused across employees.
 - [ ] Only employees in the four permanent categories can receive a permanent pay structure.
-- [ ] Only one active pay revision exists per employee; historical approved revisions remain readable after changes.
+- [ ] Only one active pay revision exists per employee; creating a revision activates it and supersedes the previous active revision, and historical revisions remain readable after changes.
+- [ ] Contact number is optional and, when supplied, accepts an Indian mobile number with the agreed optional country/leading-zero prefix.
+- [ ] Existing ERP account selection uses the native searchable role-filtered dropdown; no separate account-search input is required.
 - [ ] General employee-directory responses do not contain salary or statutory enrolment data; all employee and pay operations are protected by existing Admin authorization at the API and UI levels. No HR role, separate HR workspace or launcher is introduced.
 - [ ] No attendance, leave, wage-rate setup, payroll calculation, payment or statutory-formula feature is accidentally implemented in this phase.
 - [ ] No unrelated local changes are overwritten; Codex reports test results and stops at the requested stage for review.

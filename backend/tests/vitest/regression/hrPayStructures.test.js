@@ -373,4 +373,25 @@ describe('HR permanent pay structures (Stage 2)', () => {
     expect(hoRecent.status).toBe(200);
     expect(hoRecent.body.activities.every(row => !String(row.module_name).startsWith('HR '))).toBe(true);
   });
+
+  test('GET /api/v1/auth/hr/pay-structures lists permanent employees and their pay structures for admin only', async () => {
+    const adminToken = await tokenFor(admin);
+    const jeToken = await tokenFor(nonAdmin);
+
+    const unauth = await requestRoute('GET', '/api/v1/auth/hr/pay-structures');
+    expect(unauth.status).toBe(401);
+
+    const forbidden = await requestRoute('GET', '/api/v1/auth/hr/pay-structures', jeToken);
+    expect(forbidden.status).toBe(403);
+
+    const res = await requestRoute('GET', '/api/v1/auth/hr/pay-structures', adminToken);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.pay_structures)).toBe(true);
+    expect(res.body.pay_structures.length).toBeGreaterThan(0);
+    const item = res.body.pay_structures.find(p => p.id === permanentEmp.id);
+    expect(item).toBeTruthy();
+    expect(item.employee_name).toBe(permanentEmp.employee_name);
+    expect(Array.isArray(item.pay_structures)).toBe(true);
+  });
 });
