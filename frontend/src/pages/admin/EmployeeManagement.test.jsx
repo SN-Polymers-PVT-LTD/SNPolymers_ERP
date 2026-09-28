@@ -538,6 +538,35 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(screen.queryByRole('button', { name: /Configure Pay Structure/i })).not.toBeInTheDocument();
   });
 
+  it('does not expose Configure Pay Structure or Create New Revision when pay structure query fails', async () => {
+    authApi.get.mockImplementation((url) => {
+      if (url === '/hr/employees') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            employees: mockEmployees,
+            pagination: { page: 1, totalPages: 1, totalItems: 2, limit: 15 }
+          }
+        });
+      }
+      if (url.startsWith('/hr/pay-structures/employees/')) {
+        return Promise.reject(new Error('Network error loading pay structure'));
+      }
+      return Promise.resolve({ data: { success: true } });
+    });
+
+    renderWithClient(<EmployeeManagement />, ['/admin/employee-management?tab=pay-structure&employeeId=emp-1-uuid']);
+
+    // Error card should be displayed and authoritative
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load pay structure details')).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Configure Pay Structure/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Create New Revision/i })).not.toBeInTheDocument();
+  });
+
   it('suspends an active pay structure via confirmation modal and API', async () => {
     const user = userEvent.setup();
 

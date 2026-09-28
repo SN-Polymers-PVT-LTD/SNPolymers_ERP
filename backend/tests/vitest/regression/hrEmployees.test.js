@@ -138,4 +138,47 @@ describe('HR employee master', () => {
     if (readError) throw readError;
     expect(retainedSession.is_active).toBe(true);
   });
+
+  test('validates Indian mobile numbers and rejects invalid contact numbers', () => {
+    const schema = require('../../../src/validation/hrEmployees.schema');
+    const validSamples = [
+      '9876543210',
+      '+91 98765 43210',
+      '+91-9876543210',
+      '09876543210',
+      null,
+      undefined,
+      ''
+    ];
+    for (const contact_number of validSamples) {
+      const parsed = schema.create.body.safeParse({
+        employee_name: 'Valid Phone',
+        employee_category: 'HO Staff',
+        department: 'Head Office',
+        joining_date: '2026-01-01',
+        contact_number
+      });
+      expect(parsed.success).toBe(true);
+    }
+
+    const invalidSamples = [
+      'abcdef',
+      '123',
+      '+44 123456789',
+      '++91 9876543210',
+      '+91 1234567890',
+      '5987654321',
+      '+91 9876543210123'
+    ];
+    for (const contact_number of invalidSamples) {
+      const parsed = schema.create.body.safeParse({
+        employee_name: 'Invalid Phone',
+        employee_category: 'HO Staff',
+        department: 'Head Office',
+        joining_date: '2026-01-01',
+        contact_number
+      });
+      expect(parsed.success).toBe(false);
+    }
+  });
 });

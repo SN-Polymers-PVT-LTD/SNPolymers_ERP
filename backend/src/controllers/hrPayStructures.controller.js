@@ -76,8 +76,7 @@ async function createPayStructure(req, res) {
       staff_welfare = null,
       other_fixed_components = null,
       epf_enrolment = false,
-      esi_enrolment = false,
-      status = 'Active'
+      esi_enrolment = false
     } = req.body;
 
     const { data: employee, error: empErr } = await supabase
@@ -107,91 +106,13 @@ async function createPayStructure(req, res) {
       p_other_fixed_components: other_fixed_components,
       p_epf_enrolment: epf_enrolment,
       p_esi_enrolment: esi_enrolment,
-      p_status: status,
+      p_status: 'Active',
       p_actor_id: req.user.id
     });
 
     if (error) throw error;
 
     return res.status(201).json({ success: true, pay_structure: data });
-  } catch (error) {
-    return sendPayError(res, error);
-  }
-}
-
-async function activatePayStructure(req, res) {
-  try {
-    const { id } = req.params;
-
-    const { data, error } = await supabase.rpc('activate_hr_pay_structure', {
-      p_pay_structure_id: id,
-      p_actor_id: req.user.id
-    });
-
-    if (error) throw error;
-
-    return res.json({ success: true, pay_structure: data });
-  } catch (error) {
-    return sendPayError(res, error);
-  }
-}
-
-async function updateDraftPayStructure(req, res) {
-  try {
-    const { id } = req.params;
-
-    const { data: existing, error: findErr } = await supabase
-      .from('hr_permanent_pay_structures')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (findErr) throw findErr;
-    if (!existing) {
-      return res.status(404).json({ success: false, message: 'Pay structure revision not found.' });
-    }
-
-    if (existing.status !== 'Draft') {
-      return res.status(409).json({
-        success: false,
-        message: 'Active or Superseded pay structures cannot be modified directly. Create a new revision.'
-      });
-    }
-
-    const nextStatus = req.body.status;
-    const fieldsToUpdate = { ...req.body };
-    delete fieldsToUpdate.status;
-
-    if (Object.keys(fieldsToUpdate).length > 0) {
-      const { error: updErr } = await supabase
-        .from('hr_permanent_pay_structures')
-        .update({
-          ...fieldsToUpdate,
-          updated_by: req.user.id
-        })
-        .eq('id', id);
-
-      if (updErr) throw updErr;
-    }
-
-    if (nextStatus === 'Active') {
-      const { data: activated, error: actErr } = await supabase.rpc('activate_hr_pay_structure', {
-        p_pay_structure_id: id,
-        p_actor_id: req.user.id
-      });
-      if (actErr) throw actErr;
-      return res.json({ success: true, pay_structure: activated });
-    }
-
-    const { data: refreshed, error: refErr } = await supabase
-      .from('hr_permanent_pay_structures')
-      .select(payStructureSelect)
-      .eq('id', id)
-      .single();
-
-    if (refErr) throw refErr;
-
-    return res.json({ success: true, pay_structure: refreshed });
   } catch (error) {
     return sendPayError(res, error);
   }
@@ -256,7 +177,5 @@ module.exports = {
   listPayStructures,
   getEmployeePayStructures,
   createPayStructure,
-  activatePayStructure,
-  suspendPayStructure,
-  updateDraftPayStructure
+  suspendPayStructure
 };

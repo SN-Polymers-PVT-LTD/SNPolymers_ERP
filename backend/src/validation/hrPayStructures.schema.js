@@ -26,24 +26,8 @@ const createBody = z.object({
   other_fixed_components: optionalMoney,
   epf_enrolment: z.boolean().default(false),
   esi_enrolment: z.boolean().default(false),
-  status: z.enum(['Draft', 'Active']).default('Active')
+  status: z.literal('Active').default('Active')
 }).strict().refine(validateReconciliation, {
-  message: 'Sum of fixed components (Basic + Staff Welfare + Other Fixed) cannot exceed Guaranteed Monthly Gross.',
-  path: ['guaranteed_monthly_gross']
-});
-
-const updateBody = z.object({
-  pay_basis: z.enum(payBases).optional(),
-  guaranteed_monthly_gross: money.optional(),
-  basic_salary: optionalMoney,
-  staff_welfare: optionalMoney,
-  other_fixed_components: optionalMoney,
-  epf_enrolment: z.boolean().optional(),
-  esi_enrolment: z.boolean().optional(),
-  status: z.enum(['Draft', 'Active']).optional()
-}).strict().refine(v => Object.keys(v).length > 0, {
-  message: 'At least one field must be provided for update.'
-}).refine(validateReconciliation, {
   message: 'Sum of fixed components (Basic + Staff Welfare + Other Fixed) cannot exceed Guaranteed Monthly Gross.',
   path: ['guaranteed_monthly_gross']
 });
@@ -51,6 +35,5 @@ const updateBody = z.object({
 module.exports = {
   employeeParam: { params: z.object({ employeeId: uuid }) },
   idParam: { params: z.object({ id: uuid }) },
-  create: { body: createBody },
-  update: { params: z.object({ id: uuid }), body: updateBody }
+  create: { body: createBody }
 };

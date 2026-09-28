@@ -71,9 +71,14 @@ This is a **separate screen linked to the same Employee ID**, available only for
 | 8 | Other Fixed Components (₹/month) | Fixed recurring components only; variable allowances, bonus, holiday duty and OT are outside this screen. |
 | 9 | EPF Enrolment | Admin-recorded selection; keep separate from ESI. |
 | 10 | ESI Enrolment | Admin-recorded selection; keep separate from EPF. |
-| 11 | Pay Structure Status | Active / Superseded; a newly created revision becomes Active immediately and supersedes the previously active revision. This is separate from an employee's Active Status. |
+| 11 | Pay Structure Status | Active / Suspended / Superseded; a newly created revision becomes Active immediately and supersedes any previously active or suspended revision. This is separate from an employee's Active Status. |
 
-**Client decision, 26 September 2026:** Pay structures do not require a Draft review/activation step. Creating a revision activates it immediately; suspension is an available explicit action, and prior revisions remain in history. The earlier Draft → Activate workflow is superseded by this decision.
+**Client decision, 26 September 2026 (Pay Structure Lifecycle):**
+Pay structures do not use a Draft review/activation step. The lifecycle consists of three distinct states:
+1. **`Active`** — Authoritative, currently effective compensation terms. At most one active revision exists per employee.
+2. **`Suspended`** — Explicit Admin action to temporarily suspend compensation terms.
+3. **`Superseded`** — Terminal historical status. When an Admin creates a new revision, the system immediately creates an `Active` record and atomically transitions any existing `Active` or `Suspended` revision to `Superseded`.
+4. **Reactivation rule** — To reactivate compensation for an employee with a `Suspended` structure, the Admin creates a new revision. Prior revisions remain permanently in audit history. The superseded Draft → Activate workflow and standalone activation endpoints are removed.
 
 **Not present in this screen or Phase 1 pay API write contract:** Annual Package amount; `Annual package` pay-basis option; Salary Effective From; Payment Method; Payment Details Verified; bank details; casual/local wage/duty rates.
 
@@ -103,7 +108,7 @@ Maintain a clean separation between directory and pay endpoints: **the general e
 Codex suggested the next forward HR migration and module-specific routes/controllers/validation/services within the current monorepo. Verify the next available migration number at implementation time rather than assuming `093` remains unused.
 
 1. **Stage 1 — Employee foundation:** migration, category list, employee code generation, employee CRUD/search/filter/pagination, existing-account lookup/linking, Admin-only permissions, deactivation, uniqueness and regression tests. Do not create records for current users by guessing their category, department or joining date.
-2. **Stage 2 — Permanent pay records:** versioned permanent pay structures, separate protected read/write API, draft/activate/supersede operations, validation and transaction/concurrency tests. No payment, statutory calculation or attendance tables.
+2. **Stage 2 — Permanent pay records:** versioned permanent pay structures, separate protected read/write API, immediate Active revision creation, suspension action, automatic supersession, validation and transaction/concurrency tests. No payment, statutory calculation or attendance tables.
 3. **Stage 3 — Admin integration:** Add **Admin → Employee Management** navigation, with the lean Employee & Worker Master list/form and a separate Permanent Employee Pay Structure screen under Admin-protected routes. Use the existing Admin layout/sidebar and shared dropdown/UI patterns, with loading/empty/error/success handling. **Do not add an HR module launcher, standalone HR workspace or HR role.**
 4. **Stage 4 — Integration and review:** database/schema contract tests, relevant frontend/build/lint tests, Admin auth and user-management regression, Projects/Accounts route regression, and review of exact UI field order. Do not commit or push unless explicitly requested.
 

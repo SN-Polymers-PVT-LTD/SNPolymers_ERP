@@ -13,11 +13,5 @@ export const getEmployeePayStructures = (employeeId) =>
 export const createPayStructure = (data) =>
   authApi.post('/hr/pay-structures', data);
 
-export const activatePayStructure = (id) =>
-  authApi.post(`/hr/pay-structures/${id}/activate`);
-
-export const updateDraftPayStructure = (id, data) =>
-  authApi.patch(`/hr/pay-structures/${id}`, data);
-
 export const suspendPayStructure = (id) =>
   authApi.post(`/hr/pay-structures/${id}/suspend`);

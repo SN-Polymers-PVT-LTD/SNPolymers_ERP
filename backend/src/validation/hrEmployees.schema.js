@@ -9,7 +9,33 @@ const departments = ['Head Office', 'Fabric Factory', 'SNP Factory', 'Projects']
 const statuses = ['Active', 'Inactive', 'Exited'];
 const roles = ['admin', 'je', 'zo', 'ho', 'accounts'];
 const date = z.iso.date();
-const contact = z.union([z.string().trim().min(1).max(30), z.null()]).optional();
+
+function isValidIndianMobile(val) {
+  if (val === null || val === undefined || val === '') return true;
+  if (typeof val !== 'string') return false;
+  const trimmed = val.trim();
+  if (!trimmed) return true;
+
+  if (!/^\+?[\d\s-]+$/.test(trimmed)) return false;
+  if ((trimmed.match(/\+/g) || []).length > 1) return false;
+  if (trimmed.startsWith('+') && !trimmed.startsWith('+91')) return false;
+
+  const digits = trimmed.replace(/\D/g, '');
+  const core10 = (digits.startsWith('91') && digits.length === 12)
+    ? digits.slice(2)
+    : (digits.startsWith('0') && digits.length === 11)
+      ? digits.slice(1)
+      : digits;
+
+  return core10.length === 10 && /^[6-9]\d{9}$/.test(core10);
+}
+
+const contact = z.union([
+  z.string().trim().max(30).refine(isValidIndianMobile, {
+    message: 'Contact number must be an optional 10-digit Indian mobile number with optional +91 or leading 0 prefix.'
+  }).transform(v => (v === '' ? null : v)),
+  z.null()
+]).optional();
 const link = z.union([uuid, z.null()]).optional();
 
 const fields = {

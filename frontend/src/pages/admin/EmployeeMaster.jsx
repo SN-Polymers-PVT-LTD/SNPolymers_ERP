@@ -258,9 +258,11 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     let val = e.target.value;
     // Allow digits, leading '+', spaces, and hyphens
     val = val.replace(/[^\d+\s-]/g, '');
-    // Ensure '+' can only be at the very start
-    if (val.indexOf('+') > 0) {
-      val = val[0] + val.slice(1).replace(/\+/g, '');
+    // Ensure '+' can only be a single leading character
+    const hasLeadingPlus = val.startsWith('+');
+    val = val.replace(/\+/g, '');
+    if (hasLeadingPlus) {
+      val = '+' + val;
     }
     setForm((prev) => ({ ...prev, contact_number: val }));
     if (formErrors.contact_number) {
@@ -287,6 +289,10 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     }
     if (form.contact_number && form.contact_number.trim()) {
       const raw = form.contact_number.trim();
+      const hasMultiplePlus = (raw.match(/\+/g) || []).length > 1;
+      const invalidChars = !/^\+?[\d\s-]+$/.test(raw);
+      const invalidPlus = raw.startsWith('+') && !raw.startsWith('+91');
+
       const digits = raw.replace(/\D/g, '');
       const core10 = (digits.startsWith('91') && digits.length === 12)
         ? digits.slice(2)
@@ -294,7 +300,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
           ? digits.slice(1)
           : digits;
 
-      if (core10.length !== 10 || !/^[6-9]\d{9}$/.test(core10)) {
+      if (hasMultiplePlus || invalidChars || invalidPlus || core10.length !== 10 || !/^[6-9]\d{9}$/.test(core10)) {
         errors.contact_number = 'Please enter a valid 10-digit mobile number (e.g. +91 98765 43210 or 9876543210).';
       }
     }

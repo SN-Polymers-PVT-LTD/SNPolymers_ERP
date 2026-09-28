@@ -23,8 +23,7 @@ import {
   getAllPayStructures,
   getEmployeePayStructures,
   createPayStructure,
-  suspendPayStructure,
-  updateDraftPayStructure
+  suspendPayStructure
 } from '../../api/hrPayStructuresApi';
 import {
   exportPermanentPayStructuresToExcel,
@@ -51,11 +50,9 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
   const [employeePage, setEmployeePage] = useState(1);
   const [loadedEmployeesMap, setLoadedEmployeesMap] = useState({});
 
-  // Modal State for Create / Edit Form and Suspension
+  // Modal State for Create Form and Suspension
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
-  const [isEditingDraft, setIsEditingDraft] = useState(false);
-  const [editingStructureId, setEditingStructureId] = useState(null);
 
   const [form, setForm] = useState({
     pay_basis: 'Monthly salary',
@@ -177,6 +174,14 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
   const suspendedStructure = !activeStructure ? revisions.find((r) => r.status === 'Suspended') || null : null;
   const isEligibleCategory = selectedEmployee ? PERMANENT_CATEGORIES.has(selectedEmployee.employee_category) : false;
 
+  const canConfigure = Boolean(
+    selectedEmployee &&
+    isEligibleCategory &&
+    !isLoadingPay &&
+    !isPayError &&
+    payData
+  );
+
   // Fetch all permanent employees and their pay structures for the default overview table
   const {
     data: allPayData = [],
@@ -252,18 +257,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
     }
   });
 
-  const updateDraftMutation = useMutation({
-    mutationFn: ({ id, payload }) => updateDraftPayStructure(id, payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['hr-pay-structures', selectedEmployeeId] });
-      queryClient.invalidateQueries({ queryKey: ['hr-all-pay-structures'] });
-      setIsFormModalOpen(false);
-      setSuccessMsg('Draft pay structure updated successfully.');
-    },
-    onError: (err) => {
-      setErrorMsg(err.response?.data?.message || err.message || 'Failed to update draft pay structure.');
-    }
-  });
+
 
   const suspendMutation = useMutation({
     mutationFn: (id) => suspendPayStructure(id),
@@ -280,8 +274,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
 
   // Open Create Initial or New Revision Modal
   const handleOpenNewRevision = () => {
-    setIsEditingDraft(false);
-    setEditingStructureId(null);
+    if (!canConfigure) return;
     const source = activeStructure || suspendedStructure;
     setForm({
       pay_basis: source?.pay_basis || 'Monthly salary',
@@ -327,11 +320,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       status: 'Active'
     };
 
-    if (isEditingDraft && editingStructureId) {
-      updateDraftMutation.mutate({ id: editingStructureId, payload: basePayload });
-    } else {
-      createMutation.mutate({ ...basePayload, employee_id: selectedEmployeeId });
-    }
+    createMutation.mutate({ ...basePayload, employee_id: selectedEmployeeId });
   };
 
   return (
@@ -361,7 +350,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               </svg>
               <span>{isExportingAll ? 'Exporting...' : 'Export Excel'}</span>
             </Button>
-            {selectedEmployee && isEligibleCategory && (
+            {canConfigure && (
               <Button
                 variant="primary"
                 size="md"
@@ -1020,7 +1009,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       <Modal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
-        title={isEditingDraft ? 'Edit Draft Pay Structure' : 'Configure Pay Structure Revision'}
+        title="Configure Pay Structure Revision"
         size="lg"
       >
         <form onSubmit={handleSubmitForm} className="space-y-5">
@@ -1173,7 +1162,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               variant="ghost"
               size="md"
               onClick={() => setIsFormModalOpen(false)}
-              disabled={createMutation.isPending || updateDraftMutation.isPending}
+              disabled={createMutation.isPending}
             >
               Cancel
             </Button>
@@ -1181,9 +1170,9 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               type="submit"
               variant="primary"
               size="md"
-              disabled={reconciliation.isExceeded || createMutation.isPending || updateDraftMutation.isPending}
+              disabled={reconciliation.isExceeded || createMutation.isPending}
             >
-              {createMutation.isPending || updateDraftMutation.isPending
+              {createMutation.isPending
                 ? 'Saving...'
                 : 'Save Pay Structure'}
             </Button>

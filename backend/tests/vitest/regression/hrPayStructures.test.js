@@ -110,8 +110,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
       body: {
         employee_id: casualEmp.id,
         pay_basis: 'Monthly salary',
-        guaranteed_monthly_gross: 25000,
-        status: 'Draft'
+        guaranteed_monthly_gross: 25000
       }
     }, res);
 
@@ -119,9 +118,9 @@ describe('HR permanent pay structures (Stage 2)', () => {
     expect(res.jsonData.message).toContain('permanent employee categories');
   });
 
-  test('creates draft pay structure, validates reconciliation, and activates atomically', async () => {
-    // 1. Create Draft with valid component reconciliation
-    const draftRes = mockRes();
+  test('creates pay structure immediately as Active, validates reconciliation, and supersedes previous active revision atomically', async () => {
+    // 1. Create Initial Pay Structure directly as Active with valid component reconciliation
+    const rev1Res = mockRes();
     await payController.createPayStructure({
       user: admin,
       body: {
@@ -132,35 +131,26 @@ describe('HR permanent pay structures (Stage 2)', () => {
         staff_welfare: 5000,
         other_fixed_components: 10000,
         epf_enrolment: true,
-        esi_enrolment: false,
-        status: 'Draft'
+        esi_enrolment: false
       }
-    }, draftRes);
+    }, rev1Res);
 
-    expect(draftRes.statusCode).toBe(201);
-    expect(draftRes.jsonData.pay_structure.revision_number).toBe(1);
-    expect(draftRes.jsonData.pay_structure.status).toBe('Draft');
-    const rev1Id = draftRes.jsonData.pay_structure.id;
+    expect(rev1Res.statusCode).toBe(201);
+    expect(rev1Res.jsonData.pay_structure.revision_number).toBe(1);
+    expect(rev1Res.jsonData.pay_structure.status).toBe('Active');
+    const rev1Id = rev1Res.jsonData.pay_structure.id;
 
-    // 2. Fetch employee pay structures
+    // 2. Fetch employee pay structures -> immediately Active
     const fetchRes = mockRes();
     await payController.getEmployeePayStructures({
       params: { employeeId: permanentEmp.id }
     }, fetchRes);
     expect(fetchRes.statusCode).toBe(200);
-    expect(fetchRes.jsonData.active_structure).toBeNull();
+    expect(fetchRes.jsonData.active_structure.id).toBe(rev1Id);
+    expect(fetchRes.jsonData.active_structure.status).toBe('Active');
     expect(fetchRes.jsonData.revisions).toHaveLength(1);
 
-    // 3. Activate revision 1
-    const actRes = mockRes();
-    await payController.activatePayStructure({
-      user: admin,
-      params: { id: rev1Id }
-    }, actRes);
-    expect(actRes.statusCode).toBe(200);
-    expect(actRes.jsonData.pay_structure.status).toBe('Active');
-
-    // 4. Create revision 2 directly as Active -> revision 1 must become Superseded
+    // 3. Create revision 2 directly as Active -> revision 1 must become Superseded
     const rev2Res = mockRes();
     await payController.createPayStructure({
       user: admin,
@@ -172,8 +162,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
         staff_welfare: 5000,
         other_fixed_components: 10000,
         epf_enrolment: true,
-        esi_enrolment: true,
-        status: 'Active'
+        esi_enrolment: true
       }
     }, rev2Res);
 
@@ -181,7 +170,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
     expect(rev2Res.jsonData.pay_structure.revision_number).toBe(2);
     expect(rev2Res.jsonData.pay_structure.status).toBe('Active');
 
-    // 5. Verify revision 1 was superseded
+    // 4. Verify revision 1 was superseded and revision 2 is active
     const fetchAfter = mockRes();
     await payController.getEmployeePayStructures({
       params: { employeeId: permanentEmp.id }
@@ -190,24 +179,6 @@ describe('HR permanent pay structures (Stage 2)', () => {
     expect(fetchAfter.jsonData.revisions).toHaveLength(2);
     const rev1Reloaded = fetchAfter.jsonData.revisions.find(r => r.id === rev1Id);
     expect(rev1Reloaded.status).toBe('Superseded');
-
-    // 6. Attempting to update superseded revision returns 409
-    const editSuperseded = mockRes();
-    await payController.updateDraftPayStructure({
-      user: admin,
-      params: { id: rev1Id },
-      body: { guaranteed_monthly_gross: 50000 }
-    }, editSuperseded);
-    expect(editSuperseded.statusCode).toBe(409);
-
-    // 7. Attempting to update active revision directly returns 409
-    const editActive = mockRes();
-    await payController.updateDraftPayStructure({
-      user: admin,
-      params: { id: rev2Res.jsonData.pay_structure.id },
-      body: { guaranteed_monthly_gross: 50000 }
-    }, editActive);
-    expect(editActive.statusCode).toBe(409);
   });
 
   test('suspends an active pay structure and supersedes on subsequent new active creation', async () => {
@@ -316,7 +287,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
       p_other_fixed_components: null,
       p_epf_enrolment: false,
       p_esi_enrolment: false,
-      p_status: 'Draft',
+      p_status: 'Active',
       p_actor_id: admin.id
     };
     const results = await Promise.all([
@@ -330,7 +301,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
   test('mounted pay and audit routes enforce roles without exposing HR values to HO', async () => {
     const employeeRes = mockRes();
     const secretName = `Private Worker ${suffix}`;
-    const secretContact = `7777${suffix}`;
+    const secretContact = '+91 98765 43210';
     await employeeController.createEmployee({ user: admin, body: {
       employee_name: secretName,
       employee_category: 'HO Staff', department: 'Head Office',
@@ -355,9 +326,24 @@ describe('HR permanent pay structures (Stage 2)', () => {
     const created = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
       employee_id: employeeId, pay_basis: 'Monthly salary',
       guaranteed_monthly_gross: 12000, basic_salary: 12000,
-      epf_enrolment: true, esi_enrolment: false, status: 'Draft'
+      epf_enrolment: true, esi_enrolment: false
     });
     expect(created.status).toBe(201);
+    expect(created.body.pay_structure.status).toBe('Active');
+
+    // Reject client-supplied Draft status
+    const draftAttempt = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
+      employee_id: employeeId, pay_basis: 'Monthly salary',
+      guaranteed_monthly_gross: 15000, basic_salary: 15000,
+      status: 'Draft'
+    });
+    expect(draftAttempt.status).toBe(400);
+
+    // Removed legacy endpoints return 404
+    const activateAttempt = await requestRoute('POST', `/api/v1/auth/hr/pay-structures/${created.body.pay_structure.id}/activate`, adminToken);
+    expect(activateAttempt.status).toBe(404);
+    const patchAttempt = await requestRoute('PATCH', `/api/v1/auth/hr/pay-structures/${created.body.pay_structure.id}`, adminToken, { guaranteed_monthly_gross: 16000 });
+    expect(patchAttempt.status).toBe(404);
 
     const auditPath = '/api/v1/auth/analytics/audit-log?module_name=HR%20Employee%20Master';
     const hoAudit = await requestRoute('GET', auditPath, hoToken);
