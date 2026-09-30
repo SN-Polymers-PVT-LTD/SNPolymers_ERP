@@ -36,6 +36,7 @@ describe('Daily factory attendance',()=>{
     expect(api.loadAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,date:'2026-09-30'}); expect(api.populateAttendanceSheet).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button',{name:'Create Attendance Sheet'}));
     await waitFor(()=>expect(api.populateAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,date:'2026-09-30'}));
+    expect(await screen.findByText('Attendance sheet/roster refreshed.')).toBeInTheDocument();
     expect(await screen.findByText('No eligible employees. Employees must be Active and joined on or before this date.')).toBeInTheDocument();
   });
   it('Mark All Present preserves existing exceptions and does not invent timestamps or hours',async()=>{

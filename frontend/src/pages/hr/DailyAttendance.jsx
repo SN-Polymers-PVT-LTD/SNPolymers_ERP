@@ -142,7 +142,7 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
       }
       await client.invalidateQueries({ queryKey: key });
       client.invalidateQueries({ queryKey: ['hr-attendance-history', sheet?.id] });
-      setMessage(action === 'submit' ? 'Submitted to HO.' : action === 'leave' ? 'Leave and attendance row saved.' : 'Draft saved.');
+      setMessage(action === 'submit' ? 'Submitted to HO.' : action === 'leave' ? 'Leave and attendance row saved.' : action === 'populate' ? 'Attendance sheet/roster refreshed.' : 'Draft saved.');
     }
   });
 

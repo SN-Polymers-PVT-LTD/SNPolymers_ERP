@@ -16,7 +16,7 @@ function statusVariant(status) {
 }
 
 function LeaveDecision({ sheetId, leave, employee, local, disabled, onDecide, actors }) {
-  const [pay, setPay] = useState(local ? 'Unpaid' : leave.pay_treatment === 'Paid' ? 'Paid' : 'Unpaid');
+  const [pay, setPay] = useState(local ? 'Unpaid' : '');
   const [remarks, setRemarks] = useState('');
 
   return (
@@ -68,7 +68,11 @@ function LeaveDecision({ sheetId, leave, employee, local, disabled, onDecide, ac
               label={`Pay Treatment for ${employee.employee_name}`}
               value={pay}
               disabled={disabled || local}
-              options={['Paid', 'Unpaid'].map(value => ({ value, label: value }))}
+              options={[
+                ...(!local ? [{ value: '', label: 'Select treatment…' }] : []),
+                { value: 'Paid', label: 'Paid' },
+                { value: 'Unpaid', label: 'Unpaid' }
+              ]}
               onChange={e => setPay(e.target.value)}
             />
             <Input
@@ -85,7 +89,7 @@ function LeaveDecision({ sheetId, leave, employee, local, disabled, onDecide, ac
             <Button
               variant="success"
               size="sm"
-              disabled={disabled}
+              disabled={disabled || !pay}
               onClick={() => onDecide(sheetId, leave.id, { decision: 'Approved', pay_treatment: pay, remarks: remarks.trim() })}
             >
               Approve Leave for {employee.employee_name}
@@ -94,7 +98,7 @@ function LeaveDecision({ sheetId, leave, employee, local, disabled, onDecide, ac
               variant="danger"
               size="sm"
               disabled={disabled || !remarks.trim()}
-              onClick={() => onDecide(sheetId, leave.id, { decision: 'Rejected', pay_treatment: pay, remarks: remarks.trim() })}
+              onClick={() => onDecide(sheetId, leave.id, { decision: 'Rejected', pay_treatment: 'Unpaid', remarks: remarks.trim() })}
             >
               Reject Leave for {employee.employee_name}
             </Button>

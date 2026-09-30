@@ -368,6 +368,7 @@ BEGIN
         IF NEW.decision_remarks IS NULL OR length(btrim(NEW.decision_remarks)) NOT BETWEEN 1 AND 2000 THEN
           RAISE EXCEPTION 'Rejection remarks are required' USING ERRCODE = 'P0001';
         END IF;
+        NEW.pay_treatment := 'Unpaid';
         UPDATE public.hr_attendance_sheets SET status = 'Returned for Correction', updated_by = NEW.updated_by,
           return_remarks = NEW.decision_remarks WHERE status = 'Submitted' AND id IN (
             SELECT sheet_id FROM public.hr_attendance_rows WHERE leave_request_id = NEW.id);
@@ -572,7 +573,8 @@ BEGIN
   SELECT * INTO l FROM public.hr_leave_requests WHERE id = p_leave_id FOR UPDATE;
   IF p_decision NOT IN ('Approved','Rejected') OR p_decision IS NULL THEN RAISE EXCEPTION 'Approve/Reject decision required' USING ERRCODE = '22023'; END IF;
   IF p_remarks IS NOT NULL AND length(p_remarks) > 2000 THEN RAISE EXCEPTION 'Remarks too long' USING ERRCODE = '22023'; END IF;
-  UPDATE public.hr_leave_requests SET approval_status = p_decision, pay_treatment = p_pay_treatment,
+  UPDATE public.hr_leave_requests SET approval_status = p_decision,
+    pay_treatment = CASE WHEN p_decision = 'Rejected' THEN 'Unpaid' ELSE p_pay_treatment END,
     decision_remarks = p_remarks, updated_by = p_actor_id WHERE id = p_leave_id RETURNING * INTO l;
   RETURN l;
 END;

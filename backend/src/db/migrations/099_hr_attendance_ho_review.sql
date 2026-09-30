@@ -44,9 +44,9 @@ BEGIN
       AND s.attendance_date BETWEEN l.from_date AND l.to_date) THEN
     RAISE EXCEPTION 'Linked factory leave not found' USING ERRCODE='P0002';
   END IF;
-  -- Local treatment is forced here and independently protected by the leave guard.
+  -- Local treatment and rejection treatment are forced here and independently protected by the leave guard.
   RETURN public.decide_hr_leave_request(p_leave_id,p_decision,
-    CASE WHEN s.employee_category='Local Daily-Wage Workers' THEN 'Unpaid' ELSE p_pay_treatment END,
+    CASE WHEN s.employee_category='Local Daily-Wage Workers' OR p_decision='Rejected' THEN 'Unpaid' ELSE p_pay_treatment END,
     p_remarks,p_actor_id);
 END;
 $$;

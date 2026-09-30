@@ -19,7 +19,8 @@ module.exports = {
   decideLeave: {params:z.object({sheetId:z.uuid(),leaveId:z.uuid()}).strict(),
     body:z.object({decision:z.enum(['Approved','Rejected']),pay_treatment:z.enum(['Paid','Unpaid']),
       remarks:z.string().trim().max(2000).optional()}).strict()
-      .refine(b=>b.decision!=='Rejected'||Boolean(b.remarks),'Rejection remarks are required.')},
+      .refine(b=>b.decision!=='Rejected'||Boolean(b.remarks),'Rejection remarks are required.')
+      .refine(b=>b.decision!=='Rejected'||b.pay_treatment==='Unpaid','Rejected leave must have Unpaid treatment.')},
   selection: { query: selection }, populate: { body: selection }, detail: { params },
   save: { params, body: z.object({ rows: z.array(row).min(1).max(5000).refine(rows => new Set(rows.map(r => r.employee_id)).size === rows.length, 'Duplicate employee in batch.') }).strict() },
   submit: { params, body: z.object({}).strict() },

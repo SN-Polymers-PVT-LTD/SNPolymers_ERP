@@ -44,7 +44,10 @@ it('shows stored timestamps, hours, exceptions and leave; no attendance entry co
   expect(screen.getByText('Overnight duty')).toBeInTheDocument();expect(screen.queryByLabelText('Entry for Suresh')).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'Review & Lock'})).toBeDisabled();
 });
 it('approval selects final treatment then enables Review & Lock; immutable result has no separate Lock action',async()=>{
-  mount();await screen.findByText('Linked Leave Requests');fireEvent.change(screen.getByLabelText('Pay Treatment for Ramesh'),{target:{value:'Paid'}});
+  mount();await screen.findByText('Linked Leave Requests');
+  expect(screen.getByRole('button',{name:'Approve Leave for Ramesh'})).toBeDisabled();
+  fireEvent.change(screen.getByLabelText('Pay Treatment for Ramesh'),{target:{value:'Paid'}});
+  expect(screen.getByRole('button',{name:'Approve Leave for Ramesh'})).toBeEnabled();
   fireEvent.click(screen.getByRole('button',{name:'Approve Leave for Ramesh'}));await waitFor(()=>expect(screen.getByRole('button',{name:'Review & Lock'})).toBeEnabled());
   expect(authApi.post).toHaveBeenCalledWith('/hr/attendance/sheets/sheet-id/leaves/leave-1/decision',{decision:'Approved',pay_treatment:'Paid',remarks:''});
   fireEvent.change(screen.getByLabelText('HO Remarks'),{target:{value:'Reviewed overnight duty and holiday'}});fireEvent.click(screen.getByRole('button',{name:'Review & Lock'}));
@@ -59,7 +62,10 @@ it('Local leave pay control is forced Unpaid and Double Duty is displayed with s
 it('reject requires remarks, returns sheet and preserves Medical Leave attendance',async()=>{
   authApi.post.mockImplementation(async(_path,body)=>{data.rows[0].leave.approval_status='Rejected';data.sheet.status='Returned for Correction';data.sheet.return_remarks=body.remarks;return {data:{success:true}};});
   mount();await screen.findByText('Linked Leave Requests');expect(screen.getByRole('button',{name:'Reject Leave for Ramesh'})).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('Decision Remarks for Ramesh'),{target:{value:'Clarify dates'}});fireEvent.click(screen.getByRole('button',{name:'Reject Leave for Ramesh'}));
+  fireEvent.change(screen.getByLabelText('Pay Treatment for Ramesh'),{target:{value:'Paid'}});
+  fireEvent.change(screen.getByLabelText('Decision Remarks for Ramesh'),{target:{value:'Clarify dates'}});
+  expect(screen.getByRole('button',{name:'Reject Leave for Ramesh'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button',{name:'Reject Leave for Ramesh'}));
   await screen.findByText('Status: Returned for Correction');expect(authApi.post).toHaveBeenCalledWith(expect.stringContaining('/decision'),{decision:'Rejected',pay_treatment:'Unpaid',remarks:'Clarify dates'});
   expect(within(screen.getByRole('table')).getByText('Medical Leave')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Review & Lock'})).not.toBeInTheDocument();
 });

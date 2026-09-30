@@ -99,6 +99,7 @@ describe('Phase 6 HO attendance review HTTP/DB transactions',()=>{
   test('strict validation, scope, nonexistent IDs and Draft/Returned decision conflicts',async()=>{
     const {s,l}=await withLeave(7);
     expect((await decision(s,l,{decision:'Rejected',pay_treatment:'Unpaid',remarks:' '})).status).toBe(400);
+    expect((await decision(s,l,{decision:'Rejected',pay_treatment:'Paid',remarks:'Rejection cannot be paid'})).status).toBe(400);
     expect((await decision(s,l,{decision:'Approved',pay_treatment:'Pending'})).status).toBe(400);
     expect((await decision(s,l,{decision:'Approved',pay_treatment:'Paid',p_actor_id:actors.admin})).status).toBe(400);
     expect((await decision(s,{id:crypto.randomUUID()},{decision:'Approved',pay_treatment:'Paid'})).status).toBe(404);
@@ -118,7 +119,10 @@ describe('Phase 6 HO attendance review HTTP/DB transactions',()=>{
   test('rejection returns every affected submitted sheet without auto-Absent, then FM correction/resubmit/HO lock',async()=>{
     const {s,l}=await withLeave(10,{to_date:date(11)});const second=await create(11);
     expect((await request('PUT',`/sheets/${second.id}/rows`,'factory_manager',{rows:[{employee_id:employees.casual,attendance_status:'Medical Leave',leave_request_id:l.id},{employee_id:employees.second,attendance_status:'Absent'}]})).status).toBe(200);expect((await request('POST',`/sheets/${second.id}/submit`,'factory_manager',{})).status).toBe(200);
-    expect((await decision(s,l,{decision:'Rejected',pay_treatment:'Unpaid',remarks:'Clarify this leave'})).status).toBe(200);
+    const rejRes = await decision(s,l,{decision:'Rejected',pay_treatment:'Unpaid',remarks:'Clarify this leave'});
+    expect(rejRes.status).toBe(200);
+    expect(rejRes.body.leave.approval_status).toBe('Rejected');
+    expect(rejRes.body.leave.pay_treatment).toBe('Unpaid');
     for(const sh of [s,second]) {
       const d=await detail(sh.id);expect(d.sheet.status).toBe('Returned for Correction');expect(d.rows.find(r=>r.employee_id===employees.casual).attendance_status).toBe('Medical Leave');
       expect((await request('POST',`/sheets/${sh.id}/submit`,'factory_manager',{})).status).toBe(409);
