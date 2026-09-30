@@ -9,6 +9,14 @@ module.exports = {
       "table": "authorised_users",
       "definition": "CREATE UNIQUE INDEX authorised_users_pkey ON public.authorised_users USING btree (id)"
     },
+    "hr_attendance_rows_pkey": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE UNIQUE INDEX hr_attendance_rows_pkey ON public.hr_attendance_rows USING btree (id)"
+    },
+    "hr_attendance_sheets_pkey": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE UNIQUE INDEX hr_attendance_sheets_pkey ON public.hr_attendance_sheets USING btree (id)"
+    },
     "hr_employees_employee_code_key": {
       "table": "hr_employees",
       "definition": "CREATE UNIQUE INDEX hr_employees_employee_code_key ON public.hr_employees USING btree (employee_code)"
@@ -45,6 +53,18 @@ module.exports = {
       "table": "hr_factory_wage_revisions",
       "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_revision_number_key ON public.hr_factory_wage_revisions USING btree (employee_category, revision_number)"
     },
+    "hr_leave_active_range_excl": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE INDEX hr_leave_active_range_excl ON public.hr_leave_requests USING gist (employee_id, daterange(from_date, to_date, '[]'::text)) WHERE (approval_status = ANY (ARRAY['Pending'::text, 'Approved'::text]))"
+    },
+    "hr_leave_queue_idx": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE INDEX hr_leave_queue_idx ON public.hr_leave_requests USING btree (approval_status, request_source, from_date)"
+    },
+    "hr_leave_requests_pkey": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE UNIQUE INDEX hr_leave_requests_pkey ON public.hr_leave_requests USING btree (id)"
+    },
     "hr_pay_revision_unique": {
       "table": "hr_permanent_pay_structures",
       "definition": "CREATE UNIQUE INDEX hr_pay_revision_unique ON public.hr_permanent_pay_structures USING btree (employee_id, revision_number)"
@@ -60,6 +80,26 @@ module.exports = {
     "hr_permanent_pay_structures_pkey": {
       "table": "hr_permanent_pay_structures",
       "definition": "CREATE UNIQUE INDEX hr_permanent_pay_structures_pkey ON public.hr_permanent_pay_structures USING btree (id)"
+    },
+    "hr_row_sheet_employee_unique": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE UNIQUE INDEX hr_row_sheet_employee_unique ON public.hr_attendance_rows USING btree (sheet_id, employee_id)"
+    },
+    "hr_rows_employee_idx": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE INDEX hr_rows_employee_idx ON public.hr_attendance_rows USING btree (employee_id, sheet_id)"
+    },
+    "hr_rows_leave_idx": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE INDEX hr_rows_leave_idx ON public.hr_attendance_rows USING btree (leave_request_id, sheet_id) WHERE (leave_request_id IS NOT NULL)"
+    },
+    "hr_sheet_date_category_unique": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE UNIQUE INDEX hr_sheet_date_category_unique ON public.hr_attendance_sheets USING btree (attendance_date, employee_category)"
+    },
+    "hr_sheets_queue_idx": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE INDEX hr_sheets_queue_idx ON public.hr_attendance_sheets USING btree (status, attendance_date, employee_category)"
     },
     "idx_activity_breaks_active": {
       "table": "work_order_activity_breaks",

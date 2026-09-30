@@ -254,7 +254,9 @@ async function getRecentActivity(req, res) {
         auditsQuery = auditsQuery.neq('module_name', 'HR Employee Master')
           .neq('module_name', 'HR Permanent Pay Structure')
           .neq('module_name', 'HR Factory Wage Master')
-          .neq('module_name', 'HR Factory Pay Rule Master');
+          .neq('module_name', 'HR Factory Pay Rule Master')
+          .neq('module_name', 'HR Attendance')
+          .neq('module_name', 'HR Leave');
       }
       const { data: audits, error } = await auditsQuery
         .order('timestamp', { ascending: false }).limit(50);
@@ -297,7 +299,9 @@ async function getAuditLog(req, res) {
       query = query.neq('module_name', 'HR Employee Master')
         .neq('module_name', 'HR Permanent Pay Structure')
         .neq('module_name', 'HR Factory Wage Master')
-        .neq('module_name', 'HR Factory Pay Rule Master');
+        .neq('module_name', 'HR Factory Pay Rule Master')
+        .neq('module_name', 'HR Attendance')
+        .neq('module_name', 'HR Leave');
     }
 
     const { data, error, count } = await query

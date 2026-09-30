@@ -30,6 +30,9 @@
     "cost_estimate_subcontract_contributions",
     "project_subcontract_estimate_workflow_log",
     "hr_factory_wage_revisions",
-    "hr_factory_pay_rule_revisions"
+    "hr_factory_pay_rule_revisions",
+    "hr_attendance_sheets",
+    "hr_attendance_rows",
+    "hr_leave_requests"
   ]
 }

@@ -51,5 +51,15 @@
   "hr_factory_wage_revisions_employee_category_effective_from_key",
   "hr_factory_wage_revisions_employee_category_revision_number_key",
   "hr_factory_pay_rule_revisions_employee_category_effective_f_key",
-  "hr_factory_pay_rule_revisions_employee_category_revision_nu_key"
+  "hr_factory_pay_rule_revisions_employee_category_revision_nu_key",
+  "hr_attendance_sheets_pkey",
+  "hr_sheet_date_category_unique",
+  "hr_sheets_queue_idx",
+  "hr_attendance_rows_pkey",
+  "hr_row_sheet_employee_unique",
+  "hr_rows_employee_idx",
+  "hr_rows_leave_idx",
+  "hr_leave_requests_pkey",
+  "hr_leave_active_range_excl",
+  "hr_leave_queue_idx"
 ]

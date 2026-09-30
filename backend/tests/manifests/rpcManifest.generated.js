@@ -318,6 +318,31 @@ module.exports = {
       ],
       "returns": "requisitions"
     },
+    "decide_hr_leave_request": {
+      "args": [
+        {
+          "name": "p_leave_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_decision",
+          "type": "text"
+        },
+        {
+          "name": "p_pay_treatment",
+          "type": "text"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_leave_requests"
+    },
     "get_accounts_import_queue": {
       "args": [
         {
@@ -456,6 +481,23 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "populate_hr_attendance_sheet": {
+      "args": [
+        {
+          "name": "p_date",
+          "type": "date"
+        },
+        {
+          "name": "p_category",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_attendance_sheets"
+    },
     "reconcile_subcontract_estimate_lines": {
       "args": [
         {
@@ -527,6 +569,64 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "save_hr_attendance_rows": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_rows",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "SETOF hr_attendance_rows"
+    },
+    "save_hr_leave_request": {
+      "args": [
+        {
+          "name": "p_leave_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_source",
+          "type": "text"
+        },
+        {
+          "name": "p_from_date",
+          "type": "date"
+        },
+        {
+          "name": "p_to_date",
+          "type": "date"
+        },
+        {
+          "name": "p_leave_type",
+          "type": "text"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_pay_treatment",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_leave_requests"
+    },
     "submit_fund_request_transact": {
       "args": [
         {
@@ -569,6 +669,27 @@ module.exports = {
         }
       ],
       "returns": "void"
+    },
+    "transition_hr_attendance_sheet": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_attendance_sheets"
     },
     "transition_subcontract_estimate_workflow": {
       "args": [

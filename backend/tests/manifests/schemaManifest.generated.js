@@ -2758,6 +2758,336 @@ module.exports = {
           "default": "now()"
         }
       }
+    },
+    "hr_attendance_sheets": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "attendance_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Draft'::text"
+        },
+        "submission_count": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "0"
+        },
+        "submitted_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "submitted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "returned_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "returned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "return_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "reviewed_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "reviewed_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "review_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "locked_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_attendance_rows": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "sheet_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "attendance_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "entry_timestamp": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "exit_timestamp": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "actual_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "ot_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "duty_type": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "holiday_pay_eligible": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "leave_request_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "pay_rule_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "wage_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_leave_requests": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "request_source": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "from_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "to_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "leave_type": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "approval_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Pending'::text"
+        },
+        "pay_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Pending'::text"
+        },
+        "decided_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "decided_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "decision_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
     }
   }
 };
