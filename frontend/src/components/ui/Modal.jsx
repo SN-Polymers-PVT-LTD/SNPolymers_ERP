@@ -12,6 +12,10 @@ const Modal = ({
   size = 'md', // 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   closeOnOverlayClick = true,
   className = '',
+  dialogRef,
+  titleId,
+  closeDisabled = false,
+  closeLabel,
   ...props
 }) => {
   const overlayRef = useRef(null);
@@ -75,6 +79,7 @@ const Modal = ({
       className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 z-[9999] overflow-y-auto animate-fadeIn"
     >
       <div
+        ref={dialogRef}
         className={`glass-panel p-6 rounded-3xl w-full max-h-[85vh] flex flex-col shadow-[0_25px_60px_rgba(0,0,0,0.8)] border border-white/10 relative overflow-hidden my-auto transition-all duration-300 transform scale-100 ${maxWidthClass} ${className}`}
         {...props}
       >
@@ -87,13 +92,16 @@ const Modal = ({
               </span>
             )}
             {title && (
-              <h2 className="text-sm font-extrabold uppercase tracking-widest text-slate-100 mt-0.5">
+              <h2 id={titleId} className="text-sm font-extrabold uppercase tracking-widest text-slate-100 mt-0.5">
                 {title}
               </h2>
             )}
           </div>
           {onClose && (
             <button
+              type="button"
+              disabled={closeDisabled}
+              aria-label={closeLabel}
               onClick={onClose}
               className="text-slate-400 hover:text-slate-200 transition-colors p-1.5 rounded-lg hover:bg-white/5 shrink-0"
               title="Close"

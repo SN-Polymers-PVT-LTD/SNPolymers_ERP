@@ -4,6 +4,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DailyAttendance from './DailyAttendance';
+import { ModalProvider, useModalOverlay } from '../../components/ModalContext';
+const ModalProbe = () => <span data-testid="modal-overlay-state">{useModalOverlay().isModalOpen ? 'open' : 'closed'}</span>;
 import ProtectedRoute from '../../components/ProtectedRoute';
 import { useAuth } from '../../components/AuthContext';
 import * as api from '../../api/hrAttendanceApi';
@@ -14,10 +16,10 @@ const sheet={id:'sheet-1',status:'Draft',submission_count:0,attendance_date:'202
 const employee=(id,name)=>({id,employee_id:id,employee:{employee_name:name,employee_code:`EMP-${id}`,active_status:'Active'},rule:{standard_duty_hours:8,holiday_pay_enabled:true},attendance_status:null,entry_timestamp:null,exit_timestamp:null,actual_hours:0,ot_hours:0,duty_type:null,holiday_pay_eligible:false,leave_request_id:null,leave:null,available_leave:null,remarks:null});
 let data;
 const mount=(category=casual)=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}>
-  <MemoryRouter initialEntries={[`/factory-attendance?category=${encodeURIComponent(category)}&date=2026-09-30`]}><Routes>
+  <ModalProvider><ModalProbe /><MemoryRouter initialEntries={[`/factory-attendance?category=${encodeURIComponent(category)}&date=2026-09-30`]}><Routes>
     <Route element={<ProtectedRoute allowedRoles={['admin','factory_manager','ho']} />}><Route path="/factory-attendance" element={<DailyAttendance />} /></Route>
     <Route path="/dashboard" element={<p>Dashboard destination</p>} /><Route path="/login" element={<p>Login destination</p>} />
-  </Routes></MemoryRouter></QueryClientProvider>);
+  </Routes></MemoryRouter></ModalProvider></QueryClientProvider>);
 beforeEach(()=>{
   vi.resetAllMocks(); useAuth.mockReturnValue({user:{role:'factory_manager'},loading:false});
   data={sheet:{...sheet},rows:[employee('one','Ramesh'),employee('two','Suresh')]};
@@ -124,5 +126,136 @@ describe('Daily factory attendance',()=>{
     data.rows[0].attendance_status='Present'; api.saveAttendanceRows.mockRejectedValue({response:{data:{message:'Exit timestamp must be after Entry'}}});
     mount(); await screen.findByText('Ramesh'); fireEvent.change(screen.getByLabelText('Entry for Ramesh'),{target:{value:'2026-09-30T08:00'}}); fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
     expect(await screen.findByRole('alert')).toHaveTextContent('Exit timestamp must be after Entry'); expect(screen.getByLabelText('Entry for Ramesh')).toHaveValue('2026-09-30T08:00'); expect(screen.getByRole('button',{name:'Save Draft'})).toBeEnabled();
+  });
+  describe('Step 1 Ergonomics Acceptance Tests', () => {
+    it('implements focus management, focus trapping, and focus restoration on the Leave Modal', async () => {
+      mount();
+      await screen.findByText('Ramesh');
+      const recordBtn = screen.getAllByRole('button', { name: 'Record Leave' })[0];
+      recordBtn.focus();
+      expect(document.activeElement).toBe(recordBtn);
+
+      fireEvent.click(recordBtn);
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toHaveAttribute('aria-modal', 'true');
+      expect(screen.getByTestId('modal-overlay-state')).toHaveTextContent('open');
+      expect(dialog.parentElement).toBe(document.body.lastElementChild);
+      expect(dialog).toHaveClass('max-h-[85vh]');
+      expect(dialog).toHaveAttribute('aria-labelledby', 'factory-leave-modal-title');
+
+      const fromDateInput = screen.getByLabelText(/From Date/);
+      expect(document.activeElement).toBe(fromDateInput);
+
+      // Focus trapping test: Tab on last button cycles back to first focusable element
+      const saveBtn = screen.getByRole('button', { name: 'Save Leave' });
+      saveBtn.focus();
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: false });
+      const closeBtn = screen.getByRole('button', { name: 'Close dialog' });
+      expect(document.activeElement).toBe(closeBtn);
+
+      // Shift-Tab on first focusable element cycles to last
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(saveBtn);
+
+      // Close modal and verify focus restores to trigger button
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel Leave Entry' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(document.activeElement).toBe(recordBtn);
+    });
+
+    it('blocks Escape, backdrop click, and close button dismissal while save is pending', async () => {
+      mount();
+      await screen.findByText('Ramesh');
+      fireEvent.click(screen.getAllByRole('button', { name: 'Record Leave' })[0]);
+
+      const dialog = await screen.findByRole('dialog');
+      expect(dialog).toBeInTheDocument();
+
+      let resolveSave;
+      api.saveFactoryLeave.mockReturnValue(new Promise(resolve => { resolveSave = resolve; }));
+
+      fireEvent.change(screen.getByLabelText(/Leave Reason/), { target: { value: 'Medical rest' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save Leave' }));
+
+      // Save is in flight
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled());
+      expect(screen.getByRole('button', { name: 'Close dialog' })).toBeDisabled();
+
+      // Attempt Escape during save
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Attempt backdrop click during save
+      fireEvent.click(dialog.parentElement);
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Resolve save
+      resolveSave({ data: { success: true } });
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    });
+
+    it('protects modified leave-form values from accidental dismissal via Escape or backdrop', async () => {
+      mount();
+      await screen.findByText('Ramesh');
+      fireEvent.click(screen.getAllByRole('button', { name: 'Record Leave' })[0]);
+
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.change(screen.getByLabelText(/Leave Reason/), { target: { value: 'Entered notes' } });
+
+      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+      // Attempt Escape -> cancel confirmation -> remains open
+      fireEvent.keyDown(dialog, { key: 'Escape' });
+      expect(confirmSpy).toHaveBeenCalledWith('Discard unsaved leave entry?');
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Leave Reason/)).toHaveValue('Entered notes');
+
+      // Attempt backdrop click -> confirm discard -> closes
+      confirmSpy.mockReturnValue(true);
+      fireEvent.click(dialog.parentElement);
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      confirmSpy.mockRestore();
+    });
+
+    it('assigns opaque theme-aware sticky column classes and distinguishes marked vs entry-complete counts', async () => {
+      mount();
+      await screen.findByText('Ramesh');
+
+      // Sticky column verification
+      const headers = screen.getAllByRole('columnheader');
+      expect(headers[0]).toHaveClass('sticky-col-opaque');
+      expect(headers[0]).toHaveClass('sticky');
+      expect(headers[0]).toHaveClass('left-0');
+      expect(headers[0]).toHaveClass('z-20');
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[0]).toHaveClass('sticky-col-opaque');
+      expect(cells[0]).toHaveClass('sticky');
+      expect(cells[0]).toHaveClass('left-0');
+      expect(cells[0]).toHaveClass('z-10');
+
+      // Marked vs Entry Complete verification
+      expect(screen.getByText('Saved OT Hours')).toBeInTheDocument();
+      expect(screen.getByTestId('metric-total-roster')).toHaveTextContent('2');
+      expect(screen.getByTestId('metric-marked-count')).toHaveTextContent('0 / 2');
+      expect(screen.getByTestId('metric-complete-count')).toHaveTextContent('0 / 2');
+
+      // Mark row Present without timestamps
+      fireEvent.change(screen.getByLabelText('Status for Ramesh'), { target: { value: 'Present' } });
+      expect(screen.getByTestId('metric-marked-count')).toHaveTextContent('1 / 2');
+      expect(screen.getByTestId('metric-complete-count')).toHaveTextContent('0 / 2');
+
+      // Stale hours warning while dirty
+      expect(screen.getAllByText(/Save to recalculate hours/).length).toBeGreaterThan(0);
+
+      // Enter timestamps
+      fireEvent.change(screen.getByLabelText('Entry for Ramesh'), { target: { value: '2026-09-30T08:00' } });
+      fireEvent.change(screen.getByLabelText('Exit for Ramesh'), { target: { value: '2026-09-30T20:00' } });
+
+      // Entry Complete is now 1 / 2
+      expect(screen.getByTestId('metric-marked-count')).toHaveTextContent('1 / 2');
+      expect(screen.getByTestId('metric-complete-count')).toHaveTextContent('1 / 2');
+    });
   });
 });

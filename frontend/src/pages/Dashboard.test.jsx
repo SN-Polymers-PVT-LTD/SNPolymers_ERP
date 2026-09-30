@@ -12,6 +12,14 @@ import { ThemeProvider } from '../components/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 vi.mock('../api/authApi');
+vi.mock('../api/hrAttendanceApi', () => ({
+  getFmAttendanceSummary: vi.fn().mockResolvedValue({
+    data: {
+      returned_sheets: [],
+      today_sheets: []
+    }
+  })
+}));
 
 function renderWithProviders(ui) {
   const queryClient = new QueryClient({
@@ -58,6 +66,28 @@ describe('Dashboard Page Contract', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 1, name: /Welcome back/i })).toBeInTheDocument();
     });
+  });
+
+  it('renders role-appropriate dashboard view for factory_manager role', async () => {
+    mockApiScenario(authApi, {
+      scenario: 'populated',
+      user: {
+        id: 'usr_fm',
+        role: 'factory_manager',
+        display_name: 'Factory Manager',
+        mobile_number: '+919876543299',
+        is_active: true
+      }
+    });
+
+    renderWithProviders(<Dashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 1, name: /Welcome back, Factory Manager!/i })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Today's Attendance Rosters/i)).toBeInTheDocument();
+    expect(screen.getByText(/Master Configuration Hub/i)).toBeInTheDocument();
   });
 
   it('redirects unauthenticated visitor to login', async () => {

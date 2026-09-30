@@ -61,8 +61,15 @@ const TopNavbar = () => {
       isActive: currentPath === '/dashboard' || currentPath === '/profile'
     },
     ...(['factory_manager', 'ho', 'admin'].includes(role) ? [{
-      label: 'Factory', icon: <span className="text-sm font-bold">FM</span>,
-      to: '/factory-attendance', isActive: currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')
+      label: 'Factory',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2 20a2 2 0 002 2h16a2 2 0 002-2V8l-7 5V8l-7 5V4a2 2 0 00-2-2H4a2 2 0 00-2 2v16z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18h-1M13 18h-1M8 18H7" />
+        </svg>
+      ),
+      to: ['ho','admin'].includes(role) ? '/factory-attendance/review' : '/factory-attendance',
+      isActive: currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')
     }] : []),
     // 2. Project Management
     ...(isAuthorizedProjects

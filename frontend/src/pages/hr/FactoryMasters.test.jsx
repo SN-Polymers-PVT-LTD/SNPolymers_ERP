@@ -92,4 +92,40 @@ describe('Factory masters', () => {
     fireEvent.click(screen.getByRole('button', { name: '3' }));
     await waitFor(() => expect(getFactoryRevisions).toHaveBeenCalledWith('wages', expect.objectContaining({ page: 3 })));
   });
+
+  describe('Step 2 Presentation Acceptance Tests', () => {
+    it('renders exact pill tabs, explicit applicable snapshot card, and 3 distinct rule fieldsets', async () => {
+      getEffectiveFactoryMasters.mockResolvedValue({
+        data: {
+          wage_revision: null,
+          rule_revision: {
+            standard_duty_hours: 8,
+            effective_from: '2026-01-01',
+            ot_enabled: true,
+            ot_method: 'Fixed Hourly',
+            ot_rate: 50,
+            ot_multiplier: null,
+            holiday_pay_enabled: true,
+            holiday_multiplier: 1.5,
+            management_stoppage_treatment: 'Full wage',
+            double_duty_multiplier: null
+          }
+        }
+      });
+      mount('/factory-masters?tab=rules&date=2026-09-30');
+
+      // Pill tabs
+      expect(screen.getByRole('button', { name: 'Daily Wage Master' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Attendance & Pay Rules' })).toBeInTheDocument();
+
+      // Applicable date card
+      expect(await screen.findByText(/Applicable on selected date:/)).toBeInTheDocument();
+      expect(screen.getByText('2026-09-30')).toBeInTheDocument();
+
+      // 3 distinct rule fieldset headings
+      expect(screen.getByText('Effective Period & Base Hours')).toBeInTheDocument();
+      expect(screen.getByText('Overtime & Multipliers')).toBeInTheDocument();
+      expect(screen.getByText('Stoppage Policies')).toBeInTheDocument();
+    });
+  });
 });

@@ -321,8 +321,8 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     const s = await ready(db,await sheet(db)); await transition(db,s.id,'submit');
     const approved = await decide(db,l.id,'Approved','Unpaid');
     expect(approved.leave_type).toBe('Paid Leave'); expect(approved.pay_treatment).toBe('Unpaid');
-    await fails(()=>transition(db,s.id,'review',actors.ho),/unresolved leave/);
-    await transition(db,s.id,'return',actors.ho,'Reflect approved Unpaid treatment');
+    expect((await one(db,'SELECT status FROM hr_attendance_sheets WHERE id=$1',[s.id])).status).toBe('Returned for Correction');
+    await fails(()=>transition(db,s.id,'review',actors.ho),/Invalid/);
     await save(db,s.id,[{employee_id:employees.casual,attendance_status:'Unpaid Leave'}]);
     await transition(db,s.id,'submit'); await transition(db,s.id,'review',actors.ho);
     const a = (await rows(db,s.id)).find(a=>a.employee_id===employees.casual);

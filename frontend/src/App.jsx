@@ -19,6 +19,8 @@ import SystemPolicy from './pages/SystemPolicy';
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
 const DailyAttendance = React.lazy(() => import('./pages/hr/DailyAttendance'));
+const AttendanceReviewQueue = React.lazy(() => import('./pages/hr/AttendanceReviewQueue'));
+const AttendanceReviewDetail = React.lazy(() => import('./pages/hr/AttendanceReviewDetail'));
 const FactoryMasters = React.lazy(() => import('./pages/hr/FactoryMasters'));
 const EmployeeManagement = React.lazy(() => import('./pages/admin/EmployeeManagement'));
 const AuditLog = React.lazy(() => import('./pages/admin/AuditLog'));
@@ -165,6 +167,11 @@ function App() {
                 <Route element={<ProtectedRoute allowedRoles={['factory_manager', 'ho', 'admin']} />}>
                   <Route path="/factory-attendance" element={<React.Suspense fallback={<AppChunkLoader />}><DailyAttendance /></React.Suspense>} />
                   <Route path="/factory-masters" element={<React.Suspense fallback={<AppChunkLoader />}><FactoryMasters /></React.Suspense>} />
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
+                  <Route path="/factory-attendance/review" element={<React.Suspense fallback={<AppChunkLoader />}><AttendanceReviewQueue /></React.Suspense>} />
+                  <Route path="/factory-attendance/review/:sheetId" element={<React.Suspense fallback={<AppChunkLoader />}><AttendanceReviewDetail /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}

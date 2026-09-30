@@ -9,6 +9,17 @@ const row = z.object({
   leave_request_id: z.uuid().nullable().optional(), remarks: z.string().trim().max(2000).nullable().optional()
 }).strict();
 module.exports = {
+  fmSummary: {query:z.object({date:z.iso.date().optional()}).strict()},
+  reviewQueue: {query:z.object({from_date:z.iso.date().optional(),to_date:z.iso.date().optional(),
+    employee_category:z.enum(categories).optional(),status:z.enum(['Submitted','Returned for Correction','Locked']).optional(),
+    page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)
+  }).strict().refine(q=>!q.from_date||!q.to_date||q.from_date<=q.to_date,'Invalid date range.')},
+  returnSheet: {params,body:z.object({remarks:z.string().trim().min(1).max(2000)}).strict()},
+  reviewSheet: {params,body:z.object({remarks:z.string().trim().max(2000).optional()}).strict()},
+  decideLeave: {params:z.object({sheetId:z.uuid(),leaveId:z.uuid()}).strict(),
+    body:z.object({decision:z.enum(['Approved','Rejected']),pay_treatment:z.enum(['Paid','Unpaid']),
+      remarks:z.string().trim().max(2000).optional()}).strict()
+      .refine(b=>b.decision!=='Rejected'||Boolean(b.remarks),'Rejection remarks are required.')},
   selection: { query: selection }, populate: { body: selection }, detail: { params },
   save: { params, body: z.object({ rows: z.array(row).min(1).max(5000).refine(rows => new Set(rows.map(r => r.employee_id)).size === rows.length, 'Duplicate employee in batch.') }).strict() },
   submit: { params, body: z.object({}).strict() },

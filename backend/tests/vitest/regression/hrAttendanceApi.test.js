@@ -222,6 +222,18 @@ describe('FM attendance HTTP/database integration', () => {
     expect(submitOk.status).toBe(200);
     expect(submitOk.body.sheet.status).toBe('Submitted');
   });
+  test('FM dashboard summary reads real sheet fields, sums stored OT, and preserves access boundaries',async()=>{
+    const s=await create(23);await absent(s);
+    await request('PUT',`/sheets/${s.id}/rows`,'factory_manager',{rows:[{employee_id:employees.casual,attendance_status:'Present',entry_timestamp:stamp(23,'08:00'),exit_timestamp:stamp(23,'18:00')}]});
+    const path=`/fm-summary?date=${date(23)}`;
+    for(const role of ['factory_manager','admin']){
+      const result=await request('GET',path,role);expect(result.status).toBe(200);
+      expect(result.body.today_sheets.find(sheet=>sheet.id===s.id)).toMatchObject({status:'Draft',total_ot_hours:2});
+      expect(result.body.date).toBe(date(23));
+    }
+    for(const role of ['ho','je','zo','accounts','anonymous'])expect((await request('GET',path,role)).status).toBe(role==='anonymous'?401:403);
+    expect((await request('GET','/fm-summary?date=invalid')).status).toBe(400);
+  });
   test('live role reassignment revokes attendance reads and old sessions',async () => {
     await db.query("UPDATE authorised_users SET role='accounts' WHERE id=$1",[actors.factory_manager]);
     expect((await request('GET',`/roster?${query(2)}`)).status).toBe(401);

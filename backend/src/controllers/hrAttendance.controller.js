@@ -32,6 +32,54 @@ async function detail(sheet) {
 }
 const handle = fn => async (req, res) => { try { await fn(req,res); } catch (error) { sendError(res,error); } };
 module.exports = {
+  reviewQueue: handle(async (req,res) => {
+    const q=req.query;
+    const {data}=await checked(supabase.rpc('get_hr_attendance_review_queue',{p_actor_id:req.user.id,
+      p_from_date:q.from_date||null,p_to_date:q.to_date||null,p_category:q.employee_category||null,
+      p_status:q.status||null,p_page:q.page,p_limit:q.limit}));
+    res.json({success:true,...data});
+  }),
+  reviewDetail: handle(async (req,res) => {
+    const {data}=await checked(supabase.rpc('get_hr_attendance_review_state',{p_sheet_id:req.params.sheetId,p_actor_id:req.user.id}));
+    const payload=await detail(await sheetById(req.params.sheetId));
+    const actorIds=[...new Set([payload.sheet.submitted_by,payload.sheet.reviewed_by,payload.sheet.returned_by,
+      ...payload.rows.flatMap(row=>[row.leave?.created_by,row.leave?.decided_by])].filter(Boolean))];
+    const users=actorIds.length?(await checked(supabase.from('authorised_users').select('id,display_name').in('id',actorIds))).data:[];
+    res.json({success:true,...payload,review:data,actors:Object.fromEntries(users.map(user=>[user.id,user.display_name]))});
+  }),
+  decideLeave: handle(async (req,res) => {
+    const b=req.body;
+    const {data}=await checked(supabase.rpc('decide_hr_factory_sheet_leave',{p_sheet_id:req.params.sheetId,p_leave_id:req.params.leaveId,
+      p_decision:b.decision,p_pay_treatment:b.pay_treatment,p_remarks:b.remarks||null,p_actor_id:req.user.id}));
+    res.json({success:true,leave:data});
+  }),
+  returnSheet: handle(async (req,res) => {
+    const {data}=await checked(supabase.rpc('transition_hr_attendance_sheet',{p_sheet_id:req.params.sheetId,p_action:'return',p_remarks:req.body.remarks,p_actor_id:req.user.id}));
+    res.json({success:true,sheet:data});
+  }),
+  fmSummary: handle(async (req, res) => {
+    const today = req.query.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const returnedSheets = await all(() => supabase.from('hr_attendance_sheets')
+      .select('id, employee_category, attendance_date, status, return_remarks, submission_count, updated_at')
+      .eq('status', 'Returned for Correction').order('attendance_date', { ascending: false }).order('id'));
+    const { data: todaySheets } = await checked(supabase.from('hr_attendance_sheets')
+      .select('id, employee_category, attendance_date, status, submission_count').eq('attendance_date', today));
+    const hours = todaySheets.length ? await all(() => supabase.from('hr_attendance_rows')
+      .select('sheet_id,ot_hours').in('sheet_id',todaySheets.map(sheet => sheet.id)).order('id')) : [];
+    const totals = new Map();
+    for (const row of hours) totals.set(row.sheet_id,(totals.get(row.sheet_id)||0)+Number(row.ot_hours));
+    for (const sheet of todaySheets) sheet.total_ot_hours=totals.get(sheet.id)||0;
+    res.json({
+      success: true,
+      date: today,
+      today_sheets: todaySheets || [],
+      returned_sheets: returnedSheets || []
+    });
+  }),
+  reviewSheet: handle(async (req,res) => {
+    const {data}=await checked(supabase.rpc('transition_hr_attendance_sheet',{p_sheet_id:req.params.sheetId,p_action:'review',p_remarks:req.body.remarks||null,p_actor_id:req.user.id}));
+    res.json({success:true,sheet:data});
+  }),
   roster: handle(async (req,res) => {
     const employees = await all(() => supabase.from('hr_employees').select(employeeFields).eq('employee_category',req.query.employee_category)
       .eq('active_status','Active').lte('joining_date',req.query.date).order('employee_code').order('id'));

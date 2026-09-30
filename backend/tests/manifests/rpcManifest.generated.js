@@ -318,6 +318,35 @@ module.exports = {
       ],
       "returns": "requisitions"
     },
+    "decide_hr_factory_sheet_leave": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_leave_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_decision",
+          "type": "text"
+        },
+        {
+          "name": "p_pay_treatment",
+          "type": "text"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_leave_requests"
+    },
     "decide_hr_leave_request": {
       "args": [
         {
@@ -413,6 +442,52 @@ module.exports = {
         {
           "name": "p_date_to",
           "type": "timestamp with time zone DEFAULT NULL::timestamp with time zone"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_hr_attendance_review_queue": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from_date",
+          "type": "date DEFAULT NULL::date"
+        },
+        {
+          "name": "p_to_date",
+          "type": "date DEFAULT NULL::date"
+        },
+        {
+          "name": "p_category",
+          "type": "text DEFAULT NULL::text"
+        },
+        {
+          "name": "p_status",
+          "type": "text DEFAULT NULL::text"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_hr_attendance_review_state": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
         }
       ],
       "returns": "jsonb"

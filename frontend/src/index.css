@@ -1424,3 +1424,20 @@ body.theme-pure-black .glass-input {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   color: #f8fafc !important;
 }
+
+/* Opaque Sticky Columns for Attendance & Data Tables */
+.sticky-col-opaque {
+  background-color: #0b0f19 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+body.theme-pure-black .sticky-col-opaque {
+  background-color: #09090b !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+body.light .sticky-col-opaque {
+  background-color: #ffffff !important;
+  border-right: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}

@@ -131,11 +131,27 @@ describe('App Smoke Tests', () => {
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Daily Attendance' }, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByLabelText('Attendance Date')).toHaveValue('2026-09-30');
-    expect(screen.getAllByRole('link', { name: /DA Daily Attendance/i }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: /Daily Attendance/i }).length).toBeGreaterThan(0);
     if (role === 'ho') expect(screen.queryByRole('button', { name: 'Create Attendance Sheet' })).not.toBeInTheDocument();
   });
 
-  it.each(['je', 'zo', 'accounts'])('denies %s attendance direct navigation', async role => {
+  it.each(['ho','admin'])('opens HO review queue and Factory navigation for %s', async role => {
+    setAuthenticatedRole(role);
+    unauthenticatedMock.get.mockImplementation(url => Promise.resolve({data:url==='/me'?{success:true,user:{role,display_name:'HO reviewer'}}:{success:true,sheets:[],pagination:{totalItems:0,totalPages:1}}}));
+    window.history.pushState({}, '', '/factory-attendance/review?status=Submitted&page=2');
+    render(<App />);
+    expect(await screen.findByRole('heading',{name:'Attendance Review Queue'},{timeout:4000})).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Attendance Review/i }).length).toBeGreaterThan(0);
+  });
+  it.each(['factory_manager','je','zo','accounts'].flatMap(role=>['/factory-attendance/review','/factory-attendance/review/sheet-id'].map(path=>[role,path])))('denies %s direct HO navigation to %s',async (role,path)=>{
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', path);render(<App />);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('heading',{name:'Attendance Review Detail'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Attendance Review/i })).not.toBeInTheDocument();
+  });
+
+  it.each(['je', 'zo', 'accounts'])('denies %s attendance direct navigation' , async role => {
     setAuthenticatedRole(role);
     window.history.pushState({}, '', '/factory-attendance');
     render(<App />);
