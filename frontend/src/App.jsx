@@ -18,6 +18,7 @@ import SystemPolicy from './pages/SystemPolicy';
 // Dynamic Lazy Views for chunk splitting & optimistic preloading
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
+const FactoryMasters = React.lazy(() => import('./pages/hr/FactoryMasters'));
 const EmployeeManagement = React.lazy(() => import('./pages/admin/EmployeeManagement'));
 const AuditLog = React.lazy(() => import('./pages/admin/AuditLog'));
 const MasterData = React.lazy(() => import('./pages/admin/MasterData'));
@@ -118,14 +119,16 @@ function App() {
             <Route path="/docs/:pageId" element={<Docs />} />
 
             {/* Protected Routes utilizing Persistent AppLayout */}
-            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager']} />}>
               <Route element={
                 <AppLayout />
               }>
                 <Route path="/dashboard" element={<React.Suspense fallback={<AppChunkLoader />}><Dashboard /></React.Suspense>} />
                 <Route path="/profile" element={<React.Suspense fallback={<AppChunkLoader />}><Profile /></React.Suspense>} />
-                <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
-                <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
+                <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+                  <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
+                  <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
+                </Route>
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
                   <Route path="/subcontract-estimates" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimates /></React.Suspense>} />
                   <Route path="/subcontract-estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateView /></React.Suspense>} />
@@ -137,10 +140,13 @@ function App() {
                   <Route path="/subcontractors" element={<Navigate to="/subcontract-masters?tab=subcontractor" replace />} />
                   <Route path="/subcontract-masters" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractMasters /></React.Suspense>} />
                 </Route>
-                <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
-                <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
-                <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
-                <Route path="/estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+                <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+                  <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
+                  <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+                  <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
+                  <Route path="/estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+
+                </Route>
 
                 {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
@@ -153,6 +159,10 @@ function App() {
                 {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
                   <Route path="/fund-requests" element={<React.Suspense fallback={<AppChunkLoader />}><FundRequests /></React.Suspense>} />
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={['factory_manager', 'ho', 'admin']} />}>
+                  <Route path="/factory-masters" element={<React.Suspense fallback={<AppChunkLoader />}><FactoryMasters /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}

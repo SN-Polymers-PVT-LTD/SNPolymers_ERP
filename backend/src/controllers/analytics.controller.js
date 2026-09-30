@@ -11,16 +11,16 @@ async function enrichAuditsWithUserNames(logs) {
     return logs.map(log => ({ ...log, user_name: log.user_id || 'System' }));
   }
 
-  const { data: users, error } = await supabase
-    .from('authorised_users')
-    .select('mobile_number, display_name')
-    .in('mobile_number', userIds);
-
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const ids = userIds.filter(id => uuidPattern.test(id));
+  const mobiles = userIds.filter(id => !uuidPattern.test(id));
+  const results = await Promise.all([
+    ids.length ? supabase.from('authorised_users').select('id,display_name').in('id', ids) : Promise.resolve({ data: [] }),
+    mobiles.length ? supabase.from('authorised_users').select('mobile_number,display_name').in('mobile_number', mobiles) : Promise.resolve({ data: [] })
+  ]);
   const userMap = {};
-  if (!error && users) {
-    users.forEach(u => {
-      userMap[u.mobile_number] = u.display_name;
-    });
+  for (const { data, error } of results) {
+    if (!error) for (const user of data || []) userMap[user.id || user.mobile_number] = user.display_name;
   }
 
   return logs.map(log => ({
@@ -252,7 +252,9 @@ async function getRecentActivity(req, res) {
         .select('*');
       if (req.user.role !== 'admin') {
         auditsQuery = auditsQuery.neq('module_name', 'HR Employee Master')
-          .neq('module_name', 'HR Permanent Pay Structure');
+          .neq('module_name', 'HR Permanent Pay Structure')
+          .neq('module_name', 'HR Factory Wage Master')
+          .neq('module_name', 'HR Factory Pay Rule Master');
       }
       const { data: audits, error } = await auditsQuery
         .order('timestamp', { ascending: false }).limit(50);
@@ -293,7 +295,9 @@ async function getAuditLog(req, res) {
     }
     if (req.user.role !== 'admin') {
       query = query.neq('module_name', 'HR Employee Master')
-        .neq('module_name', 'HR Permanent Pay Structure');
+        .neq('module_name', 'HR Permanent Pay Structure')
+        .neq('module_name', 'HR Factory Wage Master')
+        .neq('module_name', 'HR Factory Pay Rule Master');
     }
 
     const { data, error, count } = await query

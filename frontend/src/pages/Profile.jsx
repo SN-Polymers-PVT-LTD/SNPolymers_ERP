@@ -129,7 +129,7 @@ const Profile = () => {
                 <div className="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-start">
                   <h2 className="text-xl font-bold text-slate-100">{profile.display_name}</h2>
                   <span className="inline-block w-fit mx-auto md:mx-0 px-2.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    {profile.role}
+                    {profile.role === 'factory_manager' ? 'Factory Manager' : profile.role}
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium mt-1">Phone: {profile.mobile_number}</p>

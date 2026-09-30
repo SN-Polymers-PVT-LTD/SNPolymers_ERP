@@ -399,6 +399,7 @@ const AdminPanel = () => {
             { id: 'zo', label: 'Zonal Auditor (ZO)' },
             { id: 'ho', label: 'Head Office (HO)' },
             { id: 'accounts', label: 'Accounts' },
+            { id: 'factory_manager', label: 'Factory Manager' },
             { id: 'admin', label: 'System Admin' }
           ].map((r) => (
             <button
@@ -453,7 +454,7 @@ const AdminPanel = () => {
                           ? 'bg-indigo-950/40 text-indigo-400 border border-indigo-900/30'
                           : 'bg-white/5 text-slate-300 border border-white/5'
                       }`}>
-                        {user.role}
+                        {user.role === 'factory_manager' ? 'Factory Manager' : user.role}
                       </span>
                     </td>
 
@@ -583,6 +584,7 @@ const AdminPanel = () => {
               <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
               <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
               <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
+              <option value="factory_manager" className="bg-slate-900 text-slate-100">Factory Manager</option>
               <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
             </select>
           </div>
@@ -674,6 +676,7 @@ const AdminPanel = () => {
                 <option value="zo" className="bg-slate-900 text-slate-100">Zonal Office Auditor (ZO)</option>
                 <option value="ho" className="bg-slate-900 text-slate-100">Head Office Auditor (HO)</option>
                 <option value="accounts" className="bg-slate-900 text-slate-100">Accounts</option>
+              <option value="factory_manager" className="bg-slate-900 text-slate-100">Factory Manager</option>
                 <option value="admin" className="bg-slate-900 text-slate-100">System Admin (Full Controls)</option>
               </select>
             </div>

@@ -42,6 +42,7 @@ const subcontractorsRoutes = require('./routes/subcontractors.routes');
 const subcontractEstimatesRoutes = require('./routes/subcontractEstimates.routes');
 const hrEmployeesRoutes = require('./routes/hrEmployees.routes');
 const hrPayStructuresRoutes = require('./routes/hrPayStructures.routes');
+const hrFactoryMastersRoutes = require('./routes/hrFactoryMasters.routes');
 
 
 const { startPolling, registerWebhook } = require('./services/telegram.service');
@@ -111,6 +112,7 @@ app.use('/api/v1/auth/subcontractors', subcontractorsRoutes);
 app.use('/api/v1/auth/subcontract-estimates', subcontractEstimatesRoutes);
 app.use('/api/v1/auth/hr/employees', hrEmployeesRoutes);
 app.use('/api/v1/auth/hr/pay-structures', hrPayStructuresRoutes);
+app.use('/api/v1/auth/hr/factory-masters', hrFactoryMastersRoutes);
 
 
 // Health check route with database connectivity ping

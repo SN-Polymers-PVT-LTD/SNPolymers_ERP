@@ -7,7 +7,7 @@ const categories = [
 ];
 const departments = ['Head Office', 'Fabric Factory', 'SNP Factory', 'Projects'];
 const statuses = ['Active', 'Inactive', 'Exited'];
-const roles = ['admin', 'je', 'zo', 'ho', 'accounts'];
+const roles = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
 const date = z.iso.date();
 
 function isValidIndianMobile(val) {

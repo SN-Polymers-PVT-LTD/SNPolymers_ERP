@@ -55,7 +55,7 @@ async function addUser(req, res) {
     return res.status(409).json({ success: false, message: 'This mobile number is already whitelisted.' });
   }
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -101,7 +101,7 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -127,14 +127,7 @@ async function updateUser(req, res) {
 
     if (error) throw error;
 
-    // If deactivated, invalidate all their active sessions
-    if (isActive === false) {
-      await supabase
-        .from('sessions')
-        .update({ is_active: false, logout_at: new Date().toISOString() })
-        .eq('user_id', id)
-        .eq('is_active', true);
-    }
+    // Account-access trigger atomically revokes sessions on role change/deactivation.
 
     return res.status(200).json({ success: true, user: data, message: 'User updated successfully.' });
   } catch (error) {

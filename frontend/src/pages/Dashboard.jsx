@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import HoDashboardView from './dashboard/HoDashboardView';
 import ZoDashboardView from './dashboard/ZoDashboardView';
@@ -20,7 +21,9 @@ const Dashboard = () => {
       </div>
 
       {/* Dynamic Dashboard Sub-Views */}
-      {['ho', 'admin'].includes(user?.role) ? (
+      {user?.role === 'factory_manager' ? (
+        <Link to="/factory-masters" className="block p-6 rounded-xl bg-white/5 border border-white/10">Factory Masters</Link>
+      ) : ['ho', 'admin'].includes(user?.role) ? (
         <HoDashboardView />
       ) : user?.role === 'zo' ? (
         <ZoDashboardView />

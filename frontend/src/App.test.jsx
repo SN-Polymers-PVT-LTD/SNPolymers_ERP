@@ -118,6 +118,29 @@ describe('App Smoke Tests', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
   });
 
+  it.each(['admin', 'ho', 'factory_manager'])('allows %s to open factory master deep links', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-masters?tab=rules');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Factory Attendance & Pay Rule Master' })).toBeInTheDocument();
+  });
+
+  it.each(['/admin', '/admin/employee-management', '/estimates', '/materials', '/acct-requisitions', '/analytics/ho'])('denies FM direct navigation to %s', async path => {
+    setAuthenticatedRole('factory_manager');
+    window.history.pushState({}, '', path);
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByText('Cost Estimates')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Factory Masters').length).toBeGreaterThan(0);
+  });
+
+  it.each(['je', 'zo', 'accounts'])('denies %s factory master direct navigation', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-masters');
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+  });
+
   it.each(urlStateRouteCases)('renders the %s URL-state page DOM through App for the %s role', async (_label, role, url, heading) => {
     setAuthenticatedRole(role);
     window.history.pushState({}, '', url);

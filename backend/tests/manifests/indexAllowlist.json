@@ -47,5 +47,9 @@
   "idx_cesc_source_line",
   "idx_psel_adjusts_line",
   "idx_psewl_estimate_created_at",
-  "idx_psel_final_approved_revision"
+  "idx_psel_final_approved_revision",
+  "hr_factory_wage_revisions_employee_category_effective_from_key",
+  "hr_factory_wage_revisions_employee_category_revision_number_key",
+  "hr_factory_pay_rule_revisions_employee_category_effective_f_key",
+  "hr_factory_pay_rule_revisions_employee_category_revision_nu_key"
 ]

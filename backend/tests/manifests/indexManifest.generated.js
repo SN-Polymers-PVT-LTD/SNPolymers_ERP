@@ -29,6 +29,22 @@ module.exports = {
       "table": "hr_employees",
       "definition": "CREATE INDEX hr_employees_status_category_idx ON public.hr_employees USING btree (active_status, employee_category)"
     },
+    "hr_factory_pay_rule_revisions_employee_category_effective_f_key": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_effective_f_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, effective_from)"
+    },
+    "hr_factory_pay_rule_revisions_employee_category_revision_nu_key": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_revision_nu_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, revision_number)"
+    },
+    "hr_factory_wage_revisions_employee_category_effective_from_key": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_effective_from_key ON public.hr_factory_wage_revisions USING btree (employee_category, effective_from)"
+    },
+    "hr_factory_wage_revisions_employee_category_revision_number_key": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_revision_number_key ON public.hr_factory_wage_revisions USING btree (employee_category, revision_number)"
+    },
     "hr_pay_revision_unique": {
       "table": "hr_permanent_pay_structures",
       "definition": "CREATE UNIQUE INDEX hr_pay_revision_unique ON public.hr_permanent_pay_structures USING btree (employee_id, revision_number)"

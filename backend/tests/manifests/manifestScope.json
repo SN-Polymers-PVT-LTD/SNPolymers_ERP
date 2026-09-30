@@ -28,6 +28,8 @@
     "project_subcontract_estimate_lines",
     "subcontract_estimate_revision_log",
     "cost_estimate_subcontract_contributions",
-    "project_subcontract_estimate_workflow_log"
+    "project_subcontract_estimate_workflow_log",
+    "hr_factory_wage_revisions",
+    "hr_factory_pay_rule_revisions"
   ]
 }

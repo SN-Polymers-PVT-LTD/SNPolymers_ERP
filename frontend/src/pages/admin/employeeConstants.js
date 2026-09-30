@@ -28,7 +28,8 @@ export const ERP_ROLES = [
   { value: 'je', label: 'Junior Engineer (JE)' },
   { value: 'zo', label: 'Zonal Officer (ZO)' },
   { value: 'ho', label: 'Head Office (HO)' },
-  { value: 'accounts', label: 'Accounts' }
+  { value: 'accounts', label: 'Accounts' },
+  { value: 'factory_manager', label: 'Factory Manager' }
 ];
 
 export const PAY_BASES = ['Monthly salary', 'Special package'];

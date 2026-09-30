@@ -34,6 +34,16 @@ function renderWithProviders(ui) {
 }
 
 describe('AdminPanel Page Contract', () => {
+  it('offers the canonical FM role in account creation and role filters', async () => {
+    mockApiScenario(authApi, { scenario: 'populated', role: 'admin' });
+    renderWithProviders(<AdminPanel />);
+    await screen.findByRole('heading', { name: /Authorized Access Whitelist/i });
+    expect(screen.getByRole('button', { name: 'Factory Manager', exact: true })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Authorize User Credentials/i }));
+    const option = await screen.findByRole('option', { name: 'Factory Manager' });
+    expect(option).toHaveValue('factory_manager');
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -313,6 +313,12 @@ export const MobileHeader = () => {
     });
   }
 
+  // FM has no project/finance/audit navigation in this phase.
+  if (user?.role === 'factory_manager') menuGroups.splice(0);
+  if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
+    menuGroups.push({ title: 'Factory', items: [{ to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> }] });
+  }
+
   return (
     <>
       <header className="md:hidden glass-nav sticky top-0 z-50 p-4 flex items-center justify-between">
@@ -445,7 +451,7 @@ export const MobileHeader = () => {
                 </div>
                 <div className="truncate flex-grow">
                   <p className="text-xs font-extrabold text-slate-200 truncate">{user.display_name || 'User Account'}</p>
-                  <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{user.role}</p>
+                  <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{user.role === 'factory_manager' ? 'Factory Manager' : user.role}</p>
                 </div>
               </div>
 
@@ -546,7 +552,9 @@ const Sidebar = () => {
   // 2. Define sub-navigation items based on active module and role access
   const navItems = [];
 
-  if (isProjectModule) {
+  if (user?.role === 'factory_manager' || currentPath.startsWith('/factory-masters')) {
+    if (['factory_manager', 'ho', 'admin'].includes(user?.role)) navItems.push({ to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> });
+  } else if (isProjectModule) {
     navItems.push(
       ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [{ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> }] : []),
       {
@@ -946,7 +954,7 @@ const Sidebar = () => {
               <Link
                 to="/profile"
                 className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-xs shadow-md select-none"
-                title={`${user.display_name || 'Operator'} (${user.role})`}
+                title={`${user.display_name || 'Operator'} (${user.role === 'factory_manager' ? 'Factory Manager' : user.role})`}
               >
                 {(user.display_name || 'U')[0].toUpperCase()}
               </Link>
@@ -1083,7 +1091,7 @@ const Sidebar = () => {
                     {user.display_name || 'Operator'}
                   </span>
                   <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
-                    {user.role}
+                    {user.role === 'factory_manager' ? 'Factory Manager' : user.role}
                   </span>
                 </div>
               </Link>

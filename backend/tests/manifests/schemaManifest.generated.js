@@ -2606,6 +2606,158 @@ module.exports = {
           "default": "now()"
         }
       }
+    },
+    "hr_factory_wage_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "daily_wage": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_factory_pay_rule_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "standard_duty_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "ot_enabled": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "ot_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "ot_rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "ot_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "holiday_pay_enabled": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "holiday_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "management_stoppage_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "short_hours_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "comp_off_rule": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "double_duty_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
     }
   }
 };

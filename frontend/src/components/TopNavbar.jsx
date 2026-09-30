@@ -60,6 +60,10 @@ const TopNavbar = () => {
       to: '/dashboard',
       isActive: currentPath === '/dashboard' || currentPath === '/profile'
     },
+    ...(['factory_manager', 'ho', 'admin'].includes(role) ? [{
+      label: 'Factory', icon: <span className="text-sm font-bold">FM</span>,
+      to: '/factory-masters', isActive: currentPath.startsWith('/factory-masters')
+    }] : []),
     // 2. Project Management
     ...(isAuthorizedProjects
       ? [
