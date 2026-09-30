@@ -230,6 +230,20 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     await fails(()=>leave(db,employees.casual,date(),date(),{id:l.id,reason:'Rewrite approved leave'}),/immutable/);
     await fails(()=>decide(db,l.id,'Rejected','Unpaid'),/immutable/);
   });
+  test('attendance row cannot be detached from an active covering leave and submitted with a contradictory status', async () => {
+    const l = await leave(db, employees.casual, date(1, 10), date(1, 10));
+    const s = await ready(db, await sheet(db, casual, date(1, 10)));
+    let a = (await rows(db, s.id)).find(r => r.employee_id === employees.casual);
+    expect(a.leave_request_id).toBe(l.id);
+    expect(a.attendance_status).toBe('Medical Leave');
+    await save(db, s.id, [{ employee_id: employees.casual, attendance_status: 'Absent', leave_request_id: null }]);
+    a = (await rows(db, s.id)).find(r => r.employee_id === employees.casual);
+    expect(a.leave_request_id).toBeNull();
+    expect(a.attendance_status).toBe('Absent');
+    await fails(() => transition(db, s.id, 'submit'), /unresolved leave/);
+    await save(db, s.id, [{ employee_id: employees.casual, attendance_status: 'Medical Leave', leave_request_id: l.id }]);
+    expect((await transition(db, s.id, 'submit')).status).toBe('Submitted');
+  });
   test('rejection returns every submitted linked sheet atomically and never silently becomes Absent', async () => {
     const l = await leave(db,employees.casual,date(),date(1,4));
     const s1 = await ready(db,await sheet(db)); const s2 = await ready(db,await sheet(db,casual,date(1,3)));

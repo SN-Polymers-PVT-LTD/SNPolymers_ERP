@@ -19,7 +19,7 @@ All paths below are under `/api/v1/auth/hr/attendance`. Routes use `verifyJwt`, 
 
 FM's backend mount allowlist is extended only for this attendance router. Existing employee administration, Permanent Pay Structure, generic audit, project and financial boundaries are preserved. Sheet/history UUIDs scope reads to the factory attendance domain; self-service leave and employee/pay master audits are excluded. Roster/row reads fetch bounded database pages internally to avoid PostgREST's 1000-row truncation. History pagination has a deterministic timestamp/UUID order. Row audit links preserve request history after explicit unlinking and later range corrections.
 
-Stable database error mappings: missing entity 404 `ATTENDANCE_NOT_FOUND`; authorization 403 `FACTORY_ACCESS_DENIED`; overlapping leave 409 `LEAVE_RANGE_CONFLICT`; protected state/business conflict 409 `ATTENDANCE_CONFLICT`; invalid database values 400 `INVALID_ATTENDANCE`. Zod validation uses the existing 400 response format. Unknown database failures produce a generic 500.
+Stable database error mappings: missing entity 404 `ATTENDANCE_NOT_FOUND`; authorization 403 `FACTORY_ACCESS_DENIED`; overlapping leave 409 `LEAVE_RANGE_CONFLICT`; protected state/business conflict 409 `ATTENDANCE_CONFLICT` (including submitting a row detached from an active covering leave); invalid database values 400 `INVALID_ATTENDANCE`. Zod validation uses the existing 400 response format. Unknown database failures produce a generic 500.
 
 ## Transaction and UI design
 

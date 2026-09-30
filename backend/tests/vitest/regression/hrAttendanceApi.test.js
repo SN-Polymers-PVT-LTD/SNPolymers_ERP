@@ -200,6 +200,28 @@ describe('FM attendance HTTP/database integration', () => {
     const {error}=await supabase.rpc('save_hr_factory_attendance_leave',{p_sheet_id:s.id,p_employee_id:employees.casual,p_leave_id:null,p_from_date:date(16),p_to_date:date(16),p_leave_type:'Medical Leave',p_reason:'Test',p_pay_treatment:'Pending',p_actor_id:actors.ho});
     expect(error.code).toBe('42501');
   });
+  test('detached row from active covering leave is rejected at submission with 409 ATTENDANCE_CONFLICT', async () => {
+    const s = await create(22);
+    await absent(s);
+    const leaveRes = await request('POST', `/sheets/${s.id}/leave`, 'factory_manager', leaveBody(22));
+    expect(leaveRes.status).toBe(200);
+    const leaveId = leaveRes.body.leave.id;
+    const detachRes = await request('PUT', `/sheets/${s.id}/rows`, 'factory_manager', {
+      rows: [{ employee_id: employees.casual, attendance_status: 'Absent', leave_request_id: null }]
+    });
+    expect(detachRes.status).toBe(200);
+    const submitFail = await request('POST', `/sheets/${s.id}/submit`, 'factory_manager', {});
+    expect(submitFail.status).toBe(409);
+    expect(submitFail.body.code).toBe('ATTENDANCE_CONFLICT');
+    expect(submitFail.body.message).toMatch(/unresolved leave/);
+    const relinkRes = await request('PUT', `/sheets/${s.id}/rows`, 'factory_manager', {
+      rows: [{ employee_id: employees.casual, attendance_status: 'Medical Leave', leave_request_id: leaveId }]
+    });
+    expect(relinkRes.status).toBe(200);
+    const submitOk = await request('POST', `/sheets/${s.id}/submit`, 'factory_manager', {});
+    expect(submitOk.status).toBe(200);
+    expect(submitOk.body.sheet.status).toBe('Submitted');
+  });
   test('live role reassignment revokes attendance reads and old sessions',async () => {
     await db.query("UPDATE authorised_users SET role='accounts' WHERE id=$1",[actors.factory_manager]);
     expect((await request('GET',`/roster?${query(2)}`)).status).toBe(401);

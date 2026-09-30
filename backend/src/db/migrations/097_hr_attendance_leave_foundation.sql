@@ -227,6 +227,26 @@ BEGIN
     )) THEN
     RAISE EXCEPTION 'Sheet has incomplete attendance/configuration or unresolved leave' USING ERRCODE = 'P0001';
   END IF;
+  -- An active covering factory leave must not be detached or contradicted at submission/review.
+  IF EXISTS(
+    SELECT 1 FROM public.hr_attendance_rows a
+    JOIN public.hr_leave_requests l ON l.employee_id = a.employee_id
+      AND l.request_source = 'FACTORY_MANAGER'
+      AND l.employee_category = s.employee_category
+      AND l.approval_status IN ('Pending','Approved')
+      AND s.attendance_date BETWEEN l.from_date AND l.to_date
+    WHERE a.sheet_id = s.id AND (
+      a.leave_request_id IS DISTINCT FROM l.id
+      OR a.attendance_status IS DISTINCT FROM (
+        CASE WHEN l.leave_type = 'Medical Leave' THEN 'Medical Leave'
+             WHEN l.approval_status = 'Approved' AND l.pay_treatment = 'Paid' THEN 'Paid Leave'
+             WHEN l.approval_status = 'Approved' THEN 'Unpaid Leave'
+             WHEN l.leave_type = 'Paid Leave' THEN 'Paid Leave' ELSE 'Unpaid Leave' END
+      )
+    )
+  ) THEN
+    RAISE EXCEPTION 'Sheet has incomplete attendance/configuration or unresolved leave' USING ERRCODE = 'P0001';
+  END IF;
 END;
 $$;
 
