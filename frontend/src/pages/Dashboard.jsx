@@ -22,7 +22,7 @@ const Dashboard = () => {
 
       {/* Dynamic Dashboard Sub-Views */}
       {user?.role === 'factory_manager' ? (
-        <Link to="/factory-masters" className="block p-6 rounded-xl bg-white/5 border border-white/10">Factory Masters</Link>
+        <div className="grid md:grid-cols-2 gap-4"><Link to="/factory-attendance" className="block p-6 rounded-xl bg-white/5 border border-white/10">Daily Attendance</Link><Link to="/factory-masters" className="block p-6 rounded-xl bg-white/5 border border-white/10">Factory Masters</Link></div>
       ) : ['ho', 'admin'].includes(user?.role) ? (
         <HoDashboardView />
       ) : user?.role === 'zo' ? (

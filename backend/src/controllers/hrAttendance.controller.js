@@ -1,0 +1,87 @@
+const { supabase } = require('../db/supabase');
+
+function sendError(res, error) {
+  const code = error?.code;
+  if (code === 'P0002' || code === 'PGRST116') return res.status(404).json({ success: false, code: 'ATTENDANCE_NOT_FOUND', message: 'Attendance sheet, employee row or leave request was not found.' });
+  if (code === '42501') return res.status(403).json({ success: false, code: 'FACTORY_ACCESS_DENIED', message: 'Factory attendance access denied.' });
+  if (code === '23P01') return res.status(409).json({ success: false, code: 'LEAVE_RANGE_CONFLICT', message: 'Pending or Approved leave already covers this employee and date range.' });
+  if (code === '23505' || code === 'P0001') return res.status(409).json({ success: false, code: 'ATTENDANCE_CONFLICT', message: error.message });
+  if (['23514','23503','22023','22007','22008','22P02','22003'].includes(code)) return res.status(400).json({ success: false, code: 'INVALID_ATTENDANCE', message: 'Invalid attendance or leave values. Check dates, timestamps and category rules.' });
+  console.error('Factory attendance operation failed:', error);
+  return res.status(500).json({ success: false, message: 'Factory attendance operation failed.' });
+}
+async function checked(query) { const result = await query; if (result.error) throw result.error; return result; }
+// PostgREST caps a response at 1000 rows; do not silently truncate factory rosters.
+async function all(queryFactory) {
+  const rows = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data } = await checked(queryFactory().range(offset, offset + 999));
+    rows.push(...data); if (data.length < 1000) return rows;
+  }
+}
+const employeeFields = 'id,employee_code,employee_name,employee_category,joining_date,active_status';
+async function sheetById(id) { return (await checked(supabase.from('hr_attendance_sheets').select('*').eq('id', id).single())).data; }
+async function detail(sheet) {
+  if (!sheet) return { sheet: null, rows: [] };
+  const rows = await all(() => supabase.from('hr_attendance_rows').select(`*,employee:hr_employees(${employeeFields}),leave:hr_leave_requests(*),rule:hr_factory_pay_rule_revisions(standard_duty_hours,holiday_pay_enabled)`).eq('sheet_id', sheet.id).order('employee_id'));
+  // Covering requests let FM explicitly attach existing range leave to an older draft row.
+  const leaves = await all(() => supabase.from('hr_leave_requests').select('*').eq('request_source','FACTORY_MANAGER')
+    .eq('employee_category',sheet.employee_category).lte('from_date',sheet.attendance_date).gte('to_date',sheet.attendance_date).order('id'));
+  const available = new Map(leaves.filter(l => l.approval_status !== 'Rejected').map(l => [l.employee_id,l]));
+  return { sheet, rows: rows.map(row => ({ ...row, available_leave: available.get(row.employee_id) || null })) };
+}
+const handle = fn => async (req, res) => { try { await fn(req,res); } catch (error) { sendError(res,error); } };
+module.exports = {
+  roster: handle(async (req,res) => {
+    const employees = await all(() => supabase.from('hr_employees').select(employeeFields).eq('employee_category',req.query.employee_category)
+      .eq('active_status','Active').lte('joining_date',req.query.date).order('employee_code').order('id'));
+    res.json({ success: true, employees });
+  }),
+  load: handle(async (req,res) => {
+    const { data } = await checked(supabase.from('hr_attendance_sheets').select('*').eq('employee_category',req.query.employee_category).eq('attendance_date',req.query.date).maybeSingle());
+    res.json({ success: true, ...await detail(data) });
+  }),
+  get: handle(async (req,res) => res.json({ success: true, ...await detail(await sheetById(req.params.sheetId)) })),
+  populate: handle(async (req,res) => {
+    const { data } = await checked(supabase.rpc('populate_hr_attendance_sheet',{ p_date: req.body.date, p_category: req.body.employee_category, p_actor_id: req.user.id }));
+    res.json({ success: true, sheet: data });
+  }),
+  save: handle(async (req,res) => {
+    const { data } = await checked(supabase.rpc('save_hr_attendance_rows',{ p_sheet_id: req.params.sheetId, p_rows: req.body.rows, p_actor_id: req.user.id }));
+    res.json({ success: true, rows: data });
+  }),
+  submit: handle(async (req,res) => {
+    const { data } = await checked(supabase.rpc('transition_hr_attendance_sheet',{ p_sheet_id: req.params.sheetId, p_action: 'submit', p_remarks: null, p_actor_id: req.user.id }));
+    res.json({ success: true, sheet: data });
+  }),
+  leave: handle(async (req,res) => {
+    const b = req.body;
+    const { data } = await checked(supabase.rpc('save_hr_factory_attendance_leave',{ p_sheet_id: req.params.sheetId, p_employee_id: b.employee_id, p_leave_id: b.leave_id,
+      p_from_date: b.from_date, p_to_date: b.to_date, p_leave_type: b.leave_type, p_reason: b.reason, p_pay_treatment: b.pay_treatment, p_actor_id: req.user.id }));
+    res.json({ success: true, leave: data });
+  }),
+  history: handle(async (req,res) => {
+    const sheet = await sheetById(req.params.sheetId);
+    const rows = await all(() => supabase.from('hr_attendance_rows').select('id,employee_id').eq('sheet_id',sheet.id).order('id'));
+    const leaves = await all(() => supabase.from('hr_leave_requests').select('id,employee_id').eq('request_source','FACTORY_MANAGER').eq('employee_category',sheet.employee_category)
+      .lte('from_date',sheet.attendance_date).gte('to_date',sheet.attendance_date).order('id'));
+    const employeeIds = new Set(rows.map(r => r.employee_id));
+    // A corrected/unlinked Pending request may later move its range. Its original
+    // sheet still needs the request's history, traced through immutable row audits.
+    const past = rows.length ? await all(() => supabase.from('audit_log')
+      .select('old_leave:old_value->>leave_request_id,new_leave:new_value->>leave_request_id')
+      .eq('module_name','HR Attendance').in('record_identifier',rows.map(row => row.id)).order('id')) : [];
+    const linkedIds = [...new Set(past.flatMap(log => [log.old_leave,log.new_leave]).filter(Boolean))];
+    const pastLeaves = linkedIds.length ? await all(() => supabase.from('hr_leave_requests').select('id,employee_id')
+      .eq('request_source','FACTORY_MANAGER').eq('employee_category',sheet.employee_category).in('id',linkedIds).order('id')) : [];
+    const ids = [...new Set([sheet.id,...rows.map(r => r.id),...[...leaves,...pastLeaves].filter(l => employeeIds.has(l.employee_id)).map(l => l.id)])];
+    // UUIDs from validated/database identities only. Scope both the module and record IDs.
+    const { page,limit } = req.query;
+    const { data,count } = await checked(supabase.from('audit_log').select('*',{count:'exact'}).in('module_name',['HR Attendance','HR Leave'])
+      .in('record_identifier',ids).order('timestamp',{ascending:false}).order('id',{ascending:false}).range((page-1)*limit,page*limit-1));
+    const actorIds = [...new Set(data.map(log => log.user_id))].filter(id => /^[0-9a-f-]{36}$/i.test(id));
+    const users = actorIds.length ? (await checked(supabase.from('authorised_users').select('id,display_name').in('id',actorIds))).data : [];
+    const names = new Map(users.map(u => [u.id,u.display_name]));
+    res.json({success:true,history:data.map(log => ({...log,user_name:names.get(log.user_id)||log.user_id})),pagination:{page,limit,totalItems:count,totalPages:Math.max(1,Math.ceil(count/limit))}});
+  })
+};

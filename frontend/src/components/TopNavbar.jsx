@@ -62,7 +62,7 @@ const TopNavbar = () => {
     },
     ...(['factory_manager', 'ho', 'admin'].includes(role) ? [{
       label: 'Factory', icon: <span className="text-sm font-bold">FM</span>,
-      to: '/factory-masters', isActive: currentPath.startsWith('/factory-masters')
+      to: '/factory-attendance', isActive: currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')
     }] : []),
     // 2. Project Management
     ...(isAuthorizedProjects

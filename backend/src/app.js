@@ -113,6 +113,7 @@ app.use('/api/v1/auth/subcontract-estimates', subcontractEstimatesRoutes);
 app.use('/api/v1/auth/hr/employees', hrEmployeesRoutes);
 app.use('/api/v1/auth/hr/pay-structures', hrPayStructuresRoutes);
 app.use('/api/v1/auth/hr/factory-masters', hrFactoryMastersRoutes);
+app.use('/api/v1/auth/hr/attendance', require('./routes/hrAttendance.routes'));
 
 
 // Health check route with database connectivity ping

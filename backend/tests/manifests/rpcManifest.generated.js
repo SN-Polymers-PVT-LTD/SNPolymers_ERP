@@ -586,6 +586,47 @@ module.exports = {
       ],
       "returns": "SETOF hr_attendance_rows"
     },
+    "save_hr_factory_attendance_leave": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_leave_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from_date",
+          "type": "date"
+        },
+        {
+          "name": "p_to_date",
+          "type": "date"
+        },
+        {
+          "name": "p_leave_type",
+          "type": "text"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_pay_treatment",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_leave_requests"
+    },
     "save_hr_leave_request": {
       "args": [
         {

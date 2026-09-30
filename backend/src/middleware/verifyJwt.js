@@ -54,11 +54,11 @@ async function verifyJwt(req, res, next) {
       return res.status(403).json({ success: false, message: 'Access denied. Account is deactivated or removed.' });
     }
 
-    // FM is scoped to account/profile and factory masters in this phase.
+    // FM is scoped to account/profile and the factory module.
     // Legacy modules contain authenticated-only reads; do not grant them by
     // merely admitting a new role to the shared application shell.
     if (user.role === 'factory_manager' &&
-        !['/api/v1/auth', '/api/v1/auth/hr/factory-masters'].includes(req.baseUrl)) {
+        !['/api/v1/auth', '/api/v1/auth/hr/factory-masters', '/api/v1/auth/hr/attendance'].includes(req.baseUrl)) {
       return res.status(403).json({ success: false, message: 'Factory Manager cannot access this module.' });
     }
 

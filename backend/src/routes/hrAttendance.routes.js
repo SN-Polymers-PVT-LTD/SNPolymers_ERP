@@ -1,0 +1,17 @@
+const router = require('express').Router();
+const verifyJwt = require('../middleware/verifyJwt');
+const requireCurrentHrRole = require('../middleware/requireCurrentHrRole');
+const requireRole = require('../middleware/requireRole');
+const validateRequest = require('../middleware/validateRequest');
+const schema = require('../validation/hrAttendance.schema');
+const controller = require('../controllers/hrAttendance.controller');
+router.use(verifyJwt,requireCurrentHrRole(['admin','factory_manager','ho']));
+router.get('/roster',validateRequest(schema.selection),controller.roster);
+router.get('/sheet',validateRequest(schema.selection),controller.load);
+router.get('/sheets/:sheetId',validateRequest(schema.detail),controller.get);
+router.get('/sheets/:sheetId/history',validateRequest(schema.history),controller.history);
+router.post('/sheets',requireRole(['admin','factory_manager']),validateRequest(schema.populate),controller.populate);
+router.put('/sheets/:sheetId/rows',requireRole(['admin','factory_manager']),validateRequest(schema.save),controller.save);
+router.post('/sheets/:sheetId/leave',requireRole(['admin','factory_manager']),validateRequest(schema.leave),controller.leave);
+router.post('/sheets/:sheetId/submit',requireRole(['admin','factory_manager']),validateRequest(schema.submit),controller.submit);
+module.exports = router;

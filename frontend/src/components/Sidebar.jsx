@@ -316,7 +316,7 @@ export const MobileHeader = () => {
   // FM has no project/finance/audit navigation in this phase.
   if (user?.role === 'factory_manager') menuGroups.splice(0);
   if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
-    menuGroups.push({ title: 'Factory', items: [{ to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> }] });
+    menuGroups.push({ title: 'Factory', items: [{ to: '/factory-attendance', label: 'Daily Attendance', icon: <span>DA</span> }, { to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> }] });
   }
 
   return (
@@ -552,8 +552,8 @@ const Sidebar = () => {
   // 2. Define sub-navigation items based on active module and role access
   const navItems = [];
 
-  if (user?.role === 'factory_manager' || currentPath.startsWith('/factory-masters')) {
-    if (['factory_manager', 'ho', 'admin'].includes(user?.role)) navItems.push({ to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> });
+  if (user?.role === 'factory_manager' || currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')) {
+    if (['factory_manager', 'ho', 'admin'].includes(user?.role)) navItems.push({ to: '/factory-attendance', label: 'Daily Attendance', icon: <span>DA</span> }, { to: '/factory-masters', label: 'Factory Masters', icon: <span>FM</span> });
   } else if (isProjectModule) {
     navItems.push(
       ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [{ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> }] : []),

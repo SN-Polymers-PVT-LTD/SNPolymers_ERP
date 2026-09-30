@@ -22,5 +22,6 @@
   "save_hr_attendance_rows",
   "transition_hr_attendance_sheet",
   "save_hr_leave_request",
-  "decide_hr_leave_request"
+  "decide_hr_leave_request",
+  "save_hr_factory_attendance_leave"
 ]

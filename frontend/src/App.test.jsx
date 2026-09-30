@@ -125,6 +125,24 @@ describe('App Smoke Tests', () => {
     expect(await screen.findByRole('heading', { name: 'Factory Attendance & Pay Rule Master' })).toBeInTheDocument();
   });
 
+  it.each(['admin', 'ho', 'factory_manager'])('allows %s attendance deep links and Factory navigation', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-attendance?category=SNP%20Casual%20Factory%20Labour&date=2026-09-30');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Daily Attendance' }, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByLabelText('Attendance Date')).toHaveValue('2026-09-30');
+    expect(screen.getAllByRole('link', { name: /DA Daily Attendance/i }).length).toBeGreaterThan(0);
+    if (role === 'ho') expect(screen.queryByRole('button', { name: 'Create Attendance Sheet' })).not.toBeInTheDocument();
+  });
+
+  it.each(['je', 'zo', 'accounts'])('denies %s attendance direct navigation', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-attendance');
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('heading', { name: 'Daily Attendance' })).not.toBeInTheDocument();
+  });
+
   it.each(['/admin', '/admin/employee-management', '/estimates', '/materials', '/acct-requisitions', '/analytics/ho'])('denies FM direct navigation to %s', async path => {
     setAuthenticatedRole('factory_manager');
     window.history.pushState({}, '', path);
