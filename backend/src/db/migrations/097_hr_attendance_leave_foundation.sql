@@ -155,8 +155,13 @@ BEGIN
   END IF;
   NEW.actual_hours := CASE WHEN NEW.entry_timestamp IS NOT NULL AND NEW.exit_timestamp IS NOT NULL
     THEN extract(epoch FROM (NEW.exit_timestamp - NEW.entry_timestamp))::numeric / 3600 ELSE 0 END;
-  -- OT hours are attendance facts. ot_enabled controls later pay, not the approved hours formula.
-  NEW.ot_hours := CASE WHEN r.id IS NOT NULL THEN greatest(0, NEW.actual_hours - r.standard_duty_hours) ELSE 0 END;
+  -- OT hours are attendance facts. For Local workers, Double Duty is a separate duty/pay classification and does not accumulate OT.
+  -- Local Single Duty accumulates OT beyond standard hours (normally 12h). Double Duty does not stack OT or OT-after-24h.
+  NEW.ot_hours := CASE
+    WHEN s.employee_category = 'Local Daily-Wage Workers' AND NEW.duty_type = 'Double Duty' THEN 0
+    WHEN r.id IS NOT NULL THEN greatest(0, NEW.actual_hours - r.standard_duty_hours)
+    ELSE 0
+  END;
   IF s.employee_category = 'Local Daily-Wage Workers' THEN
     IF NEW.holiday_pay_eligible OR NEW.attendance_status = 'Paid Leave' THEN
       RAISE EXCEPTION 'Local leave is unpaid and holiday eligibility is not allowed' USING ERRCODE = 'P0001';

@@ -26,14 +26,21 @@ The database sets:
 
 ```text
 Actual Hours = elapsed timestamp seconds / 3600
+
+For non-Local categories and Local Single Duty:
 OT Hours     = max(0, Actual Hours - applicable Standard Duty Hours)
+
+For Local Double Duty:
+OT Hours     = 0
 ```
+
+Double Duty is a separate duty and pay classification for Local Daily-Wage Workers and does not accumulate OT. No OT-after-24h or Double-Duty-plus-OT stacking is applied. Double Duty continues to retain its configurable Double Duty Multiplier in the Pay Rule Master for downstream payroll consumption.
 
 No rounding is applied to the stored attendance facts. OT Enabled remains pay-rule configuration for later payroll; it does not replace the approved hours formula.
 
 Applicable revision IDs are the latest category revision effective on/before the sheet date. Row edits and submission refresh them while the sheet is editable. Submission refreshes every row under the Phase 2 master locks, so an applicable revision added during drafting is resolved consistently. Submitted/locked records retain their persisted references and calculations. Permanent categories never receive a wage-master reference.
 
-Unmarked/partial working rows can be saved as drafts. Submission requires all statuses, applicable rules, wages for wage-based categories, valid complete working timestamps, Local working duty classification, and leave links for leave statuses. Management Issue may record reduced hours or a complete stoppage; a partial timestamp pair cannot be submitted. Non-working rows have blank timestamps and zero hours. Local holiday eligibility and paid leave are rejected. Duty classification is local-only and applies to working rows, without an invented duration threshold.
+Unmarked/partial working rows can be saved as drafts. Submission requires all statuses, applicable rules, wages for wage-based categories, valid complete working timestamps, Local working duty classification, and leave links for leave statuses. Management Issue may record reduced hours or a complete stoppage; a partial timestamp pair cannot be submitted. Non-working rows have blank timestamps and zero hours. Local holiday eligibility and paid leave are rejected. Duty classification is local-only and applies to working rows, without an invented duration threshold; Local Double Duty yields zero OT hours, while Local Single Duty records OT beyond applicable standard duty hours (normally 12h).
 
 ## Transactional operations
 

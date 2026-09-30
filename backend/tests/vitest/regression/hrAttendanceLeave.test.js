@@ -153,9 +153,13 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     await save(db,s.id,[{employee_id:employees.local,attendance_status:'Present',entry_timestamp:stamp(date(),'08:00'),exit_timestamp:stamp(date(),'21:00')}]);
     await fails(()=>transition(db,s.id,'submit'),/incomplete/);
     for (const patch of [{holiday_pay_eligible:true},{attendance_status:'Paid Leave'},{duty_type:'Triple Duty'}]) await fails(()=>save(db,s.id,[{employee_id:employees.local,...patch}]));
-    await save(db,s.id,[{employee_id:employees.local,duty_type:'Single Duty'}]);
-    const [a] = await save(db,s.id,[{employee_id:employees.local,duty_type:'Double Duty'}]);
-    expect(Number(a.actual_hours)).toBe(13); expect(Number(a.ot_hours)).toBe(1);
+    const [single] = await save(db,s.id,[{employee_id:employees.local,duty_type:'Single Duty'}]);
+    expect(Number(single.actual_hours)).toBe(13); expect(Number(single.ot_hours)).toBe(1);
+    const [double] = await save(db,s.id,[{employee_id:employees.local,duty_type:'Double Duty'}]);
+    expect(Number(double.actual_hours)).toBe(13); expect(Number(double.ot_hours)).toBe(0);
+    const [double24] = await save(db,s.id,[{employee_id:employees.local,duty_type:'Double Duty',entry_timestamp:stamp(date(),'08:00'),exit_timestamp:stamp(date(1,3),'08:00')}]);
+    expect(Number(double24.actual_hours)).toBe(24); expect(Number(double24.ot_hours)).toBe(0);
+    await save(db,s.id,[{employee_id:employees.local,duty_type:'Double Duty',entry_timestamp:stamp(date(),'08:00'),exit_timestamp:stamp(date(),'21:00')}]);
     expect((await transition(db,s.id,'submit')).status).toBe('Submitted');
     const cs = await sheet(db,casual,date(1,4));
     await fails(()=>save(db,cs.id,[{employee_id:employees.casual,attendance_status:'Present',duty_type:'Single Duty'}]),/only to Local/);
