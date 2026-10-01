@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Input, Select, Button, Badge, Modal } from '../../components/ui';
 import { CATEGORIES } from '../admin/employeeConstants';
 import { getAttendanceCalendar } from '../../api/hrAttendanceApi';
+import { getKolkataCurrentMonth } from '../../utils/dateUtils';
 
 const factoryCategories = CATEGORIES.filter(c =>
   !['HO Staff', 'Projects Department Employees'].includes(c)
@@ -39,14 +40,8 @@ function formatKol(isoString) {
 export default function MonthlyAttendanceCalendar() {
   const [search, setSearch] = useSearchParams();
 
-  // Current month default in YYYY-MM
-  const currentMonthDefault = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  };
-
   const selectedCategory = search.get('employee_category') || factoryCategories[0];
-  const selectedMonth = search.get('month') || currentMonthDefault();
+  const selectedMonth = search.get('month') || getKolkataCurrentMonth();
   const selectedEmpId = search.get('employee_id') || '';
 
   const [selectedDayDetail, setSelectedDayDetail] = useState(null);
@@ -196,14 +191,12 @@ export default function MonthlyAttendanceCalendar() {
               {code} = {cfg.label}
             </span>
           ))}
-          <span className="text-slate-500 text-[11px] ml-2">· = No sheet; — = No employee row; - = Not yet marked</span>
+          <span className="text-slate-500 text-[11px] ml-2">· = No finalized attendance yet; — = No employee row</span>
         </div>
         <div className="text-xs text-slate-400">
-          Recorded Sheets: <span className="font-extrabold text-slate-200">{data?.sheets?.length || 0}</span> / {daysInMonth} days &bull; Roster Count: <span className="font-extrabold text-slate-200">{filteredEmployees.length}</span>
+          Finalized Sheets: <span className="font-extrabold text-slate-200">{data?.sheets?.length || 0}</span> / {daysInMonth} days &bull; Roster Count: <span className="font-extrabold text-slate-200">{filteredEmployees.length}</span>
         </div>
       </div>
-
-      <p className="text-xs text-slate-400">Sheet states: D = Draft · S = Submitted · R = Returned for Correction · L = Locked</p>
 
       {/* Main Calendar Grid */}
       <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm">
@@ -237,12 +230,14 @@ export default function MonthlyAttendanceCalendar() {
                         className={`py-2 px-1 text-center font-bold min-w-[34px] border-r border-white/5 ${
                           hasSheet ? 'text-amber-400 bg-amber-500/5' : 'text-slate-500'
                         }`}
-                        title={hasSheet ? `Sheet: ${sheet.status}` : 'No attendance sheet'}
+                        title={hasSheet ? 'Finalized Locked Sheet' : 'No finalized attendance yet'}
                       >
                         {d}
-                        {sheet && <span className="block text-[9px]" aria-label={sheet.status}>
-                          {{Draft: 'D', Submitted: 'S', 'Returned for Correction': 'R', Locked: 'L', 'HO Reviewed': 'H'}[sheet.status]}
-                        </span>}
+                        {hasSheet && (
+                          <span className="block text-[9px] text-amber-500/80" aria-label="Locked">
+                            L
+                          </span>
+                        )}
                       </th>
                     );
                   })}
@@ -275,6 +270,7 @@ export default function MonthlyAttendanceCalendar() {
                             <td
                               key={d}
                               className="py-1 px-1 text-center text-slate-700 border-r border-white/5 select-none"
+                              title={hasSheet ? 'No row for employee' : 'No finalized attendance yet'}
                             >
                               {hasSheet ? '—' : '·'}
                             </td>

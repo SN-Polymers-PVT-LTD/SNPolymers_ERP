@@ -41,11 +41,12 @@ module.exports = {
     const lastDay = new Date(Date.UTC(year, monthNum, 0)).getDate();
     const toDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
-    // Include editable and returned sheets for the calendar correction workflow.
+    // Only include finalized Locked attendance sheets in the monthly calendar register.
     const sheets = await all(() =>
       supabase.from('hr_attendance_sheets')
         .select('id, attendance_date, status, submission_count')
         .eq('employee_category', employee_category)
+        .eq('status', 'Locked')
         .gte('attendance_date', fromDate)
         .lte('attendance_date', toDate)
         .order('attendance_date').order('id')
@@ -68,21 +69,27 @@ module.exports = {
     }
 
     const employeeIdsFromRows = [...new Set(rows.map(r => r.employee_id))];
-    const activeEmployees = await all(() =>
+
+    // Only include normal category employees whose joining_date <= selected month's to_date
+    const categoryEmployees = await all(() =>
       supabase.from('hr_employees')
-        .select('id, employee_code, employee_name, active_status')
+        .select('id, employee_code, employee_name, active_status, joining_date')
         .eq('employee_category', employee_category)
+        .eq('active_status', 'Active')
+        .lte('joining_date', toDate)
         .order('employee_code').order('id')
     );
 
-    const activeList = activeEmployees || [];
-    const employeeMap = new Map(activeList.map(e => [e.id, e]));
+    const employeeList = categoryEmployees || [];
+    const employeeMap = new Map(employeeList.map(e => [e.id, e]));
 
+    // Preserve historical attendance: if an employee has stored attendance rows in the
+    // requested month's Locked sheets, resolve and include them even if inactive or category changed.
     const missingIds = employeeIdsFromRows.filter(id => !employeeMap.has(id));
     for (let offset = 0; offset < missingIds.length; offset += 200) {
       const historicalEmployees = await all(() =>
         supabase.from('hr_employees')
-          .select('id, employee_code, employee_name, active_status')
+          .select('id, employee_code, employee_name, active_status, joining_date')
           .in('id', missingIds.slice(offset, offset + 200)).order('id')
       );
       for (const e of historicalEmployees || []) {

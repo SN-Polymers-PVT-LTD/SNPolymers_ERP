@@ -225,7 +225,7 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(r2.status).toBe(400);
   });
 
-  test('calendar includes Draft, Submitted, Returned and Locked sheets with stored facts', async () => {
+  test('calendar includes ONLY finalized Locked sheets and excludes Draft, Submitted, and Returned sheets', async () => {
     const month = `${year}-01`;
     const q = `?employee_category=${encodeURIComponent(casual)}&month=${month}`;
     const res = await request('GET', `/calendar${q}`, 'factory_manager');
@@ -235,15 +235,19 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(res.body.month).toBe(month);
     expect(res.body.days_in_month).toBe(31);
 
-    // Include every workflow state while preserving existing editing permissions.
+    // Only finalized Locked sheets are returned
     const returnedDates = res.body.sheets.map(s => s.attendance_date);
     expect(returnedDates).toContain(date(1, 1));
     expect(returnedDates).toContain(date(1, 2));
-    expect(returnedDates).toContain(date(1, 3));
-    expect(returnedDates).toContain(date(1, 4));
-    expect(res.body.sheets.find(s=>s.attendance_date===date(1,5)).status).toBe('Returned for Correction');
+    expect(returnedDates).not.toContain(date(1, 3)); // Draft excluded
+    expect(returnedDates).not.toContain(date(1, 4)); // Submitted excluded
+    expect(returnedDates).not.toContain(date(1, 5)); // Returned for Correction excluded
 
-    // Verify code mapping
+    for (const sheet of res.body.sheets) {
+      expect(sheet.status).toBe('Locked');
+    }
+
+    // Verify code mapping on finalized days
     // Day 1: active1 is Present -> code 'P'
     const rP = res.body.records.find(r => r.employee_id === employees.active1 && r.date === date(1, 1));
     expect(rP).toBeDefined();
@@ -274,6 +278,11 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     const rMI = res.body.records.find(r => r.employee_id === employees.active2 && r.date === date(1, 2));
     expect(rMI).toBeDefined();
     expect(rMI.code).toBe('MI');
+
+    // Ensure no records exist for provisional days 3, 4, 5
+    expect(res.body.records.find(r => r.date === date(1, 3))).toBeUndefined();
+    expect(res.body.records.find(r => r.date === date(1, 4))).toBeUndefined();
+    expect(res.body.records.find(r => r.date === date(1, 5))).toBeUndefined();
   });
 
   test('historical employees with attendance facts in the month are preserved and resolved', async () => {
@@ -294,10 +303,39 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     const res = await request('GET', `/calendar${q}`, 'factory_manager');
 
     expect(res.status).toBe(200);
-    expect(res.body.records.length).toBe(5); // Includes editable and submitted days.
+    expect(res.body.records.length).toBe(2); // Only Day 1 and Day 2 are Locked
     for (const rec of res.body.records) {
       expect(rec.employee_id).toBe(employees.active1);
     }
+  });
+
+  test('future joiners excluded from past months while historical employees with attendance remain included', async () => {
+    // 1. Insert an employee who joins on Feb 1
+    const futureRes = await db.query(
+      `INSERT INTO hr_employees (employee_name, employee_category, department, active_status, joining_date, created_by, updated_by)
+       VALUES ('Future Joiner Feb', $1, 'SNP Factory', 'Active', $2, $3, $3) RETURNING id`,
+      [casual, date(2, 1), actors.admin]
+    );
+    const futureId = futureRes.rows[0].id;
+    extraEmployees.push(futureId);
+
+    // 2. Query month 1 (January): future joiner should NOT appear
+    const rMonth1 = await request('GET', `/calendar?employee_category=${encodeURIComponent(casual)}&month=${year}-01`, 'ho');
+    expect(rMonth1.status).toBe(200);
+    const inMonth1 = rMonth1.body.employees.find(e => e.id === futureId);
+    expect(inMonth1).toBeUndefined();
+
+    // Historical employee with attendance in month 1 IS included (even though Inactive)
+    const histInMonth1 = rMonth1.body.employees.find(e => e.id === employees.historical);
+    expect(histInMonth1).toBeDefined();
+    expect(histInMonth1.active_status).toBe('Inactive');
+
+    // 3. Query month 2 (February): future joiner IS included
+    const rMonth2 = await request('GET', `/calendar?employee_category=${encodeURIComponent(casual)}&month=${year}-02`, 'ho');
+    expect(rMonth2.status).toBe(200);
+    const inMonth2 = rMonth2.body.employees.find(e => e.id === futureId);
+    expect(inMonth2).toBeDefined();
+    expect(inMonth2.employee_name).toBe('Future Joiner Feb');
   });
 });
 
@@ -306,8 +344,26 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
      SELECT 'Calendar pagination worker '||n,$1,'SNP Factory','Active',$2,$3,$3 FROM generate_series(1,65) n RETURNING id`,[casual,date(1,1),actors.admin]);
    extraEmployees.push(...inserted.rows.map(e=>e.id));
    for(let day=1;day<=16;day++) expect((await request('POST','/sheets','factory_manager',{date:date(2,day),employee_category:casual})).status).toBe(200);
+
+   // Mark all rows Absent so the sheets can be validly submitted and locked
+   await db.query(
+     `UPDATE hr_attendance_rows SET attendance_status = 'Absent', updated_by = $1
+      WHERE sheet_id IN (SELECT id FROM hr_attendance_sheets WHERE employee_category = $2 AND attendance_date BETWEEN $3 AND $4)`,
+     [actors.admin, casual, date(2, 1), date(2, 28)]
+   );
+
+   // Transition month 2 sheets to Locked so they appear in calendar
+   const sRows = await db.query(
+     `SELECT id FROM hr_attendance_sheets WHERE employee_category = $1 AND attendance_date BETWEEN $2 AND $3`,
+     [casual, date(2, 1), date(2, 28)]
+   );
+   for (const s of sRows.rows) {
+     await db.query(`SELECT transition_hr_attendance_sheet($1, 'submit', null, $2)`, [s.id, actors.factory_manager]);
+     await db.query(`SELECT transition_hr_attendance_sheet($1, 'review', 'Lock for pagination test', $2)`, [s.id, actors.ho]);
+   }
+
    const expected=Number((await db.query(`SELECT count(*) FROM hr_attendance_rows r JOIN hr_attendance_sheets s ON s.id=r.sheet_id
-      WHERE s.employee_category=$1 AND s.attendance_date BETWEEN $2 AND $3`,[casual,date(2,1),date(2,28)])).rows[0].count);
+      WHERE s.employee_category=$1 AND s.attendance_date BETWEEN $2 AND $3 AND s.status='Locked'`,[casual,date(2,1),date(2,28)])).rows[0].count);
    expect(expected).toBeGreaterThan(1000);
    const res=await request('GET',`/calendar?employee_category=${encodeURIComponent(casual)}&month=${year}-02`);
    expect(res.status).toBe(200);expect(res.body.records).toHaveLength(expected);

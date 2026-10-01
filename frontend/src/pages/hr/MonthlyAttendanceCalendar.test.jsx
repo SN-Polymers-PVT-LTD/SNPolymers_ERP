@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import MonthlyAttendanceCalendar from './MonthlyAttendanceCalendar';
+import { getKolkataCurrentMonth } from '../../utils/dateUtils';
 import authApi from '../../api/authApi';
 
 vi.mock('../../api/authApi', () => ({
@@ -23,7 +24,7 @@ const mockCalendarData = {
   employee_category: 'SNP Casual Factory Labour',
   sheets: [
     { id: 'sheet-1', attendance_date: '2026-09-01', status: 'Locked', submission_count: 1 },
-    { id: 'sheet-2', attendance_date: '2026-09-02', status: 'HO Reviewed', submission_count: 1 }
+    { id: 'sheet-2', attendance_date: '2026-09-02', status: 'Locked', submission_count: 1 }
   ],
   employees: [
     { id: 'emp-1', employee_code: 'CAL-001', employee_name: 'Worker Ramesh', active_status: 'Active' },
@@ -67,7 +68,7 @@ const mockCalendarData = {
     {
       id: 'row-3',
       sheet_id: 'sheet-2',
-      sheet_status: 'HO Reviewed',
+      sheet_status: 'Locked',
       date: '2026-09-02',
       employee_id: 'emp-1',
       employee_code: 'CAL-001',
@@ -188,15 +189,56 @@ describe('MonthlyAttendanceCalendar Component', () => {
     fireEvent.change(screen.getAllByRole('combobox')[0],{target:{value:'Local Daily-Wage Workers'}});
     await waitFor(()=>expect(authApi.get).toHaveBeenLastCalledWith('/hr/attendance/calendar',{params:{employee_category:'Local Daily-Wage Workers',month:'2026-09'}}));
  });
- it('shows overnight timestamp dates and returned state with a correction link', async () => {
-    const rec={...mockCalendarData.records[0],sheet_status:'Returned for Correction',actual_hours:24,
-      entry_timestamp:'2026-09-01T09:00:13+05:30',exit_timestamp:'2026-09-02T09:00:13+05:30'};
-    authApi.get.mockResolvedValue({data:{...mockCalendarData,sheets:[{...mockCalendarData.sheets[0],status:'Returned for Correction'}],records:[rec]}});
-    renderCalendar(); await screen.findByText('Worker Ramesh');
-    expect(screen.getByLabelText('Returned for Correction')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'P'}));
+ it('shows overnight timestamp dates on finalized locked facts with daily sheet link', async () => {
+    const rec = {
+      ...mockCalendarData.records[0],
+      sheet_status: 'Locked',
+      actual_hours: 24,
+      entry_timestamp: '2026-09-01T09:00:13+05:30',
+      exit_timestamp: '2026-09-02T09:00:13+05:30'
+    };
+    authApi.get.mockResolvedValue({
+      data: {
+        ...mockCalendarData,
+        sheets: [{ ...mockCalendarData.sheets[0], status: 'Locked' }],
+        records: [rec]
+      }
+    });
+    renderCalendar();
+    await screen.findByText('Worker Ramesh');
+    expect(screen.getByLabelText('Locked')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'P' }));
     expect(screen.getByText(/01.*2026.*09:00:13/)).toBeInTheDocument();
     expect(screen.getByText(/02.*2026.*09:00:13/)).toBeInTheDocument();
-    expect(screen.getByText('Returned for Correction')).toBeInTheDocument();
-    expect(screen.getByRole('link',{name:'Open Daily Sheet →'})).toHaveAttribute('href','/factory-attendance?date=2026-09-01&category=SNP%20Casual%20Factory%20Labour');
+    expect(screen.getByText('Locked')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Daily Sheet →' })).toHaveAttribute(
+      'href',
+      '/factory-attendance?date=2026-09-01&category=SNP%20Casual%20Factory%20Labour'
+    );
+ });
+
+ it('renders days without a locked sheet with no finalized attendance indicator', async () => {
+    renderCalendar();
+    await screen.findByText('Worker Ramesh');
+
+    // Day 3 has no locked sheet, header has title 'No finalized attendance yet'
+    const unfinalizedHeaders = screen.getAllByTitle('No finalized attendance yet');
+    expect(unfinalizedHeaders.length).toBeGreaterThan(0);
+ });
+
+ describe('getKolkataCurrentMonth IST Timezone Derivation', () => {
+   it('correctly maps UTC dates across month boundaries to Asia/Kolkata business months', () => {
+     // Sep 30 23:30 UTC is Oct 1 05:00 IST -> 2026-10
+     expect(getKolkataCurrentMonth(new Date('2026-09-30T23:30:00Z'))).toBe('2026-10');
+
+     // Oct 1 15:30 UTC is Oct 1 21:00 IST -> 2026-10
+     expect(getKolkataCurrentMonth(new Date('2026-10-01T15:30:00Z'))).toBe('2026-10');
+
+     // Mar 31 20:00 UTC is Apr 1 01:30 IST -> 2026-04
+     expect(getKolkataCurrentMonth(new Date('2026-03-31T20:00:00Z'))).toBe('2026-04');
+
+     // Dec 31 17:00 UTC is Dec 31 22:30 IST -> 2025-12
+     expect(getKolkataCurrentMonth(new Date('2025-12-31T17:00:00Z'))).toBe('2025-12');
+   });
  });
