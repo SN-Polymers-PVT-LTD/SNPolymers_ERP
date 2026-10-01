@@ -9,6 +9,13 @@ const row = z.object({
   leave_request_id: z.uuid().nullable().optional(), remarks: z.string().trim().max(2000).nullable().optional()
 }).strict();
 module.exports = {
+  calendar: {
+    query: z.object({
+      employee_category: z.enum(categories),
+      month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, 'Month must be in YYYY-MM format.'),
+      employee_id: z.string().uuid().optional()
+    }).strict()
+  },
   fmSummary: {query:z.object({date:z.iso.date().optional()}).strict()},
   reviewQueue: {query:z.object({from_date:z.iso.date().optional(),to_date:z.iso.date().optional(),
     employee_category:z.enum(categories).optional(),status:z.enum(['Submitted','Returned for Correction','Locked']).optional(),

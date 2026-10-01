@@ -4,11 +4,12 @@ import authApi from '../api/authApi';
 import { useTheme } from '../components/ThemeContext';
 import { useAuth } from '../components/AuthContext';
 import { useProfileUrlState } from '../hooks/useProfileUrlState';
+import ProfileLeaveSection from './profile/ProfileLeaveSection';
 
 const Profile = () => {
   const { theme, toggleTheme, darkBg, setDarkBg, lightBg, setLightBg, DARK_BACKGROUNDS, LIGHT_BACKGROUNDS } = useTheme();
   const { user } = useAuth();
-  const { setTab, isProfileTab, isAppearanceTab, isAllTab } = useProfileUrlState();
+  const { setTab, isProfileTab, isAppearanceTab, isLeaveTab, isAllTab } = useProfileUrlState();
   
   // Instant local profile initialization from AuthContext
   const [profile, setProfile] = useState(() => ({
@@ -68,6 +69,18 @@ const Profile = () => {
           <span>Profile & Activity</span>
         </button>
         <button
+          type="button"
+          onClick={() => setTab('leave')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+            isLeaveTab
+              ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+          }`}
+        >
+          <span>📅</span>
+          <span>Leave Requests</span>
+        </button>
+<button
           type="button"
           onClick={() => setTab('appearance')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -190,7 +203,26 @@ const Profile = () => {
           )}
 
           {/* Theme & Background Personalization Settings */}
-          {(isAppearanceTab || isAllTab) && (
+                    {/* Self-Service Leave Section for HO / Projects */}
+          {(isLeaveTab || isAllTab) && (
+            <div className="glass-panel p-6 rounded-3xl shadow-xl relative overflow-hidden">
+              <ProfileLeaveSection />
+              {isLeaveTab && (
+                <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setTab('profile')}
+                    className="text-xs font-bold text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
+                  >
+                    <span>←</span>
+                    <span>Back to Profile & Activity</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+{(isAppearanceTab || isAllTab) && (
             <div className="glass-panel p-6 rounded-3xl shadow-xl relative overflow-hidden">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-4 mb-6">
                 <div>

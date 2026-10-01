@@ -12,3 +12,4 @@ export const decideFactoryLeave = (id, leaveId, body) => authApi.post(`/hr/atten
 export const returnAttendanceSheet = (id, remarks) => authApi.post(`/hr/attendance/sheets/${id}/return`, { remarks });
 export const reviewAttendanceSheet = (id, remarks) => authApi.post(`/hr/attendance/sheets/${id}/review`, { remarks });
 export const getFmAttendanceSummary = params => authApi.get('/hr/attendance/fm-summary', { params });
+export const getAttendanceCalendar = params => authApi.get('/hr/attendance/calendar', { params });

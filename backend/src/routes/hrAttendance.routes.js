@@ -6,6 +6,7 @@ const validateRequest = require('../middleware/validateRequest');
 const schema = require('../validation/hrAttendance.schema');
 const controller = require('../controllers/hrAttendance.controller');
 router.use(verifyJwt,requireCurrentHrRole(['admin','factory_manager','ho']));
+router.get('/calendar', requireRole(['admin','factory_manager','ho']), validateRequest(schema.calendar), controller.calendar);
 router.get('/review-queue',requireRole(['admin','ho']),validateRequest(schema.reviewQueue),controller.reviewQueue);
 router.get('/fm-summary',requireRole(['admin','factory_manager']),validateRequest(schema.fmSummary),controller.fmSummary);
 router.get('/sheets/:sheetId/review-detail',requireRole(['admin','ho']),validateRequest(schema.detail),controller.reviewDetail);

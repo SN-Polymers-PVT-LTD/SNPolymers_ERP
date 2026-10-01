@@ -32,6 +32,116 @@ async function detail(sheet) {
 }
 const handle = fn => async (req, res) => { try { await fn(req,res); } catch (error) { sendError(res,error); } };
 module.exports = {
+  calendar: handle(async (req, res) => {
+    const { employee_category, month, employee_id } = req.query;
+    const [yearStr, monthStr] = month.split('-');
+    const year = parseInt(yearStr, 10);
+    const monthNum = parseInt(monthStr, 10);
+    const fromDate = `${month}-01`;
+    const lastDay = new Date(Date.UTC(year, monthNum, 0)).getDate();
+    const toDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+
+    // Include editable and returned sheets for the calendar correction workflow.
+    const sheets = await all(() =>
+      supabase.from('hr_attendance_sheets')
+        .select('id, attendance_date, status, submission_count')
+        .eq('employee_category', employee_category)
+        .gte('attendance_date', fromDate)
+        .lte('attendance_date', toDate)
+        .order('attendance_date').order('id')
+    );
+
+    const sheetList = sheets || [];
+    const sheetIds = sheetList.map(s => s.id);
+
+    let rows = [];
+    if (sheetIds.length > 0) {
+      rows = await all(() => {
+        let query = supabase.from('hr_attendance_rows').select(`
+          id, sheet_id, employee_id, attendance_status,
+          entry_timestamp, exit_timestamp, actual_hours, ot_hours,
+          duty_type, holiday_pay_eligible, leave_request_id, remarks
+        `).in('sheet_id', sheetIds).order('id');
+        if (employee_id) query = query.eq('employee_id', employee_id);
+        return query;
+      });
+    }
+
+    const employeeIdsFromRows = [...new Set(rows.map(r => r.employee_id))];
+    const activeEmployees = await all(() =>
+      supabase.from('hr_employees')
+        .select('id, employee_code, employee_name, active_status')
+        .eq('employee_category', employee_category)
+        .order('employee_code').order('id')
+    );
+
+    const activeList = activeEmployees || [];
+    const employeeMap = new Map(activeList.map(e => [e.id, e]));
+
+    const missingIds = employeeIdsFromRows.filter(id => !employeeMap.has(id));
+    for (let offset = 0; offset < missingIds.length; offset += 200) {
+      const historicalEmployees = await all(() =>
+        supabase.from('hr_employees')
+          .select('id, employee_code, employee_name, active_status')
+          .in('id', missingIds.slice(offset, offset + 200)).order('id')
+      );
+      for (const e of historicalEmployees || []) {
+        employeeMap.set(e.id, e);
+      }
+    }
+
+    const codeMap = {
+      'Present': 'P',
+      'Absent': 'A',
+      'Medical Leave': 'ML',
+      'Paid Leave': 'PL',
+      'Unpaid Leave': 'UL',
+      'Compensatory Off': 'CO',
+      'Management Issue': 'MI'
+    };
+
+    const sheetMap = new Map(sheetList.map(s => [s.id, s]));
+
+    const records = rows.map(r => {
+      const s = sheetMap.get(r.sheet_id);
+      const emp = employeeMap.get(r.employee_id);
+      return {
+        id: r.id,
+        sheet_id: r.sheet_id,
+        sheet_status: s?.status,
+        date: s?.attendance_date,
+        employee_id: r.employee_id,
+        employee_code: emp?.employee_code || null,
+        employee_name: emp?.employee_name || null,
+        attendance_status: r.attendance_status,
+        code: codeMap[r.attendance_status] || '-',
+        actual_hours: Number(r.actual_hours) || 0,
+        ot_hours: Number(r.ot_hours) || 0,
+        duty_type: r.duty_type,
+        holiday_pay_eligible: r.holiday_pay_eligible,
+        entry_timestamp: r.entry_timestamp,
+        exit_timestamp: r.exit_timestamp,
+        remarks: r.remarks,
+        leave_request_id: r.leave_request_id
+      };
+    });
+
+    const employees = Array.from(employeeMap.values()).sort((a, b) =>
+      (a.employee_code || '').localeCompare(b.employee_code || '')
+    );
+
+    res.json({
+      success: true,
+      month,
+      from_date: fromDate,
+      to_date: toDate,
+      days_in_month: lastDay,
+      employee_category,
+      sheets: sheetList,
+      employees,
+      records
+    });
+  }),
   reviewQueue: handle(async (req,res) => {
     const q=req.query;
     const {data}=await checked(supabase.rpc('get_hr_attendance_review_queue',{p_actor_id:req.user.id,
