@@ -404,31 +404,36 @@ export async function exportSubcontractorBalancesToExcel(balances, metadata = {}
 
   const tableHeaders = [
     "Sl. No.",
+    "Subcontractor",
     "Work Order No.",
     "Department",
     "Site Details",
-    "Subcontractor",
     "Sub Head",
-    "Estimated Total (INR)",
+    "Work Type / Details",
+    "Approved Scope (INR)",
+    "Reserved (INR)",
     "Paid So Far (INR)",
     "Remaining Balance (INR)",
     "Utilization (%)"
   ];
 
   const dataRows = balances.map((b, index) => {
-    const est = Number(b.estimated_total || 0);
-    const paid = Number(b.paid_total || 0);
-    const rem = Number(b.available_balance || 0);
-    const util = est > 0 ? ((paid / est) * 100).toFixed(1) + '%' : '0.0%';
+    const est = Number(b.approved_scope ?? b.estimated_total ?? 0);
+    const reserved = Number(b.reserved_amount ?? b.reserved ?? 0);
+    const paid = Number(b.paid ?? b.paid_total ?? b.total_paid ?? 0);
+    const rem = Number(b.remaining ?? b.remaining_balance ?? b.available_balance ?? 0);
+    const util = est > 0 ? (((paid + reserved) / est) * 100).toFixed(1) + '%' : '0.0%';
 
     return [
       index + 1,
+      b.subcontractor_name || b.material_details || '—',
       b.work_order_no || '',
-      b.project?.department || '',
-      b.project?.site_details || '',
-      b.material_details || '',
+      b.department || b.project?.department || '',
+      b.site_details || b.project?.site_details || '',
       b.material_sub_head || '',
+      b.material_details || '',
       est,
+      reserved,
       paid,
       rem,
       util
@@ -544,53 +549,49 @@ export async function exportSubcontractorLedgerStatementToExcel({
 }) {
   const XLSX = await import('xlsx');
 
-  const totalCredits = entries.reduce((sum, e) => sum + (Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0)), 0);
-  const totalDebits = entries.reduce((sum, e) => sum + (Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0)), 0);
-  const statementBalance = entries[0]?.running_balance != null
-    ? Number(entries[0].running_balance)
-    : Number((totalCredits - totalDebits).toFixed(2));
-  const availableCapacity = balance?.available_capacity ?? balance?.available_balance;
-  const committedTotal = balance?.committed_total ?? balance?.paid_total;
-  const settledTotal = balance?.settled_total;
-  const reservedTotal = balance?.reserved_total;
+  const totalPaid = entries.reduce((sum, e) => {
+    const d = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
+    return sum + d;
+  }, 0);
+
+  const approvedScope = balance?.approved_scope ?? balance?.estimated_total ?? '—';
+  const reservedTotal = balance?.reserved ?? balance?.reserved_total ?? '—';
+  const settledTotal = balance?.paid ?? balance?.settled_total ?? totalPaid;
+  const availableCapacity = balance?.remaining ?? balance?.available_capacity ?? balance?.available_balance ?? '—';
 
   const workbook = XLSX.utils.book_new();
 
-  // Sheet 1: Statement of Account / Ledger
+  // Sheet 1: Statement of Account / Payment Statement
   const statementHeader = [
-    ["SN POLYMERS PVT. LTD. — SUBCONTRACTOR LEDGER STATEMENT"],
+    ["SN POLYMERS PVT. LTD. — SUBCONTRACTOR PAYMENT STATEMENT"],
     ["Generated At (IST):", new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })],
     [],
     ["Subcontractor Name:", subcontractor || '—', "", "Work Order No.:", workOrder || 'All'],
-    ["Material Sub Head:", subHead || '—', "", "Department:", balance?.project?.department || '—'],
-    ["Statement Credits:", totalCredits, "", "Actual Paid (Debits):", totalDebits],
-    ["Statement Balance (INR):", statementBalance],
-    ["Available Capacity (INR):", availableCapacity ?? '—'],
-    ["Committed Total (INR):", committedTotal ?? '—', "", "Reserved / Awaiting Payment (INR):", reservedTotal ?? '—'],
-    ["Settled Total (INR):", settledTotal ?? totalDebits],
+    ["Material Sub Head:", subHead || '—', "", "Department:", balance?.department || balance?.project?.department || '—'],
+    ["Approved Scope (INR):", approvedScope, "", "Reserved / Pending (INR):", reservedTotal],
+    ["Actually Paid (INR):", settledTotal, "", "Remaining Capacity (INR):", availableCapacity],
+    ["Total Cumulative Paid (INR):", totalPaid],
     []
   ];
 
   const ledgerTableHeaders = [
     "Sl. No.",
-    "Transaction Date (IST)",
+    "Payment Date (IST)",
     "Transaction Type",
     "Doc / Reference No.",
     "Description / Remarks",
-    "Estimate Amt (+) (INR)",
-    "Debit (-) (INR)",
-    "Running Balance (INR)",
+    "Paid Amount (INR)",
+    "Cumulative Paid (INR)",
     "Actioned By"
   ];
 
-  // In standard accounting statements, show transactions chronologically (oldest to newest)
+  // In standard statements, show transactions chronologically (oldest to newest)
   const entriesAsc = [...entries].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
-  let currentRunning = Number(entriesAsc[0]?.opening_balance || 0);
+  let runningCumulative = 0;
   const ledgerDataRows = entriesAsc.map((e, index) => {
-    const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
-    const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
-    currentRunning = e.running_balance != null ? Number(e.running_balance) : Number((currentRunning + Number(e.amount || 0)).toFixed(2));
+    const paid = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : (Number(e.amount) > 0 ? Number(e.amount) : 0));
+    runningCumulative = e.cumulative_paid != null ? Number(e.cumulative_paid) : Number((runningCumulative + paid).toFixed(2));
 
     const docNo = e.requisition_no 
       ? `Req: ${e.requisition_no}` 
@@ -602,9 +603,8 @@ export async function exportSubcontractorLedgerStatementToExcel({
       TX_TYPE_LABELS[e.transaction_type] || e.transaction_type,
       docNo,
       e.remarks || e.item_description || '—',
-      credit > 0 ? credit : 0.00,
-      debit > 0 ? debit : 0.00,
-      currentRunning,
+      paid,
+      runningCumulative,
       e.created_by_name || e.created_by || '—'
     ];
   });
@@ -615,9 +615,8 @@ export async function exportSubcontractorLedgerStatementToExcel({
     "",
     "",
     "",
-    totalCredits,
-    totalDebits,
-    statementBalance,
+    totalPaid,
+    totalPaid,
     ""
   ];
 
@@ -628,9 +627,8 @@ export async function exportSubcontractorLedgerStatementToExcel({
     { wch: 30 }, // Type
     { wch: 20 }, // Doc No
     { wch: 35 }, // Remarks
-    { wch: 18 }, // Credit
-    { wch: 18 }, // Debit
-    { wch: 22 }, // Running Balance
+    { wch: 18 }, // Paid Amount
+    { wch: 22 }, // Cumulative Paid
     { wch: 18 }  // Actioned By
   ];
 
@@ -735,15 +733,14 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
     "Transaction Type",
     "Doc / Reference No.",
     "Description / Remarks",
-    "Credit (+) (INR)",
-    "Debit (-) (INR)",
-    "Running Balance (INR)",
+    "Paid Amount (INR)",
+    "Cumulative Paid (INR)",
     "Actioned By"
   ];
 
   const ledgerDataRows = entries.map((e, index) => {
-    const credit = Number(e.credit_amount || 0) || (Number(e.amount) > 0 ? Number(e.amount) : 0);
-    const debit = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : 0);
+    const paid = Number(e.debit_amount || 0) || (Number(e.amount) < 0 ? Math.abs(Number(e.amount)) : (Number(e.amount) > 0 ? Number(e.amount) : 0));
+    const cumPaid = e.cumulative_paid != null ? Number(e.cumulative_paid) : (e.running_balance != null ? Math.abs(Number(e.running_balance)) : paid);
     const docNo = e.requisition_no 
       ? `Req: ${e.requisition_no}` 
       : (e.reference_doc_no || (e.reference_type ? `${e.reference_type}: ${String(e.reference_id || '').slice(0, 8)}` : '—'));
@@ -751,15 +748,14 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
     return [
       index + 1,
       e.created_at ? new Date(e.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—',
-      e.material_details || '—',
-      e.material_sub_head || '—',
+      e.subcontractor_name || e.material_details || '—',
+      e.material_sub_head || e.sub_head || '—',
       e.work_order_no || '—',
       TX_TYPE_LABELS[e.transaction_type] || e.transaction_type,
       docNo,
       e.remarks || e.item_description || '—',
-      credit > 0 ? credit : 0.00,
-      debit > 0 ? debit : 0.00,
-      e.running_balance != null ? Number(e.running_balance) : '—',
+      paid,
+      cumPaid,
       e.created_by_name || e.created_by || '—'
     ];
   });
@@ -774,9 +770,8 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
     { wch: 28 }, // Type
     { wch: 18 }, // Doc No
     { wch: 30 }, // Remarks
-    { wch: 18 }, // Credit
-    { wch: 18 }, // Debit
-    { wch: 20 }, // Running Balance
+    { wch: 18 }, // Paid Amount
+    { wch: 22 }, // Cumulative Paid
     { wch: 16 }  // Actioned By
   ];
   XLSX.utils.book_append_sheet(workbook, ledgerWorksheet, "Ledger Transactions");
@@ -785,7 +780,7 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
   if (balances && balances.length > 0) {
     const balHeader = [
       ["Subcontractor Balances Summary"],
-      ["Total Subcontractors:", balances.length],
+      ["Total Subcontractor Scopes:", balances.length],
       []
     ];
     const balTableHeaders = [
@@ -794,23 +789,31 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
       "Department",
       "Subcontractor",
       "Material Sub Head",
-      "Estimated Total (INR)",
+      "Work Type / Details",
+      "Approved Scope (INR)",
+      "Reserved (INR)",
       "Paid So Far (INR)",
       "Remaining Balance (INR)",
       "Utilization (%)"
     ];
     const balDataRows = balances.map((b, index) => {
-      const est = Number(b.estimated_total || 0);
-      const paid = Number(b.paid_total || 0);
-      const rem = Number(b.available_balance || 0);
-      const util = est > 0 ? ((paid / est) * 100).toFixed(1) + '%' : '0.0%';
+      const contractorName = b.subcontractor_name || b.material_details || '—';
+      const subHead = b.material_sub_head || b.sub_head || '—';
+      const details = b.subcontract_work_name || b.material_details || '—';
+      const est = Number(b.approved_scope ?? b.estimated_total ?? 0);
+      const reserved = Number(b.reserved ?? b.reserved_amount ?? 0);
+      const paid = Number(b.paid ?? b.paid_total ?? 0);
+      const rem = Number(b.remaining ?? b.available_balance ?? 0);
+      const util = est > 0 ? (((paid + reserved) / est) * 100).toFixed(1) + '%' : '0.0%';
       return [
         index + 1,
         b.work_order_no || '',
-        b.project?.department || '',
-        b.material_details || '',
-        b.material_sub_head || '',
+        b.department || b.project?.department || '',
+        contractorName,
+        subHead,
+        details,
         est,
+        reserved,
         paid,
         rem,
         util
@@ -818,7 +821,7 @@ export async function exportAllSubcontractorLedgersToExcel(entries = [], balance
     });
     const balWorksheet = XLSX.utils.aoa_to_sheet([...balHeader, balTableHeaders, ...balDataRows]);
     balWorksheet['!cols'] = [
-      { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 }
+      { wch: 8 }, { wch: 16 }, { wch: 16 }, { wch: 25 }, { wch: 22 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 14 }
     ];
     XLSX.utils.book_append_sheet(workbook, balWorksheet, "Balances Summary");
   }
@@ -1112,4 +1115,200 @@ export async function exportCombinedExpenditureSheet({
   const cleanWo = (metadata.workOrderFilter && metadata.workOrderFilter !== 'All') ? `_${metadata.workOrderFilter.replace(/[^a-zA-Z0-9_-]/g, '_')}` : '';
   const filename = `Expenditure_Sheet${cleanWo}_${dateSuffix}.xlsx`;
   XLSX.writeFile(workbook, filename);
+}
+
+/**
+ * Exports Employee & Worker Master directory records to Excel.
+ * Follows the approved 9-column UI specification order.
+ *
+ * @param {Array} employees
+ */
+export async function exportEmployeesToExcel(employees) {
+  if (!employees || employees.length === 0) {
+    alert('No employee records to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = employees.map((emp, index) => {
+    const erpUser = emp.erp_user;
+    const erpRole = erpUser?.role || emp.erp_role || (erpUser ? erpUser.role : 'No ERP account');
+    const erpAccount = erpUser
+      ? (erpUser.display_name ? `${erpUser.display_name} (${erpUser.role || ''})` : (erpUser.email || 'ERP User'))
+      : 'No ERP account';
+
+    return {
+      "Sl. No.": index + 1,
+      "Employee ID": emp.employee_code || '',
+      "Employee Name": emp.employee_name || '',
+      "Employee Category": emp.employee_category || '',
+      "Department / Function": emp.department || '',
+      "Contact Number": emp.contact_number || '—',
+      "Existing ERP Role": erpRole || 'No ERP account',
+      "Existing ERP Account": erpAccount,
+      "Joining Date": emp.joining_date || '',
+      "Active Status": emp.active_status || 'Active'
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Employee & Worker Master");
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Employee_Master_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports Permanent Employee Pay Structure records to Excel.
+ * Follows the approved 11-field specification order.
+ *
+ * @param {Array} payRecords Array of permanent employees with active pay structures
+ */
+export async function exportPermanentPayStructuresToExcel(payRecords) {
+  if (!payRecords || payRecords.length === 0) {
+    alert('No permanent employee pay structure records to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = payRecords.map((item, index) => {
+    const emp = item.employee || item;
+    const active = item.active_structure
+      || (Array.isArray(item.pay_structures) ? (item.pay_structures.find(p => p.status === 'Active') || item.pay_structures[0]) : null);
+
+    return {
+      "Sl. No.": index + 1,
+      "Employee ID": emp.employee_code || '',
+      "Employee Name": emp.employee_name || '',
+      "Permanent Employee Category": emp.employee_category || '',
+      "Pay Basis": active?.pay_basis || '—',
+      "Guaranteed Monthly Gross (₹)": active?.guaranteed_monthly_gross != null ? Number(active.guaranteed_monthly_gross) : 0,
+      "Basic Salary (₹/month)": active?.basic_salary != null ? Number(active.basic_salary) : 0,
+      "Staff Welfare (₹/month)": active?.staff_welfare != null ? Number(active.staff_welfare) : 0,
+      "Other Fixed Components (₹/month)": active?.other_fixed_components != null ? Number(active.other_fixed_components) : 0,
+      "EPF Enrolment": active ? (active.epf_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+      "ESI Enrolment": active ? (active.esi_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+      "Pay Structure Status": active?.status || 'No Pay Structure'
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Permanent Pay Structure");
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Permanent_Pay_Structures_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports the revision history of a specific permanent employee to Excel.
+ *
+ * @param {Object} employee
+ * @param {Array} revisions
+ */
+export async function exportEmployeeRevisionsToExcel(employee, revisions) {
+  if (!revisions || revisions.length === 0) {
+    alert('No pay revisions found to export for this employee.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+
+  const formattedRows = revisions.map((rev, index) => ({
+    "Sl. No.": index + 1,
+    "Employee ID": employee?.employee_code || '',
+    "Employee Name": employee?.employee_name || '',
+    "Permanent Employee Category": employee?.employee_category || '',
+    "Revision": `Rev #${rev.revision_number}`,
+    "Pay Basis": rev.pay_basis || '',
+    "Guaranteed Monthly Gross (₹)": rev.guaranteed_monthly_gross != null ? Number(rev.guaranteed_monthly_gross) : 0,
+    "Basic Salary (₹/month)": rev.basic_salary != null ? Number(rev.basic_salary) : 0,
+    "Staff Welfare (₹/month)": rev.staff_welfare != null ? Number(rev.staff_welfare) : 0,
+    "Other Fixed Components (₹/month)": rev.other_fixed_components != null ? Number(rev.other_fixed_components) : 0,
+    "EPF Enrolment": rev.epf_enrolment ? 'Enrolled' : 'Not enrolled',
+    "ESI Enrolment": rev.esi_enrolment ? 'Enrolled' : 'Not enrolled',
+    "Status": rev.status || '',
+    "Updated Date": rev.updated_at ? new Date(rev.updated_at).toLocaleDateString('en-IN') : ''
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formattedRows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, `Revisions - ${employee?.employee_code || 'EMP'}`);
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `Pay_Revisions_${employee?.employee_code || 'EMP'}_${dateSuffix}.xlsx`);
+}
+
+/**
+ * Exports both Employee Master and Permanent Pay Structure sheets in a single Excel workbook.
+ *
+ * @param {Array} employees
+ * @param {Array} payRecords
+ */
+export async function exportAllEmployeeSheetsToExcel(employees, payRecords) {
+  if ((!employees || employees.length === 0) && (!payRecords || payRecords.length === 0)) {
+    alert('No employee data available to export.');
+    return;
+  }
+
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.utils.book_new();
+
+  // Sheet 1: Employee & Worker Master
+  if (employees && employees.length > 0) {
+    const empRows = employees.map((emp, index) => {
+      const erpUser = emp.erp_user;
+      const erpRole = erpUser?.role || emp.erp_role || (erpUser ? erpUser.role : 'No ERP account');
+      const erpAccount = erpUser
+        ? (erpUser.display_name ? `${erpUser.display_name} (${erpUser.role || ''})` : (erpUser.email || 'ERP User'))
+        : 'No ERP account';
+
+      return {
+        "Sl. No.": index + 1,
+        "Employee ID": emp.employee_code || '',
+        "Employee Name": emp.employee_name || '',
+        "Employee Category": emp.employee_category || '',
+        "Department / Function": emp.department || '',
+        "Contact Number": emp.contact_number || '—',
+        "Existing ERP Role": erpRole || 'No ERP account',
+        "Existing ERP Account": erpAccount,
+        "Joining Date": emp.joining_date || '',
+        "Active Status": emp.active_status || 'Active'
+      };
+    });
+    const empSheet = XLSX.utils.json_to_sheet(empRows);
+    XLSX.utils.book_append_sheet(workbook, empSheet, "Employee & Worker Master");
+  }
+
+  // Sheet 2: Permanent Employee Pay Structure
+  if (payRecords && payRecords.length > 0) {
+    const payRows = payRecords.map((item, index) => {
+      const emp = item.employee || item;
+      const active = item.active_structure
+        || (Array.isArray(item.pay_structures) ? (item.pay_structures.find(p => p.status === 'Active') || item.pay_structures[0]) : null);
+
+      return {
+        "Sl. No.": index + 1,
+        "Employee ID": emp.employee_code || '',
+        "Employee Name": emp.employee_name || '',
+        "Permanent Employee Category": emp.employee_category || '',
+        "Pay Basis": active?.pay_basis || '—',
+        "Guaranteed Monthly Gross (₹)": active?.guaranteed_monthly_gross != null ? Number(active.guaranteed_monthly_gross) : 0,
+        "Basic Salary (₹/month)": active?.basic_salary != null ? Number(active.basic_salary) : 0,
+        "Staff Welfare (₹/month)": active?.staff_welfare != null ? Number(active.staff_welfare) : 0,
+        "Other Fixed Components (₹/month)": active?.other_fixed_components != null ? Number(active.other_fixed_components) : 0,
+        "EPF Enrolment": active ? (active.epf_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+        "ESI Enrolment": active ? (active.esi_enrolment ? 'Enrolled' : 'Not enrolled') : '—',
+        "Pay Structure Status": active?.status || 'No Pay Structure'
+      };
+    });
+    const paySheet = XLSX.utils.json_to_sheet(payRows);
+    XLSX.utils.book_append_sheet(workbook, paySheet, "Permanent Pay Structure");
+  }
+
+  const dateSuffix = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(workbook, `SN_Polymers_Employee_Master_and_Pay_${dateSuffix}.xlsx`);
 }

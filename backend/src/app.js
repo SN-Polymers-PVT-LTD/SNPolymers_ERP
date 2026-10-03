@@ -37,6 +37,12 @@ const analyticsRoutes = require('./routes/analytics.routes');
 const estimatedBillsRoutes = require('./routes/estimatedBills.routes');
 const acctRequisitionRoutes = require('./routes/acctRequisition.routes');
 const activityBreaksRoutes = require('./routes/activityBreaks.routes');
+const subcontractWorksRoutes = require('./routes/subcontractWorks.routes');
+const subcontractorsRoutes = require('./routes/subcontractors.routes');
+const subcontractEstimatesRoutes = require('./routes/subcontractEstimates.routes');
+const hrEmployeesRoutes = require('./routes/hrEmployees.routes');
+const hrPayStructuresRoutes = require('./routes/hrPayStructures.routes');
+const hrFactoryMastersRoutes = require('./routes/hrFactoryMasters.routes');
 
 
 const { startPolling, registerWebhook } = require('./services/telegram.service');
@@ -101,6 +107,14 @@ app.use('/api/v1/auth/analytics', analyticsRoutes);
 app.use('/api/v1/auth/estimated-bills', estimatedBillsRoutes);
 app.use('/api/v1/auth/acct-requisitions', acctRequisitionRoutes);
 app.use('/api/v1/auth/activity-breaks', activityBreaksRoutes);
+app.use('/api/v1/auth/subcontract-works', subcontractWorksRoutes);
+app.use('/api/v1/auth/subcontractors', subcontractorsRoutes);
+app.use('/api/v1/auth/subcontract-estimates', subcontractEstimatesRoutes);
+app.use('/api/v1/auth/hr/employees', hrEmployeesRoutes);
+app.use('/api/v1/auth/hr/pay-structures', hrPayStructuresRoutes);
+app.use('/api/v1/auth/hr/factory-masters', hrFactoryMastersRoutes);
+app.use('/api/v1/auth/hr/attendance', require('./routes/hrAttendance.routes'));
+app.use('/api/v1/auth/hr/leaves', require('./routes/hrLeaves.routes'));
 
 
 // Health check route with database connectivity ping

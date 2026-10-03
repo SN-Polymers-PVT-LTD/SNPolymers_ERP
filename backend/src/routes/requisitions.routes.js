@@ -11,6 +11,7 @@ const {
   retryCancelledRequisitionAttachmentCleanup,
   getMainHeadCapacity,
   getSubcontractorCapacity,
+  getSubcontractFinanceCapacity,
   getSubcontractorLedger,
   getSubcontractorLedgerEntries,
   getSubcontractorRequisitions,
@@ -64,6 +65,7 @@ const adminRoles = ['admin'];
 router.get('/', requireRole(readerRoles), getRequisitions);
 router.get('/capacity', requireRole(readerRoles), getMainHeadCapacity);
 router.get('/subcontractor-capacity', requireRole(readerRoles), getSubcontractorCapacity);
+router.get('/subcontract-finance-capacity', requireRole(readerRoles), getSubcontractFinanceCapacity);
 router.get('/subcontractor-ledger/entries', requireRole(readerRoles), getSubcontractorLedgerEntries);
 router.get('/subcontractor-ledger/requisitions', requireRole(readerRoles), getSubcontractorRequisitions);
 router.get('/subcontractor-ledger', requireRole(readerRoles), getSubcontractorLedger);

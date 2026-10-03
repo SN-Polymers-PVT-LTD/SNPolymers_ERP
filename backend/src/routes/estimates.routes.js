@@ -51,7 +51,7 @@ router.patch('/:id/review', requireRole(reviewRoles), reviewEstimate);
 router.post('/:id/row-approvals', requireRole(reviewRoles), validateRequest(submitRowApprovalsSchema), submitRowApprovals);
 router.post('/:id/submit-review', requireRole(reviewRoles), submitReview);
 router.post('/:id/request-revision', requireRole(reviewRoles), requestRevision);
-router.post('/:id/reopen', requireRole(['ho', 'admin']), reopenEstimate);
+router.post('/:id/reopen', requireRole(['zo', 'admin']), reopenEstimate);
 
 // Multer in-memory storage config (15MB cap)
 const multer = require('multer');

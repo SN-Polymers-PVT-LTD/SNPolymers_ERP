@@ -1,0 +1,14 @@
+const router = require('express').Router();
+const verifyJwt = require('../middleware/verifyJwt');
+const requireRole = require('../middleware/requireRole');
+const requireCurrentHrRole = require('../middleware/requireCurrentHrRole');
+const validateRequest = require('../middleware/validateRequest');
+const schema = require('../validation/hrFactoryMasters.schema');
+const controller = require('../controllers/hrFactoryMasters.controller');
+router.use(verifyJwt, requireCurrentHrRole(['admin', 'factory_manager', 'ho']));
+router.get('/effective', validateRequest(schema.effective), controller.effective);
+router.get('/wages', validateRequest(schema.list), controller.listWages);
+router.get('/rules', validateRequest(schema.list), controller.listRules);
+router.post('/wages', requireRole(['admin', 'factory_manager']), validateRequest(schema.wageCreate), controller.createWage);
+router.post('/rules', requireRole(['admin', 'factory_manager']), validateRequest(schema.ruleCreate), controller.createRule);
+module.exports = router;

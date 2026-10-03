@@ -181,7 +181,11 @@ const EstimateForm = () => {
             });
           }
 
-          const enrichedItems = (estItems || []).map((item) => {
+          const visibleEstItems = (estItems || []).filter(
+            item => !(item.source_type === 'SUBCONTRACT_ESTIMATE' && Number(item.qty || 0) === 0 && Number(item.amount || 0) === 0)
+          );
+
+          const enrichedItems = visibleEstItems.map((item) => {
             const subHeads = item.material_main_head ? (subHeadMap[item.material_main_head] || []) : [];
             const key = `${item.material_main_head}|||${item.material_sub_head}`;
             const mats = (item.material_main_head && item.material_sub_head) ? (materialMap[key] || []) : [];
@@ -255,6 +259,7 @@ const EstimateForm = () => {
 
   const handleItemChange = async (index, field, value) => {
     const globalIndex = (currentPage - 1) * itemsPerPage + index;
+    if (items[globalIndex]?.source_type === 'SUBCONTRACT_ESTIMATE') return;
     const updated = [...items];
     const item = { ...updated[globalIndex], [field]: value };
 
@@ -310,6 +315,7 @@ const EstimateForm = () => {
   const handleRemoveItem = (index) => {
     if (isExpired) return;
     const globalIndex = (currentPage - 1) * itemsPerPage + index;
+    if (items[globalIndex]?.source_type === 'SUBCONTRACT_ESTIMATE') return;
     const updated = items.filter((_, idx) => idx !== globalIndex);
     setItems(updated);
   };
@@ -661,13 +667,14 @@ const EstimateForm = () => {
               <tbody className="divide-y divide-white/5 text-xs text-slate-300">
                 {paginatedItems.map((item, idx) => {
                   const globalIdx = (currentPage - 1) * itemsPerPage + idx;
-                  const isLocked = user?.role !== 'admin' && (
+                  const isGenerated = item.source_type === 'SUBCONTRACT_ESTIMATE';
+                  const isLocked = isGenerated || (user?.role !== 'admin' && (
                     (isRevisionMode && (
                       (estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED && item.zo_office_approve === 'Approve') ||
                       (estimateStatus === ESTIMATE_STATUS.HO_REVISION_REQUESTED && item.ho_office_approve === 'Approve')
                     )) ||
                     (estimateStatus === ESTIMATE_STATUS.ESTIMATE_REOPENED && !!item.item_id)
-                  );
+                  ));
 
                   const isRejected = isRevisionMode && (
                     (estimateStatus === ESTIMATE_STATUS.ZO_REVISION_REQUESTED && item.zo_office_approve === 'Not Approve') ||
@@ -687,6 +694,7 @@ const EstimateForm = () => {
                              disabled={isFormLockedByExpiry || submitting || isLocked}
                           >
                             <option value="">Select Main Head</option>
+                            {isGenerated && item.material_main_head && <option value={item.material_main_head}>{item.material_main_head}</option>}
                             {mainHeads.map(h => <option key={h} value={h}>{h}</option>)}
                           </select>
                         </td>
@@ -698,6 +706,7 @@ const EstimateForm = () => {
                              disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_main_head}
                           >
                             <option value="">Select Sub Head</option>
+                            {isGenerated && item.material_sub_head && <option value={item.material_sub_head}>{item.material_sub_head}</option>}
                             {item.subHeadsList?.map(s => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </td>
@@ -709,6 +718,7 @@ const EstimateForm = () => {
                              disabled={isFormLockedByExpiry || submitting || isLocked || !item.material_sub_head}
                           >
                             <option value="">Select Details</option>
+                            {isGenerated && item.material_details && <option value={item.material_details}>{item.material_details}</option>}
                             {item.matsList?.map((m, mIdx) => (
                               <option key={`${m.id || m.name}-${mIdx}`} value={m.name}>
                                 {m.name}
@@ -727,7 +737,7 @@ const EstimateForm = () => {
                         <td className="py-3 px-4">
                           <input
                             type="number"
-                            min="0.01"
+                            min={isGenerated ? '0' : '0.01'}
                             step="any"
                             value={item.qty || ''}
                             onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}

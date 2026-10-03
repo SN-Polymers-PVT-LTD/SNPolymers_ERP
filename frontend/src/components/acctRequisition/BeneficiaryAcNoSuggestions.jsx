@@ -29,6 +29,7 @@ const MENU_MAX_HEIGHT = 224; // px, matches max-h-56
  */
 const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelection, searchBy = 'ac_no', primaryField = 'ac_no', disabled = false, enabled = true, ...inputProps }) => {
   const [open, setOpen] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [menuRect, setMenuRect] = useState(null);
@@ -45,7 +46,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
   const justSelectedRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || disabled) {
+    if (!enabled || disabled || !isFocused) {
       requestIdRef.current += 1;
       setResults([]);
       setLoading(false);
@@ -66,11 +67,7 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
       return undefined;
     }
 
-    // Re-opens on every prefix change of 3+ chars, not just the initial
-    // focus — the first 1-2 keystrokes above forced `open` closed (setOpen
-    // isn't otherwise re-triggered on this path), so without this the menu
-    // stayed closed for the rest of a normal continuous typing flow even
-    // though results were being fetched correctly in the background.
+    // Re-opens on every prefix change of 3+ chars when focused
     setOpen(true);
     const requestId = ++requestIdRef.current;
     setLoading(true);
@@ -89,13 +86,14 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [value, searchBy, enabled, disabled]);
+  }, [value, searchBy, enabled, disabled, isFocused]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (containerRef.current?.contains(e.target)) return;
       if (menuRef.current?.contains(e.target)) return;
       setOpen(false);
+      setIsFocused(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -132,10 +130,11 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
     justSelectedRef.current = true;
     onSelect?.(beneficiary);
     setOpen(false);
+    setIsFocused(false);
     setResults([]);
   };
 
-  const showMenu = open && enabled && !disabled && value.trim().length >= MIN_PREFIX_LENGTH;
+  const showMenu = open && enabled && !disabled && isFocused && value.trim().length >= MIN_PREFIX_LENGTH;
 
   return (
     <div ref={containerRef} className="relative">
@@ -144,8 +143,14 @@ const BeneficiaryAcNoSuggestions = ({ value, onChange, onSelect, onClearSelectio
         value={value}
         disabled={disabled}
         autoComplete="off"
-        onFocus={() => enabled && setOpen(true)}
-        onChange={onChange}
+        onFocus={(e) => {
+          setIsFocused(true);
+          inputProps.onFocus?.(e);
+        }}
+        onChange={(e) => {
+          setIsFocused(true);
+          onChange?.(e);
+        }}
       />
       {onClearSelection && value && !disabled && (
         <button type="button" aria-label="Clear beneficiary selection" onClick={onClearSelection} className="absolute right-2 top-7 text-slate-400 hover:text-white text-sm">×</button>

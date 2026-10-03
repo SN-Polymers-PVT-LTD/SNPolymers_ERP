@@ -16,6 +16,7 @@ export const MobileHeader = () => {
   if (user) {
     // Group 1: Project Operations
     const projItems = [];
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) projItems.push({ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> });
     projItems.push({
       to: '/estimates',
       label: 'Cost Estimates',
@@ -34,6 +35,9 @@ export const MobileHeader = () => {
         </svg>
       )
     });
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      projItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
+    }
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       projItems.push({
         to: '/daily-progress',
@@ -253,6 +257,15 @@ export const MobileHeader = () => {
             )
           },
           {
+            to: '/admin/employee-management',
+            label: 'Employee Management',
+            icon: (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+            )
+          },
+          {
             to: '/admin/purchase-options',
             label: 'Purchase Options',
             icon: (
@@ -293,6 +306,69 @@ export const MobileHeader = () => {
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          )
+        }
+      ]
+    });
+  }
+
+  // FM has no project/finance/audit navigation in this phase.
+  if (user?.role === 'factory_manager') menuGroups.splice(0);
+    if (['ho', 'admin'].includes(user?.role)) {
+    menuGroups.push({
+      title: 'Staff Leaves',
+      items: [
+        {
+          to: '/hr/self-service-leaves',
+          label: 'Staff Leave Queue',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          )
+        }
+      ]
+    });
+  }
+if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
+    menuGroups.push({
+      title: 'Factory',
+      items: [
+        ...(['ho', 'admin'].includes(user?.role) ? [{
+          to: '/factory-attendance/review',
+          label: 'Attendance Review',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          )
+        }] : []),
+        {
+          to: '/factory-attendance',
+          label: 'Daily Attendance',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )
+        },
+        {
+          to: '/factory-attendance/calendar',
+          label: 'Monthly Calendar',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )
+        },
+        {
+          to: '/factory-masters',
+          label: 'Factory Masters',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
           )
         }
@@ -399,7 +475,7 @@ export const MobileHeader = () => {
                     <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-3">{group.title}</h4>
                     <div className="space-y-1">
                       {group.items.map((item) => {
-                        const active = currentPath === item.to || (item.to !== '/dashboard' && currentPath.startsWith(item.to));
+                        const active = currentPath === item.to || (item.to !== '/dashboard' && currentPath.startsWith(item.to) && !(item.to === '/factory-attendance' && currentPath.startsWith('/factory-attendance/review')));
                         return (
                           <Link
                             key={item.to}
@@ -432,7 +508,7 @@ export const MobileHeader = () => {
                 </div>
                 <div className="truncate flex-grow">
                   <p className="text-xs font-extrabold text-slate-200 truncate">{user.display_name || 'User Account'}</p>
-                  <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{user.role}</p>
+                  <p className="text-[9px] font-mono text-slate-500 uppercase tracking-widest">{user.role === 'factory_manager' ? 'Factory Manager' : user.role}</p>
                 </div>
               </div>
 
@@ -523,7 +599,7 @@ const Sidebar = () => {
   }, [isExpanded, isCollapsed]);
 
   // 1. Detect active module
-  const isProjectModule = ['/estimates', '/materials', '/daily-progress'].some(p => currentPath.startsWith(p));
+  const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress', '/subcontract-masters', '/subcontract-works', '/subcontractors'].some(p => currentPath.startsWith(p));
   const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
@@ -533,8 +609,62 @@ const Sidebar = () => {
   // 2. Define sub-navigation items based on active module and role access
   const navItems = [];
 
-  if (isProjectModule) {
+  if (user?.role === 'factory_manager' || currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')) {
+    if (['ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/factory-attendance/review',
+        label: 'Attendance Review',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/hr/self-service-leaves',
+        label: 'Staff Leave Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
+    }
+    if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push(
+        {
+          to: '/factory-attendance',
+          label: 'Daily Attendance',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )
+        },
+        {
+          to: '/factory-attendance/calendar',
+          label: 'Monthly Calendar',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )
+        },
+        {
+          to: '/factory-masters',
+          label: 'Factory Masters',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          )
+        }
+      );
+    }
+  } else if (isProjectModule) {
     navItems.push(
+      ...(['je', 'zo', 'ho', 'admin'].includes(user?.role) ? [{ to: '/subcontract-estimates', label: 'Subcontract Estimates', icon: <span className="text-xs">SE</span> }] : []),
       {
         to: '/estimates',
         label: 'Cost Estimates',
@@ -554,6 +684,10 @@ const Sidebar = () => {
         )
       }
     );
+
+    if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
+      navItems.push({ to: '/subcontract-masters', label: 'Subcontract Masters', icon: <span className="text-xs">SM</span> });
+    }
 
     if (['je', 'zo', 'ho', 'admin'].includes(user?.role)) {
       navItems.push({
@@ -618,8 +752,8 @@ const Sidebar = () => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-          )
-        },
+        )
+      },
         {
           to: '/estimated-bills',
           label: 'Estimated Bills',
@@ -755,6 +889,38 @@ const Sidebar = () => {
         }
       );
     }
+  } else if (currentPath.startsWith('/hr/self-service-leaves')) {
+    if (['ho', 'admin'].includes(user?.role)) {
+      navItems.push({
+        to: '/hr/self-service-leaves',
+        label: 'Staff Leave Queue',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )
+      });
+      navItems.push({
+        to: '/factory-attendance/review',
+        label: 'Attendance Review',
+        icon: (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        )
+      });
+      if (user?.role === 'admin') {
+        navItems.push({
+          to: '/admin/employee-management',
+          label: 'Employee Management',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          )
+        });
+      }
+    }
   } else if (isAdminModule) {
     if (user?.role === 'admin') {
       navItems.push(
@@ -764,6 +930,15 @@ const Sidebar = () => {
           icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          )
+        },
+        {
+          to: '/admin/employee-management',
+          label: 'Employee Management',
+          icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           )
         },
@@ -879,7 +1054,7 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
+            const isActive = ['/docs','/factory-attendance/review'].includes(to) ? currentPath.startsWith(to) : currentPath === to;
             return (
               <Link
                 key={to}
@@ -919,7 +1094,7 @@ const Sidebar = () => {
               <Link
                 to="/profile"
                 className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-500 flex items-center justify-center font-extrabold text-slate-950 text-xs shadow-md select-none"
-                title={`${user.display_name || 'Operator'} (${user.role})`}
+                title={`${user.display_name || 'Operator'} (${user.role === 'factory_manager' ? 'Factory Manager' : user.role})`}
               >
                 {(user.display_name || 'U')[0].toUpperCase()}
               </Link>
@@ -979,7 +1154,7 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = to === '/docs' ? currentPath.startsWith('/docs') : currentPath === to;
+            const isActive = ['/docs','/factory-attendance/review'].includes(to) ? currentPath.startsWith(to) : currentPath === to;
             return (
               <Link
                 key={to}
@@ -1056,7 +1231,7 @@ const Sidebar = () => {
                     {user.display_name || 'Operator'}
                   </span>
                   <span className="text-[9px] font-bold text-amber-500 uppercase tracking-wider">
-                    {user.role}
+                    {user.role === 'factory_manager' ? 'Factory Manager' : user.role}
                   </span>
                 </div>
               </Link>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useRaFinalBillUrlState } from '../hooks/useRaFinalBillUrlState';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, FormattedCurrencyInput, TextArea, Select, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -61,13 +61,39 @@ const formatDateTime = (dateStr) => {
 const RAFinalBill = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
   
-  // Tab control states: 'dashboard' or 'directory'
-  const [currentTab, setCurrentTab] = useState('dashboard');
-  
-  // Active Project (Work Order Bill Sheet View)
-  const [activeWO, setActiveWO] = useState(null); // Selected project metadata object
+  const {
+    currentTab,
+    setCurrentTab,
+    activeWONo,
+    selectWO,
+    clearWO,
+    filterWO,
+    setFilterWO,
+    filterType,
+    setFilterType,
+    filterDateFrom,
+    setFilterDateFrom,
+    filterDateTo,
+    setFilterDateTo,
+    page,
+    setPage,
+    resetDashboardFilters,
+    dirSearchWO,
+    setDirSearchWO,
+    dirSearchDept,
+    setDirSearchDept,
+    dirSearchZone,
+    setDirSearchZone,
+    showCreatePanel,
+    createWONo,
+    openCreatePanel,
+    closeCreatePanel,
+    billId: urlBillId,
+    openBillDetail,
+    closeBillDetail
+  } = useRaFinalBillUrlState();
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -75,22 +101,9 @@ const RAFinalBill = () => {
   const [toast, setToast] = useState(null); // { message, billNo }
 
   // UI Panels
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
   const [selectedBillId, setSelectedBillId] = useState(null);
   const [detailBill, setDetailBill] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-
-  // Search/Filter states for Global Overview Feed
-  const [filterWO, setFilterWO] = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [page, setPage] = useState(1);
-
-  // Directory Search Filters
-  const [dirSearchWO, setDirSearchWO] = useState('');
-  const [dirSearchDept, setDirSearchDept] = useState('');
-  const [dirSearchZone, setDirSearchZone] = useState('');
 
   // Create Form State
   const [formState, setFormState] = useState({
@@ -151,24 +164,48 @@ const RAFinalBill = () => {
     staleTime: 120 * 1000
   });
 
-  // Auto filter by URL work_order_no query param
-  useEffect(() => {
-    const paramWO = searchParams.get('work_order_no') || searchParams.get('wo');
-    if (paramWO) {
-      setFilterWO(paramWO);
-      setDirSearchWO(paramWO);
-      if (projectsData && projectsData.length > 0) {
-        const match = projectsData.find(p => p.work_order_no === paramWO);
-        if (match) {
-          setActiveWO(match);
-        } else {
-          setActiveWO({ work_order_no: paramWO });
-        }
-      } else {
-        setActiveWO({ work_order_no: paramWO });
-      }
+  // Active Project (Work Order Bill Sheet View) reactively resolved from URL
+  const activeWO = useMemo(() => {
+    if (!activeWONo) return null;
+    if (projectsData && projectsData.length > 0) {
+      const match = projectsData.find(p => p.work_order_no === activeWONo);
+      if (match) return match;
     }
-  }, [searchParams, projectsData]);
+    return { work_order_no: activeWONo };
+  }, [activeWONo, projectsData]);
+
+  // Sync selectedBillId with urlBillId and fetch details
+  useEffect(() => {
+    if (!urlBillId) {
+      setSelectedBillId(null);
+      setDetailBill(null);
+      return;
+    }
+    let isSubscribed = true;
+    setSelectedBillId(urlBillId);
+    setLoadingDetail(true);
+    getBillById(urlBillId)
+      .then((res) => {
+        if (!isSubscribed) return;
+        if (res.data?.success) {
+          setDetailBill(res.data.bill);
+        } else {
+          setError(res.data?.message || 'Failed to fetch bill details');
+        }
+      })
+      .catch((err) => {
+        if (!isSubscribed) return;
+        console.error('Failed to load bill details:', err);
+        setError(err.response?.data?.message || err.message || 'Error loading bill details');
+      })
+      .finally(() => {
+        if (isSubscribed) setLoadingDetail(false);
+      });
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [urlBillId]);
 
   // Fetch paginated bills list using React Query
   const { data: billsData, isLoading: loadingBills, error: billsError } = useQuery({
@@ -353,6 +390,15 @@ const RAFinalBill = () => {
     }
   };
 
+  // Sync create modal with createWONo from URL if pre-populated
+  useEffect(() => {
+    if (showCreatePanel && createWONo && formState.work_order_no !== createWONo) {
+      const e = { target: { value: createWONo } };
+      handleWorkOrderChange(e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreatePanel, createWONo]);
+
   // Two-step file upload
   const handleFileSelect = async (e) => {
     const file = e.target.files?.[0];
@@ -485,7 +531,7 @@ const RAFinalBill = () => {
       earnest_money_deposit: 0
     });
     setFormSummaryData(mapBillSummary());
-    setShowCreatePanel(false);
+    closeCreatePanel();
   };
 
   // Form Submit
@@ -610,28 +656,13 @@ const RAFinalBill = () => {
   };
 
   // View single bill details
-  const handleViewBill = async (billId) => {
-    setLoadingDetail(true);
-    setSelectedBillId(billId);
-    setDetailBill(null);
-    try {
-      const res = await getBillById(billId);
-      if (res.data?.success) {
-        setDetailBill(res.data.bill);
-      }
-    } catch (err) {
-      console.error('Failed to load bill details:', err);
-      setError('Failed to fetch details for selected bill.');
-    } finally {
-      setLoadingDetail(false);
-    }
+  const handleViewBill = (billId) => {
+    openBillDetail(billId);
   };
 
   // Open the create panel pre-populated with a specific work order
-  const handleOpenCreatePanelForWO = async (workOrderNo) => {
-    setShowCreatePanel(true);
-    
-    // Simulate Work Order change programmatically to fetch and auto-fill details
+  const handleOpenCreatePanelForWO = (workOrderNo) => {
+    openCreatePanel(workOrderNo);
     const e = { target: { value: workOrderNo } };
     handleWorkOrderChange(e);
   };
@@ -727,7 +758,7 @@ const RAFinalBill = () => {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-white/5">
               <div>
                 <button
-                  onClick={() => setActiveWO(null)}
+                  onClick={clearWO}
                   className="flex items-center gap-2 text-xs font-bold text-indigo-400 hover:text-indigo-300 uppercase tracking-wider transition mb-2"
                 >
                   &larr; Back to Directory
@@ -912,7 +943,7 @@ const RAFinalBill = () => {
                 </div>
 
                 <button
-                  onClick={() => setShowCreatePanel(true)}
+                  onClick={() => openCreatePanel()}
                   className="bg-white hover:bg-slate-100 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition shadow flex items-center justify-center gap-2 shrink-0"
                 >
                   <svg className="w-4 h-4 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1004,12 +1035,7 @@ const RAFinalBill = () => {
                   <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-white/5">
                     <Button
                       variant="ghost"
-                      onClick={() => {
-                        setFilterWO('');
-                        setFilterType('');
-                        setFilterDateFrom('');
-                        setFilterDateTo('');
-                      }}
+                      onClick={resetDashboardFilters}
                       size="sm"
                     >
                       Reset Filters
@@ -1050,7 +1076,7 @@ const RAFinalBill = () => {
                           {projectsWithNoRaBill.map(proj => (
                             <div
                               key={proj.work_order_no}
-                              onClick={() => setActiveWO(proj)}
+                              onClick={() => selectWO(proj.work_order_no)}
                               className="glass-panel glass-card-hover p-5 rounded-2xl border border-amber-500/10 hover:border-amber-400/30 cursor-pointer flex flex-col justify-between min-h-[160px] transition-all duration-200 group"
                             >
                               <div>
@@ -1206,7 +1232,7 @@ const RAFinalBill = () => {
                     filteredProjects.map((proj) => (
                       <div
                         key={proj.work_order_no}
-                        onClick={() => setActiveWO(proj)}
+                        onClick={() => selectWO(proj.work_order_no)}
                         className="glass-panel glass-card-hover p-6 rounded-3xl border border-white/5 cursor-pointer relative overflow-hidden flex flex-col justify-between min-h-[200px]"
                       >
                         <div>
@@ -1645,10 +1671,7 @@ const RAFinalBill = () => {
       {selectedBillId && (
         <Modal
           isOpen={!!selectedBillId}
-          onClose={() => {
-            setSelectedBillId(null);
-            setDetailBill(null);
-          }}
+          onClose={closeBillDetail}
           title="Bill Details View"
           subtitle={detailBill ? `Created By: ${detailBill.created_by_name || detailBill.created_by} · ${formatDateTime(detailBill.created_at)}` : ''}
           size="lg"
@@ -1656,10 +1679,7 @@ const RAFinalBill = () => {
             <div className="flex justify-end w-full">
               <Button
                 variant="glass"
-                onClick={() => {
-                  setSelectedBillId(null);
-                  setDetailBill(null);
-                }}
+                onClick={closeBillDetail}
               >
                 Close Details
               </Button>

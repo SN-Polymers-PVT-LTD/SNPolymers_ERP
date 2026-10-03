@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -141,8 +142,47 @@ const AddBankModal = ({ onClose }) => {
 };
 
 const BeneficiariesTab = () => {
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const urlSearch = searchParams.get('search') || searchParams.get('q') || '';
+  const [search, setSearch] = useState(urlSearch);
+
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = search.trim();
+        const current = next.get('search') || next.get('q') || '';
+        if (trimmed === current) return prev;
+        if (trimmed) {
+          next.set('search', trimmed);
+          next.delete('q');
+        } else {
+          next.delete('search');
+          next.delete('q');
+        }
+        next.delete('page');
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, setSearchParams]);
+
+  const pageParam = parseInt(searchParams.get('page'), 10);
+  const page = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1;
+  const setPage = useCallback((newPage) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const val = typeof newPage === 'function' ? newPage(page) : newPage;
+      if (val > 1) next.set('page', String(val));
+      else next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [page, setSearchParams]);
   const [showAdd, setShowAdd] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -321,7 +361,20 @@ const BanksTab = () => {
 const AcctBeneficiaryMaster = () => {
   const { user } = useAuth();
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
-  const [activeTab, setActiveTab] = useState('beneficiaries'); // 'beneficiaries' | 'banks'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab');
+  const activeTab = urlTab === 'banks' ? 'banks' : 'beneficiaries';
+  const setActiveTab = useCallback((newTab) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (newTab === 'banks') next.set('tab', 'banks');
+      else next.delete('tab');
+      next.delete('page');
+      next.delete('search');
+      next.delete('q');
+      return next;
+    });
+  }, [setSearchParams]);
 
   if (!isAccountsUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;

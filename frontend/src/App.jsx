@@ -18,12 +18,23 @@ import SystemPolicy from './pages/SystemPolicy';
 // Dynamic Lazy Views for chunk splitting & optimistic preloading
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
+const DailyAttendance = React.lazy(() => import('./pages/hr/DailyAttendance'));
+const AttendanceReviewQueue = React.lazy(() => import('./pages/hr/AttendanceReviewQueue'));
+const AttendanceReviewDetail = React.lazy(() => import('./pages/hr/AttendanceReviewDetail'));
+const FactoryMasters = React.lazy(() => import('./pages/hr/FactoryMasters'));
+const MonthlyAttendanceCalendar = React.lazy(() => import('./pages/hr/MonthlyAttendanceCalendar'));
+const SelfServiceLeaveQueue = React.lazy(() => import('./pages/hr/SelfServiceLeaveQueue'));
+const EmployeeManagement = React.lazy(() => import('./pages/admin/EmployeeManagement'));
 const AuditLog = React.lazy(() => import('./pages/admin/AuditLog'));
 const MasterData = React.lazy(() => import('./pages/admin/MasterData'));
 const PurchaseOptions = React.lazy(() => import('./pages/admin/PurchaseOptions'));
 const FundReports = React.lazy(() => import('./pages/FundReports'));
 const FundRequests = React.lazy(() => import('./pages/FundRequests'));
 const MaterialMaster = React.lazy(() => import('./pages/MaterialMaster'));
+const SubcontractMasters = React.lazy(() => import('./pages/SubcontractMasters'));
+const SubcontractEstimates = React.lazy(() => import('./pages/SubcontractEstimates'));
+const SubcontractEstimateForm = React.lazy(() => import('./pages/SubcontractEstimateForm'));
+const SubcontractEstimateView = React.lazy(() => import('./pages/SubcontractEstimateView'));
 const Estimates = React.lazy(() => import('./pages/Estimates'));
 const EstimateForm = React.lazy(() => import('./pages/EstimateForm'));
 const EstimateView = React.lazy(() => import('./pages/EstimateView'));
@@ -113,18 +124,34 @@ function App() {
             <Route path="/docs/:pageId" element={<Docs />} />
 
             {/* Protected Routes utilizing Persistent AppLayout */}
-            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+            <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager']} />}>
               <Route element={
                 <AppLayout />
               }>
                 <Route path="/dashboard" element={<React.Suspense fallback={<AppChunkLoader />}><Dashboard /></React.Suspense>} />
                 <Route path="/profile" element={<React.Suspense fallback={<AppChunkLoader />}><Profile /></React.Suspense>} />
-                <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
-                <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
-                <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
-                <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
-                <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
-                <Route path="/estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+                <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+                  <Route path="/fund-reports" element={<React.Suspense fallback={<AppChunkLoader />}><FundReports /></React.Suspense>} />
+                  <Route path="/materials" element={<React.Suspense fallback={<AppChunkLoader />}><MaterialMaster /></React.Suspense>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
+                  <Route path="/subcontract-estimates" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimates /></React.Suspense>} />
+                  <Route path="/subcontract-estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateView /></React.Suspense>} />
+                  <Route element={<ProtectedRoute allowedRoles={['je', 'admin']} />}>
+                    <Route path="/subcontract-estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                    <Route path="/subcontract-estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractEstimateForm /></React.Suspense>} />
+                  </Route>
+                  <Route path="/subcontract-works" element={<Navigate to="/subcontract-masters?tab=work" replace />} />
+                  <Route path="/subcontractors" element={<Navigate to="/subcontract-masters?tab=subcontractor" replace />} />
+                  <Route path="/subcontract-masters" element={<React.Suspense fallback={<AppChunkLoader />}><SubcontractMasters /></React.Suspense>} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={['staff', 'admin', 'je', 'zo', 'ho', 'accounts']} />}>
+                  <Route path="/estimates" element={<React.Suspense fallback={<AppChunkLoader />}><Estimates /></React.Suspense>} />
+                  <Route path="/estimates/new" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+                  <Route path="/estimates/:id" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateView /></React.Suspense>} />
+                  <Route path="/estimates/:id/edit" element={<React.Suspense fallback={<AppChunkLoader />}><EstimateForm /></React.Suspense>} />
+
+                </Route>
 
                 {/* Requisitions & Daily Work Progress Protected Routes (JE, ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['je', 'zo', 'ho', 'admin']} />}>
@@ -137,6 +164,18 @@ function App() {
                 {/* Fund Requests Protected Routes (ZO, HO, Admin) */}
                 <Route element={<ProtectedRoute allowedRoles={['zo', 'staff', 'ho', 'admin']} />}>
                   <Route path="/fund-requests" element={<React.Suspense fallback={<AppChunkLoader />}><FundRequests /></React.Suspense>} />
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={['factory_manager', 'ho', 'admin']} />}>
+                  <Route path="/factory-attendance" element={<React.Suspense fallback={<AppChunkLoader />}><DailyAttendance /></React.Suspense>} />
+                  <Route path="/factory-attendance/calendar" element={<React.Suspense fallback={<AppChunkLoader />}><MonthlyAttendanceCalendar /></React.Suspense>} />
+                  <Route path="/factory-masters" element={<React.Suspense fallback={<AppChunkLoader />}><FactoryMasters /></React.Suspense>} />
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={['ho', 'admin']} />}>
+                  <Route path="/factory-attendance/review" element={<React.Suspense fallback={<AppChunkLoader />}><AttendanceReviewQueue /></React.Suspense>} />
+                  <Route path="/factory-attendance/review/:sheetId" element={<React.Suspense fallback={<AppChunkLoader />}><AttendanceReviewDetail /></React.Suspense>} />
+                  <Route path="/hr/self-service-leaves" element={<React.Suspense fallback={<AppChunkLoader />}><SelfServiceLeaveQueue /></React.Suspense>} />
                 </Route>
 
                 {/* Accounts Shared Protected Routes (Accounts, HO, Admin) */}
@@ -180,6 +219,7 @@ function App() {
                 {/* Admin Protected Routes */}
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                   <Route path="/admin" element={<React.Suspense fallback={<AppChunkLoader />}><AdminPanel /></React.Suspense>} />
+                  <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
                   <Route path="/admin/sessions" element={<React.Suspense fallback={<AppChunkLoader />}><AuditLog /></React.Suspense>} />
                   <Route path="/admin/master-data" element={<React.Suspense fallback={<AppChunkLoader />}><MasterData /></React.Suspense>} />
                   <Route path="/admin/purchase-options" element={<React.Suspense fallback={<AppChunkLoader />}><PurchaseOptions /></React.Suspense>} />

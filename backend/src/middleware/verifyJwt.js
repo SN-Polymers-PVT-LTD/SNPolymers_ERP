@@ -45,7 +45,7 @@ async function verifyJwt(req, res, next) {
     // Check if the user is still active in authorised_users whitelist
     const { data: user, error: userError } = await supabase
       .from('authorised_users')
-      .select('is_active, display_name')
+      .select('is_active, display_name, role')
       .eq('id', decoded.user_id)
       .limit(1)
       .single();
@@ -54,11 +54,19 @@ async function verifyJwt(req, res, next) {
       return res.status(403).json({ success: false, message: 'Access denied. Account is deactivated or removed.' });
     }
 
-    // Attach decoded user information and session ID to the request object
+    // FM is scoped to account/profile and the factory module.
+    // Legacy modules contain authenticated-only reads; do not grant them by
+    // merely admitting a new role to the shared application shell.
+    if (user.role === 'factory_manager' &&
+        !['/api/v1/auth', '/api/v1/auth/hr/factory-masters', '/api/v1/auth/hr/attendance'].includes(req.baseUrl)) {
+      return res.status(403).json({ success: false, message: 'Factory Manager cannot access this module.' });
+    }
+
+    // Current account role controls authorization; JWT role is only a snapshot.
     req.user = {
       id: decoded.user_id,
       mobile_number: decoded.mobile_number,
-      role: decoded.role,
+      role: user.role,
       permissions: decoded.permissions,
       display_name: user.display_name,
       displayName: user.display_name

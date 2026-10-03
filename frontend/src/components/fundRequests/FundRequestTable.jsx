@@ -88,7 +88,7 @@ const FundRequestTable = ({ requests, user, onRowClick, onActionClick, onCancelC
                 {formatDate(req.zo_date)}
               </TableCell>
               <TableCell className="py-3 px-3 whitespace-nowrap">
-                <FundRequestStatusBadge status={req.request_status} isImported={isImported} />
+                <FundRequestStatusBadge status={req.request_status} isImported={isImported} isDismissed={!!req.accounts_import_dismissed} />
               </TableCell>
               <TableCell onClick={(e) => e.stopPropagation()} className="py-3 px-3 whitespace-nowrap">
                 <div className="flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity duration-200">

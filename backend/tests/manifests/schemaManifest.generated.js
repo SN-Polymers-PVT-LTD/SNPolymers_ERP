@@ -65,6 +65,182 @@ module.exports = {
         }
       }
     },
+    "hr_employees": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "('EMP-'::text || (nextval('hr_employee_code_seq'::regclass))::text)"
+        },
+        "employee_name": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "contact_number": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "erp_user_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "joining_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "active_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Active'::text"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "hr_permanent_pay_structures": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "pay_basis": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "guaranteed_monthly_gross": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "basic_salary": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "staff_welfare": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "other_fixed_components": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "epf_enrolment": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "esi_enrolment": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Active'::text"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
     "sessions": {
       "columns": {
         "id": {
@@ -474,6 +650,18 @@ module.exports = {
         "zo_actioned_at": {
           "type": "timestamp with time zone",
           "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
           "nullable": true,
           "default": null
         }
@@ -1263,6 +1451,1628 @@ module.exports = {
           "type": "timestamp with time zone",
           "udtName": "timestamptz",
           "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "project_cost_estimate_items": {
+      "columns": {
+        "item_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "material_main_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_sub_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_details": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "unit": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "qty": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate_reference": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "source_of_purchase": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "zo_office_approve": {
+          "type": "USER-DEFINED",
+          "udtName": "row_approval_enum",
+          "nullable": true,
+          "default": null
+        },
+        "zo_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "ho_office_approve": {
+          "type": "USER-DEFINED",
+          "udtName": "row_approval_enum",
+          "nullable": true,
+          "default": null
+        },
+        "ho_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "source_type": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "estimate_revision_log": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision_cycle": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "stage": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "requested_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "revision_deadline": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": null
+        },
+        "resubmitted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "resubmitted_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "is_auto_resubmitted": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "modified_item_ids": {
+          "type": "ARRAY",
+          "udtName": "_uuid",
+          "nullable": false,
+          "default": "'{}'::uuid[]"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "projects_beneficiary_master": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "beneficiary_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "beneficiary_ac_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "beneficiary_ifsc": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "beneficiary_bank_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "last_used_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "beneficiary_bank_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "indian_bank_master": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "bank_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "is_active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "subcontractor_balances": {
+      "columns": {
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_main_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": "'Sub Contractor'::character varying"
+        },
+        "material_sub_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_details": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "estimated_total": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "paid_total": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "available_balance": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "subcontractor_ledger": {
+      "columns": {
+        "ledger_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_main_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": "'Sub Contractor'::character varying"
+        },
+        "material_sub_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_details": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "transaction_type": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "reference_type": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "reference_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "settlement_status": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": "'RESERVED'::character varying"
+        },
+        "settled_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "settled_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "ledger_visible": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "subcontract_work_master": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "sub_head": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "material_details": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "unit": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "is_active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "identity_locked_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "subcontractor_master": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontractor_name": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "is_active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "subcontractor_work_capabilities": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "subcontractor_work_assignments": {
+      "columns": {
+        "assignment_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "unit": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "qty": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate_reference": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "is_active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "project_subcontract_estimates": {
+      "columns": {
+        "subcontract_estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "work_order_no": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "estimate_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "0"
+        },
+        "estimate_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "estimate_status": {
+          "type": "USER-DEFINED",
+          "udtName": "estimate_status_enum",
+          "nullable": false,
+          "default": "'Draft'::estimate_status_enum"
+        },
+        "last_approved_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "last_modified_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "je_user_id": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "je_date": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "je_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "zo_approved_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "zo_approval_date": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "zo_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "ho_approved_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "ho_approval_date": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "ho_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "project_subcontract_estimate_lines": {
+      "columns": {
+        "line_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontract_estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontractor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontract_work_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "qty": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "rate_reference": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "entry_kind": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": "'BASE'::character varying"
+        },
+        "adjusts_line_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "zo_office_approve": {
+          "type": "USER-DEFINED",
+          "udtName": "row_approval_enum",
+          "nullable": true,
+          "default": null
+        },
+        "zo_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "ho_office_approve": {
+          "type": "USER-DEFINED",
+          "udtName": "row_approval_enum",
+          "nullable": true,
+          "default": null
+        },
+        "ho_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "final_approved_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "final_approved_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "final_approved_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "subcontract_estimate_revision_log": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontract_estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision_cycle": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "stage": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "requested_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "revision_deadline": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": null
+        },
+        "resubmitted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "resubmitted_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "is_auto_resubmitted": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "modified_line_ids": {
+          "type": "ARRAY",
+          "udtName": "_uuid",
+          "nullable": false,
+          "default": "'{}'::uuid[]"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "cost_estimate_subcontract_contributions": {
+      "columns": {
+        "contribution_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "cost_estimate_item_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "subcontract_estimate_line_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "qty_contribution": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "amount_contribution": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "project_subcontract_estimate_workflow_log": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "subcontract_estimate_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "from_status": {
+          "type": "USER-DEFINED",
+          "udtName": "estimate_status_enum",
+          "nullable": false,
+          "default": null
+        },
+        "to_status": {
+          "type": "USER-DEFINED",
+          "udtName": "estimate_status_enum",
+          "nullable": false,
+          "default": null
+        },
+        "action": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "actor": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "actor_role": {
+          "type": "character varying",
+          "udtName": "varchar",
+          "nullable": false,
+          "default": null
+        },
+        "remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_factory_wage_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "daily_wage": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_factory_pay_rule_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "standard_duty_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "ot_enabled": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "ot_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "ot_rate": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "ot_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "holiday_pay_enabled": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "holiday_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "management_stoppage_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "short_hours_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "comp_off_rule": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "double_duty_multiplier": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_attendance_sheets": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "attendance_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Draft'::text"
+        },
+        "submission_count": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "0"
+        },
+        "submitted_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "submitted_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "returned_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "returned_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "return_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "reviewed_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "reviewed_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "review_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "locked_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_attendance_rows": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "sheet_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "attendance_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "entry_timestamp": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "exit_timestamp": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "actual_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "ot_hours": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "duty_type": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "holiday_pay_eligible": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "leave_request_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "pay_rule_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "wage_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "hr_leave_requests": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "request_source": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "from_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "to_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "leave_type": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "approval_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Pending'::text"
+        },
+        "pay_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'Pending'::text"
+        },
+        "decided_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "decided_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "decision_remarks": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
           "default": null
         },
         "created_at": {

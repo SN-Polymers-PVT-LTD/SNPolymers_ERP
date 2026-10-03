@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
+import { Button, Badge, Input, Select, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
 import { getImportEligibleItems, dismissImportEligibleItem } from '../api/acctRequisitionsApi';
 
 const STATUS_VARIANTS = { 'On Hold': 'orange', Rejected: 'red', 'Pending Review': 'indigo' };
@@ -16,6 +16,8 @@ const STATUS_OPTIONS = [
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—';
+
+const PAGE_SIZE = 20;
 
 /**
  * Standalone housekeeping view over the same accumulating On
@@ -32,38 +34,130 @@ const AcctImportEligibleItems = () => {
   const queryClient = useQueryClient();
   const isAccountsUser = user?.role === 'accounts' || user?.role === 'admin';
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [error, setError] = useState('');
   const [dismissingItemId, setDismissingItemId] = useState(null);
-  const [particularsFilter, setParticularsFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
 
-  const queryKey = ['acctImportEligibleItems', particularsFilter, statusFilter];
+  // Status Filter
+  const statusFilter = searchParams.get('status') || '';
+  const setStatusFilter = useCallback((val) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (val) next.set('status', val);
+      else next.delete('status');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
-  const { data: eligibleItems = [], isLoading, error: queryError } = useQuery({
+  // Particulars Search with debouncing
+  const urlParticulars = searchParams.get('particulars') || searchParams.get('q') || '';
+  const [particularsFilter, setParticularsFilter] = useState(urlParticulars);
+
+  useEffect(() => {
+    setParticularsFilter(urlParticulars);
+  }, [urlParticulars]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        const trimmed = particularsFilter.trim();
+        const current = next.get('particulars') || next.get('q') || '';
+        if (trimmed === current) return prev;
+        if (trimmed) {
+          next.set('particulars', trimmed);
+          next.delete('q');
+        } else {
+          next.delete('particulars');
+          next.delete('q');
+        }
+        next.delete('page');
+        return next;
+      }, { replace: true });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [particularsFilter, setSearchParams]);
+
+  // Page
+  const pageParam = parseInt(searchParams.get('page'), 10);
+  const page = !isNaN(pageParam) && pageParam > 0 ? pageParam : 1;
+  const setPage = useCallback((newPage) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      const val = typeof newPage === 'function' ? newPage(page) : newPage;
+      if (val > 1) next.set('page', String(val));
+      else next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [page, setSearchParams]);
+
+  const resetFilters = useCallback(() => {
+    setParticularsFilter('');
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('particulars');
+      next.delete('q');
+      next.delete('status');
+      next.delete('page');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const queryKey = ['acctImportEligibleItems', { particularsFilter, statusFilter, page }];
+
+  const { data: queueResponse, isLoading, error: queryError } = useQuery({
     queryKey,
-    queryFn: async () => (await getImportEligibleItems({
-      limit: 100,
-      particulars: particularsFilter || undefined,
-      status: statusFilter || undefined
-    })).data?.items || [],
+    queryFn: async () => {
+      const res = await getImportEligibleItems({
+        page,
+        limit: PAGE_SIZE,
+        particulars: particularsFilter || undefined,
+        status: statusFilter || undefined
+      });
+      const items = res.data?.items || [];
+      const pagination = res.data?.pagination || {
+        page,
+        limit: PAGE_SIZE,
+        total: items.length,
+        totalPages: Math.max(1, Math.ceil(items.length / PAGE_SIZE))
+      };
+      return { items, pagination };
+    },
     enabled: isAccountsUser
   });
+
+  const eligibleItems = queueResponse?.items || [];
+  const pagination = queueResponse?.pagination || { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 };
 
   const displayError = error || queryError?.response?.data?.message || queryError?.message || '';
 
   // Optimistic remove: dismissing takes the item out of this list for good,
   // so drop it from the cache immediately instead of waiting on a round trip
-  // + refetch, and put it back if the request actually fails. Must target the
-  // same filter-parametrized queryKey the list is currently rendered from —
-  // a static key here would silently miss whichever filtered view is active.
+  // + refetch, and put it back if the request actually fails.
+  const removeItemOptimistically = (itemId) => {
+    const previous = queryClient.getQueryData(queryKey);
+    queryClient.setQueryData(queryKey, (old) => {
+      if (!old) return old;
+      if (Array.isArray(old)) {
+        return old.filter((i) => i.id !== itemId);
+      }
+      return {
+        ...old,
+        items: (old.items || []).filter((i) => i.id !== itemId)
+      };
+    });
+    return previous;
+  };
+
   const handleDismiss = async (item) => {
     setError('');
     const itemId = item.id;
     setDismissingItemId(itemId);
-    const previous = queryClient.getQueryData(queryKey);
-    queryClient.setQueryData(queryKey, (old) => (old || []).filter((i) => i.id !== itemId));
+    const previous = removeItemOptimistically(itemId);
     try {
       await dismissImportEligibleItem(itemId, item.item_type);
+      queryClient.invalidateQueries({ queryKey: ['acctImportEligibleItems'] });
     } catch (err) {
       queryClient.setQueryData(queryKey, previous);
       setError(err.response?.data?.message || 'Failed to dismiss line item.');
@@ -86,11 +180,11 @@ const AcctImportEligibleItems = () => {
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Held / Rejected / Pending Review Items</h1>
           <p className="text-xs text-slate-400 font-medium mt-1.5">
             Every On Hold, Rejected, or Pending Review line item across all sheets that hasn't been
-            imported into a new sheet yet. Import from within an Open sheet's "Import Held / Rejected"
+            imported into a new sheet yet. Import from within an Open sheet's "Import List"
             button, or dismiss an item here if it'll never be re-requested.
           </p>
         </div>
-        <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions')}>
+        <Button variant="glass" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/acct-requisitions'))}>
           ← Back to Sheets
         </Button>
       </div>
@@ -107,14 +201,20 @@ const AcctImportEligibleItems = () => {
           type="text"
           placeholder="Search particulars..."
           value={particularsFilter}
-          onChange={(e) => setParticularsFilter(e.target.value)}
+          onChange={(e) => {
+            setParticularsFilter(e.target.value);
+            setPage(1);
+          }}
           size="sm"
           containerClassName="sm:w-64"
         />
         <Select
           options={STATUS_OPTIONS}
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           size="sm"
           containerClassName="sm:w-48"
         />
@@ -122,7 +222,7 @@ const AcctImportEligibleItems = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setParticularsFilter(''); setStatusFilter(''); }}
+            onClick={resetFilters}
           >
             Reset Filters
           </Button>
@@ -216,6 +316,13 @@ const AcctImportEligibleItems = () => {
               ))}
             </TableBody>
           </Table>
+          <Pagination
+            currentPage={page}
+            totalPages={pagination.totalPages}
+            totalRecords={pagination.total}
+            showLabel={true}
+            onPageChange={setPage}
+          />
         </div>
       )}
     </>

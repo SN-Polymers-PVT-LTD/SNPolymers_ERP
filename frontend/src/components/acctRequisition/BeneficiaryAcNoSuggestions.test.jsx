@@ -36,6 +36,7 @@ describe('BeneficiaryAcNoSuggestions name search', () => {
   it('selects a suggestion after mouse interaction without losing the click event', async () => {
     const onSelect = vi.fn();
     render(<BeneficiaryAcNoSuggestions value="Acme" searchBy="name" primaryField="name" onChange={vi.fn()} onSelect={onSelect} />);
+    fireEvent.focus(screen.getByRole('textbox'));
     await waitFor(() => expect(searchBeneficiariesByAcNo).toHaveBeenCalledWith('Acme', 8, 'name'));
     const suggestion = await screen.findByText('Acme Infra');
     fireEvent.mouseDown(suggestion);
@@ -49,6 +50,14 @@ describe('BeneficiaryAcNoSuggestions name search', () => {
     fireEvent.focus(screen.getByRole('textbox'));
     await new Promise(resolve => setTimeout(resolve, 350));
     expect(searchBeneficiariesByAcNo).not.toHaveBeenCalled();
+    expect(screen.queryByText('Acme Infra')).not.toBeInTheDocument();
+  });
+
+  it('does not open or search on initial render before the input receives focus', async () => {
+    render(<BeneficiaryAcNoSuggestions value="1156135000001234" onChange={vi.fn()} onSelect={vi.fn()} />);
+    await new Promise(resolve => setTimeout(resolve, 350));
+    expect(searchBeneficiariesByAcNo).not.toHaveBeenCalled();
+    expect(screen.queryByText('Searching…')).not.toBeInTheDocument();
     expect(screen.queryByText('Acme Infra')).not.toBeInTheDocument();
   });
 });

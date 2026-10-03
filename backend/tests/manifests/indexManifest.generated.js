@@ -9,6 +9,98 @@ module.exports = {
       "table": "authorised_users",
       "definition": "CREATE UNIQUE INDEX authorised_users_pkey ON public.authorised_users USING btree (id)"
     },
+    "hr_attendance_rows_pkey": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE UNIQUE INDEX hr_attendance_rows_pkey ON public.hr_attendance_rows USING btree (id)"
+    },
+    "hr_attendance_sheets_pkey": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE UNIQUE INDEX hr_attendance_sheets_pkey ON public.hr_attendance_sheets USING btree (id)"
+    },
+    "hr_employees_employee_code_key": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_employee_code_key ON public.hr_employees USING btree (employee_code)"
+    },
+    "hr_employees_erp_user_id_key": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_erp_user_id_key ON public.hr_employees USING btree (erp_user_id)"
+    },
+    "hr_employees_name_idx": {
+      "table": "hr_employees",
+      "definition": "CREATE INDEX hr_employees_name_idx ON public.hr_employees USING btree (lower(employee_name))"
+    },
+    "hr_employees_pkey": {
+      "table": "hr_employees",
+      "definition": "CREATE UNIQUE INDEX hr_employees_pkey ON public.hr_employees USING btree (id)"
+    },
+    "hr_employees_status_category_idx": {
+      "table": "hr_employees",
+      "definition": "CREATE INDEX hr_employees_status_category_idx ON public.hr_employees USING btree (active_status, employee_category)"
+    },
+    "hr_factory_pay_rule_revisions_employee_category_effective_f_key": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_effective_f_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, effective_from)"
+    },
+    "hr_factory_pay_rule_revisions_employee_category_revision_nu_key": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_revision_nu_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, revision_number)"
+    },
+    "hr_factory_wage_revisions_employee_category_effective_from_key": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_effective_from_key ON public.hr_factory_wage_revisions USING btree (employee_category, effective_from)"
+    },
+    "hr_factory_wage_revisions_employee_category_revision_number_key": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_revision_number_key ON public.hr_factory_wage_revisions USING btree (employee_category, revision_number)"
+    },
+    "hr_leave_active_range_excl": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE INDEX hr_leave_active_range_excl ON public.hr_leave_requests USING gist (employee_id, daterange(from_date, to_date, '[]'::text)) WHERE (approval_status = ANY (ARRAY['Pending'::text, 'Approved'::text]))"
+    },
+    "hr_leave_queue_idx": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE INDEX hr_leave_queue_idx ON public.hr_leave_requests USING btree (approval_status, request_source, from_date)"
+    },
+    "hr_leave_requests_pkey": {
+      "table": "hr_leave_requests",
+      "definition": "CREATE UNIQUE INDEX hr_leave_requests_pkey ON public.hr_leave_requests USING btree (id)"
+    },
+    "hr_pay_revision_unique": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_pay_revision_unique ON public.hr_permanent_pay_structures USING btree (employee_id, revision_number)"
+    },
+    "hr_pay_structures_employee_idx": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE INDEX hr_pay_structures_employee_idx ON public.hr_permanent_pay_structures USING btree (employee_id, status)"
+    },
+    "hr_pay_structures_one_active_idx": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_pay_structures_one_active_idx ON public.hr_permanent_pay_structures USING btree (employee_id) WHERE (status = 'Active'::text)"
+    },
+    "hr_permanent_pay_structures_pkey": {
+      "table": "hr_permanent_pay_structures",
+      "definition": "CREATE UNIQUE INDEX hr_permanent_pay_structures_pkey ON public.hr_permanent_pay_structures USING btree (id)"
+    },
+    "hr_row_sheet_employee_unique": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE UNIQUE INDEX hr_row_sheet_employee_unique ON public.hr_attendance_rows USING btree (sheet_id, employee_id)"
+    },
+    "hr_rows_employee_idx": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE INDEX hr_rows_employee_idx ON public.hr_attendance_rows USING btree (employee_id, sheet_id)"
+    },
+    "hr_rows_leave_idx": {
+      "table": "hr_attendance_rows",
+      "definition": "CREATE INDEX hr_rows_leave_idx ON public.hr_attendance_rows USING btree (leave_request_id, sheet_id) WHERE (leave_request_id IS NOT NULL)"
+    },
+    "hr_sheet_date_category_unique": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE UNIQUE INDEX hr_sheet_date_category_unique ON public.hr_attendance_sheets USING btree (attendance_date, employee_category)"
+    },
+    "hr_sheets_queue_idx": {
+      "table": "hr_attendance_sheets",
+      "definition": "CREATE INDEX hr_sheets_queue_idx ON public.hr_attendance_sheets USING btree (status, attendance_date, employee_category)"
+    },
     "idx_activity_breaks_active": {
       "table": "work_order_activity_breaks",
       "definition": "CREATE INDEX idx_activity_breaks_active ON public.work_order_activity_breaks USING btree (work_order_no) WHERE ((status)::text = ANY ((ARRAY['Active'::character varying, 'Reopen Requested'::character varying])::text[]))"
@@ -49,6 +141,10 @@ module.exports = {
       "table": "beneficiary_master",
       "definition": "CREATE INDEX idx_bm_beneficiary_name_trgm ON public.beneficiary_master USING gin (beneficiary_name gin_trgm_ops)"
     },
+    "idx_cesc_source_line": {
+      "table": "cost_estimate_subcontract_contributions",
+      "definition": "CREATE INDEX idx_cesc_source_line ON public.cost_estimate_subcontract_contributions USING btree (subcontract_estimate_line_id)"
+    },
     "idx_fund_requests_status": {
       "table": "fund_requests",
       "definition": "CREATE INDEX idx_fund_requests_status ON public.fund_requests USING btree (request_status) WHERE (request_status = 'Pending'::fund_request_status_enum)"
@@ -65,17 +161,97 @@ module.exports = {
       "table": "projects_master",
       "definition": "CREATE INDEX idx_projects_zo_user ON public.projects_master USING btree (zo_user_id)"
     },
+    "idx_pse_status": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_status ON public.project_subcontract_estimates USING btree (estimate_status)"
+    },
+    "idx_pse_updated_at": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_updated_at ON public.project_subcontract_estimates USING btree (updated_at DESC)"
+    },
+    "idx_pse_work_order": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE INDEX idx_pse_work_order ON public.project_subcontract_estimates USING btree (work_order_no)"
+    },
+    "idx_psel_adjusts_line": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_adjusts_line ON public.project_subcontract_estimate_lines USING btree (adjusts_line_id) WHERE (adjusts_line_id IS NOT NULL)"
+    },
+    "idx_psel_estimate": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id)"
+    },
+    "idx_psel_estimate_party_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate_party_work ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, subcontractor_id, subcontract_work_id)"
+    },
+    "idx_psel_estimate_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_estimate_work ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, subcontract_work_id)"
+    },
+    "idx_psel_final_approved_revision": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_final_approved_revision ON public.project_subcontract_estimate_lines USING btree (subcontract_estimate_id, final_approved_revision) WHERE (final_approved_revision IS NOT NULL)"
+    },
+    "idx_psel_subcontractor": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_subcontractor ON public.project_subcontract_estimate_lines USING btree (subcontractor_id)"
+    },
+    "idx_psel_work": {
+      "table": "project_subcontract_estimate_lines",
+      "definition": "CREATE INDEX idx_psel_work ON public.project_subcontract_estimate_lines USING btree (subcontract_work_id)"
+    },
+    "idx_psewl_estimate_created_at": {
+      "table": "project_subcontract_estimate_workflow_log",
+      "definition": "CREATE INDEX idx_psewl_estimate_created_at ON public.project_subcontract_estimate_workflow_log USING btree (subcontract_estimate_id, created_at)"
+    },
     "idx_requisitions_status": {
       "table": "requisitions",
       "definition": "CREATE INDEX idx_requisitions_status ON public.requisitions USING btree (requisition_status) WHERE (requisition_status = 'Pending'::requisition_status_enum)"
+    },
+    "idx_requisitions_subcontract_scope": {
+      "table": "requisitions",
+      "definition": "CREATE INDEX idx_requisitions_subcontract_scope ON public.requisitions USING btree (work_order_no, subcontractor_id, subcontract_work_id) WHERE (subcontractor_id IS NOT NULL)"
     },
     "idx_requisitions_work_order": {
       "table": "requisitions",
       "definition": "CREATE INDEX idx_requisitions_work_order ON public.requisitions USING btree (work_order_no)"
     },
+    "idx_scb_relational_scope": {
+      "table": "subcontractor_balances",
+      "definition": "CREATE INDEX idx_scb_relational_scope ON public.subcontractor_balances USING btree (work_order_no, subcontractor_id, subcontract_work_id)"
+    },
+    "idx_scl_relational_scope": {
+      "table": "subcontractor_ledger",
+      "definition": "CREATE INDEX idx_scl_relational_scope ON public.subcontractor_ledger USING btree (work_order_no, subcontractor_id, subcontract_work_id)"
+    },
     "idx_sessions_user_login": {
       "table": "sessions",
       "definition": "CREATE INDEX idx_sessions_user_login ON public.sessions USING btree (user_id, login_at DESC)"
+    },
+    "idx_swm_active": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE INDEX idx_swm_active ON public.subcontract_work_master USING btree (is_active)"
+    },
+    "idx_swm_sub_head": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE INDEX idx_swm_sub_head ON public.subcontract_work_master USING btree (sub_head)"
+    },
+    "uq_pcei_generated_subcontract_work": {
+      "table": "project_cost_estimate_items",
+      "definition": "CREATE UNIQUE INDEX uq_pcei_generated_subcontract_work ON public.project_cost_estimate_items USING btree (estimate_id, subcontract_work_id) WHERE ((source_type)::text = 'SUBCONTRACT_ESTIMATE'::text)"
+    },
+    "uq_pse_one_live_estimate_per_wo": {
+      "table": "project_subcontract_estimates",
+      "definition": "CREATE UNIQUE INDEX uq_pse_one_live_estimate_per_wo ON public.project_subcontract_estimates USING btree (work_order_no) WHERE (estimate_status <> ALL (ARRAY['Rejected by ZO'::estimate_status_enum, 'Rejected by HO'::estimate_status_enum]))"
+    },
+    "uq_serl_one_active_revision": {
+      "table": "subcontract_estimate_revision_log",
+      "definition": "CREATE UNIQUE INDEX uq_serl_one_active_revision ON public.subcontract_estimate_revision_log USING btree (subcontract_estimate_id) WHERE (resubmitted_at IS NULL)"
+    },
+    "uq_subcontract_work_master_identity": {
+      "table": "subcontract_work_master",
+      "definition": "CREATE UNIQUE INDEX uq_subcontract_work_master_identity ON public.subcontract_work_master USING btree (lower(btrim((sub_head)::text)), lower(btrim((material_details)::text)), lower(btrim((unit)::text)))"
     }
   }
 };

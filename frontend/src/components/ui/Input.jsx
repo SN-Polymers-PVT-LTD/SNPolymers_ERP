@@ -23,11 +23,12 @@ const Input = React.forwardRef(({
   const errorClass = error ? 'border-red-500/50 focus:border-red-500' : '';
   const paddingLeftClass = iconLeft ? 'pl-11' : '';
   const paddingRightClass = iconRight ? 'pr-11' : '';
+  const inputId = props.id || (label ? `input-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined);
 
   return (
     <div className={`flex flex-col w-full text-left ${containerClassName}`}>
       {label && (
-        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+        <label htmlFor={inputId} className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
           {label} {required && <span className="text-red-400">*</span>}
         </label>
       )}
@@ -41,6 +42,7 @@ const Input = React.forwardRef(({
 
         <input
           ref={ref}
+          id={inputId}
           type={type}
           required={required}
           onWheel={(e) => {

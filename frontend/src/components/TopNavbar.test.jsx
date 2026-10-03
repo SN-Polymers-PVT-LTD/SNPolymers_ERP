@@ -15,6 +15,15 @@ vi.mock('./AuthContext', () => ({
 }));
 
 describe('TopNavbar Dock role permissions', () => {
+  it('shows only shared and Factory navigation to Factory Manager', () => {
+    mockUser = { role: 'factory_manager', display_name: 'Factory Manager' };
+    render(<ModalProvider><MemoryRouter initialEntries={['/factory-masters']}><TopNavbar /></MemoryRouter></ModalProvider>);
+    expect(screen.getByRole('button', { name: 'Factory' })).toBeInTheDocument();
+    for (const name of ['Finance', 'Projects', 'Accounts', 'Admin', 'Analytics', 'Mappings']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
   it('does NOT render the Finance button in the dock for accounts role', () => {
     mockUser = { role: 'accounts', display_name: 'Accounts Operator' };
 
