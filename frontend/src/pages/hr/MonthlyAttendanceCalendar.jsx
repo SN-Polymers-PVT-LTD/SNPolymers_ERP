@@ -20,6 +20,13 @@ const CODE_CONFIG = {
   'MI': { label: 'Management Issue', variant: 'orange', bg: 'bg-orange-500/15 text-orange-400 border-orange-500/30' }
 };
 
+const SHEET_STATES = {
+  Draft: { code: 'D', color: 'text-slate-400' },
+  Submitted: { code: 'S', color: 'text-blue-400' },
+  'Returned for Correction': { code: 'R', color: 'text-red-400' },
+  Locked: { code: 'L', color: 'text-amber-400' }
+};
+
 function formatKol(isoString) {
   if (!isoString) return '-';
   try {
@@ -191,12 +198,14 @@ export default function MonthlyAttendanceCalendar() {
               {code} = {cfg.label}
             </span>
           ))}
-          <span className="text-slate-500 text-[11px] ml-2">· = No finalized attendance yet; — = No employee row</span>
+          <span className="text-slate-500 text-[11px] ml-2">· = No attendance sheet; — = No employee row; - = Unmarked</span>
         </div>
         <div className="text-xs text-slate-400">
-          Finalized Sheets: <span className="font-extrabold text-slate-200">{data?.sheets?.length || 0}</span> / {daysInMonth} days &bull; Roster Count: <span className="font-extrabold text-slate-200">{filteredEmployees.length}</span>
+          Stored Sheets: <span className="font-extrabold text-slate-200">{data?.sheets?.length || 0}</span> / {daysInMonth} days &bull; Roster Count: <span className="font-extrabold text-slate-200">{filteredEmployees.length}</span>
         </div>
       </div>
+
+      <p className="text-xs text-slate-400 mb-3">Sheet states: D = Draft; S = Submitted; R = Returned for Correction; L = Locked (finalized).</p>
 
       {/* Main Calendar Grid */}
       <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm">
@@ -230,12 +239,12 @@ export default function MonthlyAttendanceCalendar() {
                         className={`py-2 px-1 text-center font-bold min-w-[34px] border-r border-white/5 ${
                           hasSheet ? 'text-amber-400 bg-amber-500/5' : 'text-slate-500'
                         }`}
-                        title={hasSheet ? 'Finalized Locked Sheet' : 'No finalized attendance yet'}
+                        title={hasSheet ? `${sheet.status} Sheet` : 'No attendance sheet'}
                       >
                         {d}
                         {hasSheet && (
-                          <span className="block text-[9px] text-amber-500/80" aria-label="Locked">
-                            L
+                          <span className={`block text-[9px] ${SHEET_STATES[sheet.status]?.color || 'text-slate-400'}`} aria-label={sheet.status}>
+                            {SHEET_STATES[sheet.status]?.code || sheet.status}
                           </span>
                         )}
                       </th>
@@ -270,7 +279,7 @@ export default function MonthlyAttendanceCalendar() {
                             <td
                               key={d}
                               className="py-1 px-1 text-center text-slate-700 border-r border-white/5 select-none"
-                              title={hasSheet ? 'No row for employee' : 'No finalized attendance yet'}
+                              title={hasSheet ? 'No row for employee' : 'No attendance sheet'}
                             >
                               {hasSheet ? '—' : '·'}
                             </td>
@@ -285,7 +294,7 @@ export default function MonthlyAttendanceCalendar() {
                               type="button"
                               onClick={() => setSelectedDayDetail(rec)}
                               className={`w-full h-7 rounded text-[11px] font-extrabold flex items-center justify-center transition-transform hover:scale-110 focus:outline-none focus:ring-1 focus:ring-amber-400 border ${cfg.bg}`}
-                              title={`${rec.date} • ${rec.employee_name}: ${rec.attendance_status} (${rec.code}) • ${rec.sheet_status}`}
+                              title={`${rec.date} • ${rec.employee_name}: ${rec.attendance_status || 'Unmarked'} (${rec.code}) • ${rec.sheet_status}`}
                             >
                               {rec.code}
                             </button>
@@ -319,7 +328,7 @@ export default function MonthlyAttendanceCalendar() {
                 <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Status Code</span>
                 <div className="mt-0.5">
                   <Badge variant={CODE_CONFIG[selectedDayDetail.code]?.variant || 'slate'} showDot>
-                    {selectedDayDetail.code} - {selectedDayDetail.attendance_status}
+                    {selectedDayDetail.code} - {selectedDayDetail.attendance_status || 'Unmarked'}
                   </Badge>
                 </div>
               </div>

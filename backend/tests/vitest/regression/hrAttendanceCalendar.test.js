@@ -225,7 +225,7 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(r2.status).toBe(400);
   });
 
-  test('calendar includes ONLY finalized Locked sheets and excludes Draft, Submitted, and Returned sheets', async () => {
+  test('calendar includes editable, submitted, returned and finalized sheets with their stored states', async () => {
     const month = `${year}-01`;
     const q = `?employee_category=${encodeURIComponent(casual)}&month=${month}`;
     const res = await request('GET', `/calendar${q}`, 'factory_manager');
@@ -235,17 +235,10 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(res.body.month).toBe(month);
     expect(res.body.days_in_month).toBe(31);
 
-    // Only finalized Locked sheets are returned
-    const returnedDates = res.body.sheets.map(s => s.attendance_date);
-    expect(returnedDates).toContain(date(1, 1));
-    expect(returnedDates).toContain(date(1, 2));
-    expect(returnedDates).not.toContain(date(1, 3)); // Draft excluded
-    expect(returnedDates).not.toContain(date(1, 4)); // Submitted excluded
-    expect(returnedDates).not.toContain(date(1, 5)); // Returned for Correction excluded
-
-    for (const sheet of res.body.sheets) {
-      expect(sheet.status).toBe('Locked');
-    }
+    expect(res.body.sheets.map(s => [s.attendance_date, s.status])).toEqual([
+      [date(1, 1), 'Locked'], [date(1, 2), 'Locked'], [date(1, 3), 'Draft'],
+      [date(1, 4), 'Submitted'], [date(1, 5), 'Returned for Correction']
+    ]);
 
     // Verify code mapping on finalized days
     // Day 1: active1 is Present -> code 'P'
@@ -279,10 +272,12 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(rMI).toBeDefined();
     expect(rMI.code).toBe('MI');
 
-    // Ensure no records exist for provisional days 3, 4, 5
-    expect(res.body.records.find(r => r.date === date(1, 3))).toBeUndefined();
-    expect(res.body.records.find(r => r.date === date(1, 4))).toBeUndefined();
-    expect(res.body.records.find(r => r.date === date(1, 5))).toBeUndefined();
+    const draft = res.body.records.find(r => r.employee_id === employees.active1 && r.date === date(1, 3));
+    expect(draft.sheet_status).toBe('Draft');
+    expect(draft.code).toBe('-');
+    expect(draft.attendance_status).not.toBe('Present');
+    expect(res.body.records.find(r => r.date === date(1, 4)).sheet_status).toBe('Submitted');
+    expect(res.body.records.find(r => r.date === date(1, 5)).sheet_status).toBe('Returned for Correction');
   });
 
   test('historical employees with attendance facts in the month are preserved and resolved', async () => {
@@ -303,7 +298,7 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     const res = await request('GET', `/calendar${q}`, 'factory_manager');
 
     expect(res.status).toBe(200);
-    expect(res.body.records.length).toBe(2); // Only Day 1 and Day 2 are Locked
+    expect(res.body.records.length).toBe(5); // All stored sheet states
     for (const rec of res.body.records) {
       expect(rec.employee_id).toBe(employees.active1);
     }

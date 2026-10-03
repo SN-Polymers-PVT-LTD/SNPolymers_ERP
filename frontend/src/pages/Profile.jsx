@@ -9,6 +9,7 @@ import ProfileLeaveSection from './profile/ProfileLeaveSection';
 const Profile = () => {
   const { theme, toggleTheme, darkBg, setDarkBg, lightBg, setLightBg, DARK_BACKGROUNDS, LIGHT_BACKGROUNDS } = useTheme();
   const { user } = useAuth();
+  const canAccessLeave = user?.role !== 'factory_manager';
   const { setTab, isProfileTab, isAppearanceTab, isLeaveTab, isAllTab } = useProfileUrlState();
   
   // Instant local profile initialization from AuthContext
@@ -68,7 +69,7 @@ const Profile = () => {
           <span>👤</span>
           <span>Profile & Activity</span>
         </button>
-        <button
+        {canAccessLeave && <button
           type="button"
           onClick={() => setTab('leave')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -79,7 +80,7 @@ const Profile = () => {
         >
           <span>📅</span>
           <span>Leave Requests</span>
-        </button>
+        </button>}
 <button
           type="button"
           onClick={() => setTab('appearance')}
@@ -204,9 +205,15 @@ const Profile = () => {
 
           {/* Theme & Background Personalization Settings */}
                     {/* Self-Service Leave Section for HO / Projects */}
-          {(isLeaveTab || isAllTab) && (
+          {(isLeaveTab || (isAllTab && canAccessLeave)) && (
             <div className="glass-panel p-6 rounded-3xl shadow-xl relative overflow-hidden">
-              <ProfileLeaveSection />
+              {canAccessLeave ? <ProfileLeaveSection /> : (
+                <div>
+                  <h3 className="text-lg font-bold text-slate-100">Leave requests unavailable</h3>
+                  <p className="text-sm text-slate-400 mt-2">Factory Manager accounts manage factory attendance through the daily attendance sheets.</p>
+                  <Link to="/factory-attendance" className="inline-block mt-4 text-sm font-bold text-amber-400">Open Factory Attendance</Link>
+                </div>
+              )}
               {isLeaveTab && (
                 <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between">
                   <button

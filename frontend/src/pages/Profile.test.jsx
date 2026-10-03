@@ -20,6 +20,8 @@ vi.mock('../components/AuthContext', () => ({
   }),
 }));
 
+vi.mock('./profile/ProfileLeaveSection', () => ({ default: () => <div>Leave section mounted</div> }));
+
 const mockToggleTheme = vi.fn();
 const mockSetDarkBg = vi.fn();
 const mockSetLightBg = vi.fn();
@@ -171,5 +173,25 @@ describe('Profile URL State & Legacy Aliases', () => {
     expect(screen.getByText('User Profile')).toBeInTheDocument();
     expect(screen.getByText('Test Operator')).toBeInTheDocument();
     expect(screen.queryByText('Appearance & Custom Backgrounds')).not.toBeInTheDocument();
+  });
+});
+
+describe('Profile leave access', () => {
+  beforeEach(() => { mockUser.role = 'je'; });
+  it('keeps leave access for other roles', async () => {
+    renderProfile('/profile?tab=leave');
+    expect(await screen.findByRole('button', { name: /Leave Requests/ })).toBeInTheDocument();
+    expect(screen.getByText('Leave section mounted')).toBeInTheDocument();
+  });
+  it.each(['/profile', '/profile?tab=leave', '/profile?tab=all'])('does not mount leave requests for a Factory Manager on %s', (url) => {
+    mockUser.role = 'factory_manager';
+    renderProfile(url);
+    expect(screen.queryByRole('button', { name: /Leave Requests/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('Leave section mounted')).not.toBeInTheDocument();
+    if (url.includes('tab=leave')) {
+      expect(screen.getByText('Leave requests unavailable')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open Factory Attendance' })).toHaveAttribute('href', '/factory-attendance');
+    }
+    mockUser.role = 'je';
   });
 });

@@ -41,12 +41,12 @@ module.exports = {
     const lastDay = new Date(Date.UTC(year, monthNum, 0)).getDate();
     const toDate = `${month}-${String(lastDay).padStart(2, '0')}`;
 
-    // Only include finalized Locked attendance sheets in the monthly calendar register.
+    // Include editable and submitted sheets for review/correction alongside finalized attendance.
     const sheets = await all(() =>
       supabase.from('hr_attendance_sheets')
         .select('id, attendance_date, status, submission_count')
         .eq('employee_category', employee_category)
-        .eq('status', 'Locked')
+        .in('status', ['Draft', 'Submitted', 'Returned for Correction', 'Locked'])
         .gte('attendance_date', fromDate)
         .lte('attendance_date', toDate)
         .order('attendance_date').order('id')

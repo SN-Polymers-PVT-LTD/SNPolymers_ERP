@@ -218,12 +218,12 @@ describe('MonthlyAttendanceCalendar Component', () => {
     );
  });
 
- it('renders days without a locked sheet with no finalized attendance indicator', async () => {
+ it('renders days without a stored sheet with a missing sheet indicator', async () => {
     renderCalendar();
     await screen.findByText('Worker Ramesh');
 
-    // Day 3 has no locked sheet, header has title 'No finalized attendance yet'
-    const unfinalizedHeaders = screen.getAllByTitle('No finalized attendance yet');
+    // Day 3 has no locked sheet, header has title 'No attendance sheet'
+    const unfinalizedHeaders = screen.getAllByTitle('No attendance sheet');
     expect(unfinalizedHeaders.length).toBeGreaterThan(0);
  });
 
@@ -242,3 +242,30 @@ describe('MonthlyAttendanceCalendar Component', () => {
      expect(getKolkataCurrentMonth(new Date('2025-12-31T17:00:00Z'))).toBe('2025-12');
    });
  });
+
+it('labels provisional sheet states and opens returned attendance for correction', async () => {
+  authApi.get.mockResolvedValue({ data: { ...mockCalendarData,
+    sheets: [...mockCalendarData.sheets,
+      { id: 'draft', attendance_date: '2026-09-03', status: 'Draft' },
+      { id: 'submitted', attendance_date: '2026-09-04', status: 'Submitted' },
+      { id: 'returned', attendance_date: '2026-09-05', status: 'Returned for Correction' }],
+    records: [...mockCalendarData.records, { ...mockCalendarData.records[0], id: 'returned-row',
+      sheet_id: 'returned', date: '2026-09-05', sheet_status: 'Returned for Correction' }]
+  } });
+  renderCalendar();
+  expect(await screen.findByLabelText('Draft')).toHaveTextContent('D');
+  expect(screen.getByLabelText('Submitted')).toHaveTextContent('S');
+  expect(screen.getByLabelText('Returned for Correction')).toHaveTextContent('R');
+  fireEvent.click(screen.getByTitle(/2026-09-05.*Returned for Correction/));
+  expect(screen.getByRole('link', { name: /Open Daily Sheet/ })).toHaveAttribute('href', expect.stringContaining('date=2026-09-05'));
+});
+
+it('shows an unmarked Draft row without inventing attendance facts', async () => {
+  authApi.get.mockResolvedValue({ data: { ...mockCalendarData,
+    sheets: [{ id: 'sheet-1', attendance_date: '2026-09-01', status: 'Draft' }],
+    records: [{ ...mockCalendarData.records[0], sheet_status: 'Draft', attendance_status: null, code: '-', actual_hours: 0, ot_hours: 0 }]
+  } });
+  renderCalendar();
+  fireEvent.click(await screen.findByTitle(/2026-09-01.*Unmarked.*Draft/));
+  expect(screen.getByText('- - Unmarked')).toBeInTheDocument();
+});
