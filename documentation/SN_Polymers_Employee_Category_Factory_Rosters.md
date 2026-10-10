@@ -23,7 +23,7 @@ Permanent/Casual/Local behavior is the same in both factories. Fabric Casual use
 
 ## Migration and historical compatibility
 
-Migration `102_hr_category_department_factory_rosters.sql` expands category checks, enforces valid mapping for new or reclassified records, adds sheet department, and extends roster/review RPCs. Existing invalid directory mappings remain readable and can receive unrelated updates until Admin confirms the category/department. New onboarding cannot use the retired generic Projects category.
+Migration `102_hr_category_department_factory_rosters.sql` expands category checks, enforces valid mapping for new or reclassified records, adds sheet department, and extends roster/review RPCs. Existing invalid directory mappings remain readable and can receive unrelated updates until Admin confirms the category/department. New onboarding cannot use the retired generic Projects category. Migration `103_hr_retired_projects_category_guard.sql` also prevents specific categories from moving back into the retired bucket; existing legacy employees retain unrelated/full-form edits and may move to a specific category.
 
 Existing `Projects Department Employees` records retain their UUIDs, pay structures, leave history, and audit history. They are not inferred from ERP roles. Admin selects a specific category during reclassification; the directory filter and edit screen retain the legacy category for this purpose.
 

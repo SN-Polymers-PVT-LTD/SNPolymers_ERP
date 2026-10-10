@@ -208,7 +208,7 @@ export default function FmDashboardView() {
               </div>
               <h3 className="text-base font-bold text-slate-100 group-hover:text-amber-300 transition-colors">Daily Wage Master</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Benchmark daily wage benchmarks for SNP Casual Factory Labour and Local Daily-Wage Workers.
+                Maintain effective-dated daily wage rates for Casual Factory Labour and Local Daily-Wage Workers.
               </p>
             </div>
             <span className="text-[11px] font-bold uppercase tracking-wider text-amber-500 pt-2 block border-t border-white/5">

@@ -93,6 +93,20 @@ describe('HR employee master', () => {
     expect(invalid.statusCode).toBe(400);
   });
 
+  test('PATCH rejects moving a specific Projects category back into the legacy bucket', async () => {
+    const created = mockRes();
+    await controller.createEmployee({user:admin,body:{...base,employee_name:`Specific Projects ${suffix}`,employee_category:'Junior Engineer',department:'Projects'}},created);
+    expect(created.statusCode).toBe(201);
+    const schema = require('../../../src/validation/hrEmployees.schema');
+    const body = schema.update.body.parse({employee_category:'Projects Department Employees'});
+    const updated = mockRes();
+    await controller.updateEmployee({user:admin,params:{id:created.jsonData.employee.id},body},updated);
+    expect(updated.statusCode).toBe(400);
+    const viewed = mockRes();
+    await controller.getEmployee({params:{id:created.jsonData.employee.id}},viewed);
+    expect(viewed.jsonData.employee.employee_category).toBe('Junior Engineer');
+  });
+
   test('ERP user lookup paginates and filters by role', async () => {
     const first = mockRes();
     await controller.listErpUsers({ query: { role: 'admin', page: 1, limit: 1, search: '' } }, first);

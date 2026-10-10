@@ -2238,9 +2238,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/hrEmployees.test.js": {
-    "mtime": 1791595318.3703015,
-    "seen": 1791595573.9264166,
-    "ast_hash": "f9e54628d8d7d358a91260158715d0cb",
+    "mtime": 1791615073.424167,
+    "seen": 1791615133.7470465,
+    "ast_hash": "af15caffea5d6c36fcbc98a4800c4f30",
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/hrFactoryMasters.test.js": {
@@ -4524,9 +4524,9 @@
     "semantic_hash": "60afdd84c1f7505da9d9b34920df03f3"
   },
   "frontend/src/pages/dashboard/FmDashboardView.jsx": {
-    "mtime": 1791595447.4790359,
-    "seen": 1791595573.9270625,
-    "ast_hash": "d1717909d46ad0fa5ad5c0070829464c",
+    "mtime": 1791615073.4239006,
+    "seen": 1791615133.7476125,
+    "ast_hash": "b992d47b4dc8c03d0e24edeacc52e526",
     "semantic_hash": ""
   },
   "frontend/src/pages/dashboard/FmDashboardView.test.jsx": {
@@ -4650,9 +4650,9 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/DailyAttendance.jsx": {
-    "mtime": 1791595135.3658118,
-    "seen": 1791595573.9270997,
-    "ast_hash": "95d7e9278a49e5cc6f44400521280acf",
+    "mtime": 1791615073.4233909,
+    "seen": 1791615133.7476456,
+    "ast_hash": "37a5ddb930931ec7f29bd571ee3ed158",
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/DailyAttendance.test.jsx": {
@@ -5808,9 +5808,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/hrFactoryDepartmentRosters.test.js": {
-    "mtime": 1791595582.3558583,
-    "seen": 1791596969.5780187,
-    "ast_hash": "3613f85649a90156d7fa1b10ab16b76e",
+    "mtime": 1791615039.1012278,
+    "seen": 1791615133.747048,
+    "ast_hash": "b32208de363b030921514e1cff09bb87",
     "semantic_hash": ""
   },
   "shared/hrEmployeeCategories.json": {
@@ -5820,9 +5820,15 @@
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Employee_Category_Factory_Rosters.md": {
-    "mtime": 1791595447.492886,
-    "seen": 1791595573.9274204,
-    "ast_hash": "a637f18f6a83cad2ba163bf715ebaf0c",
+    "mtime": 1791615073.4243817,
+    "seen": 1791615133.7478626,
+    "ast_hash": "4be130aa42ac8fe97ff9378b59c5b522",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/103_hr_retired_projects_category_guard.sql": {
+    "mtime": 1791615073.4230194,
+    "seen": 1791615133.746753,
+    "ast_hash": "ea47fdca6c180910dd835d0cff4eb97b",
     "semantic_hash": ""
   }
 }

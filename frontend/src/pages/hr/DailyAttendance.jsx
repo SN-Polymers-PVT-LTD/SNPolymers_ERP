@@ -730,7 +730,7 @@ function AttendanceSheet({ category, department, date, onDirty, onBusy }) {
         onClose={() => setSubmittedModalOpen(false)}
         eyebrow="Roster Submission Confirmed"
         title="Submitted to Head Office"
-        message={`Daily attendance roster for ${getCategoryLabel(category)} on ${date} has been locked and submitted for HO review.`}
+        message={`Daily attendance roster for ${getCategoryLabel(category)} on ${date} has been submitted to Head Office for review.`}
         details={[
           { label: 'Category', value: getCategoryLabel(category) },
           { label: 'Factory', value: sheet?.department || 'Legacy combined roster' },

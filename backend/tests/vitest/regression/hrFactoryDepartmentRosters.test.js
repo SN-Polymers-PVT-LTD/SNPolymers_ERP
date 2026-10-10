@@ -49,10 +49,37 @@ describe('category and department mapping with six factory rosters', () => {
     }
     await rejected(`INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by)
       VALUES ('Invalid mapping','HO Staff','SNP Factory','1899-01-01',$1,$1)`, [actor], '23514');
-    await rejected(`INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by)
-      VALUES ('Legacy','Projects Department Employees','Projects','1899-01-01',$1,$1)`, [actor], '23514');
     const e = await employee('SNP Casual Factory Labour','SNP Factory');
     await rejected("UPDATE hr_employees SET department='Projects',updated_by=$1 WHERE id=$2", [actor,e.id], '23514');
+  });
+  test('new employees cannot use the retired Projects category', async () => {
+    await rejected(`INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by)
+      VALUES ('Legacy','Projects Department Employees','Projects','1899-01-01',$1,$1)`, [actor], '23514');
+  });
+  test('specific Projects categories cannot move back to the retired category', async () => {
+    const e = await employee('Junior Engineer','Projects');
+    await rejected("UPDATE hr_employees SET employee_category='Projects Department Employees',updated_by=$1 WHERE id=$2",[actor,e.id],'23514');
+    expect((await q('SELECT employee_category FROM hr_employees WHERE id=$1',[e.id]))[0].employee_category).toBe('Junior Engineer');
+  });
+  async function legacyEmployee() {
+    // Simulate a pre-102 employee; trigger changes and fixtures are rolled back after the test.
+    await q('ALTER TABLE hr_employees DISABLE TRIGGER hr_employee_department_guard');
+    const e = await employee('Projects Department Employees','Projects');
+    await q('ALTER TABLE hr_employees ENABLE TRIGGER hr_employee_department_guard');
+    return e;
+  }
+  test('existing legacy Projects employees can move to a specific category', async () => {
+    const e = await legacyEmployee();
+    const updated = (await q("UPDATE hr_employees SET employee_category='Junior Engineer',updated_by=$1 WHERE id=$2 RETURNING *",[actor,e.id]))[0];
+    expect(updated.employee_category).toBe('Junior Engineer');
+    expect(updated.id).toBe(e.id);
+    expect(updated.employee_code).toBe(e.employee_code);
+  });
+  test('existing legacy Projects employees retain unrelated edits, including full-form category payloads', async () => {
+    const e = await legacyEmployee();
+    const updated = (await q("UPDATE hr_employees SET employee_name='Confirmed name',employee_category='Projects Department Employees',updated_by=$1 WHERE id=$2 RETURNING *",[actor,e.id]))[0];
+    expect(updated.employee_name).toBe('Confirmed name');
+    expect(updated.employee_category).toBe('Projects Department Employees');
   });
   test('creates six distinct rosters and refreshes only the selected factory', async () => {
     const groups = definitions.filter(item => item.type !== 'office').flatMap(item => item.departments.map(department => ({ category: item.category, department })));
