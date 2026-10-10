@@ -1,7 +1,8 @@
 # S. N. Polymers ERP — Factory Attendance, Leave & Wage Rules
 
+**Updated category/sheet contract (10 October 2026):** [Employee categories and six factory rosters](documentation/SN_Polymers_Employee_Category_Factory_Rosters.md). The new mapping and six-roster scope supersede category/sheet counts below; existing attendance, leave, and pay behavior continues.
 **Document purpose:** Approved business rules / implementation reference  
-**Scope:** Factory attendance, factory leave recording, wage-rule configuration, daily submission to HO, and self-service leave for HO/Projects employees  
+**Scope:** Factory attendance, factory leave recording, wage-rule configuration, daily submission to HO, and self-service leave for HO/Projects employees and linked permanent Factory Managers
 **Updated:** 30 September 2026
 
 ## 1. Scope and operating model
@@ -171,6 +172,8 @@ The ERP records only:
 
 HO Staff and Projects Department Employees do not use factory attendance.
 
+Factory Managers linked to an active Fabric Factory Permanent or SNP Permanent employee record also submit their own Medical / Other Leave from their profile. Their requests retain the `SELF_SERVICE` source, use the same HO/Admin approval queue, and link to factory attendance. Only the employee edits a Pending self-service request; FM attendance entry attaches it without changing its facts. A changed HO pay treatment returns submitted attendance for explicit correction.
+
 They submit leave themselves:
 
 ```text
@@ -300,7 +303,7 @@ Business direction:
 - Holiday work uses the configured Holiday Pay multiplier; initial default 1.5×.
 - Management-caused reduced hours / stoppage causes no deduction when marked accordingly.
 - Approved 24-hour duty may record 16 OT hours where applicable.
-- The next day after an approved 24-hour duty can be marked `CO` (Compensatory Off / Rest Day) with **no salary deduction**.
+- The next day after an approved 24-hour duty can be marked `CO` (Compensatory Off / Rest Day) with **no salary deduction**. Approval is represented by a Locked previous-day attendance sheet with at least 24 stored Actual Hours; Draft and Submitted duty does not qualify. PostgreSQL checks this on save and submission.
 
 ### 9.2 SNP Casual Factory Labour
 

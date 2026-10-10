@@ -1,10 +1,7 @@
 const { z } = require('zod');
 
 const uuid = z.string().uuid();
-const categories = [
-  'HO Staff', 'Fabric Factory Permanent Employees', 'SNP Casual Factory Labour',
-  'SNP Permanent Factory Labour', 'Projects Department Employees', 'Local Daily-Wage Workers'
-];
+const { categories, departmentsFor, legacyProjectCategory } = require('../domain/hrEmployeeCategories');
 const departments = ['Head Office', 'Fabric Factory', 'SNP Factory', 'Projects'];
 const statuses = ['Active', 'Inactive', 'Exited'];
 const roles = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
@@ -63,7 +60,7 @@ module.exports = {
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20)
   }) },
-  create: { body: z.object({ ...fields, active_status: fields.active_status.optional() }).strict() },
+  create: { body: z.object({ ...fields, active_status: fields.active_status.optional() }).strict().refine(v => v.employee_category !== legacyProjectCategory, 'Select a specific Projects employee category.').refine(v => departmentsFor(v.employee_category).includes(v.department), 'Department does not match employee category.') },
   update: { params: z.object({ id: uuid }), body: z.object(fields).partial().strict().refine(v => Object.keys(v).length > 0) },
   status: { params: z.object({ id: uuid }), body: z.object({ active_status: z.enum(statuses) }).strict() }
 };

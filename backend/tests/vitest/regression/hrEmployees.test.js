@@ -74,19 +74,17 @@ describe('HR employee master', () => {
   });
 
   test('accepts every agreed category and rejects an unknown ERP account', async () => {
-    const categories = [
-      'HO Staff', 'Fabric Factory Permanent Employees', 'SNP Casual Factory Labour',
-      'SNP Permanent Factory Labour', 'Projects Department Employees', 'Local Daily-Wage Workers'
-    ];
+    const definitions = require('../../../../shared/hrEmployeeCategories.json');
+    const categories = definitions.map(item => item.category);
     const responses = await Promise.all(categories.map(async (employee_category, index) => {
       const res = mockRes();
       await controller.createEmployee({ user: admin, body: {
-        ...base, employee_category, employee_name: `Category ${suffix} ${index}`
+        ...base, employee_category, department: definitions[index].departments[0], employee_name: `Category ${suffix} ${index}`
       } }, res);
       return res;
     }));
     expect(responses.every(r => r.statusCode === 201)).toBe(true);
-    expect(new Set(responses.map(r => r.jsonData.employee.employee_code)).size).toBe(6);
+    expect(new Set(responses.map(r => r.jsonData.employee.employee_code)).size).toBe(10);
 
     const invalid = mockRes();
     await controller.createEmployee({ user: admin, body: {

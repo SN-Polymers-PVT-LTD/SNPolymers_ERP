@@ -188,7 +188,7 @@ export default function ProfileLeaveSection() {
           <div>
             <h3 className="text-sm font-bold text-slate-100">Self-Service Leave Not Eligible</h3>
             <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
-              Self-service leave requests are restricted to active <strong>Head Office Staff</strong> and <strong>Projects Department Employees</strong> who have their employee record linked to their ERP account.
+              Self-service leave requests are restricted to active <strong>Head Office Staff</strong>, <strong>Projects employees (Zonal Office, Junior Engineer, Local project supervisor, Head office)</strong>, and <strong>Factory Managers</strong> who have their employee record linked to their ERP account.
             </p>
             {context?.employee ? (
               <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/10 text-xs text-slate-300">

@@ -28,7 +28,9 @@ import {
   PERMANENT_CATEGORIES,
   DEPARTMENTS,
   STATUS_OPTIONS,
-  ERP_ROLES
+  ERP_ROLES,
+  LEGACY_PROJECT_CATEGORY,
+  getDepartmentsForCategory
 } from './employeeConstants';
 import { exportEmployeesToExcel } from '../../utils/exportHelpers';
 
@@ -52,7 +54,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
-  const limit = 15;
+  const [limit, setLimit] = useState(15);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -107,6 +109,11 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     }, 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Reset page when category or status filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [categoryFilter, statusFilter]);
 
   // Fetch Directory
   const {
@@ -416,7 +423,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               }}
             >
               <option value="">All Categories</option>
-              {CATEGORIES.map((cat) => (
+              {[...CATEGORIES, LEGACY_PROJECT_CATEGORY].map((cat) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -590,14 +597,44 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               </TableBody>
             </Table>
 
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="p-4 border-t border-white/5">
-                <Pagination
-                  currentPage={pagination.page}
-                  totalPages={pagination.totalPages}
-                  onPageChange={(newPage) => setPage(newPage)}
-                />
+            {/* Pagination Footer */}
+            {pagination.totalItems > 0 && (
+              <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs select-none bg-white/[0.01]">
+                <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    Showing <strong className="text-white font-mono">{(pagination.page - 1) * limit + 1}</strong> to{' '}
+                    <strong className="text-white font-mono">
+                      {Math.min(pagination.page * limit, pagination.totalItems)}
+                    </strong>{' '}
+                    of <strong className="text-emerald-400 font-mono">{pagination.totalItems}</strong> employees
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-1 border-l border-white/10 pl-3">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Per page:</span>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
+                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none cursor-pointer focus:border-emerald-500/50"
+                      aria-label="Employees per page"
+                    >
+                      <option value={15}>15</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
+                {pagination.totalPages > 1 && (
+                  <Pagination
+                    currentPage={pagination.page}
+                    totalPages={pagination.totalPages}
+                    onPageChange={(newPage) => setPage(newPage)}
+                    className="border-0 px-0 py-0 bg-transparent"
+                  />
+                )}
               </div>
             )}
           </>
@@ -633,6 +670,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
             />
           </div>
 
+          {form.employee_category === LEGACY_PROJECT_CATEGORY && <p className="text-xs text-amber-400">Legacy Projects category: select Zonal Office, Junior Engineer, Local project supervisor, or Head office after confirming the employee’s assignment.</p>}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -640,10 +678,10 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               </label>
               <Select
                 value={form.employee_category}
-                onChange={(e) => setForm({ ...form, employee_category: e.target.value })}
+                onChange={(e) => setForm({ ...form, employee_category: e.target.value, department: getDepartmentsForCategory(e.target.value).includes(form.department) ? form.department : getDepartmentsForCategory(e.target.value)[0] })}
                 error={formErrors.employee_category}
               >
-                {CATEGORIES.map((cat) => (
+                {(form.employee_category === LEGACY_PROJECT_CATEGORY ? [...CATEGORIES, LEGACY_PROJECT_CATEGORY] : CATEGORIES).map((cat) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
@@ -660,7 +698,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
                 onChange={(e) => setForm({ ...form, department: e.target.value })}
                 error={formErrors.department}
               >
-                {DEPARTMENTS.map((dept) => (
+                {[...new Set([...getDepartmentsForCategory(form.employee_category), ...(editingEmployee && !getDepartmentsForCategory(form.employee_category).includes(form.department) ? [form.department] : [])])].map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>

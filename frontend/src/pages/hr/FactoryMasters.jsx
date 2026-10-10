@@ -4,15 +4,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
 import { Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../../components/ui';
 import { getFactoryRevisions, createFactoryRevision, getEffectiveFactoryMasters } from '../../api/hrFactoryMastersApi';
-import { CATEGORIES } from '../admin/employeeConstants';
+import { FACTORY_CATEGORIES, WAGE_CATEGORIES, getCategoryLabel } from '../admin/employeeConstants';
 
-const factoryCategories = CATEGORIES.filter(category => !['HO Staff', 'Projects Department Employees'].includes(category));
-const wageCategories = ['SNP Casual Factory Labour', 'Local Daily-Wage Workers'];
+const factoryCategories = FACTORY_CATEGORIES;
+const wageCategories = WAGE_CATEGORIES;
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
 function defaults(category) {
   const local = category === 'Local Daily-Wage Workers';
-  const casual = category === 'SNP Casual Factory Labour';
+  const casual = ['SNP Casual Factory Labour', 'Fabric Factory Casual Factory Labour'].includes(category);
   return {
     effective_from: '',
     daily_wage: local ? '350' : '400',
@@ -125,7 +125,7 @@ export default function FactoryMasters() {
             disabled={save.isPending}
             label="Employee Category"
             value={category}
-            options={categories.map(value => ({ value, label: value }))}
+            options={categories.map(value => ({ value, label: getCategoryLabel(value) }))}
             onChange={event => { save.reset(); change({ category: event.target.value }); }}
           />
           <Input
@@ -161,7 +161,7 @@ export default function FactoryMasters() {
                 Applicable on selected date: <span className="font-mono text-amber-400">{asOf}</span>
               </h3>
             </div>
-            <Badge variant="blue" showDot={false}>{category}</Badge>
+            <Badge variant="blue" showDot={false}>{getCategoryLabel(category)}</Badge>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

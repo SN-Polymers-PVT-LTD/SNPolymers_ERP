@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 describe('Factory masters', () => {
   it('starts empty, uses explicit effective date, and saves only authoritative wage fields', async () => {
-    mount(); expect(await screen.findByText('No revisions for this category.')).toBeInTheDocument();
+    mount(`/factory-masters?category=${encodeURIComponent(casual)}`); expect(await screen.findByText('No revisions for this category.')).toBeInTheDocument();
     expect(screen.getByLabelText(/Effective From/)).toHaveValue('');
     fireEvent.change(screen.getByLabelText(/Effective From/), { target: { value: '2026-10-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save Revision' }));

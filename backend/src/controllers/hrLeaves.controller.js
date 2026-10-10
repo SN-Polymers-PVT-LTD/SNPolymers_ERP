@@ -35,7 +35,18 @@ const handle = fn => async (req, res) => {
   }
 };
 
-const ELIGIBLE_CATEGORIES = ['HO Staff', 'Projects Department Employees'];
+const { officeCategories: ELIGIBLE_CATEGORIES, permanentCategories } = require('../domain/hrEmployeeCategories');
+
+function isEligibleEmployee(employee, userRole) {
+  if (!employee || employee.active_status !== 'Active') return false;
+  if (ELIGIBLE_CATEGORIES.includes(employee.employee_category)) {
+    return true;
+  }
+  if (userRole === 'factory_manager' || userRole === 'admin') {
+    return permanentCategories.includes(employee.employee_category);
+  }
+  return false;
+}
 
 async function getLinkedEmployee(userId) {
   const { data: employee } = await checked(
@@ -50,11 +61,7 @@ async function getLinkedEmployee(userId) {
 module.exports = {
   context: handle(async (req, res) => {
     const employee = await getLinkedEmployee(req.user.id);
-    const eligible = Boolean(
-      employee &&
-      employee.active_status === 'Active' &&
-      ELIGIBLE_CATEGORIES.includes(employee.employee_category)
-    );
+    const eligible = isEligibleEmployee(employee, req.user?.role);
     res.json({
       success: true,
       eligible,
@@ -64,11 +71,11 @@ module.exports = {
 
   myRequests: handle(async (req, res) => {
     const employee = await getLinkedEmployee(req.user.id);
-    if (!employee || employee.active_status !== 'Active' || !ELIGIBLE_CATEGORIES.includes(employee.employee_category)) {
+    if (!isEligibleEmployee(employee, req.user?.role)) {
       return res.status(403).json({
         success: false,
         code: 'LEAVE_ACCESS_DENIED',
-        message: 'Self-service leave is restricted to linked HO Staff and Projects Department employees.'
+        message: 'Self-service leave is restricted to linked HO Staff, Projects Department, and Factory Manager accounts.'
       });
     }
 
@@ -99,11 +106,11 @@ module.exports = {
 
   create: handle(async (req, res) => {
     const employee = await getLinkedEmployee(req.user.id);
-    if (!employee || employee.active_status !== 'Active' || !ELIGIBLE_CATEGORIES.includes(employee.employee_category)) {
+    if (!isEligibleEmployee(employee, req.user?.role)) {
       return res.status(403).json({
         success: false,
         code: 'LEAVE_ACCESS_DENIED',
-        message: 'Self-service leave is restricted to linked HO Staff and Projects Department employees.'
+        message: 'Self-service leave is restricted to linked HO Staff, Projects Department, and Factory Manager accounts.'
       });
     }
 
@@ -127,11 +134,11 @@ module.exports = {
 
   update: handle(async (req, res) => {
     const employee = await getLinkedEmployee(req.user.id);
-    if (!employee || employee.active_status !== 'Active' || !ELIGIBLE_CATEGORIES.includes(employee.employee_category)) {
+    if (!isEligibleEmployee(employee, req.user?.role)) {
       return res.status(403).json({
         success: false,
         code: 'LEAVE_ACCESS_DENIED',
-        message: 'Self-service leave is restricted to linked HO Staff and Projects Department employees.'
+        message: 'Self-service leave is restricted to linked HO Staff, Projects Department, and Factory Manager accounts.'
       });
     }
 

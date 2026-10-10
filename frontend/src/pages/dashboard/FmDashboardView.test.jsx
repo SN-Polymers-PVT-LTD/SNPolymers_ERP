@@ -52,13 +52,13 @@ describe('FmDashboardView Component', () => {
     });
 
     // Failed reads must not claim that persisted sheets do not exist.
-    expect(screen.getAllByText('Unavailable')).toHaveLength(4);
+    expect(screen.getAllByText('Unavailable')).toHaveLength(6);
     expect(screen.queryByText('Not Created')).not.toBeInTheDocument();
-    expect(screen.getByText('Fabric Factory Permanent Employees')).toBeInTheDocument();
-    expect(screen.getByText('SNP Casual Factory Labour')).toBeInTheDocument();
+    expect(screen.getByText('Fabric Factory Permanent Employees · Fabric Factory')).toBeInTheDocument();
+    expect(screen.getByText('SNP Casual Factory Employees · SNP Factory')).toBeInTheDocument();
   });
 
-  it('renders all 4 factory categories with their status and action buttons', async () => {
+  it('renders all 6 factory rosters with their status and action buttons', async () => {
     hrAttendanceApi.getFmAttendanceSummary.mockResolvedValue({
       data: {
         returned_sheets: [],
@@ -113,8 +113,8 @@ describe('FmDashboardView Component', () => {
     expect(screen.getByRole('link', { name: /View Locked/i })).toBeInTheDocument();
 
     // Local Daily-Wage Workers -> Not Created
-    expect(screen.getByText('No attendance sheet initiated for today.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Start Roster/i })).toBeInTheDocument();
+    expect(screen.getAllByText('No attendance sheet initiated for today.')[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Start Roster/i })[0]).toBeInTheDocument();
 
     // No returned alert when returned_sheets is empty
     expect(screen.queryByLabelText(/Returned Sheets Alert/i)).not.toBeInTheDocument();
@@ -145,14 +145,14 @@ describe('FmDashboardView Component', () => {
 
     const alertSection = screen.getByLabelText(/Returned Sheets Alert/i);
     expect(within(alertSection).getByRole('heading', { level: 2, name: /Action Required: 1 Sheet\(s\) Returned by Head Office/i })).toBeInTheDocument();
-    expect(within(alertSection).getByText('Local Daily-Wage Workers')).toBeInTheDocument();
+    expect(within(alertSection).getByText('Local Daily-Wage Workers · Legacy roster')).toBeInTheDocument();
     expect(within(alertSection).getByText(/Duty Date: 2026-09-28/i)).toBeInTheDocument();
     expect(within(alertSection).getByText(/Discrepancy in OT hours for Line 3 workers\. Please verify\./i)).toBeInTheDocument();
 
     const correctLink = within(alertSection).getByRole('link', { name: /Correct & Resubmit/i });
     expect(correctLink).toHaveAttribute(
       'href',
-      '/factory-attendance?category=Local%20Daily-Wage%20Workers&date=2026-09-28'
+      '/factory-attendance?category=Local%20Daily-Wage%20Workers&date=2026-09-28&department=SNP%20Factory'
     );
   });
 

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableCell } from '../../components/ui';
 import { getAttendanceReviewDetail, decideFactoryLeave, returnAttendanceSheet, reviewAttendanceSheet, getAttendanceHistory } from '../../api/hrAttendanceApi';
+import { getCategoryLabel } from '../admin/employeeConstants';
 import SheetAuditTimeline from '../../components/hr/SheetAuditTimeline';
 
 const errorText = e => e?.response?.data?.message || 'Unable to complete review operation.';
@@ -207,7 +208,7 @@ export default function AttendanceReviewDetail() {
                   Submitted Roster Verification
                 </span>
                 <h2 className="text-xl font-extrabold text-slate-100 mt-0.5">
-                  {data.sheet.attendance_date} · {data.sheet.employee_category}
+                  {data.sheet.attendance_date} · {getCategoryLabel(data.sheet.employee_category)} · {data.sheet.department || 'Legacy roster'}
                 </h2>
               </div>
               <div className="flex items-center gap-2">

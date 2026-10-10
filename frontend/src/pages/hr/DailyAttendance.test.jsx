@@ -33,11 +33,19 @@ beforeEach(()=>{
 describe('Daily factory attendance',()=>{
   it('loads a category/date deep link without creating a sheet; creation is explicit',async()=>{
     data.sheet=null; data.rows=[]; mount(); await screen.findByText('No sheet exists for this date/category.');
-    expect(api.loadAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,date:'2026-09-30'}); expect(api.populateAttendanceSheet).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button',{name:'Create Attendance Sheet'}));
-    await waitFor(()=>expect(api.populateAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,date:'2026-09-30'}));
+    expect(api.loadAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,department:'SNP Factory',date:'2026-09-30'}); expect(api.populateAttendanceSheet).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button',{name:'Create Attendance Sheet'}));
+    await waitFor(()=>expect(api.populateAttendanceSheet).toHaveBeenCalledWith({employee_category:casual,department:'SNP Factory',date:'2026-09-30'}));
     expect(await screen.findByText('Attendance sheet/roster refreshed.')).toBeInTheDocument();
     expect(await screen.findByText('No eligible employees. Employees must be Active and joined on or before this date.')).toBeInTheDocument();
+  });
+  it('keeps Local factory selection in requests and reloads the other roster',async()=>{
+    data.sheet=null; data.rows=[]; mount(local);
+    await screen.findByText('No sheet exists for this date/category.');
+    fireEvent.change(screen.getByLabelText('Factory'),{target:{value:'Fabric Factory'}});
+    await waitFor(()=>expect(api.loadAttendanceSheet).toHaveBeenLastCalledWith({employee_category:local,department:'Fabric Factory',date:'2026-09-30'}));
+    fireEvent.click(await screen.findByRole('button',{name:'Create Attendance Sheet'}));
+    await waitFor(()=>expect(api.populateAttendanceSheet).toHaveBeenCalledWith({employee_category:local,department:'Fabric Factory',date:'2026-09-30'}));
   });
   it('Mark All Present preserves existing exceptions and does not invent timestamps or hours',async()=>{
     data.rows[1].attendance_status='Absent'; mount(); await screen.findByText('Ramesh');
@@ -49,12 +57,22 @@ describe('Daily factory attendance',()=>{
   });
   it('sends full India-time timestamps for overnight/24-hour duty and shows server-calculated hours after save',async()=>{
     data.rows[0].attendance_status='Present'; mount(); await screen.findByText('Ramesh');
-    fireEvent.change(screen.getByLabelText('Entry for Ramesh'),{target:{value:'2026-09-30T08:00'}});
-    fireEvent.change(screen.getByLabelText('Exit for Ramesh'),{target:{value:'2026-10-01T08:00'}});
+    fireEvent.change(screen.getByLabelText('Entry for Ramesh'),{target:{value:'08:00'}});
+    fireEvent.change(screen.getByLabelText('Exit for Ramesh'),{target:{value:'08:00'}});
+    fireEvent.click(screen.getByLabelText('Next day exit for Ramesh'));
     api.saveAttendanceRows.mockImplementation(async(_id,patches)=>{Object.assign(data.rows[0],patches[0],{actual_hours:24,ot_hours:16});return {data:{rows:data.rows}};});
     fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
     await waitFor(()=>expect(api.saveAttendanceRows).toHaveBeenCalledWith(sheet.id,[{employee_id:'one',entry_timestamp:'2026-09-30T08:00:00+05:30',exit_timestamp:'2026-10-01T08:00:00+05:30'}]));
     expect(await screen.findByText('24.00')).toBeInTheDocument(); expect(screen.getByText('16.00')).toBeInTheDocument();
+  });
+  it('correctly maps UTC timestamps returned by the server to India factory time (Asia/Kolkata)',async()=>{
+    data.rows[0].attendance_status='Present';
+    data.rows[0].entry_timestamp='2026-09-30T02:30:00Z';
+    data.rows[0].exit_timestamp='2026-09-30T11:30:00Z';
+    mount(); await screen.findByText('Ramesh');
+    expect(screen.getByLabelText('Entry for Ramesh')).toHaveValue('08:00');
+    expect(screen.getByLabelText('Exit for Ramesh')).toHaveValue('17:00');
+    expect(screen.getByLabelText('Next day exit for Ramesh')).not.toHaveClass('bg-amber-500/20');
   });
   it('changing a working row to Absent clears duty, leave link, and holiday while preserving remarks',async()=>{
     Object.assign(data.rows[0],{attendance_status:'Present',entry_timestamp:'2026-09-30T08:00:00+05:30',exit_timestamp:'2026-09-30T18:00:00+05:30',holiday_pay_eligible:true,remarks:'Existing note'});
@@ -104,7 +122,12 @@ describe('Daily factory attendance',()=>{
     mount(); await screen.findByText('Ramesh'); expect(screen.getByLabelText('Status for Ramesh')).toHaveValue('Medical Leave'); expect(screen.getByText(/Rejected medical leave; correct facts/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Status for Ramesh'),{target:{value:'Absent'}}); fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
     await waitFor(()=>expect(screen.getByRole('button',{name:'Resubmit to HO'})).toBeEnabled()); fireEvent.click(screen.getByRole('button',{name:'Resubmit to HO'}));
-    expect(await screen.findByText('Submitted to HO.')).toBeInTheDocument(); expect(api.submitAttendanceSheet).toHaveBeenCalledWith(sheet.id);
+    expect(await screen.findByText('Submitted to HO.')).toBeInTheDocument();
+    expect(await screen.findByText('Submitted to Head Office')).toBeInTheDocument();
+    expect(screen.getByText('Roster Submission Confirmed')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByText('Submitted to Head Office')).not.toBeInTheDocument());
+    expect(api.submitAttendanceSheet).toHaveBeenCalledWith(sheet.id);
   });
   it('guards unsaved edits and blocks date/category changes during a write',async()=>{
     mount(); await screen.findByText('Ramesh'); fireEvent.change(screen.getByLabelText('Remarks for Ramesh'),{target:{value:'unsaved'}});
@@ -125,8 +148,8 @@ describe('Daily factory attendance',()=>{
   });
   it('preserves timestamps after a database rejection and permits retry',async()=>{
     data.rows[0].attendance_status='Present'; api.saveAttendanceRows.mockRejectedValue({response:{data:{message:'Exit timestamp must be after Entry'}}});
-    mount(); await screen.findByText('Ramesh'); fireEvent.change(screen.getByLabelText('Entry for Ramesh'),{target:{value:'2026-09-30T08:00'}}); fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Exit timestamp must be after Entry'); expect(screen.getByLabelText('Entry for Ramesh')).toHaveValue('2026-09-30T08:00'); expect(screen.getByRole('button',{name:'Save Draft'})).toBeEnabled();
+    mount(); await screen.findByText('Ramesh'); fireEvent.change(screen.getByLabelText('Entry for Ramesh'),{target:{value:'08:00'}}); fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Exit timestamp must be after Entry'); expect(screen.getByLabelText('Entry for Ramesh')).toHaveValue('08:00'); expect(screen.getByRole('button',{name:'Save Draft'})).toBeEnabled();
   });
   describe('Step 1 Ergonomics Acceptance Tests', () => {
     it('implements focus management, focus trapping, and focus restoration on the Leave Modal', async () => {
@@ -251,12 +274,61 @@ describe('Daily factory attendance',()=>{
       expect(screen.getAllByText(/Save to recalculate hours/).length).toBeGreaterThan(0);
 
       // Enter timestamps
-      fireEvent.change(screen.getByLabelText('Entry for Ramesh'), { target: { value: '2026-09-30T08:00' } });
-      fireEvent.change(screen.getByLabelText('Exit for Ramesh'), { target: { value: '2026-09-30T20:00' } });
+      fireEvent.change(screen.getByLabelText('Entry for Ramesh'), { target: { value: '08:00' } });
+      fireEvent.change(screen.getByLabelText('Exit for Ramesh'), { target: { value: '20:00' } });
 
       // Entry Complete is now 1 / 2
       expect(screen.getByTestId('metric-marked-count')).toHaveTextContent('1 / 2');
       expect(screen.getByTestId('metric-complete-count')).toHaveTextContent('1 / 2');
     });
+
+    it('shows warning and blocks saving Compensatory Off when employee had no 24h duty yesterday', async () => {
+      data.rows[0].yesterday_date = '2026-09-29';
+      data.rows[0].yesterday_actual_hours = 8;
+      data.rows[0].yesterday_24h_duty = false;
+      mount();
+      await screen.findByText('Ramesh');
+
+      fireEvent.change(screen.getByLabelText('Status for Ramesh'), { target: { value: 'Compensatory Off' } });
+      expect(await screen.findByText(/No approved 24h duty on 2026-09-29 \(8\.0 hrs\)/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+      expect(api.saveAttendanceRows).not.toHaveBeenCalled();
+      expect(await screen.findByText(/Cannot save: Compensatory Off for Ramesh requires a approved 24-hour duty on 2026-09-29\./)).toBeInTheDocument();
+    });
+
+    it('shows eligibility badge and permits saving Compensatory Off when employee completed 24h duty yesterday', async () => {
+      data.rows[0].yesterday_date = '2026-09-29';
+      data.rows[0].yesterday_actual_hours = 24;
+      data.rows[0].yesterday_24h_duty = true;
+      mount();
+      await screen.findByText('Ramesh');
+
+      fireEvent.change(screen.getByLabelText('Status for Ramesh'), { target: { value: 'Compensatory Off' } });
+      expect(await screen.findByText(/Approved 24h duty on 2026-09-29 \(CO eligible\)/)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+      await waitFor(() => expect(api.saveAttendanceRows).toHaveBeenCalledWith(sheet.id, [{ employee_id: 'one', attendance_status: 'Compensatory Off', duty_type: null, entry_timestamp: null, exit_timestamp: null, holiday_pay_eligible: false, leave_request_id: null }]));
+    });
   });
+});
+
+it('preserves an explicit next-day exit when its time is edited', async () => {
+  data.rows[0].attendance_status = 'Present';
+  data.rows[0].entry_timestamp = '2026-09-30T08:00:00+05:30';
+  data.rows[0].exit_timestamp = '2026-10-01T10:00:00+05:30';
+  mount(); await screen.findByText('Ramesh');
+  fireEvent.change(screen.getByLabelText('Exit for Ramesh'), { target: { value: '10:30' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save Draft' }));
+  await waitFor(() => expect(api.saveAttendanceRows).toHaveBeenCalledWith(sheet.id,
+    [{ employee_id: 'one', exit_timestamp: '2026-10-01T10:30:00+05:30' }]));
+});
+
+it('keeps self-service leave editing in the employee profile', async () => {
+  data.rows[0].attendance_status = 'Medical Leave';
+  data.rows[0].leave_request_id = 'self-leave';
+  data.rows[0].leave = { id: 'self-leave', request_source: 'SELF_SERVICE', approval_status: 'Pending',
+    leave_type: 'Medical Leave', from_date: '2026-09-30', to_date: '2026-09-30', reason: 'Medical', pay_treatment: 'Pending' };
+  mount(); await screen.findByText('Ramesh');
+  expect(screen.queryByRole('button', { name: 'Edit Leave' })).not.toBeInTheDocument();
 });

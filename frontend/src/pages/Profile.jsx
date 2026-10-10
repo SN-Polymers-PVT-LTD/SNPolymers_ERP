@@ -9,7 +9,7 @@ import ProfileLeaveSection from './profile/ProfileLeaveSection';
 const Profile = () => {
   const { theme, toggleTheme, darkBg, setDarkBg, lightBg, setLightBg, DARK_BACKGROUNDS, LIGHT_BACKGROUNDS } = useTheme();
   const { user } = useAuth();
-  const canAccessLeave = user?.role !== 'factory_manager';
+  const canAccessLeave = true;
   const { setTab, isProfileTab, isAppearanceTab, isLeaveTab, isAllTab } = useProfileUrlState();
   
   // Instant local profile initialization from AuthContext

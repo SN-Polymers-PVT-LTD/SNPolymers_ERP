@@ -1,11 +1,7 @@
 const { supabase } = require('../db/supabase');
 
-const PERMANENT_CATEGORIES = new Set([
-  'HO Staff',
-  'Fabric Factory Permanent Employees',
-  'SNP Permanent Factory Labour',
-  'Projects Department Employees'
-]);
+const { permanentCategories } = require('../domain/hrEmployeeCategories');
+const PERMANENT_CATEGORIES = new Set(permanentCategories);
 
 const payStructureSelect = 'id,employee_id,revision_number,pay_basis,guaranteed_monthly_gross,basic_salary,staff_welfare,other_fixed_components,epf_enrolment,esi_enrolment,status,created_at,updated_at,created_by,updated_by';
 

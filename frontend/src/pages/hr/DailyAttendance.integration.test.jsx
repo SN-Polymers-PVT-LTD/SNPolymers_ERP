@@ -26,9 +26,10 @@ beforeEach(()=>{
 function mount(){render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter initialEntries={[`/factory-attendance?date=2026-09-30&category=${encodeURIComponent(category)}`]}><DailyAttendance /></MemoryRouter></QueryClientProvider>);}
 it('UI → real API wrapper → response reload: 24-hour Double Duty saves zero OT then submits read-only',async()=>{
   mount();await screen.findByText('Local Worker');
-  expect(authApi.get).toHaveBeenCalledWith('/hr/attendance/sheet',{params:{date:'2026-09-30',employee_category:category}});
-  fireEvent.change(screen.getByLabelText('Entry for Local Worker'),{target:{value:'2026-09-30T08:00'}});
-  fireEvent.change(screen.getByLabelText('Exit for Local Worker'),{target:{value:'2026-10-01T08:00'}});
+  expect(authApi.get).toHaveBeenCalledWith('/hr/attendance/sheet',{params:{date:'2026-09-30',department:'SNP Factory',employee_category:category}});
+  fireEvent.change(screen.getByLabelText('Entry for Local Worker'),{target:{value:'08:00'}});
+  fireEvent.change(screen.getByLabelText('Exit for Local Worker'),{target:{value:'08:00'}});
+  fireEvent.click(screen.getByLabelText('Next day exit for Local Worker'));
   fireEvent.change(screen.getByLabelText('Duty for Local Worker'),{target:{value:'Double Duty'}});
   fireEvent.click(screen.getByRole('button',{name:'Save Draft'}));
   expect(await screen.findByText('24.00')).toBeInTheDocument();expect(screen.getByText('0.00')).toBeInTheDocument();

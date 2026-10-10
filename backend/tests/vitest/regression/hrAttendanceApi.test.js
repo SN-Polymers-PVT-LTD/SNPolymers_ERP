@@ -234,6 +234,54 @@ describe('FM attendance HTTP/database integration', () => {
     for(const role of ['ho','je','zo','accounts','anonymous'])expect((await request('GET',path,role)).status).toBe(role==='anonymous'?401:403);
     expect((await request('GET','/fm-summary?date=invalid')).status).toBe(400);
   });
+test('Compensatory Off requires Locked previous-day duty in both API and direct RPC', async () => {
+  const prior = await create(26); const next = await create(27);
+  const co = [{ employee_id: employees.casual, attendance_status: 'Compensatory Off' }];
+  expect((await request('PUT', `/sheets/${next.id}/rows`, 'factory_manager', { rows: co })).status).toBe(409);
+  await expect(db.query('SELECT save_hr_attendance_rows($1,$2,$3)', [next.id, JSON.stringify(co), actors.factory_manager])).rejects.toThrow(/approved 24-hour/);
+  const shifts = (await detail(prior.id)).rows.map(r => ({ employee_id: r.employee_id, attendance_status: 'Absent' }));
+  Object.assign(shifts.find(r => r.employee_id === employees.casual), { attendance_status: 'Present', entry_timestamp: stamp(26, '08:00'), exit_timestamp: stamp(27, '08:00') });
+  expect((await request('PUT', `/sheets/${prior.id}/rows`, 'factory_manager', { rows: shifts })).status).toBe(200);
+  expect((await request('PUT', `/sheets/${next.id}/rows`, 'factory_manager', { rows: co })).status).toBe(409);
+  expect((await request('POST', `/sheets/${prior.id}/submit`, 'factory_manager', {})).status).toBe(200);
+  expect((await request('PUT', `/sheets/${next.id}/rows`, 'factory_manager', { rows: co })).status).toBe(409);
+  expect((await request('POST', `/sheets/${prior.id}/review`, 'ho', {})).status).toBe(200);
+  expect((await detail(next.id)).rows.find(r => r.employee_id === employees.casual).yesterday_24h_duty).toBe(true);
+  expect((await request('PUT', `/sheets/${next.id}/rows`, 'factory_manager', { rows: co })).status).toBe(200);
+});
+
+  test('Local factory identity survives creation, load, roster, calendar, and HO review filters', async () => {
+    employees.fabricLocal = (await db.query(`INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by)
+      VALUES ('Fabric Local API worker',$1,'Fabric Factory',$2,$3,$3) RETURNING id`,[local,date(1),actors.admin])).rows[0].id;
+    const sheets = {};
+    for (const department of ['Fabric Factory','SNP Factory']) {
+      const body = { ...selection(29,local),department };
+      const created = await request('POST','/sheets','factory_manager',body);
+      expect(created.status).toBe(200);
+      sheets[department] = created.body.sheet;
+      expect(created.body.sheet.department).toBe(department);
+      const params = new URLSearchParams(body);
+      const loaded = await request('GET',`/sheet?${params}`);
+      expect(loaded.body.sheet.id).toBe(created.body.sheet.id);
+      const ids = loaded.body.rows.map(row=>row.employee_id);
+      expect(ids.includes(employees.fabricLocal)).toBe(department==='Fabric Factory');
+      expect(ids.includes(employees.local)).toBe(department==='SNP Factory');
+      const roster = await request('GET',`/roster?${params}`);
+      expect(roster.body.employees.every(e=>e.department===department)).toBe(true);
+      expect((await absent(created.body.sheet)).status).toBe(200);
+      expect((await request('POST',`/sheets/${created.body.sheet.id}/submit`,'factory_manager',{})).status).toBe(200);
+      const calendar = await request('GET',`/calendar?${new URLSearchParams({employee_category:local,department,month:`${year}-01`})}`,'ho');
+      expect(calendar.status).toBe(200);
+      expect(calendar.body.sheets.every(s=>s.department===department || s.department===null)).toBe(true);
+    }
+    expect(sheets['Fabric Factory'].id).not.toBe(sheets['SNP Factory'].id);
+    const queue = await request('GET',`/review-queue?${new URLSearchParams({from_date:date(29),to_date:date(29),department:'Fabric Factory'})}`,'ho');
+    expect(queue.status).toBe(200);
+    expect(queue.body.sheets.map(s=>s.id)).toContain(sheets['Fabric Factory'].id);
+    expect(queue.body.sheets.map(s=>s.id)).not.toContain(sheets['SNP Factory'].id);
+    expect((await request('POST','/sheets','factory_manager',{...selection(30,'Fabric Factory Casual Factory Labour'),department:'SNP Factory'})).status).toBe(400);
+  });
+
   test('live role reassignment revokes attendance reads and old sessions',async () => {
     await db.query("UPDATE authorised_users SET role='accounts' WHERE id=$1",[actors.factory_manager]);
     expect((await request('GET',`/roster?${query(2)}`)).status).toBe(401);

@@ -1,7 +1,7 @@
 const { z } = require('zod');
 
 const leaveTypes = ['Medical Leave', 'Other Leave'];
-const categories = ['HO Staff', 'Projects Department Employees'];
+const { permanentCategories: categories } = require('../domain/hrEmployeeCategories');
 
 module.exports = {
   create: {

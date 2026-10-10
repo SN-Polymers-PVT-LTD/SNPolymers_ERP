@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Input, Select, Button, Badge, Modal, TextArea, Pagination } from '../../components/ui';
 import { getSelfServiceLeaveQueue, decideSelfServiceLeave } from '../../api/hrLeavesApi';
 
-const categories = ['HO Staff', 'Projects Department Employees'];
+import { PERMANENT_CATEGORIES } from '../admin/employeeConstants';
+const categories = [...PERMANENT_CATEGORIES];
 const statuses = ['Pending', 'Approved', 'Rejected'];
 
 export default function SelfServiceLeaveQueue() {

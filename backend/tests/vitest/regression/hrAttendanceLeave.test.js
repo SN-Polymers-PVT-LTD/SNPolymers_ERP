@@ -61,11 +61,11 @@ beforeAll(async () => {
     ['inactive',casual,'Inactive',date(1,1),null], ['future',casual,'Active',date(12,1),null],
     ['local',local,'Active',date(1,1),null], ['permanent',categories[0],'Active',date(1,1),null],
     ['snp',categories[1],'Active',date(1,1),null], ['ho','HO Staff','Active',date(1,1),actors.ho],
-    ['project','Projects Department Employees','Active',date(1,1),actors.je] ];
+    ['project','Junior Engineer','Active',date(1,1),actors.je] ];
   for (const [key,category,status,joining,user] of specs) {
     const e = await one(seed, `INSERT INTO hr_employees(employee_name,employee_category,department,active_status,joining_date,erp_user_id,created_by,updated_by)
       VALUES($1,$2,$3,$4,$5,$6,$7,$7) RETURNING id`, [`Attendance test ${key}`,category,
-      category === 'HO Staff' ? 'Head Office' : category === 'Projects Department Employees' ? 'Projects' : 'SNP Factory',status,joining,user,actors.admin]);
+      category === 'HO Staff' ? 'Head Office' : category === 'Junior Engineer' ? 'Projects' : category === 'Fabric Factory Permanent Employees' ? 'Fabric Factory' : 'SNP Factory',status,joining,user,actors.admin]);
     employees[key] = e.id;
   }
   for (const category of categories) rules[category] = (await addRule(seed,category,date(1,1),category === local ? 12 : 8)).id;
@@ -102,7 +102,7 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     await fails(()=>db.query('INSERT INTO hr_attendance_rows(sheet_id,employee_id,created_by,updated_by) VALUES($1,$2,$3,$3)',[s.id,employees.inactive,actors.factory_manager]),/eligible/);
     await fails(()=>db.query('INSERT INTO hr_attendance_rows(sheet_id,employee_id,created_by,updated_by) VALUES($1,$2,$3,$3)',[s.id,employees.future,actors.factory_manager]),/eligible/);
     await fails(()=>db.query('INSERT INTO hr_attendance_rows(sheet_id,employee_id,created_by,updated_by) VALUES($1,$2,$3,$3)',[s.id,employees.local,actors.factory_manager]),/eligible/);
-    await fails(()=>sheet(db,'HO Staff'),null,'23514');
+    await fails(()=>sheet(db,'HO Staff'),null,'22023');
   });
   test('same-day, overnight, 24-hour and fractional duty calculate hours from timestamps without rounding facts', async () => {
     const s = await sheet(db);
@@ -138,9 +138,9 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     await save(db,s.id,[{employee_id:employees.casual,attendance_status:'Absent',entry_timestamp:null,exit_timestamp:null}]);
     expect((await transition(db,s.id,'submit')).status).toBe('Submitted');
   });
-  test('non-working/CO/stoppage rows have zero hours; management issue can record reduced work without separate approval', async () => {
+  test('non-working/stoppage rows have zero hours; management issue can record reduced work without separate approval', async () => {
     const s = await ready(db,await sheet(db));
-    for (const status of ['Absent','Compensatory Off','Management Issue']) {
+    for (const status of ['Absent','Management Issue']) {
       const [a] = await save(db,s.id,[{employee_id:employees.casual,attendance_status:status}]);
       expect(Number(a.actual_hours)).toBe(0); expect(Number(a.ot_hours)).toBe(0);
     }

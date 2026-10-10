@@ -2,22 +2,20 @@ import React, { useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Input, Select, Button, Badge, Modal } from '../../components/ui';
-import { CATEGORIES } from '../admin/employeeConstants';
+import { FACTORY_CATEGORIES, getCategoryLabel, getDepartmentsForCategory, getFactoryDepartment } from '../admin/employeeConstants';
 import { getAttendanceCalendar } from '../../api/hrAttendanceApi';
 import { getKolkataCurrentMonth } from '../../utils/dateUtils';
 
-const factoryCategories = CATEGORIES.filter(c =>
-  !['HO Staff', 'Projects Department Employees'].includes(c)
-);
+const factoryCategories = FACTORY_CATEGORIES;
 
 const CODE_CONFIG = {
-  'P': { label: 'Present', variant: 'emerald', bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
-  'A': { label: 'Absent', variant: 'red', bg: 'bg-red-500/15 text-red-400 border-red-500/30' },
-  'ML': { label: 'Medical Leave', variant: 'purple', bg: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
-  'PL': { label: 'Paid Leave', variant: 'indigo', bg: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' },
-  'UL': { label: 'Unpaid Leave', variant: 'amber', bg: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
-  'CO': { label: 'Compensatory Off', variant: 'blue', bg: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
-  'MI': { label: 'Management Issue', variant: 'orange', bg: 'bg-orange-500/15 text-orange-400 border-orange-500/30' }
+  'P': { label: 'Present', variant: 'emerald', bg: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' },
+  'A': { label: 'Absent', variant: 'red', bg: 'bg-red-500/20 text-red-400 border-red-500/40' },
+  'ML': { label: 'Medical Leave', variant: 'purple', bg: 'bg-purple-500/20 text-purple-400 border-purple-500/40' },
+  'PL': { label: 'Paid Leave', variant: 'indigo', bg: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/40' },
+  'UL': { label: 'Unpaid Leave', variant: 'amber', bg: 'bg-amber-500/20 text-amber-400 border-amber-500/40' },
+  'CO': { label: 'Compensatory Off', variant: 'blue', bg: 'bg-blue-500/20 text-blue-400 border-blue-500/40' },
+  'MI': { label: 'Management Issue', variant: 'orange', bg: 'bg-orange-500/20 text-orange-400 border-orange-500/40' }
 };
 
 const SHEET_STATES = {
@@ -47,7 +45,8 @@ function formatKol(isoString) {
 export default function MonthlyAttendanceCalendar() {
   const [search, setSearch] = useSearchParams();
 
-  const selectedCategory = search.get('employee_category') || factoryCategories[0];
+  const selectedCategory = factoryCategories.includes(search.get('employee_category')) ? search.get('employee_category') : factoryCategories[0];
+  const selectedDepartment = getFactoryDepartment(selectedCategory, search.get('department'));
   const selectedMonth = search.get('month') || getKolkataCurrentMonth();
   const selectedEmpId = search.get('employee_id') || '';
 
@@ -56,9 +55,10 @@ export default function MonthlyAttendanceCalendar() {
 
   const params = useMemo(() => ({
     employee_category: selectedCategory,
+    department: selectedDepartment,
     month: selectedMonth,
     ...(selectedEmpId ? { employee_id: selectedEmpId } : {})
-  }), [selectedCategory, selectedMonth, selectedEmpId]);
+  }), [selectedCategory, selectedDepartment, selectedMonth, selectedEmpId]);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['hr-attendance-calendar', params],
@@ -68,7 +68,7 @@ export default function MonthlyAttendanceCalendar() {
 
   const updateFilters = (k, v) => {
     const next = new URLSearchParams(search);
-    if (k === 'employee_category') next.delete('employee_id');
+    if (k === 'employee_category' || k === 'department') next.delete('employee_id');
     if (v) next.set(k, v);
     else next.delete(k);
     setSearch(next);
@@ -139,8 +139,9 @@ export default function MonthlyAttendanceCalendar() {
         </div>
       </div>
 
+      {data?.sheets?.some(sheet => sheet.department === null) && <p className="text-xs text-amber-400">This month includes legacy rosters with no recorded factory. Their original attendance remains visible.</p>}
       {/* Filter Controls Bar */}
-      <div className="p-4 bg-slate-900/60 border border-white/10 rounded-2xl backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 items-end">
+      <div className="p-4 bg-slate-900/60 border border-white/10 rounded-2xl backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end">
         <div>
           <label className="block text-xs font-bold text-slate-300 mb-1.5">Factory Category</label>
           <Select
@@ -148,10 +149,13 @@ export default function MonthlyAttendanceCalendar() {
             onChange={(e) => updateFilters('employee_category', e.target.value)}
           >
             {factoryCategories.map(c => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{getCategoryLabel(c)}</option>
             ))}
           </Select>
         </div>
+        <Select label="Factory" value={selectedDepartment}
+          options={getDepartmentsForCategory(selectedCategory).map(value => ({ value, label: value }))}
+          onChange={e => updateFilters('department', e.target.value)} />
         <div>
           <label className="block text-xs font-bold text-slate-300 mb-1.5">Month</label>
           <Input
@@ -186,19 +190,19 @@ export default function MonthlyAttendanceCalendar() {
       </div>
 
       {/* Codes Legend & Fact Summary */}
-      <div className="p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 bg-slate-900/90 border border-white/10 rounded-2xl backdrop-blur-md flex flex-wrap items-center justify-between gap-4 shadow-lg shadow-black/20">
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Fact Codes:</span>
+          <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider mr-1">Fact Codes:</span>
           {Object.entries(CODE_CONFIG).map(([code, cfg]) => (
             <span
               key={code}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold border ${cfg.bg}`}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold border shadow-xs ${cfg.bg}`}
               title={cfg.label}
             >
               {code} = {cfg.label}
             </span>
           ))}
-          <span className="text-slate-500 text-[11px] ml-2">· = No attendance sheet; — = No employee row; - = Unmarked</span>
+          <span className="text-slate-400 text-[11px] ml-2 font-medium">· = No attendance sheet; — = No employee row; - = Unmarked</span>
         </div>
         <div className="text-xs text-slate-400">
           Stored Sheets: <span className="font-extrabold text-slate-200">{data?.sheets?.length || 0}</span> / {daysInMonth} days &bull; Roster Count: <span className="font-extrabold text-slate-200">{filteredEmployees.length}</span>
@@ -379,7 +383,7 @@ export default function MonthlyAttendanceCalendar() {
               </span>
               <div className="flex gap-2">
                 <Link
-                  to={`/factory-attendance?date=${selectedDayDetail.date}&category=${encodeURIComponent(selectedCategory)}`}
+                  to={`/factory-attendance?date=${selectedDayDetail.date}&category=${encodeURIComponent(selectedCategory)}&department=${encodeURIComponent(selectedDepartment)}`}
                   className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors"
                 >
                   Open Daily Sheet &rarr;

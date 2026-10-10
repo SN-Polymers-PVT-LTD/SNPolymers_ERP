@@ -2,28 +2,83 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
-import { Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Modal } from '../../components/ui';
-import { CATEGORIES } from '../admin/employeeConstants';
+import { Button, Input, Select, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Modal, PremiumSuccessModal } from '../../components/ui';
+import { FACTORY_CATEGORIES, getCategoryLabel, getDepartmentsForCategory, getFactoryDepartment } from '../admin/employeeConstants';
 import { loadAttendanceSheet, populateAttendanceSheet, saveAttendanceRows, saveFactoryLeave, submitAttendanceSheet, getAttendanceHistory } from '../../api/hrAttendanceApi';
 import SheetAuditTimeline from '../../components/hr/SheetAuditTimeline';
 
-const categories = CATEGORIES.filter(c => !['HO Staff','Projects Department Employees'].includes(c));
+const categories = FACTORY_CATEGORIES;
 const localCategory = 'Local Daily-Wage Workers';
 const statuses = ['Present','Absent','Medical Leave','Paid Leave','Unpaid Leave','Compensatory Off','Management Issue'];
 const options = values => values.map(value => ({ value, label: value }));
+const categoryOptions = values => values.map(value => ({ value, label: getCategoryLabel(value) }));
 const errorText = error => error?.response?.data?.message || 'Unable to complete attendance operation.';
-// datetime-local has no timezone. All entry/display is explicitly India factory time.
-const businessDate = value => new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit'}).format(value);
-function localTimestamp(value) {
-  if (!value) return '';
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Kolkata',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(value)).map(p => [p.type,p.value]));
-  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}`;
+// Times are explicitly India factory time (Asia/Kolkata).
+// Entry date is locked to the attendance date. Exit date defaults to attendance date, or next day for overnight shifts.
+const businessDate = value => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(value);
+
+function getNextDay(dateStr) {
+  if (!dateStr) return '';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + 1));
+  return next.toISOString().split('T')[0];
 }
-const timestampValue = value => value ? `${value.length === 16 ? `${value}:00` : value}+05:30` : null;
+
+function getKolkataParts(timestamp) {
+  if (!timestamp) return null;
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(timestamp)) return null;
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) return null;
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(d).map(p => [p.type, p.value])
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`
+  };
+}
+
+function extractTime(timestamp) {
+  if (!timestamp) return '';
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(timestamp)) return timestamp.slice(0, 5);
+  const parts = getKolkataParts(timestamp);
+  if (parts) return parts.time;
+  if (timestamp.includes('T')) {
+    return timestamp.split('T')[1].slice(0, 5);
+  }
+  return timestamp.slice(0, 5);
+}
+
+function isExitNextDay(exitTimestamp, sheetDate) {
+  if (!exitTimestamp || !sheetDate) return false;
+  const parts = getKolkataParts(exitTimestamp);
+  if (parts) return parts.date > sheetDate;
+  if (exitTimestamp.includes('T')) {
+    return exitTimestamp.split('T')[0] > sheetDate;
+  }
+  return false;
+}
+
+function buildTimestamp(timeStr, targetDate) {
+  if (!timeStr) return null;
+  const time = extractTime(timeStr);
+  if (!time) return null;
+  const fullTime = time.length === 5 ? `${time}:00` : time;
+  return `${targetDate}T${fullTime}+05:30`;
+}
 
 export default function DailyAttendance() {
   const [params, setParams] = useSearchParams();
   const category = categories.includes(params.get('category')) ? params.get('category') : categories[0];
+  const department = getFactoryDepartment(category, params.get('department'));
   const date = /^\d{4}-\d{2}-\d{2}$/.test(params.get('date') || '') ? params.get('date') : businessDate(new Date());
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -51,16 +106,24 @@ export default function DailyAttendance() {
 
       {/* Filter Toolbar Card */}
       <div className="glass-panel p-5 rounded-2xl border border-white/10 bg-slate-900/60 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Select
             label="Employee Category"
             value={category}
             disabled={dirty || busy}
-            options={options(categories)}
+            options={categoryOptions(categories)}
             onChange={e => change({ category: e.target.value })}
+          />
+          <Select
+            label="Factory"
+            value={department}
+            disabled={dirty || busy}
+            options={options(getDepartmentsForCategory(category))}
+            onChange={e => change({ department: e.target.value })}
           />
           <Input
             label="Attendance Date"
+
             type="date"
             value={date}
             disabled={dirty || busy}
@@ -75,24 +138,26 @@ export default function DailyAttendance() {
         )}
       </div>
 
-      <AttendanceSheet key={`${category}:${date}`} category={category} date={date} onDirty={setDirty} onBusy={setBusy} />
+      <AttendanceSheet key={`${category}:${department}:${date}`} category={category} department={department} date={date} onDirty={setDirty} onBusy={setBusy} />
     </div>
   );
 }
 
-function AttendanceSheet({ category, date, onDirty, onBusy }) {
+function AttendanceSheet({ category, department, date, onDirty, onBusy }) {
   const client = useQueryClient();
   const { user } = useAuth();
   const canWrite = ['factory_manager', 'admin'].includes(user?.role);
-  const key = ['hr-attendance', category, date];
+  const key = ['hr-attendance', category, department, date];
   const query = useQuery({
     queryKey: key,
-    queryFn: async () => (await loadAttendanceSheet({ employee_category: category, date })).data,
+    queryFn: async () => (await loadAttendanceSheet({ employee_category: category, department, date })).data,
     refetchOnWindowFocus: false
   });
   const [patches, setPatches] = useState({});
   const [leaveEmployee, setLeaveEmployee] = useState(null);
+  const [submittedModalOpen, setSubmittedModalOpen] = useState(false);
   const [message, setMessage] = useState('');
+  const [saveError, setSaveError] = useState('');
   const triggerButtonRef = useRef(null);
   const leaveWasOpen = useRef(false);
 
@@ -126,7 +191,7 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
 
   const mutation = useMutation({
     mutationFn: async ({ action, body }) => {
-      if (action === 'populate') return populateAttendanceSheet({ employee_category: category, date });
+      if (action === 'populate') return populateAttendanceSheet({ employee_category: category, department, date });
       if (action === 'save') return saveAttendanceRows(sheet.id, Object.entries(patches).map(([employee_id, patch]) => ({ employee_id, ...patch })));
       if (action === 'leave') return saveFactoryLeave(sheet.id, body);
       return submitAttendanceSheet(sheet.id);
@@ -139,6 +204,9 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
       } else {
         setPatches({});
         onDirty(false);
+      }
+      if (action === 'submit') {
+        setSubmittedModalOpen(true);
       }
       await client.invalidateQueries({ queryKey: key });
       client.invalidateQueries({ queryKey: ['hr-attendance-history', sheet?.id] });
@@ -156,9 +224,53 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
 
   const change = (row, patch) => {
     setMessage('');
+    setSaveError('');
     mutation.reset();
     setPatches(prev => ({ ...prev, [row.employee_id]: { ...prev[row.employee_id], ...patch } }));
     onDirty(true);
+  };
+
+  const handleEntryTimeChange = (row, rawValue) => {
+    if (!rawValue) {
+      change(row, { entry_timestamp: null });
+      return;
+    }
+    const timeStr = extractTime(rawValue);
+    const iso = buildTimestamp(timeStr, date);
+    const patch = { entry_timestamp: iso };
+    if (row.exit_timestamp) {
+      const exitTime = extractTime(row.exit_timestamp);
+      if (exitTime && exitTime < timeStr && !isExitNextDay(row.exit_timestamp, date)) {
+        patch.exit_timestamp = buildTimestamp(exitTime, getNextDay(date));
+      }
+    }
+    change(row, patch);
+  };
+
+  const handleExitTimeChange = (row, rawValue) => {
+    if (!rawValue) {
+      change(row, { exit_timestamp: null });
+      return;
+    }
+    const timeStr = extractTime(rawValue);
+    const entryTime = extractTime(row.entry_timestamp);
+    // Auto-detect overnight shift if exit time is earlier than entry time (e.g. entry 20:00, exit 05:00)
+    let explicitNext = isExitNextDay(row.exit_timestamp, date);
+    if (entryTime && timeStr < entryTime) {
+      explicitNext = true;
+    }
+    const targetDate = explicitNext ? getNextDay(date) : date;
+    const iso = buildTimestamp(timeStr, targetDate);
+    change(row, { exit_timestamp: iso });
+  };
+
+  const toggleExitNextDay = (row) => {
+    if (!row.exit_timestamp) return;
+    const currentlyNext = isExitNextDay(row.exit_timestamp, date);
+    const timeStr = extractTime(row.exit_timestamp);
+    const newDate = currentlyNext ? date : getNextDay(date);
+    const iso = buildTimestamp(timeStr, newDate);
+    change(row, { exit_timestamp: iso });
   };
 
   const statusChange = (row, value) => {
@@ -206,11 +318,12 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
     <div className="space-y-6">
       {/* Information guidelines */}
       <div className="text-xs text-slate-400 space-y-1">
-        <p>All timestamps use India time (Asia/Kolkata). Attendance date is the duty start date. Enter the exit date explicitly for overnight or 24-hour duty.</p>
+        <p>All times use India time (Asia/Kolkata). Attendance date is the duty start date. Use "+1 Day" on exit for overnight or 24-hour duty.</p>
         {local && <p>FM classifies Single/Double Duty. Double Duty has zero OT. Local leave is always Unpaid; holiday eligibility does not apply.</p>}
       </div>
 
       {/* Sheet Summary Card */}
+      {sheet?.department === null && <p className="text-xs text-amber-400">Legacy sheet: factory was not recorded. This original roster is retained for this date.</p>}
       {sheet ? (
         <div className="glass-panel p-5 rounded-2xl border border-white/10 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-white/5">
@@ -307,13 +420,25 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
               <Button
                 variant="secondary"
                 disabled={blocked || !dirty}
-                onClick={() => { setPatches({}); onDirty(false); mutation.reset(); setMessage('Changes discarded.'); }}
+                onClick={() => { setPatches({}); onDirty(false); mutation.reset(); setSaveError(''); setMessage('Changes discarded.'); }}
               >
                 Discard Changes
               </Button>
               <Button
                 disabled={blocked || !dirty}
-                onClick={() => mutation.mutate({ action: 'save' })}
+                onClick={() => {
+                  setSaveError('');
+                  setMessage('');
+                  mutation.reset();
+                  const invalidCo = rows.filter(r => r.attendance_status === 'Compensatory Off' && !r.yesterday_24h_duty);
+                  if (invalidCo.length > 0) {
+                    const names = invalidCo.map(r => r.employee?.employee_name || r.employee?.employee_code || r.employee_id).join(', ');
+                    const yDate = invalidCo[0].yesterday_date || 'the previous day';
+                    setSaveError(`Cannot save: Compensatory Off for ${names} requires a approved 24-hour duty on ${yDate}.`);
+                    return;
+                  }
+                  mutation.mutate({ action: 'save' });
+                }}
               >
                 Save Draft
               </Button>
@@ -331,7 +456,7 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
 
       {editable && (
         <p className="text-xs text-slate-400">
-          Mark All Present marks unmarked rows only. Enter timestamps and save before submission or recording leave. Saved Actual/OT Hours come from the server.
+          Mark All Present marks unmarked rows only. Enter times and save before submission or recording leave. Saved Actual/OT Hours come from the server.
         </p>
       )}
 
@@ -339,6 +464,17 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
       {mutation.isError && !leaveEmployee && (
         <div role="alert" className="p-3.5 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-xs font-bold">
           {errorText(mutation.error)}
+        </div>
+      )}
+      {saveError && (
+        <div role="alert" className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs font-bold flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 shrink-0 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>{saveError}</span>
+          </div>
+          <button type="button" onClick={() => setSaveError('')} className="text-amber-400 hover:text-amber-200 text-base font-bold ml-2">×</button>
         </div>
       )}
       {message && (
@@ -363,8 +499,8 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
                     Employee
                   </TableCell>
                   <TableCell isHeader>Attendance Status</TableCell>
-                  <TableCell isHeader>Entry Timestamp</TableCell>
-                  <TableCell isHeader>Exit Timestamp</TableCell>
+                  <TableCell isHeader>Entry Time</TableCell>
+                  <TableCell isHeader>Exit Time</TableCell>
                   <TableCell isHeader>Actual Hours</TableCell>
                   <TableCell isHeader>OT Hours</TableCell>
                   {local ? <TableCell isHeader>Duty Type</TableCell> : <TableCell isHeader>Holiday Eligible</TableCell>}
@@ -383,9 +519,10 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
                   const working = ['Present', 'Management Issue'].includes(row.attendance_status);
                   const label = row.employee?.employee_name || row.employee_id;
                   const rowDirty = Boolean(patches[row.employee_id]);
+                  const hasInvalidCo = row.attendance_status === 'Compensatory Off' && !row.yesterday_24h_duty;
 
                   return (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className={hasInvalidCo ? 'bg-amber-500/5' : ''}>
                       {/* Sticky Opaque Employee Column */}
                       <TableCell className="sticky left-0 z-10 sticky-col-opaque min-w-[220px]">
                         <div className="flex items-center gap-2.5">
@@ -396,10 +533,6 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
                             <span className="font-bold text-slate-100 text-sm block truncate">{label}</span>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="font-mono text-[10px] text-slate-400">{row.employee?.employee_code}</span>
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${row.employee?.active_status === 'Active' ? 'bg-emerald-400' : 'bg-slate-500'}`}
-                                title={row.employee?.active_status}
-                              />
                             </div>
                           </div>
                         </div>
@@ -414,21 +547,73 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
                           options={[{ value: '', label: 'Unmarked' }, ...options(statuses.filter(s => !local || s !== 'Paid Leave'))]}
                           onChange={e => statusChange(row, e.target.value)}
                         />
+                        {row.attendance_status === 'Compensatory Off' && (
+                          <div className="mt-1">
+                            {row.yesterday_24h_duty ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                                <svg className="w-3 h-3 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Approved 24h duty on {row.yesterday_date} (CO eligible)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md" role="alert">
+                                <svg className="w-3 h-3 text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                No approved 24h duty on {row.yesterday_date || 'yesterday'} ({Number(row.yesterday_actual_hours || 0).toFixed(1)} hrs)
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
 
-                      {['entry_timestamp', 'exit_timestamp'].map(field => (
-                        <TableCell key={field}>
+                      {/* Entry Time */}
+                      <TableCell>
+                        <div className="min-w-[120px]">
                           <Input
-                            className="min-w-[240px] font-mono text-xs"
-                            aria-label={`${field === 'entry_timestamp' ? 'Entry' : 'Exit'} for ${label}`}
-                            type="datetime-local"
-                            step="1"
+                            className="min-w-[110px] font-mono text-xs"
+                            aria-label={`Entry for ${label}`}
+                            type="time"
+                            step="60"
                             disabled={!editable || blocked || !working}
-                            value={localTimestamp(row[field])}
-                            onChange={e => change(row, { [field]: timestampValue(e.target.value) })}
+                            value={extractTime(row.entry_timestamp)}
+                            onChange={e => handleEntryTimeChange(row, e.target.value)}
                           />
-                        </TableCell>
-                      ))}
+                        </div>
+                      </TableCell>
+
+                      {/* Exit Time with +1 Day Toggle */}
+                      <TableCell>
+                        <div className="flex items-center gap-1.5 min-w-[190px]">
+                          <Input
+                            className="min-w-[110px] font-mono text-xs"
+                            aria-label={`Exit for ${label}`}
+                            type="time"
+                            step="60"
+                            disabled={!editable || blocked || !working}
+                            value={extractTime(row.exit_timestamp)}
+                            onChange={e => handleExitTimeChange(row, e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            aria-label={`Next day exit for ${label}`}
+                            disabled={!editable || blocked || !working || !row.exit_timestamp}
+                            onClick={() => toggleExitNextDay(row)}
+                            className={`px-2 py-1.5 text-[11px] font-bold rounded-lg transition border flex items-center gap-1 ${
+                              isExitNextDay(row.exit_timestamp, date)
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm'
+                                : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200 hover:bg-white/10'
+                            } disabled:opacity-40 disabled:cursor-not-allowed shrink-0`}
+                            title={isExitNextDay(row.exit_timestamp, date) ? 'Exit on next day (overnight shift)' : 'Click to toggle next day exit (+1 day)'}
+                          >
+                            <span>+1 Day</span>
+                            {isExitNextDay(row.exit_timestamp, date) && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            )}
+                          </button>
+                        </div>
+                      </TableCell>
 
                       <TableCell>
                         <span className="font-mono text-xs text-slate-200">
@@ -484,7 +669,7 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
                         )}
                         {editable && (
                           <div className="flex flex-wrap gap-2">
-                            {leave?.approval_status !== 'Approved' && (
+                            {leave?.approval_status !== 'Approved' && leave?.request_source !== 'SELF_SERVICE' && (
                               <Button
                                 size="sm"
                                 disabled={blocked || dirty}
@@ -538,6 +723,25 @@ function AttendanceSheet({ category, date, onDirty, onBusy }) {
           onSave={body => mutation.mutate({ action: 'leave', body })}
         />
       )}
+
+      {/* Premium Submission Confirmation Modal */}
+      <PremiumSuccessModal
+        isOpen={submittedModalOpen}
+        onClose={() => setSubmittedModalOpen(false)}
+        eyebrow="Roster Submission Confirmed"
+        title="Submitted to Head Office"
+        message={`Daily attendance roster for ${getCategoryLabel(category)} on ${date} has been locked and submitted for HO review.`}
+        details={[
+          { label: 'Category', value: getCategoryLabel(category) },
+          { label: 'Factory', value: sheet?.department || 'Legacy combined roster' },
+          { label: 'Attendance Date', value: date },
+          { label: 'Total Roster', value: `${totalRoster} employees` },
+          { label: 'Total Marked', value: `${markedCount} of ${totalRoster}` },
+          { label: 'Saved OT Hours', value: `${totalSavedOtHours.toFixed(2)} hrs` },
+          { label: 'Status', value: 'Submitted', pill: true }
+        ]}
+        ctaLabel="Done"
+      />
 
       {sheet && <SheetHistory id={sheet.id} />}
     </div>

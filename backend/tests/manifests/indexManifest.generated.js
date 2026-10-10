@@ -93,9 +93,9 @@ module.exports = {
       "table": "hr_attendance_rows",
       "definition": "CREATE INDEX hr_rows_leave_idx ON public.hr_attendance_rows USING btree (leave_request_id, sheet_id) WHERE (leave_request_id IS NOT NULL)"
     },
-    "hr_sheet_date_category_unique": {
+    "hr_sheet_date_category_factory_unique": {
       "table": "hr_attendance_sheets",
-      "definition": "CREATE UNIQUE INDEX hr_sheet_date_category_unique ON public.hr_attendance_sheets USING btree (attendance_date, employee_category)"
+      "definition": "CREATE UNIQUE INDEX hr_sheet_date_category_factory_unique ON public.hr_attendance_sheets USING btree (attendance_date, employee_category, department) NULLS NOT DISTINCT"
     },
     "hr_sheets_queue_idx": {
       "table": "hr_attendance_sheets",

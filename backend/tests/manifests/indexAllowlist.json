@@ -53,7 +53,7 @@
   "hr_factory_pay_rule_revisions_employee_category_effective_f_key",
   "hr_factory_pay_rule_revisions_employee_category_revision_nu_key",
   "hr_attendance_sheets_pkey",
-  "hr_sheet_date_category_unique",
+  "hr_sheet_date_category_factory_unique",
   "hr_sheets_queue_idx",
   "hr_attendance_rows_pkey",
   "hr_row_sheet_employee_unique",

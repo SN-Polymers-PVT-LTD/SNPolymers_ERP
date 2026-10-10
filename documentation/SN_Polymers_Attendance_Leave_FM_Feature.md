@@ -1,5 +1,6 @@
 # Factory Manager Daily Attendance — Phase 4 + 5
 
+**Updated category/sheet contract (10 October 2026):** [Employee categories and six factory rosters](SN_Polymers_Employee_Category_Factory_Rosters.md). The new mapping and six-roster scope supersede category/sheet counts below; existing attendance, leave, and pay behavior continues.
 Implemented on `employee_management`. This pass adds the FM attendance vertical slice to the existing Phase 1/2 roles/masters and Phase 3 persistence. The newer client decision remains authoritative: **Local Double Duty has zero OT, including duty beyond 24 hours; FM explicitly classifies duty without a duration threshold.**
 
 ## API and access
@@ -17,7 +18,7 @@ All paths below are under `/api/v1/auth/hr/attendance`. Routes use `verifyJwt`, 
 | POST `/sheets/:sheetId/leave` | Create (`leave_id: null`) or edit Pending factory range request and link its daily row atomically | FM, Admin |
 | POST `/sheets/:sheetId/submit` | Submit/resubmit through existing lifecycle RPC | FM, Admin |
 
-FM's backend mount allowlist is extended only for this attendance router. Existing employee administration, Permanent Pay Structure, generic audit, project and financial boundaries are preserved. Sheet/history UUIDs scope reads to the factory attendance domain; self-service leave and employee/pay master audits are excluded. Roster/row reads fetch bounded database pages internally to avoid PostgREST's 1000-row truncation. History pagination has a deterministic timestamp/UUID order. Row audit links preserve request history after explicit unlinking and later range corrections.
+FM's backend mount allowlist includes attendance and own self-service leave routes; leave review/decision remains HO/Admin only. Existing employee administration, Permanent Pay Structure, generic audit, project and financial boundaries are preserved. Sheet/history UUIDs scope reads to the factory attendance domain; employee/pay master audits remain excluded. Eligible Factory Managers submit their own self-service leave from Profile. Roster/row reads fetch bounded database pages internally to avoid PostgREST's 1000-row truncation. History pagination has a deterministic timestamp/UUID order. Row audit links preserve request history after explicit unlinking and later range corrections.
 
 Stable database error mappings: missing entity 404 `ATTENDANCE_NOT_FOUND`; authorization 403 `FACTORY_ACCESS_DENIED`; overlapping leave 409 `LEAVE_RANGE_CONFLICT`; protected state/business conflict 409 `ATTENDANCE_CONFLICT` (including submitting a row detached from an active covering leave); invalid database values 400 `INVALID_ATTENDANCE`. Zod validation uses the existing 400 response format. Unknown database failures produce a generic 500.
 

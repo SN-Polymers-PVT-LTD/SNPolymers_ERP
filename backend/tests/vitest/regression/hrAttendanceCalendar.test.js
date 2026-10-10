@@ -102,7 +102,7 @@ beforeAll(async () => {
       return { employee_id: r.employee_id, attendance_status: 'Absent', remarks: 'Informed absence' };
     }
     if (r.employee_id === employees.historical) {
-      return { employee_id: r.employee_id, attendance_status: 'Compensatory Off', remarks: 'Comp off approved' };
+      return { employee_id: r.employee_id, attendance_status: 'Present', entry_timestamp: stamp(1, 1, '08:00'), exit_timestamp: stamp(1, 2, '08:00'), remarks: '24 hour duty approved' };
     }
     return { employee_id: r.employee_id, attendance_status: 'Present', entry_timestamp: stamp(1, 1, '09:00'), exit_timestamp: stamp(1, 1, '17:00'), duty_type: null };
   });
@@ -132,6 +132,7 @@ beforeAll(async () => {
 
   const d2 = await request('GET', `/sheets/${s2Id}`, 'factory_manager');
   const d2Rows = d2.body.rows.map(r => {
+    if (r.employee_id === employees.historical) return { employee_id: r.employee_id, attendance_status: 'Compensatory Off', remarks: 'Comp off after locked duty' };
     if (r.employee_id === employees.active1) {
       return { employee_id: r.employee_id, attendance_status: 'Medical Leave', leave_request_id: leaveId, remarks: 'Medical certificate submitted' };
     }
@@ -256,8 +257,8 @@ describe('Phase 7 Monthly Attendance Calendar Read API', () => {
     expect(rA.code).toBe('A');
     expect(rA.attendance_status).toBe('Absent');
 
-    // Day 1: historical is Compensatory Off -> code 'CO'
-    const rCO = res.body.records.find(r => r.employee_id === employees.historical && r.date === date(1, 1));
+    // Day 2: historical is Compensatory Off -> code 'CO'
+    const rCO = res.body.records.find(r => r.employee_id === employees.historical && r.date === date(1, 2));
     expect(rCO).toBeDefined();
     expect(rCO.code).toBe('CO');
     expect(rCO.attendance_status).toBe('Compensatory Off');

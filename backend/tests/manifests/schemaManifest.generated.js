@@ -2868,6 +2868,12 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
         }
       }
     },

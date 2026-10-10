@@ -1,4 +1,6 @@
 const { supabase } = require('../db/supabase');
+const { factoryDepartment } = require('../domain/hrEmployeeCategories');
+const sheetFactory = (query, department) => query.or(`department.eq.${department},department.is.null`);
 
 function sendError(res, error) {
   const code = error?.code;
@@ -19,21 +21,68 @@ async function all(queryFactory) {
     rows.push(...data); if (data.length < 1000) return rows;
   }
 }
-const employeeFields = 'id,employee_code,employee_name,employee_category,joining_date,active_status';
+const employeeFields = 'id,employee_code,employee_name,employee_category,department,joining_date,active_status';
 async function sheetById(id) { return (await checked(supabase.from('hr_attendance_sheets').select('*').eq('id', id).single())).data; }
 async function detail(sheet) {
   if (!sheet) return { sheet: null, rows: [] };
   const rows = await all(() => supabase.from('hr_attendance_rows').select(`*,employee:hr_employees(${employeeFields}),leave:hr_leave_requests(*),rule:hr_factory_pay_rule_revisions(standard_duty_hours,holiday_pay_enabled)`).eq('sheet_id', sheet.id).order('employee_id'));
   // Covering requests let FM explicitly attach existing range leave to an older draft row.
-  const leaves = await all(() => supabase.from('hr_leave_requests').select('*').eq('request_source','FACTORY_MANAGER')
+  const leaves = await all(() => supabase.from('hr_leave_requests').select('*').in('request_source',['FACTORY_MANAGER','SELF_SERVICE'])
     .eq('employee_category',sheet.employee_category).lte('from_date',sheet.attendance_date).gte('to_date',sheet.attendance_date).order('id'));
   const available = new Map(leaves.filter(l => l.approval_status !== 'Rejected').map(l => [l.employee_id,l]));
-  return { sheet, rows: rows.map(row => ({ ...row, available_leave: available.get(row.employee_id) || null })) };
+
+  let yesterdayDate = null;
+  const yesterdayRowMap = new Map();
+  if (sheet.attendance_date) {
+    const [y, m, d] = sheet.attendance_date.split('-').map(Number);
+    const prev = new Date(Date.UTC(y, m - 1, d - 1));
+    yesterdayDate = prev.toISOString().slice(0, 10);
+
+    const yesterdaySheets = await all(() => supabase
+      .from('hr_attendance_sheets')
+      .select('id')
+      .eq('attendance_date', yesterdayDate)
+      .eq('status', 'Locked')
+    );
+    const yesterdaySheetIds = (yesterdaySheets || []).map(s => s.id);
+    if (yesterdaySheetIds.length > 0) {
+      const yRows = await all(() => supabase
+        .from('hr_attendance_rows')
+        .select('employee_id, actual_hours, ot_hours, duty_type')
+        .in('sheet_id', yesterdaySheetIds)
+      );
+      for (const r of yRows) {
+        const hours = Number(r.actual_hours) || 0;
+        const existing = yesterdayRowMap.get(r.employee_id);
+        if (!existing || hours > existing.actual_hours) {
+          yesterdayRowMap.set(r.employee_id, {
+            actual_hours: hours,
+            is_24h: hours >= 24
+          });
+        }
+      }
+    }
+  }
+
+  return {
+    sheet,
+    rows: rows.map(row => {
+      const yInfo = yesterdayRowMap.get(row.employee_id);
+      return {
+        ...row,
+        yesterday_date: yesterdayDate,
+        yesterday_actual_hours: yInfo ? yInfo.actual_hours : 0,
+        yesterday_24h_duty: yInfo ? yInfo.is_24h : false,
+        available_leave: available.get(row.employee_id) || null
+      };
+    })
+  };
 }
 const handle = fn => async (req, res) => { try { await fn(req,res); } catch (error) { sendError(res,error); } };
 module.exports = {
   calendar: handle(async (req, res) => {
     const { employee_category, month, employee_id } = req.query;
+    const department = factoryDepartment(employee_category, req.query.department);
     const [yearStr, monthStr] = month.split('-');
     const year = parseInt(yearStr, 10);
     const monthNum = parseInt(monthStr, 10);
@@ -43,8 +92,8 @@ module.exports = {
 
     // Include editable and submitted sheets for review/correction alongside finalized attendance.
     const sheets = await all(() =>
-      supabase.from('hr_attendance_sheets')
-        .select('id, attendance_date, status, submission_count')
+      sheetFactory(supabase.from('hr_attendance_sheets')
+        .select('id, attendance_date, department, status, submission_count'), department)
         .eq('employee_category', employee_category)
         .in('status', ['Draft', 'Submitted', 'Returned for Correction', 'Locked'])
         .gte('attendance_date', fromDate)
@@ -75,6 +124,7 @@ module.exports = {
       supabase.from('hr_employees')
         .select('id, employee_code, employee_name, active_status, joining_date')
         .eq('employee_category', employee_category)
+        .eq('department', department)
         .eq('active_status', 'Active')
         .lte('joining_date', toDate)
         .order('employee_code').order('id')
@@ -116,6 +166,7 @@ module.exports = {
         id: r.id,
         sheet_id: r.sheet_id,
         sheet_status: s?.status,
+        department: s?.department || null,
         date: s?.attendance_date,
         employee_id: r.employee_id,
         employee_code: emp?.employee_code || null,
@@ -144,6 +195,7 @@ module.exports = {
       to_date: toDate,
       days_in_month: lastDay,
       employee_category,
+      department,
       sheets: sheetList,
       employees,
       records
@@ -153,7 +205,7 @@ module.exports = {
     const q=req.query;
     const {data}=await checked(supabase.rpc('get_hr_attendance_review_queue',{p_actor_id:req.user.id,
       p_from_date:q.from_date||null,p_to_date:q.to_date||null,p_category:q.employee_category||null,
-      p_status:q.status||null,p_page:q.page,p_limit:q.limit}));
+      p_status:q.status||null,p_page:q.page,p_limit:q.limit,p_department:q.department||null}));
     res.json({success:true,...data});
   }),
   reviewDetail: handle(async (req,res) => {
@@ -177,10 +229,10 @@ module.exports = {
   fmSummary: handle(async (req, res) => {
     const today = req.query.date || new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
     const returnedSheets = await all(() => supabase.from('hr_attendance_sheets')
-      .select('id, employee_category, attendance_date, status, return_remarks, submission_count, updated_at')
+      .select('id, employee_category, department, attendance_date, status, return_remarks, submission_count, updated_at')
       .eq('status', 'Returned for Correction').order('attendance_date', { ascending: false }).order('id'));
     const { data: todaySheets } = await checked(supabase.from('hr_attendance_sheets')
-      .select('id, employee_category, attendance_date, status, submission_count').eq('attendance_date', today));
+      .select('id, employee_category, department, attendance_date, status, submission_count').eq('attendance_date', today));
     const hours = todaySheets.length ? await all(() => supabase.from('hr_attendance_rows')
       .select('sheet_id,ot_hours').in('sheet_id',todaySheets.map(sheet => sheet.id)).order('id')) : [];
     const totals = new Map();
@@ -199,16 +251,16 @@ module.exports = {
   }),
   roster: handle(async (req,res) => {
     const employees = await all(() => supabase.from('hr_employees').select(employeeFields).eq('employee_category',req.query.employee_category)
-      .eq('active_status','Active').lte('joining_date',req.query.date).order('employee_code').order('id'));
+      .eq('department',factoryDepartment(req.query.employee_category,req.query.department)).eq('active_status','Active').lte('joining_date',req.query.date).order('employee_code').order('id'));
     res.json({ success: true, employees });
   }),
   load: handle(async (req,res) => {
-    const { data } = await checked(supabase.from('hr_attendance_sheets').select('*').eq('employee_category',req.query.employee_category).eq('attendance_date',req.query.date).maybeSingle());
+    const { data } = await checked(sheetFactory(supabase.from('hr_attendance_sheets').select('*').eq('employee_category',req.query.employee_category).eq('attendance_date',req.query.date),factoryDepartment(req.query.employee_category,req.query.department)).maybeSingle());
     res.json({ success: true, ...await detail(data) });
   }),
   get: handle(async (req,res) => res.json({ success: true, ...await detail(await sheetById(req.params.sheetId)) })),
   populate: handle(async (req,res) => {
-    const { data } = await checked(supabase.rpc('populate_hr_attendance_sheet',{ p_date: req.body.date, p_category: req.body.employee_category, p_actor_id: req.user.id }));
+    const { data } = await checked(supabase.rpc('populate_hr_attendance_sheet',{ p_date: req.body.date, p_category: req.body.employee_category, p_actor_id: req.user.id, p_department: factoryDepartment(req.body.employee_category,req.body.department) }));
     res.json({ success: true, sheet: data });
   }),
   save: handle(async (req,res) => {
@@ -228,7 +280,7 @@ module.exports = {
   history: handle(async (req,res) => {
     const sheet = await sheetById(req.params.sheetId);
     const rows = await all(() => supabase.from('hr_attendance_rows').select('id,employee_id').eq('sheet_id',sheet.id).order('id'));
-    const leaves = await all(() => supabase.from('hr_leave_requests').select('id,employee_id').eq('request_source','FACTORY_MANAGER').eq('employee_category',sheet.employee_category)
+    const leaves = await all(() => supabase.from('hr_leave_requests').select('id,employee_id').in('request_source',['FACTORY_MANAGER','SELF_SERVICE']).eq('employee_category',sheet.employee_category)
       .lte('from_date',sheet.attendance_date).gte('to_date',sheet.attendance_date).order('id'));
     const employeeIds = new Set(rows.map(r => r.employee_id));
     // A corrected/unlinked Pending request may later move its range. Its original
@@ -238,7 +290,7 @@ module.exports = {
       .eq('module_name','HR Attendance').in('record_identifier',rows.map(row => row.id)).order('id')) : [];
     const linkedIds = [...new Set(past.flatMap(log => [log.old_leave,log.new_leave]).filter(Boolean))];
     const pastLeaves = linkedIds.length ? await all(() => supabase.from('hr_leave_requests').select('id,employee_id')
-      .eq('request_source','FACTORY_MANAGER').eq('employee_category',sheet.employee_category).in('id',linkedIds).order('id')) : [];
+      .in('request_source',['FACTORY_MANAGER','SELF_SERVICE']).eq('employee_category',sheet.employee_category).in('id',linkedIds).order('id')) : [];
     const ids = [...new Set([sheet.id,...rows.map(r => r.id),...[...leaves,...pastLeaves].filter(l => employeeIds.has(l.employee_id)).map(l => l.id)])];
     // UUIDs from validated/database identities only. Scope both the module and record IDs.
     const { page,limit } = req.query;

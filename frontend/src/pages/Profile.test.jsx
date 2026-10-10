@@ -183,14 +183,12 @@ describe('Profile leave access', () => {
     expect(await screen.findByRole('button', { name: /Leave Requests/ })).toBeInTheDocument();
     expect(screen.getByText('Leave section mounted')).toBeInTheDocument();
   });
-  it.each(['/profile', '/profile?tab=leave', '/profile?tab=all'])('does not mount leave requests for a Factory Manager on %s', (url) => {
+  it.each(['/profile', '/profile?tab=leave', '/profile?tab=all'])('enables leave requests for a Factory Manager on %s', async (url) => {
     mockUser.role = 'factory_manager';
     renderProfile(url);
-    expect(screen.queryByRole('button', { name: /Leave Requests/ })).not.toBeInTheDocument();
-    expect(screen.queryByText('Leave section mounted')).not.toBeInTheDocument();
-    if (url.includes('tab=leave')) {
-      expect(screen.getByText('Leave requests unavailable')).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Open Factory Attendance' })).toHaveAttribute('href', '/factory-attendance');
+    expect(await screen.findByRole('button', { name: /Leave Requests/ })).toBeInTheDocument();
+    if (url.includes('tab=leave') || url.includes('tab=all')) {
+      expect(screen.getByText('Leave section mounted')).toBeInTheDocument();
     }
     mockUser.role = 'je';
   });

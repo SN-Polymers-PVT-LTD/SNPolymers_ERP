@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Badge, Button } from '../../components/ui';
 import { getFmAttendanceSummary } from '../../api/hrAttendanceApi';
-import { CATEGORIES } from '../admin/employeeConstants';
+import { FACTORY_CATEGORIES, getDepartmentsForCategory, getCategoryLabel } from '../admin/employeeConstants';
 
-const FACTORY_CATEGORIES = CATEGORIES.filter(c => !['HO Staff', 'Projects Department Employees'].includes(c));
+const FACTORY_ROSTERS = FACTORY_CATEGORIES.flatMap(category => getDepartmentsForCategory(category).map(department => ({ category, department })));
 
 const todayDate = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Kolkata',
@@ -68,7 +68,7 @@ export default function FmDashboardView() {
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-slate-100">{sheet.employee_category}</span>
+                    <span className="font-bold text-sm text-slate-100">{getCategoryLabel(sheet.employee_category)} · {sheet.department || 'Legacy roster'}</span>
                     <span className="text-[10px] font-mono text-slate-400">Duty Date: {sheet.attendance_date}</span>
                   </div>
                   {sheet.return_remarks && (
@@ -79,7 +79,7 @@ export default function FmDashboardView() {
                 </div>
 
                 <Link
-                  to={`/factory-attendance?category=${encodeURIComponent(sheet.employee_category)}&date=${sheet.attendance_date}`}
+                  to={`/factory-attendance?category=${encodeURIComponent(sheet.employee_category)}&date=${sheet.attendance_date}&department=${encodeURIComponent(sheet.department || getDepartmentsForCategory(sheet.employee_category)[0])}`}
                   className="inline-flex items-center justify-center font-bold uppercase tracking-wider text-xs px-4 py-2 rounded-xl bg-red-500 hover:bg-red-400 text-white shadow-md transition whitespace-nowrap shrink-0"
                 >
                   Correct & Resubmit →
@@ -126,20 +126,20 @@ export default function FmDashboardView() {
         ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {FACTORY_CATEGORIES.map(category => {
-            const sheet = todaySheets.find(s => s.employee_category === category);
+          {FACTORY_ROSTERS.map(({ category, department }) => {
+            const sheet = todaySheets.find(s => s.employee_category === category && (!s.department || s.department === department));
             const status = isPending ? 'Loading' : isError ? 'Unavailable' : sheet?.status || 'Not Created';
             const variant = statusVariant(status);
             const actionText = getActionText(status);
 
             return (
               <div
-                key={category}
+                key={`${category}:${department}`}
                 className="glass-panel p-5 rounded-2xl border border-white/10 bg-slate-900/60 hover:border-white/20 transition flex flex-col justify-between space-y-4"
               >
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-bold text-sm text-slate-100 leading-snug">{category}</h3>
+                    <h3 className="font-bold text-sm text-slate-100 leading-snug">{getCategoryLabel(category)} · {department}</h3>
                     <Badge variant={variant} showDot={false}>{status}</Badge>
                   </div>
 
@@ -163,7 +163,7 @@ export default function FmDashboardView() {
                     {sheet?.total_ot_hours !== undefined ? `OT: ${Number(sheet.total_ot_hours).toFixed(2)}h` : 'Today'}
                   </span>
                   <Link
-                    to={`/factory-attendance?category=${encodeURIComponent(category)}&date=${today}`}
+                    to={`/factory-attendance?category=${encodeURIComponent(category)}&date=${today}&department=${encodeURIComponent(department)}`}
                     className={`inline-flex items-center justify-center font-bold uppercase tracking-wider text-xs px-3.5 py-1.5 rounded-xl transition ${
                       status === 'Returned for Correction'
                         ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30'

@@ -64,10 +64,10 @@ beforeAll(async () => {
     RETURNING id
   `, [`HO-1-${prefixCode}`, date(1, 1), actors.ho, actors.admin])).rows[0].id;
 
-  // 2. je_user -> Projects Department Employees (Active) - demonstrates eligibility by linked employee, not ERP role alone!
+  // 2. je_user -> Junior Engineer (Active) - demonstrates eligibility by linked employee, not ERP role alone!
   employees.projects = (await db.query(`
     INSERT INTO hr_employees(employee_name, employee_code, employee_category, department, active_status, joining_date, erp_user_id, created_by, updated_by)
-    VALUES('Projects JE User', $1, 'Projects Department Employees', 'Projects', 'Active', $2, $3, $4, $4)
+    VALUES('Projects JE User', $1, 'Junior Engineer', 'Projects', 'Active', $2, $3, $4, $4)
     RETURNING id
   `, [`PRJ-1-${prefixCode}`, date(1, 1), actors.je, actors.admin])).rows[0].id;
 
@@ -91,6 +91,13 @@ beforeAll(async () => {
     VALUES('Factory Worker User', $1, 'SNP Casual Factory Labour', 'SNP Factory', 'Active', $2, $3, $4, $4)
     RETURNING id
   `, [`FAC-1-${prefixCode}`, date(1, 1), actors.factory_user, actors.admin])).rows[0].id;
+
+  // 6. factory_manager_user -> Fabric Factory Permanent Employees (Active) - FM is eligible for self-service leave
+  employees.factory_manager = (await db.query(`
+    INSERT INTO hr_employees(employee_name, employee_code, employee_category, department, active_status, joining_date, erp_user_id, created_by, updated_by)
+    VALUES('Factory Manager User', $1, 'Fabric Factory Permanent Employees', 'Fabric Factory', 'Active', $2, $3, $4, $4)
+    RETURNING id
+  `, [`FM-1-${prefixCode}`, date(1, 1), actors.factory_manager, actors.admin])).rows[0].id;
 
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
@@ -130,7 +137,13 @@ describe('Phase 7 HO / Projects Self-Service Leave Workflow', () => {
     const r5 = await request('GET', '/context', 'je');
     expect(r5.status).toBe(200);
     expect(r5.body.eligible).toBe(true);
-    expect(r5.body.employee.employee_category).toBe('Projects Department Employees');
+    expect(r5.body.employee.employee_category).toBe('Junior Engineer');
+
+    // 6. Linked Factory Manager with permanent factory category is eligible!
+    const r6 = await request('GET', '/context', 'factory_manager');
+    expect(r6.status).toBe(200);
+    expect(r6.body.eligible).toBe(true);
+    expect(r6.body.employee.employee_category).toBe('Fabric Factory Permanent Employees');
   });
 
   test('non-eligible accounts receive HTTP 403 on self-service endpoints', async () => {
@@ -231,6 +244,40 @@ describe('Phase 7 HO / Projects Self-Service Leave Workflow', () => {
     });
     expect(overlap.status).toBe(409);
     expect(overlap.body.code).toMatch(/LEAVE_RANGE_CONFLICT|LEAVE_CONFLICT/);
+  });
+
+  test('Factory Manager can create, view, and update their own self-service leave', async () => {
+    // 1. FM creates pending self-service leave
+    const createRes = await request('POST', '/self-service', 'factory_manager', {
+      from_date: date(4, 10),
+      to_date: date(4, 12),
+      leave_type: 'Other Leave',
+      reason: 'Personal urgent factory break'
+    });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body.leave.request_source).toBe('SELF_SERVICE');
+    expect(createRes.body.leave.employee_category).toBe('Fabric Factory Permanent Employees');
+    const fmLeaveId = createRes.body.leave.id;
+
+    // 2. FM views their requests
+    const listRes = await request('GET', '/my-requests', 'factory_manager');
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.requests.some(r => r.id === fmLeaveId)).toBe(true);
+
+    // 3. FM updates pending request
+    const updateRes = await request('PUT', `/self-service/${fmLeaveId}`, 'factory_manager', {
+      from_date: date(4, 10),
+      to_date: date(4, 13),
+      leave_type: 'Other Leave',
+      reason: 'Extended break'
+    });
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body.leave.to_date).toBe(date(4, 13));
+
+    // 4. HO can review FM leave in queue
+    const hoQueue = await request('GET', `/review-queue?employee_category=Fabric+Factory+Permanent+Employees`, 'ho');
+    expect(hoQueue.status).toBe(200);
+    expect(hoQueue.body.requests.some(r => r.id === fmLeaveId)).toBe(true);
   });
 
   test('HO/Admin review queue access and role restrictions', async () => {
@@ -371,4 +418,36 @@ describe('Phase 7 HO / Projects Self-Service Leave Workflow', () => {
     expect(crossDecide.status).toBe(400);
     expect(crossDecide.body.code).toBe('INVALID_LEAVE');
   });
+});
+
+test('FM self-service leave survives attendance population, HO decision, correction and lock', async () => {
+  const category = 'Fabric Factory Permanent Employees'; const day = date(5, 10);
+  await db.query(`INSERT INTO hr_factory_pay_rule_revisions(employee_category,effective_from,standard_duty_hours,ot_enabled,ot_method,ot_rate,
+    holiday_pay_enabled,holiday_multiplier,management_stoppage_treatment,created_by)
+    VALUES($1,$2,8,true,'Fixed Hourly',50,true,1.5,'No deduction',$3)`, [category, date(5,1), actors.admin]);
+  const leave = await request('POST', '/self-service', 'factory_manager', { from_date: day, to_date: day, leave_type: 'Other Leave', reason: 'Lifecycle test' });
+  expect(leave.status).toBe(200);
+  const sheet = (await db.query('SELECT * FROM populate_hr_attendance_sheet($1,$2,$3)', [day, category, actors.factory_manager])).rows[0];
+  const rows = (await db.query('SELECT * FROM hr_attendance_rows WHERE sheet_id=$1', [sheet.id])).rows;
+  const own = rows.find(r => r.employee_id === employees.factory_manager);
+  expect(own.leave_request_id).toBe(leave.body.leave.id);
+  expect(own.attendance_status).toBe('Unpaid Leave');
+  const blank = rows.filter(r => !r.attendance_status);
+  if (blank.length) await db.query('SELECT save_hr_attendance_rows($1,$2,$3)', [sheet.id, JSON.stringify(blank.map(r => ({ employee_id:r.employee_id,attendance_status:'Absent' }))), actors.factory_manager]);
+  await db.query("SELECT transition_hr_attendance_sheet($1,'submit',null,$2)", [sheet.id,actors.factory_manager]);
+  expect((await request('GET', '/review-queue','factory_manager')).status).toBe(403);
+  expect((await request('POST', `/${leave.body.leave.id}/decision`, 'factory_manager', { decision:'Approved', pay_treatment:'Paid' })).status).toBe(403);
+  await db.query("SELECT decide_hr_factory_sheet_leave($1,$2,'Approved','Paid',null,$3)", [sheet.id,leave.body.leave.id,actors.ho]);
+  expect((await db.query('SELECT status FROM hr_attendance_sheets WHERE id=$1',[sheet.id])).rows[0].status).toBe('Returned for Correction');
+  await db.query('SELECT save_hr_attendance_rows($1,$2,$3)', [sheet.id,JSON.stringify([{employee_id:employees.factory_manager,attendance_status:'Paid Leave',leave_request_id:leave.body.leave.id}]),actors.factory_manager]);
+  await db.query("SELECT transition_hr_attendance_sheet($1,'submit',null,$2)", [sheet.id,actors.factory_manager]);
+  await db.query("SELECT transition_hr_attendance_sheet($1,'review',null,$2)", [sheet.id,actors.ho]);
+  expect((await db.query('SELECT status FROM hr_attendance_sheets WHERE id=$1',[sheet.id])).rows[0].status).toBe('Locked');
+  const historyResponse = await fetch(`${base}/api/v1/auth/hr/attendance/sheets/${sheet.id}/history?limit=100`, {
+    headers: { Cookie: `accessToken=${tokens.factory_manager.accessToken}` }
+  });
+  expect(historyResponse.status).toBe(200);
+  const history = await historyResponse.json();
+  expect(history.history.some(event => event.record_identifier === leave.body.leave.id && event.action === 'LEAVE_APPROVED')).toBe(true);
+
 });

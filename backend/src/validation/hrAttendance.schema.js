@@ -1,6 +1,8 @@
 const { z } = require('zod');
-const categories = ['Fabric Factory Permanent Employees', 'SNP Permanent Factory Labour', 'SNP Casual Factory Labour', 'Local Daily-Wage Workers'];
-const selection = z.object({ employee_category: z.enum(categories), date: z.iso.date() }).strict();
+const { factoryCategories: categories, departmentsFor } = require('../domain/hrEmployeeCategories');
+const department = z.enum(['Fabric Factory', 'SNP Factory']);
+const validDepartment = v => !v.department || departmentsFor(v.employee_category).includes(v.department);
+const selection = z.object({ employee_category: z.enum(categories), department: department.optional(), date: z.iso.date() }).strict().refine(validDepartment, 'Department does not match employee category.');
 const params = z.object({ sheetId: z.uuid() }).strict();
 const row = z.object({
   employee_id: z.uuid(), attendance_status: z.enum(['Present','Absent','Medical Leave','Paid Leave','Unpaid Leave','Compensatory Off','Management Issue']).nullable().optional(),
@@ -12,13 +14,14 @@ module.exports = {
   calendar: {
     query: z.object({
       employee_category: z.enum(categories),
+      department: department.optional(),
       month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/, 'Month must be in YYYY-MM format.'),
       employee_id: z.string().uuid().optional()
-    }).strict()
+    }).strict().refine(validDepartment, 'Department does not match employee category.')
   },
   fmSummary: {query:z.object({date:z.iso.date().optional()}).strict()},
   reviewQueue: {query:z.object({from_date:z.iso.date().optional(),to_date:z.iso.date().optional(),
-    employee_category:z.enum(categories).optional(),status:z.enum(['Submitted','Returned for Correction','Locked']).optional(),
+    employee_category:z.enum(categories).optional(),department:department.optional(),status:z.enum(['Submitted','Returned for Correction','Locked']).optional(),
     page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)
   }).strict().refine(q=>!q.from_date||!q.to_date||q.from_date<=q.to_date,'Invalid date range.')},
   returnSheet: {params,body:z.object({remarks:z.string().trim().min(1).max(2000)}).strict()},

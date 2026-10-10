@@ -1,0 +1,12 @@
+[
+  {"category":"HO Staff","departments":["Head Office"],"type":"office"},
+  {"category":"Fabric Factory Permanent Employees","departments":["Fabric Factory"],"type":"permanent"},
+  {"category":"Fabric Factory Casual Factory Labour","departments":["Fabric Factory"],"type":"casual"},
+  {"category":"SNP Casual Factory Labour","departments":["SNP Factory"],"type":"casual"},
+  {"category":"SNP Permanent Factory Labour","departments":["SNP Factory"],"type":"permanent"},
+  {"category":"Zonal Office","departments":["Projects"],"type":"office"},
+  {"category":"Junior Engineer","departments":["Projects"],"type":"office"},
+  {"category":"Local project supervisor","departments":["Projects"],"type":"office"},
+  {"category":"Head office","departments":["Projects","Head Office"],"type":"office"},
+  {"category":"Local Daily-Wage Workers","departments":["SNP Factory","Fabric Factory"],"type":"local"}
+]

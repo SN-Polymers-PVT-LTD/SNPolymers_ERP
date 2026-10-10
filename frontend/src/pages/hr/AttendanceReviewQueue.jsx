@@ -2,14 +2,15 @@ import React from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Input, Select, Button, Badge, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../../components/ui';
-import { CATEGORIES } from '../admin/employeeConstants';
+import { FACTORY_CATEGORIES, getCategoryLabel } from '../admin/employeeConstants';
 import { getAttendanceReviewQueue } from '../../api/hrAttendanceApi';
 
-const categories = CATEGORIES.filter(c => !['HO Staff', 'Projects Department Employees'].includes(c));
+const categories = FACTORY_CATEGORIES;
 const states = ['Submitted', 'Returned for Correction', 'Locked'];
 const columns = [
   ['attendance_date', 'Date'],
   ['employee_category', 'Category'],
+  ['department', 'Factory'],
   ['roster', 'Roster'],
   ['present', 'Present'],
   ['absent', 'Absent'],
@@ -37,7 +38,7 @@ export default function AttendanceReviewQueue() {
     page,
     limit: 20,
     status: states.includes(search.get('status')) ? search.get('status') : 'Submitted',
-    ...Object.fromEntries(['from_date', 'to_date', 'employee_category'].filter(k => search.get(k)).map(k => [k, search.get(k)]))
+    ...Object.fromEntries(['from_date', 'to_date', 'employee_category', 'department'].filter(k => search.get(k)).map(k => [k, search.get(k)]))
   };
   if (search.get('status') === 'All') delete filters.status;
 
@@ -84,10 +85,11 @@ export default function AttendanceReviewQueue() {
             value={filters.to_date || ''}
             onChange={e => change('to_date', e.target.value)}
           />
+          <Select label="Factory" value={filters.department || ''} options={[{ value: '', label: 'All Factories' }, ...['Fabric Factory', 'SNP Factory'].map(value => ({ value, label: value }))]} onChange={e => change('department', e.target.value)} />
           <Select
             label="Employee Category"
             value={filters.employee_category || ''}
-            options={[{ value: '', label: 'All Categories' }, ...categories.map(value => ({ value, label: value }))]}
+            options={[{ value: '', label: 'All Categories' }, ...categories.map(value => ({ value, label: getCategoryLabel(value) }))]}
             onChange={e => change('employee_category', e.target.value)}
           />
           <Select
@@ -161,6 +163,14 @@ export default function AttendanceReviewQueue() {
                                 </TableCell>
                               );
                             }
+                            if (key === 'employee_category') {
+                              return (
+                                <TableCell key={key} className="text-xs font-medium">
+                                  {getCategoryLabel(s[key])}
+                                </TableCell>
+                              );
+                            }
+                            if (key === 'department') return <TableCell key={key}>{s.department || 'Legacy roster'}</TableCell>;
                             if (key === 'total_ot_hours') {
                               return (
                                 <TableCell key={key} className="font-mono font-semibold text-amber-400">

@@ -234,14 +234,11 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(headers[8]).toHaveTextContent('Active Status');
   });
 
-  it('contains the approved 6 category labels and 4 department options', () => {
+  it('contains the approved 10 category labels and 4 department options', () => {
     const expectedCategories = [
-      'HO Staff',
-      'Fabric Factory Permanent Employees',
-      'SNP Casual Factory Labour',
-      'SNP Permanent Factory Labour',
-      'Projects Department Employees',
-      'Local Daily-Wage Workers'
+      'HO Staff', 'Fabric Factory Permanent Employees', 'Fabric Factory Casual Factory Labour',
+      'SNP Casual Factory Labour', 'SNP Permanent Factory Labour', 'Zonal Office',
+      'Junior Engineer', 'Local project supervisor', 'Head office', 'Local Daily-Wage Workers'
     ];
     expect(CATEGORIES).toEqual(expectedCategories);
 
@@ -278,6 +275,25 @@ describe('Phase 1 Employee Management Component Contracts', () => {
         params: expect.objectContaining({ role: 'admin' })
       }));
     });
+  });
+
+  it('restricts departments by category and retains both choices for Local workers and Head office', async () => {
+    const user = userEvent.setup();
+    renderWithClient(<EmployeeManagement />);
+    await screen.findByText('EMP-001');
+    await user.click(screen.getByRole('button', { name: /Add Employee/i }));
+    const modal = screen.getByPlaceholderText(/e\.g\. Ramesh Chandra Sen/i).closest('form');
+    const category = within(modal).getAllByRole('combobox')[0];
+    const department = within(modal).getAllByRole('combobox')[1];
+    expect(Array.from(department.options).map(option => option.value)).toEqual(['Head Office']);
+    await user.selectOptions(category, 'Fabric Factory Casual Factory Labour');
+    expect(department).toHaveValue('Fabric Factory');
+    expect(Array.from(department.options).map(option => option.value)).toEqual(['Fabric Factory']);
+    await user.selectOptions(category, 'Local Daily-Wage Workers');
+    expect(Array.from(department.options).map(option => option.value)).toEqual(['SNP Factory','Fabric Factory']);
+    await user.selectOptions(category, 'Head office');
+    expect(department).toHaveValue('Projects');
+    expect(Array.from(department.options).map(option => option.value)).toEqual(['Projects','Head Office']);
   });
 
   it('enforces frontend contact number restriction and validation', async () => {
@@ -886,6 +902,78 @@ describe('Phase 1 Employee Management Component Contracts', () => {
         expect.objectContaining({ employee_code: 'EMP-001' })
       ]));
     });
+  });
+
+  it('renders rich pagination footer with item counts and per-page selector in Employee Master', async () => {
+    const user = userEvent.setup();
+
+    renderWithClient(<EmployeeManagement />);
+
+    await waitFor(() => {
+      expect(screen.getByText('EMP-001')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText((content, element) => element?.tagName?.toLowerCase() === 'span' && element?.textContent?.includes('Showing 1 to 2 of 2 employees'))
+    ).toBeInTheDocument();
+
+    const perPageSelect = screen.getByLabelText(/Employees per page/i);
+    expect(perPageSelect).toBeInTheDocument();
+    expect(perPageSelect.value).toBe('15');
+
+    // Change per page to 25
+    await user.selectOptions(perPageSelect, '25');
+
+    await waitFor(() => {
+      expect(authApi.get).toHaveBeenCalledWith(
+        '/hr/employees',
+        expect.objectContaining({
+          params: expect.objectContaining({ limit: 25, page: 1 })
+        })
+      );
+    });
+  });
+
+  it('renders rich pagination footer with item counts and per-page selector in Permanent Pay Structure overview table', async () => {
+    authApi.get.mockImplementation((url) => {
+      if (url === '/hr/employees') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            employees: mockEmployees,
+            pagination: { page: 1, totalPages: 1, totalItems: mockEmployees.length, limit: 15 }
+          }
+        });
+      }
+      if (url === '/hr/pay-structures') {
+        return Promise.resolve({
+          data: {
+            success: true,
+            pay_structures: [
+              {
+                id: 'emp-1-uuid',
+                employee_code: 'EMP-001',
+                employee_name: 'Rahul Sharma',
+                employee_category: 'HO Staff',
+                department: 'Head Office',
+                pay_structures: [{ ...mockPayStructure.active_structure }]
+              }
+            ]
+          }
+        });
+      }
+      return Promise.resolve({ data: { success: true } });
+    });
+
+    renderWithClient(<EmployeeManagement />, ['/admin/employee-management?tab=pay-structure']);
+
+    await waitFor(() => {
+      expect(screen.getByText(/permanent records/i)).toBeInTheDocument();
+    });
+
+    const perPageSelect = screen.getByLabelText(/Records per page/i);
+    expect(perPageSelect).toBeInTheDocument();
+    expect(perPageSelect.value).toBe('15');
   });
 });
 

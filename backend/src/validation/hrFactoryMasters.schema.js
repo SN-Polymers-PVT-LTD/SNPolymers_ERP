@@ -1,6 +1,5 @@
 const { z } = require('zod');
-const categories = ['Fabric Factory Permanent Employees', 'SNP Permanent Factory Labour', 'SNP Casual Factory Labour', 'Local Daily-Wage Workers'];
-const wageCategories = categories.slice(2);
+const { factoryCategories: categories, wageCategories } = require('../domain/hrEmployeeCategories');
 const number = z.number().finite();
 const money = number.min(0).max(9999999999.99).refine(v => Math.abs(v * 100 - Math.round(v * 100)) < 0.0001, 'Use at most two decimal places.');
 const positive = number.positive().max(9999).refine(v => Math.abs(v * 10000 - Math.round(v * 10000)) < 0.0001, 'Use at most four decimal places.');

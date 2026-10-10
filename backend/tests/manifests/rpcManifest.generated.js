@@ -475,6 +475,10 @@ module.exports = {
         {
           "name": "p_limit",
           "type": "integer DEFAULT 20"
+        },
+        {
+          "name": "p_department",
+          "type": "text DEFAULT NULL::text"
         }
       ],
       "returns": "jsonb"
@@ -569,6 +573,10 @@ module.exports = {
         {
           "name": "p_actor_id",
           "type": "uuid"
+        },
+        {
+          "name": "p_department",
+          "type": "text DEFAULT NULL::text"
         }
       ],
       "returns": "hr_attendance_sheets"

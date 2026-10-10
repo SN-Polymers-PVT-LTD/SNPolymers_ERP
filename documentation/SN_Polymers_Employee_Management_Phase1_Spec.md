@@ -1,5 +1,6 @@
 # S. N. Polymers ERP — Employee Management Module
 
+**Updated category/sheet contract (10 October 2026):** [Employee categories and six factory rosters](SN_Polymers_Employee_Category_Factory_Rosters.md). The new mapping and six-roster scope supersede category/sheet counts below; existing attendance, leave, and pay behavior continues.
 **Phase:** 1 — Employee & Worker Master and Permanent Employee Pay Structure  
 **Document status:** Implementation specification / working agreement; not evidence of completed code  
 **Last updated:** 26 September 2026

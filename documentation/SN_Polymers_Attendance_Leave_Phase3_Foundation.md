@@ -1,5 +1,6 @@
 # Attendance and leave — Phase 3 database foundation
 
+**Updated category/sheet contract (10 October 2026):** [Employee categories and six factory rosters](SN_Polymers_Employee_Category_Factory_Rosters.md). The new mapping and six-roster scope supersede category/sheet counts below; existing attendance, leave, and pay behavior continues.
 This phase builds on migrations 093–096 on `employee_management`. Approved sources are `SN_Polymers_Factory_Attendance_Leave_Business_Rules_Workflow_Final.md`, all ten sheets of the final client workbook, and the subsequent user clarifications. Single/Double Duty is explicitly classified by FM; no duration threshold is imposed.
 
 There are no new Express routes, controllers for this module, frontend views, uploads, reopening workflow, or payroll amounts. Permanent Pay Structure and Phase 1/2 role/master definitions are unchanged.
@@ -51,7 +52,7 @@ All five RPCs are executable only by `service_role`. The three tables give that 
 | `populate_hr_attendance_sheet(p_date,p_category,p_actor_id)` | FM/Admin; create/reuse an editable sheet and populate eligible rows atomically. |
 | `save_hr_attendance_rows(p_sheet_id,p_rows,p_actor_id)` | FM/Admin; atomically apply a strict batch of partial row edits and calculate hours/revision IDs. |
 | `transition_hr_attendance_sheet(p_sheet_id,p_action,p_remarks,p_actor_id)` | FM/Admin submit; HO/Admin return or review. `review` performs HO Reviewed and Locked in the same transaction. |
-| `save_hr_leave_request(p_leave_id,p_employee_id,p_source,p_from_date,p_to_date,p_leave_type,p_reason,p_pay_treatment,p_actor_id)` | Create or edit Pending leave. FM/Admin records factory leave; a linked HO/Projects employee records their own self-service leave. Null leave ID creates a request. |
+| `save_hr_leave_request(p_leave_id,p_employee_id,p_source,p_from_date,p_to_date,p_leave_type,p_reason,p_pay_treatment,p_actor_id)` | Create or edit Pending leave. FM/Admin records factory leave; a linked HO/Projects employee or eligible permanent Factory Manager records their own self-service leave. Null leave ID creates a request. |
 | `decide_hr_leave_request(p_leave_id,p_decision,p_pay_treatment,p_remarks,p_actor_id)` | HO/Admin; decide once and return all affected submitted sheets on rejection atomically. |
 
 Row-edit payload keys are `employee_id`, `attendance_status`, `entry_timestamp`, `exit_timestamp`, `duty_type`, `holiday_pay_eligible`, `leave_request_id`, and `remarks`. Omitted keys preserve the existing value; explicit null clears nullable fields. Hours, revision IDs, identity/audit fields, and unknown keys are rejected. Batches containing an invalid row roll back completely.
@@ -71,7 +72,7 @@ Submitted -> Returned for Correction -> Submitted
 
 Review and locking create separate audit events but commit together. A deferred constraint trigger prevents a transaction from committing HO Reviewed without Locked. Submission/return require appropriate current roles, and return requires remarks. Submitted sheets/rows are frozen until returned; Locked sheets/rows cannot be edited, deleted, or reopened.
 
-Leave links must belong to the row employee, have the factory source/category, cover the sheet date, and match the applicable leave status/type/treatment. A request may be decided before the daily sheets for its range exist; later population references the same request. Compensatory Off and other ordinary exceptions do not create approval entities.
+Leave links must belong to the row employee, have a factory or eligible self-service source and the matching factory category, cover the sheet date, and match the applicable leave status/type/treatment. A request may be decided before the daily sheets for its range exist; later population references the same request. Compensatory Off and other ordinary exceptions do not create approval entities.
 
 Pending leave facts linked to a Submitted sheet cannot be edited until return. Changes cannot shrink a range or change its type in a way that invalidates an existing link. Pending linked leave blocks locking. Approved leave must have a final Paid/Unpaid treatment, consistent with an explicit Paid/Unpaid attendance status. Medical Leave may have either approved treatment. Local treatment is always Unpaid.
 
@@ -103,3 +104,9 @@ GMAIL_USER= GMAIL_APP_PASSWORD= ADMIN_EMAIL= TELEGRAM_BOT_TOKEN= node_modules/.b
 ```
 
 Phase 4 should add narrow authenticated API reads/wrappers around these operations, use current session actor IDs, map PostgreSQL validation/uniqueness/exclusion errors to stable 4xx responses, enforce scoped reads, and extend the FM backend mount allowlist when its attendance/leave routes actually exist. No backend allowlist extension is needed for this DB-only phase. There is no outstanding business-rule clarification or database blocker for Phase 4.
+
+## Migration 101 integrity corrections
+
+Factory Manager accounts may access their own profile self-service leave; review/decision routes remain HO/Admin only. Self-service factory leave can populate or attach to attendance, be decided in either review flow, and return a Submitted sheet when its approved pay treatment requires correction. Pending self-service requests remain editable only by their linked employee. Factory-category decisions use the existing category lock order.
+
+Compensatory Off requires a Locked previous-day sheet for the employee with at least 24 Actual Hours. The attendance row guard enforces it for every save and submission, including direct RPC calls. No test-mode exception exists. Daily time inputs store full IST timestamps; changing exit time preserves an explicit +1 Day selection.

@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const { factoryCategories, wageCategories } = require('../domain/hrEmployeeCategories');
 
 function sendError(res, error) {
   if (error?.code === '23505') return res.status(409).json({ success: false, code: 'REVISION_DATE_CONFLICT', message: 'A revision already exists for this category and effective date.' });
@@ -15,8 +16,8 @@ function list(table) {
     if (employee_category) query = query.eq('employee_category', employee_category);
     // Resolve current IDs independently of pagination; future dates never displace them.
     const categories = employee_category ? [employee_category] : table === 'hr_factory_wage_revisions'
-      ? ['SNP Casual Factory Labour', 'Local Daily-Wage Workers']
-      : ['Fabric Factory Permanent Employees', 'SNP Permanent Factory Labour', 'SNP Casual Factory Labour', 'Local Daily-Wage Workers'];
+      ? wageCategories
+      : factoryCategories;
     const [rows, ...resolved] = await Promise.all([
       query.order('effective_from', { ascending: false }).order('id').range((page - 1) * limit, page * limit - 1),
       ...categories.map(category => supabase.from(table).select('id,employee_category').eq('employee_category', category)

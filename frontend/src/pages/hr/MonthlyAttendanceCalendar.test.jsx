@@ -187,7 +187,7 @@ describe('MonthlyAttendanceCalendar Component', () => {
     expect(screen.queryByText('Worker Suresh')).not.toBeInTheDocument();
     expect(screen.getByRole('option',{name:/CAL-002 - Worker Suresh/})).toBeInTheDocument();
     fireEvent.change(screen.getAllByRole('combobox')[0],{target:{value:'Local Daily-Wage Workers'}});
-    await waitFor(()=>expect(authApi.get).toHaveBeenLastCalledWith('/hr/attendance/calendar',{params:{employee_category:'Local Daily-Wage Workers',month:'2026-09'}}));
+    await waitFor(()=>expect(authApi.get).toHaveBeenLastCalledWith('/hr/attendance/calendar',{params:{employee_category:'Local Daily-Wage Workers',department:'SNP Factory',month:'2026-09'}}));
  });
  it('shows overnight timestamp dates on finalized locked facts with daily sheet link', async () => {
     const rec = {
@@ -214,7 +214,7 @@ describe('MonthlyAttendanceCalendar Component', () => {
     expect(screen.getByText('Locked')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Daily Sheet →' })).toHaveAttribute(
       'href',
-      '/factory-attendance?date=2026-09-01&category=SNP%20Casual%20Factory%20Labour'
+      '/factory-attendance?date=2026-09-01&category=SNP%20Casual%20Factory%20Labour&department=SNP%20Factory'
     );
  });
 

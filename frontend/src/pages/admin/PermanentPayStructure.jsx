@@ -15,6 +15,7 @@ import {
   TableCell,
   SkeletonCard,
   SkeletonTable,
+  Pagination,
   SuccessPopup,
   ErrorPopup
 } from '../../components/ui';
@@ -205,6 +206,20 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       (emp.department && emp.department.toLowerCase().includes(q))
     );
   }, [allPayData, employeeSearch]);
+
+  // Overview Table Pagination
+  const [payPage, setPayPage] = useState(1);
+  const [payLimit, setPayLimit] = useState(15);
+
+  useEffect(() => {
+    setPayPage(1);
+  }, [employeeSearch, payLimit]);
+
+  const payTotalPages = Math.max(1, Math.ceil(filteredAllPay.length / payLimit));
+  const paginatedAllPay = useMemo(() => {
+    const start = (payPage - 1) * payLimit;
+    return filteredAllPay.slice(start, start + payLimit);
+  }, [filteredAllPay, payPage, payLimit]);
 
   const stats = useMemo(() => {
     let activeCount = 0;
@@ -520,7 +535,8 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -539,7 +555,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAllPay.map((emp) => {
+                  {paginatedAllPay.map((emp) => {
                     const active = emp.pay_structures?.find((p) => p.status === 'Active');
                     const latest = emp.pay_structures?.[0];
                     const isSuspended = !active && latest?.status === 'Suspended';
@@ -631,6 +647,48 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Overview Table Pagination Footer */}
+            {filteredAllPay.length > 0 && (
+              <div className="p-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs select-none bg-white/[0.01]">
+                <div className="flex flex-wrap items-center gap-3 text-slate-400">
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    Showing <strong className="text-white font-mono">{(payPage - 1) * payLimit + 1}</strong> to{' '}
+                    <strong className="text-white font-mono">
+                      {Math.min(payPage * payLimit, filteredAllPay.length)}
+                    </strong>{' '}
+                    of <strong className="text-emerald-400 font-mono">{filteredAllPay.length}</strong> permanent records
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-1 border-l border-white/10 pl-3">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Per page:</span>
+                    <select
+                      value={payLimit}
+                      onChange={(e) => {
+                        setPayLimit(Number(e.target.value));
+                        setPayPage(1);
+                      }}
+                      className="bg-slate-900 border border-white/10 rounded-lg px-2 py-1 text-xs text-white outline-none cursor-pointer focus:border-emerald-500/50"
+                      aria-label="Records per page"
+                    >
+                      <option value={15}>15</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
+                {payTotalPages > 1 && (
+                  <Pagination
+                    currentPage={payPage}
+                    totalPages={payTotalPages}
+                    onPageChange={(newPage) => setPayPage(newPage)}
+                    className="border-0 px-0 py-0 bg-transparent"
+                  />
+                )}
+              </div>
+            )}
+            </>
           )}
         </div>
       ) : selectedEmployee && !PERMANENT_CATEGORIES.has(selectedEmployee.employee_category) ? null : isLoadingPay ? (

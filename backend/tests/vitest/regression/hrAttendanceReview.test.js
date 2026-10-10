@@ -89,6 +89,11 @@ describe('Phase 6 HO attendance review HTTP/DB transactions',()=>{
     for(const query of ['status=Draft','employee_category=HO%20Staff','page=100001','from_date=2026-10-02&to_date=2026-10-01','sort=mobile_number'])expect((await request('GET',`/review-queue?${query}`,'ho')).status).toBe(400);
   });
   test('leave/medical, comp off and management issue counts reflect stored facts',async()=>{
+    const prior = await create(4); await absent(prior);
+    expect((await request('PUT', `/sheets/${prior.id}/rows`, 'factory_manager', { rows: [{ employee_id: employees.second,
+      attendance_status: 'Present', entry_timestamp: `${date(4)}T08:00:00+05:30`, exit_timestamp: `${date(5)}T08:00:00+05:30` }] })).status).toBe(200);
+    expect((await request('POST', `/sheets/${prior.id}/submit`, 'factory_manager', {})).status).toBe(200);
+    expect((await request('POST', `/sheets/${prior.id}/review`, 'ho', {})).status).toBe(200);
     const {s}=await withLeave(5);
     await request('POST',`/sheets/${s.id}/return`,'ho',{remarks:'Add recorded Comp Off'});
     await request('PUT',`/sheets/${s.id}/rows`,'factory_manager',{rows:[{employee_id:employees.second,attendance_status:'Compensatory Off'}]});await request('POST',`/sheets/${s.id}/submit`,'factory_manager',{});
