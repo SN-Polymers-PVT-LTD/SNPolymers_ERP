@@ -2,7 +2,7 @@ import { describe, expect, test, beforeAll, afterAll } from 'vitest';
 const crypto = require('crypto');
 const { createPgClient } = require('../../../scripts/lib/pg-connect');
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL = process.env.SUPABASE_TEST_DB_URI;
 
 async function fixture(client, suffix) {
   const actor = `p6${suffix}01`;

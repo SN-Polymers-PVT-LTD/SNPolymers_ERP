@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { createPgClient } = require('../../../scripts/lib/pg-connect');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL = process.env.SUPABASE_TEST_DB_URI;
 
 describe('Subcontract Work first-use identity serialization', () => {
   test('an identity edit that starts first wins, and first line use locks the new identity', async () => {

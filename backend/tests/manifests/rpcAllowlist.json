@@ -40,5 +40,7 @@
   "preview_payroll_master_publication",
   "publish_payroll_master",
   "get_payroll_master_revisions",
-  "resolve_payroll_master"
+  "resolve_payroll_master",
+  "register_payroll_statutory_scope",
+  "bind_payroll_statutory_scope"
 ]

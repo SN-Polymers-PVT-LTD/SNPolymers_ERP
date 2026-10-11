@@ -36,6 +36,21 @@ describe('Phase 2 authenticated HTTP boundary',()=>{
   expect((await request('POST','/statutory/drafts','admin',{id:r.id,expected_version:2,data:s})).status).toBe(409);
   expect(await q('SELECT id,available_balance FROM bank_balance_master ORDER BY id')).toEqual(bank);
  });
+ test('typed basis is strict at HTTP boundary and canonical ID lookup preserves warning/source separation',async()=>{
+  const s=statutory({jurisdiction:`HTTP_CANONICAL_TEST_${crypto.randomUUID()}`});
+  s.configuration.adjustment_basis={SALARY_ARREARS:'UNRESOLVED',BONUS:'EXCLUDE',REIMBURSEMENT:'UNRESOLVED',RECOVERY:'DEDUCTION_ONLY'};
+  const bad=structuredClone(s);bad.configuration.adjustment_basis.RECOVERY='INCLUDE';
+  expect((await request('POST','/statutory/drafts','admin',{id:null,expected_version:0,data:bad})).status).toBe(400);
+  const r=(await request('POST','/statutory/drafts','admin',{id:null,expected_version:0,data:s})).body.result;
+  const p=(await request('GET',`/statutory/${r.id}/preview`)).body.result;
+  expect(p.blockers).toEqual([]);expect(p.configuration_warnings).toContainEqual({field:'adjustment_basis.SALARY_ARREARS',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  expect((await request('POST',`/statutory/${r.id}/publish`,'admin',{expected_version:1,preview_token:p.preview_token,approval_reference:'SYNTHETIC ONLY'})).status).toBe(200);
+  const scope=(await q('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',['TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase(),'HTTP','SYNTHETIC ONLY',users.admin]))[0].id;
+  await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[r.id,scope,'SYNTHETIC ONLY',users.admin]);
+  const result=await request('GET',`/statutory/resolve?date=2091-02-01&scheme=EPF&statutory_scope_id=${scope}`);
+  expect(result.status).toBe(200);expect(result.body.result).toMatchObject({revision_id:r.id,statutory_scope_id:scope,blockers:[],financial_workflows_enabled:false});
+  expect((await request('GET','/statutory/resolve?date=2091-02-01&scheme=EPF&statutory_scope_id=forged')).status).toBe(400);
+ });
  test('permanent pay API rejects manual contribution fields without losing enrolment and stale Admin loses access',async()=>{
   const e=(await q("INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by) VALUES('Synthetic masters pay','HO Staff','Head Office','2020-01-01',$1,$1) RETURNING id",[users.admin]))[0];
   const body={employee_id:e.id,pay_basis:'Monthly salary',guaranteed_monthly_gross:1000,epf_enrolment:true,esi_enrolment:true};

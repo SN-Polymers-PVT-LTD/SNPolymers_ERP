@@ -79,5 +79,7 @@
   "payroll_policy_revision_number_unique",
   "payroll_statutory_revision_number_unique",
   "payroll_master_policy_events_idx",
-  "payroll_master_statutory_events_idx"
+  "payroll_master_statutory_events_idx",
+  "payroll_entitlement_employee_unique",
+  "payroll_statutory_scope_bindings_scope_idx"
 ]

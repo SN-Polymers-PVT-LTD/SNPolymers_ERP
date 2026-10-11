@@ -253,3 +253,38 @@ describe('future finalized coverage and month ledger constraints', () => {
     }
   });
 });
+
+describe('Phase 1 carryover hardening',()=>{
+ test('ongoing history is explicit, remains nonoverlapping, and resolves finite draft periods',async()=>{
+  const e=await employee(),a=(await assign(e,[assignment({effective_to:null})]))[0];expect(a.effective_to).toBeNull();
+  const r=await run();const row=(await q('SELECT * FROM add_payroll_draft_employee($1,$2,$3,$4,$5)',[r.id,a.id,r.period_from,r.period_to,accounts]))[0];expect(row.employee_id).toBe(e.id);
+  const candidates=(await q('SELECT get_payroll_draft_candidates($1,$2) data',[r.id,accounts]))[0].data.candidates;expect(candidates.find(c=>c.employee_id===e.id).payable_to).toBe('1600-10-31');
+  await rejected('SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[e.id,'ASSIGNMENT',JSON.stringify([assignment({effective_to:null}),assignment({effective_from:'1600-11-01',effective_to:null})]),'Synthetic overlap',admin],'23P01');
+  await rejected('SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[e.id,'ASSIGNMENT',JSON.stringify([assignment({effective_to:null,employment_exited_on:'1600-10-31'})]),'Known exit',admin],'23514');
+  const salary=await pay(e);await history(e,'PERMANENT_PAY',[{pay_structure_id:salary.id,effective_from:'1600-10-01',effective_to:null}]);
+  expect((await q('SELECT effective_to FROM payroll_permanent_pay_applicability WHERE employee_id=$1',[e.id]))[0].effective_to).toBeNull();
+ });
+ test('both factory grants require explicit regrant after inactivity or a role round trip',async()=>{
+  for(const department of ['SNP Factory','Fabric Factory'])await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,department,'Explicit synthetic grant',admin]);
+  await q('UPDATE authorised_users SET is_active=false WHERE id=$1',[fm]);await q('UPDATE authorised_users SET is_active=true WHERE id=$1',[fm]);
+  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(0);
+  for(const department of ['SNP Factory','Fabric Factory'])await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,department,'Explicit regrant',admin]);
+  await q("UPDATE authorised_users SET role='je' WHERE id=$1",[fm]);await q("UPDATE authorised_users SET role='factory_manager' WHERE id=$1",[fm]);
+  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(0);
+  expect((await q("SELECT count(*) FROM payroll_factory_scope_events WHERE user_id=$1 AND event_source='ACCOUNT_ACCESS_CHANGE'",[fm]))[0].count).toBe('4');
+ });
+ test('exact allocation ownership foreign keys reject cross-employee rows on a temporary copy while real posting stays disabled',async()=>{
+  const e=await employee(),other=await employee(),a=(await assign(e))[0],b=(await assign(other))[0],r=await run(),one=await add(r,a),two=await add(r,b);
+  await q('CREATE TEMP TABLE review_entitlements (LIKE payroll_employee_month_entitlements INCLUDING ALL)');
+  await q('CREATE TEMP TABLE review_allocations (LIKE payroll_month_allocations INCLUDING ALL)');
+  await q('CREATE TEMP TABLE review_rows (LIKE payroll_run_employees INCLUDING ALL)');
+  await q('INSERT INTO review_rows SELECT * FROM payroll_run_employees WHERE id=ANY($1::uuid[])',[[one.id,two.id]]);
+  const constraints=await q("SELECT pg_get_constraintdef(oid) definition FROM pg_constraint WHERE conrelid='payroll_month_allocations'::regclass AND conname IN ('payroll_allocation_entitlement_employee','payroll_allocation_row_employee')");expect(constraints).toHaveLength(2);
+  for(const c of constraints)await q('ALTER TABLE review_allocations ADD '+c.definition.replace('payroll_employee_month_entitlements','review_entitlements').replace('payroll_run_employees','review_rows'));
+  const month=(await q("INSERT INTO review_entitlements(employee_id,salary_month) VALUES($1,'1600-10-01') RETURNING id",[e.id]))[0].id;
+  await q('INSERT INTO review_allocations(entitlement_id,salary_row_id,employee_id,base_amount) VALUES($1,$2,$3,0)',[month,one.id,e.id]);
+  await rejected('INSERT INTO review_allocations(entitlement_id,salary_row_id,employee_id,base_amount) VALUES($1,$2,$3,0)',[month,two.id,e.id],'23503');
+  await rejected('INSERT INTO review_allocations(entitlement_id,salary_row_id,employee_id,base_amount) VALUES($1,$2,$3,0)',[month,two.id,other.id],'23503');
+  await rejected('INSERT INTO payroll_month_allocations(entitlement_id,salary_row_id,employee_id,base_amount) VALUES($1,$2,$3,0)',[month,one.id,e.id],'42501');
+ });
+});

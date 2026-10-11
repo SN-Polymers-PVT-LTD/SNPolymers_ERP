@@ -6,7 +6,7 @@ const { createPgClient } = require('../../../scripts/lib/pg-connect');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 const { submitEstimate } = require('../../../src/controllers/estimates.workflow.controller');
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL = process.env.SUPABASE_TEST_DB_URI;
 
 describe('Phase 5 Cost Estimate subcontract integration', () => {
   let db;

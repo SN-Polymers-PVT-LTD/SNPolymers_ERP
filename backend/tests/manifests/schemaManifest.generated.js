@@ -3238,7 +3238,7 @@ module.exports = {
         "effective_to": {
           "type": "date",
           "udtName": "date",
-          "nullable": false,
+          "nullable": true,
           "default": null
         },
         "employment_joined_on": {
@@ -3296,7 +3296,7 @@ module.exports = {
         "effective_to": {
           "type": "date",
           "udtName": "date",
-          "nullable": false,
+          "nullable": true,
           "default": null
         }
       }
@@ -3390,6 +3390,12 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "event_source": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'ADMIN'::text"
         }
       }
     },
@@ -4006,6 +4012,12 @@ module.exports = {
           "udtName": "numeric",
           "nullable": false,
           "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
         }
       }
     },
@@ -4222,6 +4234,80 @@ module.exports = {
           "udtName": "jsonb",
           "nullable": false,
           "default": null
+        }
+      }
+    },
+    "payroll_statutory_scopes": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "jurisdiction_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "establishment_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_statutory_scope_bindings": {
+      "columns": {
+        "revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "statutory_scope_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
         }
       }
     }

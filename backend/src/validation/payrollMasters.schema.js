@@ -15,10 +15,12 @@ const policy = z.object({ ...base, group_code: z.string().min(1).max(40).nullabl
  rounding: z.object({ lop: rounding, proration: rounding, allocation: rounding }).strict(), work_calendar_reference: text.nullable()
 }).strict().refine(v => v.effective_from <= v.effective_to, 'Invalid effective range.').refine(v => (v.lop_method === 'FIXED_DIVISOR') === (v.lop_fixed_divisor !== null), 'LOP divisor must match method.').refine(v => (v.partial_month_proration_method === 'FIXED_DIVISOR') === (v.partial_month_fixed_divisor !== null), 'Proration divisor must match its independent method.');
 const components = ['BASIC','STAFF_WELFARE','OTHER_FIXED','PACKAGE_BALANCE','DAILY_WAGE','OVERTIME','HOLIDAY_PREMIUM','ADJUSTMENTS'];
-const configuration = z.object({ employee_rate: bounded('100').nullable(), employer_rate: bounded('100').nullable(), included_components: z.array(z.enum(components)).min(1).max(8), excluded_components: z.array(z.enum(components)).max(8),
+const adjustmentTypes = ['SALARY_ARREARS','BONUS','REIMBURSEMENT','RECOVERY'];
+const adjustmentBasis = z.object(Object.fromEntries(adjustmentTypes.map(type => [type, z.enum(type === 'RECOVERY' ? ['UNRESOLVED','DEDUCTION_ONLY'] : ['UNRESOLVED','INCLUDE','EXCLUDE'])]))).strict();
+const configuration = z.object({ adjustment_basis: adjustmentBasis.optional(), employee_rate: bounded('100').nullable(), employer_rate: bounded('100').nullable(), included_components: z.array(z.enum(components)).min(1).max(8), excluded_components: z.array(z.enum(components)).max(8),
  eligibility: z.enum(['UNRESOLVED','ENROLLED','WAGE_CEILING','ENROLLED_AND_WAGE_CEILING','JURISDICTION_PROFILE']), eligibility_ceiling: bounded('99999999999').nullable(), wage_ceiling: bounded('99999999999').nullable(), contribution_minimum: bounded('99999999999').nullable(), contribution_cap: bounded('99999999999').nullable(),
  calculation_method: z.enum(['UNRESOLVED','QUALIFYING_WAGE_PERCENTAGE','CAPPED_WAGE_PERCENTAGE','SLABS']), rounding, aggregation: z.literal('CALENDAR_MONTH'), effective_rule: z.literal('MONTH_START'), conditions: z.enum(['UNRESOLVED','NONE','PROFILE_EXEMPTIONS'])
-}).strict().refine(v => new Set([...v.included_components,...v.excluded_components]).size === 8 && v.included_components.length + v.excluded_components.length === 8, 'Classify every earning component exactly once.').refine(v => v.contribution_minimum === null || v.contribution_cap === null || units(v.contribution_minimum) <= units(v.contribution_cap), 'Minimum exceeds cap.');
+}).strict().refine(v => new Set([...v.included_components,...v.excluded_components]).size === 8 && v.included_components.length + v.excluded_components.length === 8, 'Classify every earning component exactly once.').refine(v => v.contribution_minimum === null || v.contribution_cap === null || units(v.contribution_minimum) <= units(v.contribution_cap), 'Minimum exceeds cap.').refine(v => !v.adjustment_basis || v.excluded_components.includes('ADJUSTMENTS'), 'Typed adjustments cannot also use the legacy aggregate wage basis.');
 const slab = z.object({ month: z.number().int().min(1).max(12), lower_bound: money, upper_bound: money.nullable(), deduction_amount: money }).strict().refine(v => v.upper_bound === null || units(v.upper_bound) > units(v.lower_bound), 'Invalid slab boundaries.');
 const statutory = z.object({ ...base, scheme: z.enum(['EPF','ESI','PT']), jurisdiction: z.string().trim().min(1).max(120), establishment: z.string().trim().min(1).max(120), configuration,
  verification_status: z.enum(['UNVERIFIED','ADVISOR_VERIFIED']), advisor_name: z.string().trim().min(1).max(120).nullable(), verification_reference: text.nullable(), verified_on: z.iso.date().nullable(), slabs: z.array(slab).max(1200)
@@ -44,9 +46,9 @@ const kind = z.enum(['policies','statutory']);
 const params = z.object({ kind }).strict();
 const idParams = z.object({ kind, id: z.uuid() }).strict();
 const save = z.object({ id: z.uuid().nullable(), expected_version: z.number().int().min(0), data: z.unknown() }).strict();
-module.exports = { policy, statutory, components, units, rounding,
+module.exports = { policy, statutory, components, adjustmentTypes, units, rounding,
  list: { params, query: z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).strict() },
  save: { params, body: save }, preview: { params: idParams },
  publish: { params: idParams, body: z.object({ expected_version: z.number().int().positive(), preview_token: z.string().regex(/^[a-f0-9]{32}$/), approval_reference: text }).strict() },
- resolve: { params, query: z.object({ date: z.iso.date(), group_code: z.string().min(1).max(40).optional(), scheme: z.enum(['EPF','ESI','PT']).optional(), jurisdiction: z.string().trim().min(1).max(120).optional(), establishment: z.string().trim().min(1).max(120).optional() }).strict() }
+ resolve: { params, query: z.object({ date: z.iso.date(), group_code: z.string().min(1).max(40).optional(), scheme: z.enum(['EPF','ESI','PT']).optional(), statutory_scope_id: z.uuid().optional(), jurisdiction: z.string().trim().min(1).max(120).optional(), establishment: z.string().trim().min(1).max(120).optional() }).strict() }
 };

@@ -39,3 +39,10 @@ describe('payroll foundation input contract', () => {
     }
   });
 });
+
+test('ongoing applicability requires explicit null and cannot extend past an evidenced exit',()=>{
+ const data={employee_id:uuid,kind:'ASSIGNMENT',evidence_reference:'Evidenced ongoing employment',intervals:[{group_code:'HO_STAFF',employee_category:'HO Staff',department:'Head Office',effective_from:'2026-10-01',effective_to:null,employment_joined_on:'2020-01-01'}]};
+ expect(schema.history.body.safeParse(data).success).toBe(true);
+ expect(schema.history.body.safeParse({...data,intervals:[{...data.intervals[0],employment_exited_on:'2026-10-31'}]}).success).toBe(false);
+ expect(schema.history.body.safeParse({...data,intervals:[{...data.intervals[0],effective_to:undefined}]}).success).toBe(false);
+});

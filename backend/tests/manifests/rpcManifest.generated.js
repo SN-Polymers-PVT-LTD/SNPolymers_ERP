@@ -68,6 +68,27 @@ module.exports = {
       ],
       "returns": "requisitions"
     },
+    "bind_payroll_statutory_scope": {
+      "args": [
+        {
+          "name": "p_revision_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_scope_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "void"
+    },
     "create_payroll_draft_run": {
       "args": [
         {
@@ -815,6 +836,27 @@ module.exports = {
     "refresh_analytics_views": {
       "args": [],
       "returns": "void"
+    },
+    "register_payroll_statutory_scope": {
+      "args": [
+        {
+          "name": "p_jurisdiction_code",
+          "type": "text"
+        },
+        {
+          "name": "p_establishment_code",
+          "type": "text"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "uuid"
     },
     "reopen_subcontract_estimate": {
       "args": [

@@ -7,7 +7,7 @@ const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 describe('Supabase import files verification', () => {
   test('seed scripts execute cleanly and idempotently against live schema', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
 
     try {

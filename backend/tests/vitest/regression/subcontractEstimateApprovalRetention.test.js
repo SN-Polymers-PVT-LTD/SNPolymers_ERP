@@ -7,7 +7,7 @@ const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 describe('Subcontract Estimate Phase 1 approval retention', () => {
   test('does not expose renamed legacy workflow functions to ordinary API roles', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     try {
       const { rows } = await client.query(
@@ -34,7 +34,7 @@ describe('Subcontract Estimate Phase 1 approval retention', () => {
 
   test('retains unchanged approvals and remarks while corrected rejected rows restart at ZO', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     const suffix = crypto.randomUUID().slice(0, 8);
 

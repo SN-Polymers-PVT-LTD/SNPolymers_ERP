@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { createPgClient } = require('../../../scripts/lib/pg-connect');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 
-const DB_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
+const DB_URL = process.env.SUPABASE_TEST_DB_URI;
 
 async function createFixture(client, suffix, requisitionAmount = 700) {
   const actor = `p4b${suffix}01`;

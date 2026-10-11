@@ -37,7 +37,7 @@ describe('Phase 2 actual PostgreSQL master integrity',()=>{
   expect((await resolve('policies',{group_code:'HO_STAFF'},'2091-10-01')).revision_id).toBe(group.id);expect((await resolve('policies',{group_code:'PROJECTS_JE'},'2091-10-01')).revision_id).toBe(global.id);
   const dup=await save('policies',policy());const p=await preview('policies',dup.id);expect(p.publishable).toBe(false);expect(p.conflicts.length).toBeGreaterThan(0);
   await rejected('SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)',['policies',dup.id,1,p.preview_token,'Test',admin],'22023');
-  expect(p.blockers.map(b=>b.field)).toContain('full_month_unpaid_treatment');
+  expect(p.configuration_warnings.map(b=>b.field)).toContain('full_month_unpaid_treatment');
   expect((await resolve('policies',{group_code:'SNP_LOCAL'},'2091-10-01')).error).toBe('DAILY_WAGE_MASTER_REQUIRED');
   await rejected("SELECT resolve_payroll_master('policies','{\"group_code\":\"FORGED\"}','2091-10-01',$1)",[admin],'22023');
  });
@@ -110,5 +110,31 @@ describe('Phase 2 actual PostgreSQL master integrity',()=>{
   const sql='SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)';const args=[kind,r.id,1,p.preview_token,'Synthetic concurrency',admin];
   try{await c1.query('BEGIN');await c1.query(sql,args);let completed=false;const contender=c2.query(sql,args).then(()=>({ok:true}),e=>({code:e.code})).finally(()=>{completed=true;});await new Promise(resolve=>setTimeout(resolve,80));expect(completed).toBe(false);await c1.query('COMMIT');expect((await contender).code).toBe('PY409');expect((await q("SELECT count(*) FROM payroll_master_events WHERE coalesce(statutory_revision_id,policy_revision_id)=$1 AND action='PUBLISHED'",[r.id]))[0].count).toBe('1');}
   finally{await c1.query('ROLLBACK');await c1.end();await c2.end();await q('BEGIN');}
+ });
+});
+
+describe('Phase 2 review database protections',()=>{
+ test('typed configurations round-trip, unresolved classifications warn, malformed or dual aggregate bases fail',async()=>{
+  const s=statutory({jurisdiction:crypto.randomUUID()});s.configuration.adjustment_basis={SALARY_ARREARS:'INCLUDE',BONUS:'EXCLUDE',REIMBURSEMENT:'UNRESOLVED',RECOVERY:'DEDUCTION_ONLY'};
+  const r=await save('statutory',s),p=await preview('statutory',r.id);
+  expect(r.configuration.adjustment_basis).toEqual(s.configuration.adjustment_basis);expect(p.publishable).toBe(true);
+  expect(p.configuration_warnings).toContainEqual({field:'adjustment_basis.REIMBURSEMENT',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  for(const basis of [{...s.configuration.adjustment_basis,RECOVERY:'INCLUDE'},{BONUS:'INCLUDE'}]){
+   await q('SAVEPOINT bad_basis');await expect(save('statutory',{...s,configuration:{...s.configuration,adjustment_basis:basis}})).rejects.toMatchObject({code:'22023'});await q('ROLLBACK TO SAVEPOINT bad_basis');
+  }
+  const legacy=statutory();expect((await preview('statutory',(await save('statutory',legacy)).id)).configuration_warnings).toContainEqual({field:'adjustment_basis.BONUS',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+ });
+ test('explicit canonical mappings preserve labels/history, reject aliases with overlapping dates and deny unauthorized mapping',async()=>{
+  const code='TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase();
+  const scope=(await q('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',[code,'ESTABLISHMENT','SYNTHETIC ONLY - explicitly registered',admin]))[0].id;
+  const data=statutory({jurisdiction:crypto.randomUUID()}),first=await publish('statutory',await save('statutory',data));
+  await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[first.id,scope,'SYNTHETIC ONLY - approved mapping',admin]);
+  const r=await resolve('statutory',{scheme:'EPF',statutory_scope_id:scope},'2091-02-01');expect(r.revision_id).toBe(first.id);expect(r.statutory_scope_id).toBe(scope);expect(r.data.jurisdiction).toBe(data.jurisdiction);
+  const alias=await publish('statutory',await save('statutory',{...data,jurisdiction:crypto.randomUUID()}));
+  for(const [who,code] of [[accounts,'42501'],[admin,'23P01']]){
+   await q('SAVEPOINT binding_failure');await expect(q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[alias.id,scope,'Synthetic alias',who])).rejects.toMatchObject({code});await q('ROLLBACK TO SAVEPOINT binding_failure');
+  }
+  await q('SAVEPOINT mapping_immutable');await expect(q('DELETE FROM payroll_statutory_scope_bindings WHERE revision_id=$1',[first.id])).rejects.toMatchObject({code:'42501'});await q('ROLLBACK TO SAVEPOINT mapping_immutable');
+  await q('SET LOCAL ROLE service_role');await q('SAVEPOINT direct_scope');await expect(q('SELECT * FROM payroll_statutory_scopes')).rejects.toMatchObject({code:'42501'});await q('ROLLBACK TO SAVEPOINT direct_scope');await q('RESET ROLE');
  });
 });

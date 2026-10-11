@@ -7,9 +7,9 @@ const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', () => {
   test('retries and concurrent actions cannot duplicate transitions or bypass stale-state guards', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
-    const contender = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
-    const reopenContender = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
+    const contender = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
+    const reopenContender = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     await contender.connect();
     await reopenContender.connect();
@@ -197,7 +197,7 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
 
   test('rejects actions after JE and ZO mappings are removed from an open session', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     const actor = `91${suffix}01`;
@@ -260,8 +260,8 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
 
   test('uses one shared advisory lock for a subcontract financial scope', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
-    const contender = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
+    const contender = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     await contender.connect();
     const scope = ['WO-SUB-LOCK-TEST', crypto.randomUUID(), crypto.randomUUID()];
@@ -298,7 +298,7 @@ describe('Subcontract Estimate Phase 4B M6 failure recovery and concurrency', ()
 
   test('consumption primitive counts active reservations and payments once', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     const suffix = crypto.randomUUID().slice(0, 8);
     const workOrderNo = `WO-SUB-CONS-${suffix}`;

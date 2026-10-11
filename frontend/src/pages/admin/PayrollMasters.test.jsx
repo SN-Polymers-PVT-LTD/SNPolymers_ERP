@@ -29,3 +29,12 @@ describe('Admin payroll master screens',()=>{
  });
  it('non-Admin direct screen exposes no writes or master reads',()=>{role='accounts';mount();expect(screen.getByRole('alert')).toHaveTextContent('Admin');expect(api.listPayrollMasters).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Create draft'})).not.toBeInTheDocument();});
 });
+
+it('typed wage basis starts unresolved and never derives treatment from the aggregate',async()=>{
+ mount('statutory');await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));
+ for(const type of ['SALARY ARREARS','BONUS','REIMBURSEMENT','RECOVERY'])expect(screen.getByLabelText(`${type} statutory basis`)).toHaveValue('UNRESOLVED');
+ expect(screen.queryByRole('checkbox',{name:/ADJUSTMENTS/})).not.toBeInTheDocument();
+ expect(Array.from(screen.getByLabelText('RECOVERY statutory basis').options).map(o=>o.value)).toEqual(['UNRESOLVED','DEDUCTION_ONLY']);
+ fireEvent.change(screen.getByLabelText('BONUS statutory basis'),{target:{value:'EXCLUDE'}});
+ expect(screen.getByLabelText('SALARY ARREARS statutory basis')).toHaveValue('UNRESOLVED');
+});

@@ -12,7 +12,7 @@ describe('Phase 2 pure master validation and historical resolution',()=>{
  test('Fixed 30, explicit calendar days and independent proration/allocation resolve with exact ID',()=>{
   const fixed=published('fixed',policy());expect(resolveMaster('policies',[fixed],{group_code:'HO_STAFF'},'2091-02-10').data.lop_fixed_divisor).toBe('30');
   const actual=published('actual',policy({lop_method:'ACTUAL_CALENDAR_DAYS',lop_fixed_divisor:null,partial_month_proration_method:'FIXED_DIVISOR',partial_month_fixed_divisor:'30',split_period_allocation_method:'CALENDAR_WEIGHTED_WITH_RESIDUAL'}));
-  const r=resolveMaster('policies',[actual],{group_code:'HO_STAFF'},'2091-10-10');expect(r.revision_id).toBe('actual');expect(r.data.partial_month_fixed_divisor).toBe('30');expect(r.data.sandwich_enabled).toBe(false);expect(r.blockers).toContainEqual({field:'full_month_unpaid_treatment',code:'UNRESOLVED'});
+  const r=resolveMaster('policies',[actual],{group_code:'HO_STAFF'},'2091-10-10');expect(r.revision_id).toBe('actual');expect(r.data.partial_month_fixed_divisor).toBe('30');expect(r.data.sandwich_enabled).toBe(false);expect(r.configuration_warnings).toContainEqual({field:'full_month_unpaid_treatment',code:'UNRESOLVED'});
  });
  test.each(['0','-1','NaN','Infinity',30,'10000'])('invalid divisor %s rejected',v=>{expect(validateMaster('policies',policy({lop_fixed_divisor:v})).valid).toBe(false);});
  test('specific precedence, future dates, historical lookup, missing, ambiguous and draft exclusion',()=>{
@@ -51,6 +51,6 @@ describe('Phase 2 pure master validation and historical resolution',()=>{
   const round=(numerator,denominator)=>{const cents=(numerator*100n+denominator/2n)/denominator;return `${cents/100n}.${(cents%100n).toString().padStart(2,'0')}`;};
   expect(round(30000n*2n,30n)).toBe('2000.00');expect(round(30000n*2n,28n)).toBe('2142.86');expect(round(30000n*2n,31n)).toBe('1935.48');
   expect(30000n-30000n*28n/30n).toBe(2000n);expect(30000n-30000n*31n/30n).toBe(-1000n);
-  expect(validateMaster('policies',policy()).blockers).toContainEqual({field:'full_month_unpaid_treatment',code:'UNRESOLVED'});
+  expect(validateMaster('policies',policy()).configuration_warnings).toContainEqual({field:'full_month_unpaid_treatment',code:'UNRESOLVED'});
  });
 });

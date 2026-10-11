@@ -257,6 +257,10 @@ module.exports = {
       "table": "payroll_employee_observations",
       "definition": "CREATE INDEX payroll_employee_observations_employee_idx ON public.payroll_employee_observations USING btree (employee_id, observed_at)"
     },
+    "payroll_entitlement_employee_unique": {
+      "table": "payroll_employee_month_entitlements",
+      "definition": "CREATE UNIQUE INDEX payroll_entitlement_employee_unique ON public.payroll_employee_month_entitlements USING btree (id, employee_id)"
+    },
     "payroll_factory_scope_latest_idx": {
       "table": "payroll_factory_scope_events",
       "definition": "CREATE INDEX payroll_factory_scope_latest_idx ON public.payroll_factory_scope_events USING btree (user_id, department, id DESC)"
@@ -308,6 +312,10 @@ module.exports = {
     "payroll_statutory_revision_number_unique": {
       "table": "payroll_statutory_rule_revisions",
       "definition": "CREATE UNIQUE INDEX payroll_statutory_revision_number_unique ON public.payroll_statutory_rule_revisions USING btree (scheme, jurisdiction, establishment, revision_number) WHERE (status = 'PUBLISHED'::text)"
+    },
+    "payroll_statutory_scope_bindings_scope_idx": {
+      "table": "payroll_statutory_scope_bindings",
+      "definition": "CREATE INDEX payroll_statutory_scope_bindings_scope_idx ON public.payroll_statutory_scope_bindings USING btree (statutory_scope_id, revision_id)"
     },
     "uq_pcei_generated_subcontract_work": {
       "table": "project_cost_estimate_items",

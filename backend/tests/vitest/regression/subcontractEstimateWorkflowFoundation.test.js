@@ -6,7 +6,7 @@ const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 describe('Subcontract Estimate Phase 4B M1 foundation', () => {
   test('protects approved contributions and workflow events inside a rollback-scoped transaction', async () => {
     await requireLocalSupabase();
-    const client = await createPgClient('postgresql://postgres:postgres@127.0.0.1:54322/postgres');
+    const client = await createPgClient(process.env.SUPABASE_TEST_DB_URI);
     await client.connect();
     const suffix = crypto.randomUUID().slice(0, 8);
 

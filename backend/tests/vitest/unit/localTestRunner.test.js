@@ -123,3 +123,15 @@ describe('fixed local targets and status validation', () => {
     }
   });
 });
+
+test('CI starts and targets the isolated payroll stack for migration, manifests and the entire integration suite',()=>{
+ const workflow=fs.readFileSync(path.resolve('../.github/workflows/ci.yml'),'utf8');
+ const integration=workflow.slice(workflow.indexOf('  backend-integration:'),workflow.indexOf('  frontend:'));
+ const target=getLocalTestTarget('payroll');
+ expect(integration).toContain('LOCAL_SUPABASE_TEST_PROFILE: payroll');
+ expect(integration).toContain(`SUPABASE_URL: ${target.apiUrl}`);
+ expect(integration).toContain(`SUPABASE_TEST_DB_URI: ${target.dbUri}`);
+ expect(integration).toContain('supabase --workdir backend/tests/local-supabase start');
+ expect(integration).toContain('npm run test:integration');
+ expect(integration).not.toMatch(/supabase (?:stop|db reset)/);
+});
