@@ -1,0 +1,18 @@
+const router = require('express').Router();
+const verifyJwt = require('../middleware/verifyJwt');
+const requireRole = require('../middleware/requireRole');
+const requireCurrentHrRole = require('../middleware/requireCurrentHrRole');
+const validateRequest = require('../middleware/validateRequest');
+const schema = require('../validation/payroll.schema');
+const controller = require('../controllers/payroll.controller');
+router.use(verifyJwt, requireCurrentHrRole(['admin', 'accounts', 'ho', 'factory_manager']));
+router.get('/context', controller.context);
+router.post('/factory-scopes', requireRole(['admin']), validateRequest(schema.scope), controller.setScope);
+router.post('/source-history', requireRole(['admin']), validateRequest(schema.history), controller.recordHistory);
+router.get('/employees/:employeeId/source-history', requireRole(['admin']), validateRequest(schema.employeeHistory), controller.sourceHistory);
+router.post('/runs', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.createRun), controller.createRun);
+router.get('/runs/:runId/candidates', validateRequest(schema.detail), controller.candidates);
+router.get('/runs/:runId', validateRequest(schema.detail), controller.detail);
+router.post('/runs/:runId/employees', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.addEmployee), controller.addEmployee);
+router.patch('/rows/:rowId/note', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.reviseNote), controller.reviseNote);
+module.exports = router;

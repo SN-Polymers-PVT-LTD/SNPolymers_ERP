@@ -115,6 +115,7 @@ app.use('/api/v1/auth/hr/pay-structures', hrPayStructuresRoutes);
 app.use('/api/v1/auth/hr/factory-masters', hrFactoryMastersRoutes);
 app.use('/api/v1/auth/hr/attendance', require('./routes/hrAttendance.routes'));
 app.use('/api/v1/auth/hr/leaves', require('./routes/hrLeaves.routes'));
+app.use('/api/v1/auth/hr/payroll', require('./routes/payroll.routes'));
 
 
 // Health check route with database connectivity ping

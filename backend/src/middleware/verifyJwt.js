@@ -58,7 +58,7 @@ async function verifyJwt(req, res, next) {
     // Legacy modules contain authenticated-only reads; do not grant them by
     // merely admitting a new role to the shared application shell.
     if (user.role === 'factory_manager' &&
-        !['/api/v1/auth', '/api/v1/auth/hr/factory-masters', '/api/v1/auth/hr/attendance', '/api/v1/auth/hr/leaves'].includes(req.baseUrl)) {
+        !['/api/v1/auth', '/api/v1/auth/hr/factory-masters', '/api/v1/auth/hr/attendance', '/api/v1/auth/hr/leaves', '/api/v1/auth/hr/payroll'].includes(req.baseUrl)) {
       return res.status(403).json({ success: false, message: 'Factory Manager cannot access this module.' });
     }
 

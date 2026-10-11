@@ -237,6 +237,50 @@ module.exports = {
       "table": "subcontract_work_master",
       "definition": "CREATE INDEX idx_swm_sub_head ON public.subcontract_work_master USING btree (sub_head)"
     },
+    "payroll_assignment_nonoverlap": {
+      "table": "payroll_employee_assignments",
+      "definition": "CREATE INDEX payroll_assignment_nonoverlap ON public.payroll_employee_assignments USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
+    },
+    "payroll_calendar_group_date_idx": {
+      "table": "payroll_work_calendar_days",
+      "definition": "CREATE INDEX payroll_calendar_group_date_idx ON public.payroll_work_calendar_days USING btree (group_code, department, calendar_date)"
+    },
+    "payroll_employee_finalized_nonoverlap": {
+      "table": "payroll_employee_coverage",
+      "definition": "CREATE INDEX payroll_employee_finalized_nonoverlap ON public.payroll_employee_coverage USING gist (employee_id, daterange(period_from, period_to, '[]'::text))"
+    },
+    "payroll_employee_month_entitlement_employee_id_salary_month_key": {
+      "table": "payroll_employee_month_entitlements",
+      "definition": "CREATE UNIQUE INDEX payroll_employee_month_entitlement_employee_id_salary_month_key ON public.payroll_employee_month_entitlements USING btree (employee_id, salary_month)"
+    },
+    "payroll_employee_observations_employee_idx": {
+      "table": "payroll_employee_observations",
+      "definition": "CREATE INDEX payroll_employee_observations_employee_idx ON public.payroll_employee_observations USING btree (employee_id, observed_at)"
+    },
+    "payroll_factory_scope_latest_idx": {
+      "table": "payroll_factory_scope_events",
+      "definition": "CREATE INDEX payroll_factory_scope_latest_idx ON public.payroll_factory_scope_events USING btree (user_id, department, id DESC)"
+    },
+    "payroll_history_run_idx": {
+      "table": "payroll_action_history",
+      "definition": "CREATE INDEX payroll_history_run_idx ON public.payroll_action_history USING btree (run_id, id)"
+    },
+    "payroll_pay_applicability_nonoverlap": {
+      "table": "payroll_permanent_pay_applicability",
+      "definition": "CREATE INDEX payroll_pay_applicability_nonoverlap ON public.payroll_permanent_pay_applicability USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
+    },
+    "payroll_run_employees_run_id_employee_id_key": {
+      "table": "payroll_run_employees",
+      "definition": "CREATE UNIQUE INDEX payroll_run_employees_run_id_employee_id_key ON public.payroll_run_employees USING btree (run_id, employee_id)"
+    },
+    "payroll_runs_scope_period_idx": {
+      "table": "payroll_runs",
+      "definition": "CREATE INDEX payroll_runs_scope_period_idx ON public.payroll_runs USING btree (department, group_code, period_from, period_to)"
+    },
+    "payroll_sources_row_version_idx": {
+      "table": "payroll_source_links",
+      "definition": "CREATE INDEX payroll_sources_row_version_idx ON public.payroll_source_links USING btree (row_id, row_version)"
+    },
     "uq_pcei_generated_subcontract_work": {
       "table": "project_cost_estimate_items",
       "definition": "CREATE UNIQUE INDEX uq_pcei_generated_subcontract_work ON public.project_cost_estimate_items USING btree (estimate_id, subcontract_work_id) WHERE ((source_type)::text = 'SUBCONTRACT_ESTIMATE'::text)"

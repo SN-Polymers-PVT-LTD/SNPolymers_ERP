@@ -132,10 +132,10 @@
     "semantic_hash": "d741317f3cabc3b76b715b6b05745abc"
   },
   "backend/src/app.js": {
-    "mtime": 1790793120.261563,
-    "seen": 1790921982.1294966,
-    "ast_hash": "3e44e420a1e2a22efa9f74de2849a123",
-    "semantic_hash": "3e44e420a1e2a22efa9f74de2849a123"
+    "mtime": 1791700551.1844864,
+    "seen": 1791700975.3980258,
+    "ast_hash": "7c306216961741cedb6a7eef6e4d692a",
+    "semantic_hash": ""
   },
   "backend/src/config/cookies.js": {
     "mtime": 1786337104.5087519,
@@ -1098,9 +1098,9 @@
     "semantic_hash": "f33d258aa1d6034ccf804e34d8a0924c"
   },
   "backend/src/middleware/verifyJwt.js": {
-    "mtime": 1791037858.6444693,
-    "seen": 1791038229.685008,
-    "ast_hash": "b29b306d386c1dc72410d813c3c590aa",
+    "mtime": 1791700989.8703167,
+    "seen": 1791701312.991755,
+    "ast_hash": "1872c43613781eb3f1e5f73be64bda77",
     "semantic_hash": ""
   },
   "backend/src/routes/acctRequisition.routes.js": {
@@ -1668,39 +1668,39 @@
     "semantic_hash": "3d8bc88dc74c0034adb1024f7cc31742"
   },
   "backend/tests/manifests/indexAllowlist.json": {
-    "mtime": 1791595345.208943,
-    "seen": 1791595573.9262636,
-    "ast_hash": "fdf83f2dc68bba23c0c3fcf37895386d",
+    "mtime": 1791700963.7478426,
+    "seen": 1791700975.3983476,
+    "ast_hash": "ee3ec5dbdad27ff3a23607960e8fcc1d",
     "semantic_hash": ""
   },
   "backend/tests/manifests/indexManifest.generated.js": {
-    "mtime": 1791595348.423593,
-    "seen": 1791595573.926265,
-    "ast_hash": "a4e485873163150e590013b4b9033a03",
+    "mtime": 1791700977.0746899,
+    "seen": 1791701312.9918518,
+    "ast_hash": "af13c50a3d5457c477307df5d56f9b4a",
     "semantic_hash": ""
   },
   "backend/tests/manifests/manifestScope.json": {
-    "mtime": 1790761141.7186441,
-    "seen": 1790921982.1299822,
-    "ast_hash": "8a4d80b764e62757a9a21e1447b48254",
-    "semantic_hash": "8a4d80b764e62757a9a21e1447b48254"
+    "mtime": 1791700801.1702094,
+    "seen": 1791700975.3983495,
+    "ast_hash": "1acb237829b127a29f7d5f84f46f7682",
+    "semantic_hash": ""
   },
   "backend/tests/manifests/rpcAllowlist.json": {
-    "mtime": 1790779066.41538,
-    "seen": 1790921982.1299834,
-    "ast_hash": "5322c42487cd422c79d4b046c3d510e6",
-    "semantic_hash": "5322c42487cd422c79d4b046c3d510e6"
+    "mtime": 1791700801.1704297,
+    "seen": 1791700975.3983505,
+    "ast_hash": "0ba087a01d684e39d62547bd42e749b8",
+    "semantic_hash": ""
   },
   "backend/tests/manifests/rpcManifest.generated.js": {
-    "mtime": 1791595324.0112743,
-    "seen": 1791595573.92627,
-    "ast_hash": "79f33679e4d5814c983173fd3acb4b56",
+    "mtime": 1791700942.5967202,
+    "seen": 1791700975.3983514,
+    "ast_hash": "3f37e698593ad387e8a4c16819283f18",
     "semantic_hash": ""
   },
   "backend/tests/manifests/schemaManifest.generated.js": {
-    "mtime": 1791595323.7982717,
-    "seen": 1791595573.9262712,
-    "ast_hash": "829e54ea2217eacd745aeffe88b29f16",
+    "mtime": 1791700942.5047176,
+    "seen": 1791700975.3983524,
+    "ast_hash": "3e009dd2297a9605bad03231202dfdf6",
     "semantic_hash": ""
   },
   "backend/tests/milestones/test_milestone_p7_api.js": {
@@ -5829,6 +5829,66 @@
     "mtime": 1791615073.4230194,
     "seen": 1791615133.746753,
     "ast_hash": "ea47fdca6c180910dd835d0cff4eb97b",
+    "semantic_hash": ""
+  },
+  "backend/src/controllers/payroll.controller.js": {
+    "mtime": 1791701100.2112062,
+    "seen": 1791701312.9916024,
+    "ast_hash": "7502b66db04816368e1cb6d9c3a33d50",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/104_payroll_phase1_foundation.sql": {
+    "mtime": 1791700572.7537622,
+    "seen": 1791700975.3982334,
+    "ast_hash": "f52a22615be4a5e47ee94bf81aec0f51",
+    "semantic_hash": ""
+  },
+  "backend/src/routes/payroll.routes.js": {
+    "mtime": 1791700572.754387,
+    "seen": 1791700975.3982651,
+    "ast_hash": "230056cbc21ca3049395f32e9dac28fd",
+    "semantic_hash": ""
+  },
+  "backend/src/validation/payroll.schema.js": {
+    "mtime": 1791700551.1055124,
+    "seen": 1791700975.398314,
+    "ast_hash": "95037ee0128fe46ec02b2a251b4494cb",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/regression/payrollApi.test.js": {
+    "mtime": 1791700801.0944664,
+    "seen": 1791700975.398456,
+    "ast_hash": "125032271f05db56cf48858baf33f8d9",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/regression/payrollFoundation.test.js": {
+    "mtime": 1791701207.573865,
+    "seen": 1791701312.991959,
+    "ast_hash": "ba8fc9eb94a7c8489360a77b80ec9791",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/unit/payrollValidation.test.js": {
+    "mtime": 1791701100.2117965,
+    "seen": 1791701312.9919953,
+    "ast_hash": "45e14f9638aadadbc641fdaa50775296",
+    "semantic_hash": ""
+  },
+  "SN_Polymers_Payroll_Business_Rules_v1_4.md": {
+    "mtime": 1791699805.3523414,
+    "seen": 1791700975.398991,
+    "ast_hash": "cf3db1e6fc54a0ff865bfe75b1e87982",
+    "semantic_hash": ""
+  },
+  "documentation/SN_Polymers_Payroll_Phase1_Implementation.md": {
+    "mtime": 1791701375.4525657,
+    "seen": 1791708445.874627,
+    "ast_hash": "a660b77757a65220b22dea5ddae2654c",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/105_payroll_expected_version_conflicts.sql": {
+    "mtime": 1791701100.2110574,
+    "seen": 1791701312.9917426,
+    "ast_hash": "5a31b4da8bdfab65f37bf757e4662d81",
     "semantic_hash": ""
   }
 }

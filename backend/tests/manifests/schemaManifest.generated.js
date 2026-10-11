@@ -3094,6 +3094,872 @@ module.exports = {
           "default": "now()"
         }
       }
+    },
+    "payroll_groups": {
+      "columns": {
+        "code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "is_factory": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "is_permanent": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_group_departments": {
+      "columns": {
+        "group_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_source_history_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "source_kind": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_employee_assignments": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "source_kind": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'ASSIGNMENT'::text"
+        },
+        "group_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "employee_category": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "employment_joined_on": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "employment_exited_on": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "payroll_permanent_pay_applicability": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "source_kind": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'PERMANENT_PAY'::text"
+        },
+        "pay_structure_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_employee_observations": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "old_values": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "new_values": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "effective_date_known": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "observed_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "observed_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_factory_scope_events": {
+      "columns": {
+        "id": {
+          "type": "bigint",
+          "udtName": "int8",
+          "nullable": false,
+          "default": null
+        },
+        "user_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "allowed": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_policy_master_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "group_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'DRAFT'::text"
+        },
+        "monthly_entitlement_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "lop_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "lop_fixed_divisor": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "partial_month_proration_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "partial_month_fixed_divisor": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "split_period_allocation_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "full_month_unpaid_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "leave_weekly_off_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "monetary_rounding_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "sandwich_enabled": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_work_calendar_days": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "group_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "calendar_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "day_type": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "compensation_treatment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'DRAFT'::text"
+        },
+        "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_runs": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "group_code": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "period_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "period_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "cycle": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'DRAFT'::text"
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_run_employees": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "run_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "assignment_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "period_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "period_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'DRAFT'::text"
+        },
+        "current_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_row_versions": {
+      "columns": {
+        "row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "note": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "source_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "source_fingerprint": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_source_links": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "row_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "attendance_row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "leave_request_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "pay_applicability_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "wage_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "pay_rule_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "payroll_action_history": {
+      "columns": {
+        "id": {
+          "type": "bigint",
+          "udtName": "int8",
+          "nullable": false,
+          "default": null
+        },
+        "run_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "row_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "action": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "actor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_employee_coverage": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "salary_row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "period_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "period_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "finalized_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_employee_month_entitlements": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "salary_month": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "policy_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "source_segments": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": "'[]'::jsonb"
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNRESOLVED'::text"
+        },
+        "contractual_gross": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "allocated_base": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "lop_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": "0"
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        }
+      }
+    },
+    "payroll_month_allocations": {
+      "columns": {
+        "entitlement_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "salary_row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "base_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        }
+      }
     }
   }
 };

@@ -33,6 +33,23 @@
     "hr_factory_pay_rule_revisions",
     "hr_attendance_sheets",
     "hr_attendance_rows",
-    "hr_leave_requests"
+    "hr_leave_requests",
+    "payroll_groups",
+    "payroll_group_departments",
+    "payroll_source_history_revisions",
+    "payroll_employee_assignments",
+    "payroll_permanent_pay_applicability",
+    "payroll_employee_observations",
+    "payroll_factory_scope_events",
+    "payroll_policy_master_revisions",
+    "payroll_work_calendar_days",
+    "payroll_runs",
+    "payroll_run_employees",
+    "payroll_row_versions",
+    "payroll_source_links",
+    "payroll_action_history",
+    "payroll_employee_coverage",
+    "payroll_employee_month_entitlements",
+    "payroll_month_allocations"
   ]
 }

@@ -22,6 +22,31 @@ module.exports = {
       ],
       "returns": "excess_fund_returns"
     },
+    "add_payroll_draft_employee": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_assignment_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_to",
+          "type": "date"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "payroll_run_employees"
+    },
     "approve_requisition_transact": {
       "args": [
         {
@@ -42,6 +67,35 @@ module.exports = {
         }
       ],
       "returns": "requisitions"
+    },
+    "create_payroll_draft_run": {
+      "args": [
+        {
+          "name": "p_group_code",
+          "type": "text"
+        },
+        {
+          "name": "p_department",
+          "type": "text"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_to",
+          "type": "date"
+        },
+        {
+          "name": "p_cycle",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "payroll_runs"
     },
     "create_ra_final_bill_secure": {
       "args": [
@@ -496,6 +550,70 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_draft_candidates": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_draft_run": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_foundation_context": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_source_history": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_subcontract_financial_consumption": {
       "args": [
         {
@@ -602,6 +720,31 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "record_payroll_source_history": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_intervals",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "uuid"
+    },
     "refresh_analytics_views": {
       "args": [],
       "returns": "void"
@@ -651,6 +794,27 @@ module.exports = {
         }
       ],
       "returns": "void"
+    },
+    "revise_payroll_draft_note": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_note",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "payroll_run_employees"
     },
     "save_hr_attendance_rows": {
       "args": [
@@ -750,6 +914,31 @@ module.exports = {
         }
       ],
       "returns": "hr_leave_requests"
+    },
+    "set_payroll_factory_scope": {
+      "args": [
+        {
+          "name": "p_user_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_department",
+          "type": "text"
+        },
+        {
+          "name": "p_allowed",
+          "type": "boolean"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "payroll_factory_scope_events"
     },
     "submit_fund_request_transact": {
       "args": [
