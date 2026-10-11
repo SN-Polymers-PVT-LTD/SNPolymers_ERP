@@ -1,7 +1,9 @@
 # Payroll Phase 3 — read-only calculation previews
 
 Implemented against v1.4 on `employee_management`, starting from `75eca09`.
-No commit/push was made. This phase stops at diagnostic salary previews.
+The initial Phase 3 implementation is now recorded in `9fc2427`. Review
+corrections to that baseline remain uncommitted; no commit/push was made during
+this review. This phase stops at diagnostic salary previews.
 
 ## Architecture and inputs
 
@@ -12,7 +14,8 @@ JSON serializer and two service-only RPCs:
   department/factory-grant checks, followed by one SQL statement/MVCC snapshot
   containing the existing draft employee row, latest complete evidenced
   assignment/pay histories, dated pay structures, attendance, leave, factory
-  masters, published policies, canonical statutory master bindings, other
+  masters, published policies, an empty statutory-rule list until evidenced
+  employee profiles exist, other
   employee/month draft rows and existing finalized coverage/month ledger state.
 - `list_payroll_preview_runs(actor_id, page, limit)`: a paginated selection using
   existing foundation scope rules. FM sees explicitly granted factories;
@@ -40,8 +43,11 @@ It reuses Phase 2 `resolveMaster` and `calculationReadiness`; no second policy o
 statutory configuration system was added. Rational BigInt arithmetic retains
 repeating daily/hourly rates until the configured rounding stage. HALF_UP uses
 nearest/ties away from zero; HALF_EVEN uses nearest/ties even; DOWN truncates
-toward zero; UP rounds away from zero. Precision and DAILY/LINE/AGGREGATE/MONTH
-placement come from the published policy, never browser input.
+toward zero; UP rounds away from zero. Precision and rounding placement come
+from the published policy, never browser input. LOP supports DAILY rounding and
+AGGREGATE/MONTH rounding. A published LINE LOP policy remains valid master data
+but returns `LOP_LINE_ROUNDING_UNSUPPORTED` when LOP is needed, pending an approved
+definition of a deduction line. It is never silently treated as monthly rounding.
 
 ## Implemented formulas
 
@@ -69,9 +75,12 @@ month rounding. Split LOP is assigned to the runs containing those dates, with
 month rounding residual on the last LOP-bearing row; incomplete or conflicting
 allocation plans remain blocked.
 
-Contract components are shown as a breakdown of the agreed total, including a
-named package balance. They are **not** added again to a full contractual-base
-line. Dated salary changes retain their segment sources and dated LOP inputs,
+Contract components are shown independently in each month's
+`contract_diagnostics`, with the pay-structure ID, agreed amount, pay basis,
+named package balance and `diagnostic_only: true`. This evidence survives a
+blocked Special Package entitlement or dated salary change and is visible in
+the UI's monthly reconciliation. Components are **not** added again to a full
+contractual-base line. Dated salary changes retain their segment sources and dated LOP inputs,
 but an unresolved changeover/proration cannot produce an approved entitlement.
 February full-unpaid residual and October negative candidates are exposed as
 literal diagnostics and blocked; there is no clamp or automatic method switch.
@@ -105,7 +114,12 @@ The following remain blocked where relevant:
   OT is supported when the relevant source facts are ready.
 - Employee statutory profiles and canonical employee scope assignments. Migration
   108 provides canonical **master** bindings, not employee applicability. The
-  source RPC therefore deliberately returns no fabricated employee profile.
+  source RPC therefore deliberately returns a null employee profile and an empty
+  statutory-rule array for every preview role. Forward migration 110 removes the
+  original broad statutory-master read; unrelated canonical scopes, establishment
+  details and advisor metadata cannot enter previews or their fingerprints.
+  A future employee-profile resolver must filter by applicable schemes/canonical
+  scopes and return only calculation evidence authorized for the requesting role.
 
 Statutory readiness reuses canonical Phase 2 resolution where an independently
 verified profile supplies a scope. It preserves dated EPF/ESI enrolment flags,
@@ -144,7 +158,7 @@ requisitions or bank balances are changed by a preview.
 
 ## Files and compatibility
 
-Added migration 109; domain modules; `payrollPreview.controller.js`;
+Added migration 109 and forward correction 110; domain modules; `payrollPreview.controller.js`;
 `payrollPreviewApi.js`; `PayrollPreviews.jsx`; pure fixtures and calculation/DB/
 HTTP/UI tests. Extended existing payroll routes/schema, the payroll test command,
 App/Sidebar route permissions and the RPC manifest allowlist/generated manifest
@@ -157,7 +171,7 @@ were not changed. Both fixture suites then passed all 22 tests on the reused
 isolated database. Synthetic accounts remain deactivated after payroll HTTP
 fixtures; the fix does not weaken cleanup or authorization guards.
 
-## Verification and remaining risks
+## Initial Phase 3 verification and remaining risks
 
 - Payroll local suite: **116 tests / 10 files passed**.
 - Complete backend unit suite: **154 tests / 18 files passed**.
@@ -172,7 +186,7 @@ fixtures; the fix does not weaken cleanup or authorization guards.
 - Complete frontend suite: **1,080 tests / 153 files passed**. An initial
   unrelated Requisitions modal wait failed; its unchanged focused suite and the
   subsequent complete runs passed.
-- All three migration 109 function bodies match the isolated database. Preview
+- At initial verification, all three migration 109 function bodies matched the isolated database. Preview
   RPC execution is restricted to the service role; the decimal serializer stays
   private. Existing allocation, coverage and entitlement posting gates remain
   enabled. The shared local database was not migrated or stopped.
@@ -185,4 +199,41 @@ not concurrent financial reservations. Any future locking must atomically
 revalidate versions, scope, source fingerprint, monthly allocations, statutory
 month state and immutable coverage; this phase provides no locking shortcut.
 Bank/payment integration, approval, locking and statutory posting remain outside
-Phase 3. No commit or push was performed.
+Phase 3. No new commit or push was performed during this review.
+
+## Review corrections to 9fc2427
+
+- Migration 110 replaces only the source RPC's statutory-master read with an
+  empty array while no employee profiles exist. Migration 109 is unchanged.
+  Current role/factory scope checks, numeric serialization, service-only RPC
+  permissions and the single-snapshot source query remain intact.
+- LINE LOP is an explicit scenario blocker; neither a rounded deduction nor
+  rounded candidate gross is returned under that unsupported stage. No-LOP
+  scenarios still work. DAILY gives 6.68 for the two-day 100.10/30 example;
+  MONTH/AGGREGATE gives 6.67. Split runs cannot bypass the LINE blocker.
+- Agreed totals and component evidence live in `contract_diagnostics` independently
+  of allocated earnings, including multiple dated package sources. They have no
+  effect on earnings totals. The existing monthly reconciliation UI renders them
+  even when package applicability blocks all contractual-base lines.
+- Focused payroll suite: **124 tests / 10 files passed** on the isolated stack.
+- Complete backend unit suite: **158 tests / 18 files passed**.
+- Preview UI suite: **6 tests / 1 file passed**.
+- Complete integration suite: **950 passed / 1 failed (951 tests)**. The unchanged
+  `projectsHealth.test.js` HO enrichment case returns 500 because PostgREST
+  reports `URI too long`; the focused unchanged file reproduced the failure.
+- All contract suites: **47 passed / 1 failed (48 tests)**. The API serialization
+  test for the same Projects Health endpoint hits the same URI-length failure.
+  Schema/RPC/index and deployment/boot contracts passed. Analytics production
+  code and its tests were left unchanged; these runs are not fully green.
+- Live RPC body matches migration 110; the existing 46-function RPC signature
+  manifest still matches. anon/authenticated cannot execute the source RPC;
+  service_role can. All three financial posting gates remain enabled.
+- `git diff --check` and Graphify AST update passed. Graphify still reports the
+  two existing semantic nodes without `source_file`; this review did not rebuild
+  or alter their semantic evidence.
+
+The new disclosure fixtures publish and canonically bind unrelated, overlapping
+EPF/ESI rules, exercise Admin/Accounts/HO/scoped Factory Manager access, and verify
+both an empty statutory-rule source list and an unchanged employee fingerprint.
+Those fixtures run inside transactions and are rolled back; no employee statutory
+profile or legal rate is introduced into production.

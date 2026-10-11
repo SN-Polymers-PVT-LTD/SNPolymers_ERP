@@ -13,8 +13,16 @@ function permanentCalculation(source,days){
   if(policies.length!==1)block('AMBIGUOUS_MONTH_POLICY',start,policies);
   if(partial)block('PRORATION_DAY_CLASSIFICATION_REQUIRED',start);
   if(salary?.pay_basis==='Special package'){block('SPECIAL_PACKAGE_PERIOD_REQUIRED',start,salary.id);entitlement=null;}
-  const components=salary?{BASIC:salary.basic_salary,STAFF_WELFARE:salary.staff_welfare,OTHER_FIXED:salary.other_fixed_components}:{};
-  if(salary){const total=D.sum(Object.values(components).filter(v=>v!==null).map(D.decimal));if(D.compare(total,D.decimal(salary.guaranteed_monthly_gross))>0n)block('PAY_COMPONENTS_EXCEED_PACKAGE',start,salary.id);else components.PACKAGE_BALANCE=D.format(D.sub(D.decimal(salary.guaranteed_monthly_gross),total));}
+  // Evidence survives a blocked entitlement, including dated salary changes.
+  // These components describe the agreed amount; they are never earnings lines.
+  const contractDiagnostics=paySources.map(id=>{
+   const pay=source.pay_structures.find(p=>p.id===id),components={BASIC:pay.basic_salary,STAFF_WELFARE:pay.staff_welfare,OTHER_FIXED:pay.other_fixed_components};
+   const total=D.sum(Object.values(components).filter(v=>v!==null).map(D.decimal));
+   if(D.compare(total,D.decimal(pay.guaranteed_monthly_gross))>0n)block('PAY_COMPONENTS_EXCEED_PACKAGE',start,pay.id);
+   else components.PACKAGE_BALANCE=D.format(D.sub(D.decimal(pay.guaranteed_monthly_gross),total));
+   return {pay_structure_id:pay.id,pay_basis:pay.pay_basis,agreed_amount:pay.guaranteed_monthly_gross,components,diagnostic_only:true};
+  });
+  const components=salary?contractDiagnostics[0].components:{};
   const unpaid=md.filter(day=>{
    const leave=day.leave[0],status=day.attendance?.attendance_status;
    return (day.factory&&status==='Absent')||!!(leave&&['Approved','Rejected'].includes(leave.approval_status)&&(leave.pay_treatment==='Unpaid'||leave.approval_status==='Rejected'));
@@ -35,8 +43,11 @@ function permanentCalculation(source,days){
   }
   let monthlyLop=null,currentLop=null;
   const rule=policy?.rounding.lop;
+  const unsupportedLine=unpaid.length>0&&rule?.stage==='LINE';
+  // No approved definition of a LOP line exists. Never reinterpret LINE as MONTH.
+  if(unsupportedLine)block('LOP_LINE_ROUNDING_UNSUPPORTED',start,policies);
   if(!unpaid.length){monthlyLop=D.zero();currentLop=D.zero();}
-  else if(rule?.method!=='UNRESOLVED'&&rule){
+  else if(rule?.method!=='UNRESOLVED'&&rule&&['DAILY','MONTH','AGGREGATE'].includes(rule.stage)){
    monthlyLop=rule.stage==='DAILY'?D.sum(daily.map(d=>d.value)):D.round(D.sum(daily.map(d=>d.value)),rule);
    // Preserve month rounding and assign any residual to the last LOP-bearing row.
    const completePlan=!recon.blockers.length&&(!recon.split||recon.allocations.length>0);
@@ -48,7 +59,7 @@ function permanentCalculation(source,days){
   if(currentLop&&currentLop.n!==0n)deductions.push({code:'LOP',salary_month:start,amount:D.format(currentLop,Math.max(2,rule?.precision||0)),exact:D.reference(currentLop),chargeable_dates:daily.filter(d=>d.date>=source.row.period_from&&d.date<=source.row.period_to).map(d=>d.date),source_ids:[...new Set(daily.flatMap(d=>d.source_ids))]});
   const candidate=salary?D.sub(D.decimal(salary.guaranteed_monthly_gross),literal):null;
   if(candidate&&candidate.n<0n)block('NEGATIVE_GROSS_FORBIDDEN',start);
-  months.push({...recon.view,agreed_amount:salary?.guaranteed_monthly_gross||null,pay_basis:salary?.pay_basis||null,salary_segments:md.filter((d,i)=>i===0||d.pay?.id!==md[i-1].pay?.id).map(d=>({effective_from:d.date,pay_structure_id:d.pay?.id||null,monthly_gross:d.pay?.guaranteed_monthly_gross||null})),literal_lop:D.reference(literal),monthly_lop:monthlyLop?D.format(monthlyLop,Math.max(2,rule?.precision||0)):null,candidate_gross_after_literal_lop:candidate?D.amount(candidate,rule):null,policy_revision_ids:policies});
+  months.push({...recon.view,agreed_amount:salary?.guaranteed_monthly_gross||null,pay_basis:salary?.pay_basis||null,contract_diagnostics:contractDiagnostics,salary_segments:md.filter((d,i)=>i===0||d.pay?.id!==md[i-1].pay?.id).map(d=>({effective_from:d.date,pay_structure_id:d.pay?.id||null,monthly_gross:d.pay?.guaranteed_monthly_gross||null})),literal_lop:D.reference(literal),monthly_lop:monthlyLop?D.format(monthlyLop,Math.max(2,rule?.precision||0)):null,candidate_gross_after_literal_lop:candidate&&!unsupportedLine?D.amount(candidate,rule):null,policy_revision_ids:policies});
  }
  return {earnings,deductions,months,blockers,warnings};
 }

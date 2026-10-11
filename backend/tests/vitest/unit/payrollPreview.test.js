@@ -110,3 +110,31 @@ test('LOP DAILY and MONTH rounding remain independent and reproducible',()=>{
  const monthly=calculatePreview(source);expect(monthly.deductions[0].amount).toBe('6.67');
  policyEdit(source,{rounding:{...source.policies[0].data.rounding,lop:{...rounded,stage:'DAILY'}}});expect(calculatePreview(source).deductions[0].amount).toBe('6.68');
 });
+
+test('LINE LOP rounding blocks rather than silently selecting daily or aggregate semantics',()=>{
+ const source=office();Object.assign(source.pay_structures[0],{guaranteed_monthly_gross:'100.10',basic_salary:null,staff_welfare:null,other_fixed_components:null});source.leave=[leave('2091-02-05','2091-02-06')];
+ policyEdit(source,{rounding:{...source.policies[0].data.rounding,lop:{...rounded,stage:'LINE'}}});
+ const result=calculatePreview(source);expect(codes(result)).toContain('LOP_LINE_ROUNDING_UNSUPPORTED');expect(result.gross_after_lop).toBeNull();expect(result.deductions).toEqual([]);
+ expect(result.monthly_reconciliation[0].monthly_lop).toBeNull();expect(result.monthly_reconciliation[0].candidate_gross_after_literal_lop).toBeNull();
+ // An unused LOP configuration must not block a month with no LOP scenario.
+ source.leave=[];expect(codes(calculatePreview(source))).not.toContain('LOP_LINE_ROUNDING_UNSUPPORTED');expect(calculatePreview(source).gross_after_lop).toBe('100.10');
+});
+
+test('unsupported LINE LOP cannot become rounded allocations in split runs',()=>{
+ const source=office('2091-10-01');policyEdit(source,{split_period_allocation_method:'CALENDAR_WEIGHTED_WITH_RESIDUAL',rounding:{...source.policies[0].data.rounding,lop:{...rounded,stage:'LINE'}}});
+ source.row.period_to='2091-10-15';source.month_rows[0].period_to=source.row.period_to;source.month_rows.push({...source.month_rows[0],id:'second',period_from:'2091-10-16',period_to:'2091-10-31'});source.leave=[leave('2091-10-02'),leave('2091-10-22')];
+ for(const row of source.month_rows){Object.assign(source.row,{id:row.id,period_from:row.period_from,period_to:row.period_to});const result=calculatePreview(source);expect(codes(result)).toContain('LOP_LINE_ROUNDING_UNSUPPORTED');expect(result.deductions).toEqual([]);expect(result.gross_after_lop).toBeNull();expect(result.monthly_reconciliation[0].monthly_lop).toBeNull();}
+});
+
+test('blocked Special Package retains agreed component evidence without payable or duplicate earnings',()=>{
+ const source=office();source.pay_structures[0].pay_basis='Special package';const result=calculatePreview(source);
+ expect(codes(result)).toContain('SPECIAL_PACKAGE_PERIOD_REQUIRED');expect(result.earnings).toEqual([]);expect(result.known_earnings_total).toBe('0.00');expect(result.gross_after_lop).toBeNull();
+ expect(result.monthly_reconciliation[0].contract_diagnostics).toEqual([{pay_structure_id:'pay',pay_basis:'Special package',agreed_amount:'30000.00',components:{BASIC:'10000.00',STAFF_WELFARE:'2000.00',OTHER_FIXED:null,PACKAGE_BALANCE:'18000.00'},diagnostic_only:true}]);
+ source.pay_structures[0].pay_basis='Monthly salary';const monthly=calculatePreview(source);expect(monthly.earnings).toHaveLength(1);expect(monthly.known_earnings_total).toBe('30000.00');expect(monthly.monthly_reconciliation[0].contract_diagnostics[0].agreed_amount).toBe('30000.00');
+});
+
+test('dated Special Package components remain diagnostic when several salary sources block entitlement',()=>{
+ const source=office();source.pay_structures[0].pay_basis='Special package';source.pay_applicability[0].effective_to='2091-02-15';source.pay_applicability.push({...source.pay_applicability[0],id:'next-app',pay_structure_id:'next-pay',effective_from:'2091-02-16',effective_to:null});source.pay_structures.push({...source.pay_structures[0],id:'next-pay',guaranteed_monthly_gross:'36000.00',other_fixed_components:'1000.00'});
+ const result=calculatePreview(source);expect(codes(result)).toContain('SALARY_CHANGE_PRORATION_REQUIRED');expect(result.earnings).toEqual([]);expect(result.gross_after_lop).toBeNull();
+ expect(result.monthly_reconciliation[0].contract_diagnostics.map(d=>[d.pay_structure_id,d.agreed_amount,d.components.PACKAGE_BALANCE])).toEqual([['pay','30000.00','18000.00'],['next-pay','36000.00','23000.00']]);
+});

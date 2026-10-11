@@ -6036,9 +6036,9 @@
     "semantic_hash": ""
   },
   "backend/src/domain/payroll/permanent.js": {
-    "mtime": 1791720052.7724974,
-    "seen": 1791721431.5252724,
-    "ast_hash": "e36e254ebb2513b39dd948a1efd728cd",
+    "mtime": 1791723722.057472,
+    "seen": 1791723982.797368,
+    "ast_hash": "8d5fc0cfff84f597e2a86488cabe4113",
     "semantic_hash": ""
   },
   "backend/src/domain/payroll/preview.js": {
@@ -6072,9 +6072,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollPreview.test.js": {
-    "mtime": 1791721606.9216201,
-    "seen": 1791721719.2746294,
-    "ast_hash": "0a8f3ff827831ad868582e20ef81a72c",
+    "mtime": 1791723787.2183993,
+    "seen": 1791723982.7979999,
+    "ast_hash": "af7f39d90f4b6e681c08ca8f46dc9cd1",
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollPreviewApi.test.js": {
@@ -6084,9 +6084,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/unit/payrollPreview.test.js": {
-    "mtime": 1791720670.1686518,
-    "seen": 1791721431.5256116,
-    "ast_hash": "97eebea510791421bd11ec493e605f80",
+    "mtime": 1791723787.133398,
+    "seen": 1791723982.798103,
+    "ast_hash": "fca16b1b6d846fa14dce148d6ce556a8",
     "semantic_hash": ""
   },
   "frontend/src/api/payrollPreviewApi.js": {
@@ -6102,15 +6102,21 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/PayrollPreviews.test.jsx": {
-    "mtime": 1791720336.8359752,
-    "seen": 1791721431.5261302,
-    "ast_hash": "068fd5f2ad55f4a438e57f904abff4f9",
+    "mtime": 1791723787.2734,
+    "seen": 1791723982.798997,
+    "ast_hash": "1b066399dcb1400aa9023fd73c152fd5",
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Payroll_Phase3_Implementation.md": {
-    "mtime": 1791721409.563537,
-    "seen": 1791721431.52634,
-    "ast_hash": "45ec198a559862323bfe164adad8ded3",
+    "mtime": 1791723912.6550198,
+    "seen": 1791723982.799361,
+    "ast_hash": "ddaed27e4316b4d71cd6633efdfaf8fd",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/110_payroll_preview_statutory_minimization.sql": {
+    "mtime": 1791723721.9814708,
+    "seen": 1791723982.7973425,
+    "ast_hash": "96e680e9170b0b3dd88bb92cbc9731c7",
     "semantic_hash": ""
   }
 }

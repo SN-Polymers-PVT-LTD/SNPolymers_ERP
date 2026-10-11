@@ -1,5 +1,5 @@
 import {beforeAll,afterAll,beforeEach,afterEach,describe,test,expect} from 'vitest';
-const {Client}=require('pg'),crypto=require('crypto');const {requireLocalSupabase}=require('../../helpers/requireLocalSupabase');const {policy}=require('../../helpers/payrollMasterFixtures');const {calculatePreview}=require('../../../src/domain/payroll/preview');
+const {Client}=require('pg'),crypto=require('crypto');const {requireLocalSupabase}=require('../../helpers/requireLocalSupabase');const {policy,statutory}=require('../../helpers/payrollMasterFixtures');const {calculatePreview}=require('../../../src/domain/payroll/preview');const {fingerprint}=require('../../../src/domain/payroll/sources');
 let db,admin,accounts,fm,ho;const q=async(sql,args=[])=>(await db.query(sql,args)).rows;
 const one=async(sql,args=[])=>(await q(sql,args))[0];
 const user=async role=>(await one('INSERT INTO authorised_users(mobile_number,role,display_name,is_active) VALUES($1,$2,$3,true) RETURNING id',[String(crypto.randomInt(7000000000,9999999999)),role,'Synthetic preview test'])).id;
@@ -20,6 +20,22 @@ async function rejected(sql,args,code){await q('SAVEPOINT reject');await expect(
 beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw new Error('Payroll previews require the isolated profile');await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();});
 afterAll(async()=>{if(db)await db.end();});beforeEach(async()=>{await q('BEGIN');admin=await user('admin');accounts=await user('accounts');fm=await user('factory_manager');ho=await user('ho');});afterEach(async()=>{await q('ROLLBACK');});
 describe('read-only preview database sources',()=>{
+ test.each(['admin','accounts','ho','factory_manager'])('no employee profile: %s receives no unrelated statutory masters or metadata in its source fingerprint',async role=>{
+  const factory=role==='factory_manager',e=await employee(factory?'SNP Casual Factory Labour':'HO Staff',factory?'SNP Factory':'Head Office');
+  const row=await runRow(e,factory?'SNP_CASUAL':'HO_STAFF');
+  if(factory)await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,'SNP Factory','Synthetic preview grant',admin]);
+  const actor={admin,accounts,ho,factory_manager:fm}[role],before=await source(row,actor);
+  for(const scheme of ['EPF','ESI']){
+   const data=statutory({scheme,jurisdiction:'UNRELATED_'+crypto.randomUUID(),establishment:'UNRELATED_ESTABLISHMENT',advisor_name:'UNRELATED_ADVISOR',verification_reference:'UNRELATED_VERIFICATION_METADATA',effective_from:'2500-01-01',effective_to:'2500-12-31'});
+   const draft=(await one("SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(data),admin])).r;
+   const preview=(await one("SELECT preview_payroll_master_publication('statutory',$1,$2) r",[draft.id,admin])).r;
+   await q("SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC ONLY',$3)",[draft.id,preview.preview_token,admin]);
+   const scope=(await one('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',['TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase(),'UNRELATED_SCOPE','SYNTHETIC ONLY',admin])).id;
+   await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[draft.id,scope,'SYNTHETIC ONLY',admin]);
+  }
+  const after=await source(row,actor);expect(after.statutory_profile).toBeNull();expect(after.statutory_rules).toEqual([]);expect(JSON.stringify(after)).not.toContain('UNRELATED_');expect(fingerprint(after)).toBe(fingerprint(before));
+  const result=calculatePreview(after);expect(result.final_net_salary).toBeNull();expect(result.blockers.map(b=>b.code)).toContain('EMPLOYEE_STATUTORY_PROFILE_REQUIRED');expect(result.statutory.every(s=>s.revision_id===null&&s.statutory_scope_id===null)).toBe(true);
+ });
  test('one snapshot preserves exact strings, historical salary, source references, and no financial writes',async()=>{
   const {e,row}=await office();await q("UPDATE hr_employees SET active_status='Exited',updated_by=$1 WHERE id=$2",[admin,e.id]);
   const counts=await q("SELECT (SELECT count(*) FROM payroll_row_versions) versions,(SELECT count(*) FROM payroll_action_history) actions,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT count(*) FROM payroll_employee_coverage) coverage");
