@@ -35,5 +35,10 @@
   "get_payroll_draft_run",
   "get_payroll_foundation_context",
   "get_payroll_source_history",
-  "get_payroll_draft_candidates"
+  "get_payroll_draft_candidates",
+  "save_payroll_master_draft",
+  "preview_payroll_master_publication",
+  "publish_payroll_master",
+  "get_payroll_master_revisions",
+  "resolve_payroll_master"
 ]

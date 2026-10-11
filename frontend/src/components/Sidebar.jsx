@@ -924,6 +924,7 @@ const Sidebar = () => {
   } else if (isAdminModule) {
     if (user?.role === 'admin') {
       navItems.push(
+        { to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> },
         {
           to: '/admin',
           label: 'Access Whitelist',

@@ -72,5 +72,12 @@
   "payroll_history_run_idx",
   "payroll_employee_observations_employee_idx",
   "payroll_calendar_group_date_idx",
-  "payroll_run_employees_run_id_employee_id_key"
+  "payroll_run_employees_run_id_employee_id_key",
+  "payroll_policy_published_nonoverlap",
+  "payroll_statutory_published_nonoverlap",
+  "payroll_pt_slab_nonoverlap",
+  "payroll_policy_revision_number_unique",
+  "payroll_statutory_revision_number_unique",
+  "payroll_master_policy_events_idx",
+  "payroll_master_statutory_events_idx"
 ]

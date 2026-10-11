@@ -121,9 +121,44 @@ SUPABASE_TEST_DB_URI='postgresql://...' npm run migrate
 
 ### Local Supabase (tests)
 
-`npm run test:local` starts local Supabase (if needed), runs `apply-migrations.js` against `postgresql://postgres:postgres@127.0.0.1:54322/postgres`, then runs integration tests. No `.env.dev-db` file is required for that path.
+`npm run test:local` validates `supabase status --output json`, starts/resumes the
+selected local stack only when Docker confirms its database is not running,
+applies pending migrations, and runs integration tests. Invalid status or an
+unavailable Docker daemon fails closed before migration. No `.env.dev-db` is
+required, and `USE_DEV_DB` is forced off by this runner.
 
-Prerequisites: [Supabase CLI](https://supabase.com/docs/guides/cli/local-development) installed.
+**The runner never stops or resets any stack.** Existing and newly started stacks
+are left running on success, failure, or interruption; fixture data is preserved
+from lifecycle cleanup. A project-level lock prevents overlapping runner sessions.
+Tests and pending migrations can still change their selected database, so use the
+isolated payroll target when existing shared fixtures must remain untouched.
+
+```bash
+# Recommended payroll command: separate project ID, volumes and API/DB ports
+npm run test:payroll:local
+
+# Run another focused suite on that isolated local stack
+bash scripts/test-local.sh --isolated tests/vitest/regression/payrollFoundation.test.js
+```
+
+Full `test:local` runs, directory selections containing payroll, and explicit
+payroll test-file selections automatically use isolation when passed to
+`test:local`. The isolated project is `SNPolymersPayrollTests`, configured in
+`tests/local-supabase/supabase/config.toml`, with API port **55421**, database port
+**55422** and shadow port **55420**. The shared project remains `SNPolymers` on
+54321/54322. Vitest and the backend client use the same fixed local profile;
+remote environment URLs cannot redirect the local runner.
+
+To stop the isolated stack manually **with the CLI's normal data backup**, run
+from the repository root:
+
+```bash
+backend/node_modules/.bin/supabase --workdir backend/tests/local-supabase stop
+```
+
+Do not add `--no-backup`, `--all`, or database-reset commands to test cleanup.
+Prerequisites: Node.js, Docker, `flock` (Linux/util-linux), and the installed
+[Supabase CLI](https://supabase.com/docs/guides/cli/local-development).
 
 ### Baseline an existing database
 

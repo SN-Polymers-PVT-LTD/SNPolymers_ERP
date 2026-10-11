@@ -238,3 +238,29 @@ they pass, but those logs are not evidence of a payroll notification feature.
   `graphify-out/manifest.json` (the first two already had user changes).
 
 The untracked root specification is unchanged. No commit, push or PR was made.
+
+
+### Follow-up: local test lifecycle correction
+
+The confirmed data-loss issue in `backend/scripts/test-local.sh` is now corrected.
+Status uses validated JSON (`API_URL` / `DB_URL`) instead of a display-label grep.
+CLI/Docker ambiguity fails closed. All automatic stop/reset cleanup was removed,
+so the runner cannot destroy fixtures by misidentifying ownership. Stacks remain
+running even on test/migration failure or interruption. Selected-project runner
+sessions are serialized with `flock`, and the runner disables cloud/dev overrides.
+
+`npm run test:payroll:local` and explicit payroll test-file selections use a
+dedicated `SNPolymersPayrollTests` project with separate Docker volumes and
+55421/55422 API/database ports. Vitest and the backend Supabase client share the
+same fixed local target. See `backend/README.md` for usage and manual backed-up
+stop instructions. The earlier historical data-loss record remains accurate;
+this correction does not claim recovery of those lost fixtures.
+
+Verification: 13 mocked lifecycle/target tests passed; the actual repaired runner
+started the isolated project, applied migrations there and passed all 19 payroll
+tests. The shared stack remained running and its migration/employee/payroll-run/
+Accounts-item row counts were identical before and after that isolated run.
+
+The isolated database contract suite also passed all 32 tests. Shell/JavaScript
+syntax checks and `git diff --check` passed. No additional migration, commit, push
+or PR was created for the runner correction.

@@ -16,6 +16,7 @@ function setAuthenticatedRole(role) {
         }
       });
     }
+    if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
     if (url === '/admin/sessions') return Promise.resolve({ data: { success: true, sessions: [] } });
     return Promise.resolve({ data: { success: true, data: [] } });
@@ -157,6 +158,23 @@ describe('App Smoke Tests', () => {
     render(<App />);
     await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
     expect(screen.queryByRole('heading', { name: 'Daily Attendance' })).not.toBeInTheDocument();
+  });
+
+  it.each([['policies','Payroll Policy Master'],['statutory','Statutory Deduction Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {
+    setAuthenticatedRole('admin');
+    window.history.pushState({}, '', `/admin/payroll/${kind}`);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Payroll Management' }).length).toBeGreaterThan(0);
+    expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();
+  });
+
+  it.each(['factory_manager','je','zo','ho','accounts'].flatMap(role => ['/admin/payroll/policies','/admin/payroll/statutory'].map(path => [role,path])))('denies %s direct payroll master navigation to %s', async (role,path) => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', path);
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('link', { name: 'Payroll Management' })).not.toBeInTheDocument();
   });
 
   it.each(['/admin', '/admin/employee-management', '/estimates', '/materials', '/acct-requisitions', '/analytics/ho'])('denies FM direct navigation to %s', async path => {

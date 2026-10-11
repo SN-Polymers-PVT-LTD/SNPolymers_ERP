@@ -265,9 +265,29 @@ module.exports = {
       "table": "payroll_action_history",
       "definition": "CREATE INDEX payroll_history_run_idx ON public.payroll_action_history USING btree (run_id, id)"
     },
+    "payroll_master_policy_events_idx": {
+      "table": "payroll_master_events",
+      "definition": "CREATE INDEX payroll_master_policy_events_idx ON public.payroll_master_events USING btree (policy_revision_id, id) WHERE (policy_revision_id IS NOT NULL)"
+    },
+    "payroll_master_statutory_events_idx": {
+      "table": "payroll_master_events",
+      "definition": "CREATE INDEX payroll_master_statutory_events_idx ON public.payroll_master_events USING btree (statutory_revision_id, id) WHERE (statutory_revision_id IS NOT NULL)"
+    },
     "payroll_pay_applicability_nonoverlap": {
       "table": "payroll_permanent_pay_applicability",
       "definition": "CREATE INDEX payroll_pay_applicability_nonoverlap ON public.payroll_permanent_pay_applicability USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
+    },
+    "payroll_policy_published_nonoverlap": {
+      "table": "payroll_policy_master_revisions",
+      "definition": "CREATE INDEX payroll_policy_published_nonoverlap ON public.payroll_policy_master_revisions USING gist (COALESCE(group_code, 'GLOBAL'::text), daterange(effective_from, effective_to, '[]'::text)) WHERE (status = 'PUBLISHED'::text)"
+    },
+    "payroll_policy_revision_number_unique": {
+      "table": "payroll_policy_master_revisions",
+      "definition": "CREATE UNIQUE INDEX payroll_policy_revision_number_unique ON public.payroll_policy_master_revisions USING btree (COALESCE(group_code, 'GLOBAL'::text), revision_number) WHERE (status = 'PUBLISHED'::text)"
+    },
+    "payroll_pt_slab_nonoverlap": {
+      "table": "payroll_professional_tax_slabs",
+      "definition": "CREATE INDEX payroll_pt_slab_nonoverlap ON public.payroll_professional_tax_slabs USING gist (revision_id, month, numrange(lower_bound, upper_bound, '[)'::text))"
     },
     "payroll_run_employees_run_id_employee_id_key": {
       "table": "payroll_run_employees",
@@ -280,6 +300,14 @@ module.exports = {
     "payroll_sources_row_version_idx": {
       "table": "payroll_source_links",
       "definition": "CREATE INDEX payroll_sources_row_version_idx ON public.payroll_source_links USING btree (row_id, row_version)"
+    },
+    "payroll_statutory_published_nonoverlap": {
+      "table": "payroll_statutory_rule_revisions",
+      "definition": "CREATE INDEX payroll_statutory_published_nonoverlap ON public.payroll_statutory_rule_revisions USING gist (scheme, jurisdiction, establishment, daterange(effective_from, effective_to, '[]'::text)) WHERE (status = 'PUBLISHED'::text)"
+    },
+    "payroll_statutory_revision_number_unique": {
+      "table": "payroll_statutory_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX payroll_statutory_revision_number_unique ON public.payroll_statutory_rule_revisions USING btree (scheme, jurisdiction, establishment, revision_number) WHERE (status = 'PUBLISHED'::text)"
     },
     "uq_pcei_generated_subcontract_work": {
       "table": "project_cost_estimate_items",

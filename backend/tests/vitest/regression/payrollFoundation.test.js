@@ -202,12 +202,15 @@ describe('payroll Phase 1 database foundation', () => {
     expect((await q('SELECT approval_status FROM hr_leave_requests WHERE id=$1', [leave.id]))[0].approval_status).toBe('Approved');
     await rejected('UPDATE payroll_source_links SET attendance_row_id=NULL WHERE row_id=$1', [row.id], '42501');
   });
-  test('policy and calendar structures cannot publish or activate unresolved monetary defaults', async () => {
+  test('direct policy publication stays forbidden; invalid divisors and calendar activation remain blocked', async () => {
+    // Phase 2 adds controlled master publication, while financial gates stay intact.
+    const beforeCount = (await q('SELECT count(*) FROM payroll_policy_master_revisions'))[0].count;
     await rejected(`INSERT INTO payroll_policy_master_revisions(effective_from,effective_to,status,monthly_entitlement_method,lop_method,lop_fixed_divisor,reason,created_by)
-      VALUES('1600-10-01','1600-10-31','PUBLISHED','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',30,'Not enabled',$1)`, [admin], '23514');
+      VALUES('1600-10-01','1600-10-31','PUBLISHED','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',30,'Not enabled',$1)`, [admin], '42501');
     await rejected(`INSERT INTO payroll_policy_master_revisions(effective_from,effective_to,monthly_entitlement_method,lop_method,lop_fixed_divisor,reason,created_by)
-      VALUES('1600-10-01','1600-10-31','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',0,'Invalid divisor',$1)`, [admin], '23514');
-    expect((await q('SELECT count(*) FROM payroll_policy_master_revisions'))[0].count).toBe('0');
+      VALUES('1600-10-01','1600-10-31','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',0,'Invalid divisor',$1)`, [admin], '22023');
+    expect((await q('SELECT count(*) FROM payroll_policy_master_revisions'))[0].count).toBe(beforeCount);
+    expect((await q("SELECT count(*) FROM payroll_work_calendar_days WHERE status<>'DRAFT'"))[0].count).toBe('0');
   });
 });
 

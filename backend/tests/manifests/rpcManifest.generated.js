@@ -601,6 +601,27 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_master_revisions": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_source_history": {
       "args": [
         {
@@ -699,6 +720,52 @@ module.exports = {
       ],
       "returns": "hr_attendance_sheets"
     },
+    "preview_payroll_master_publication": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "publish_payroll_master": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_preview_token",
+          "type": "text"
+        },
+        {
+          "name": "p_approval_reference",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "reconcile_subcontract_estimate_lines": {
       "args": [
         {
@@ -769,6 +836,27 @@ module.exports = {
         }
       ],
       "returns": "void"
+    },
+    "resolve_payroll_master": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_scope",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_date",
+          "type": "date"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "review_subcontract_estimate_rows": {
       "args": [
@@ -914,6 +1002,31 @@ module.exports = {
         }
       ],
       "returns": "hr_leave_requests"
+    },
+    "save_payroll_master_draft": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_data",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "set_payroll_factory_scope": {
       "args": [

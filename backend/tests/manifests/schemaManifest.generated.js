@@ -3502,6 +3502,54 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "rounding": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": "'{\"lop\": {\"stage\": \"UNRESOLVED\", \"method\": \"UNRESOLVED\", \"precision\": null}, \"proration\": {\"stage\": \"UNRESOLVED\", \"method\": \"UNRESOLVED\", \"precision\": null}, \"allocation\": {\"stage\": \"UNRESOLVED\", \"method\": \"UNRESOLVED\", \"precision\": null}}'::jsonb"
+        },
+        "work_calendar_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "published_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "published_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "approval_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "published_effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -3956,6 +4004,222 @@ module.exports = {
         "base_amount": {
           "type": "numeric",
           "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_statutory_rule_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "scheme": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "jurisdiction": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "establishment": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'DRAFT'::text"
+        },
+        "configuration": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "verification_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'UNVERIFIED'::text"
+        },
+        "advisor_name": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "verification_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "verified_on": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "revision_number": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "published_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "published_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": true,
+          "default": null
+        },
+        "approval_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "published_effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "payroll_professional_tax_slabs": {
+      "columns": {
+        "revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "month": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "lower_bound": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "upper_bound": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "deduction_amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        }
+      }
+    },
+    "payroll_master_events": {
+      "columns": {
+        "id": {
+          "type": "bigint",
+          "udtName": "int8",
+          "nullable": false,
+          "default": null
+        },
+        "policy_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "statutory_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "action": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "actor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "occurred_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "before_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        "after_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
           "nullable": false,
           "default": null
         }
