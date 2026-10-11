@@ -81,5 +81,8 @@
   "payroll_master_policy_events_idx",
   "payroll_master_statutory_events_idx",
   "payroll_entitlement_employee_unique",
-  "payroll_statutory_scope_bindings_scope_idx"
+  "payroll_statutory_scope_bindings_scope_idx",
+  "payroll_review_revisions_pkey",
+  "payroll_review_action_version_unique",
+  "payroll_employee_review_queue_idx"
 ]

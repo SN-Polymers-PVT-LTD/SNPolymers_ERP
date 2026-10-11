@@ -257,6 +257,10 @@ module.exports = {
       "table": "payroll_employee_observations",
       "definition": "CREATE INDEX payroll_employee_observations_employee_idx ON public.payroll_employee_observations USING btree (employee_id, observed_at)"
     },
+    "payroll_employee_review_queue_idx": {
+      "table": "payroll_run_employees",
+      "definition": "CREATE INDEX payroll_employee_review_queue_idx ON public.payroll_run_employees USING btree (status, run_id, id)"
+    },
     "payroll_entitlement_employee_unique": {
       "table": "payroll_employee_month_entitlements",
       "definition": "CREATE UNIQUE INDEX payroll_entitlement_employee_unique ON public.payroll_employee_month_entitlements USING btree (id, employee_id)"
@@ -292,6 +296,14 @@ module.exports = {
     "payroll_pt_slab_nonoverlap": {
       "table": "payroll_professional_tax_slabs",
       "definition": "CREATE INDEX payroll_pt_slab_nonoverlap ON public.payroll_professional_tax_slabs USING gist (revision_id, month, numrange(lower_bound, upper_bound, '[)'::text))"
+    },
+    "payroll_review_action_version_unique": {
+      "table": "payroll_action_history",
+      "definition": "CREATE UNIQUE INDEX payroll_review_action_version_unique ON public.payroll_action_history USING btree (row_id, review_version) WHERE ((review_version IS NOT NULL) AND (action <> 'LOCK_BLOCKED'::text))"
+    },
+    "payroll_review_revisions_pkey": {
+      "table": "payroll_review_revisions",
+      "definition": "CREATE UNIQUE INDEX payroll_review_revisions_pkey ON public.payroll_review_revisions USING btree (row_id, revision)"
     },
     "payroll_run_employees_run_id_employee_id_key": {
       "table": "payroll_run_employees",

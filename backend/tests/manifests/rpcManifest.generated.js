@@ -613,6 +613,19 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_employee_review": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_foundation_context": {
       "args": [
         {
@@ -644,6 +657,44 @@ module.exports = {
       "returns": "jsonb"
     },
     "get_payroll_preview_sources": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_review_queue": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_run_id",
+          "type": "uuid DEFAULT NULL::uuid"
+        },
+        {
+          "name": "p_status",
+          "type": "text DEFAULT NULL::text"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_review_sources": {
       "args": [
         {
           "name": "p_row_id",
@@ -1188,6 +1239,35 @@ module.exports = {
         }
       ],
       "returns": "hr_attendance_sheets"
+    },
+    "transition_payroll_employee_review": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_expected_review_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_data",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "transition_subcontract_estimate_workflow": {
       "args": [

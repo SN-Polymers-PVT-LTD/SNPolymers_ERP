@@ -44,5 +44,9 @@
   "register_payroll_statutory_scope",
   "bind_payroll_statutory_scope",
   "get_payroll_preview_sources",
-  "list_payroll_preview_runs"
+  "list_payroll_preview_runs",
+  "get_payroll_review_sources",
+  "transition_payroll_employee_review",
+  "get_payroll_review_queue",
+  "get_payroll_employee_review"
 ]

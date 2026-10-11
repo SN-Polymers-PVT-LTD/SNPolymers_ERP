@@ -14,6 +14,12 @@ router.get('/masters/:kind/resolve', requireRole(['admin']), validateRequest(mas
 router.get('/masters/:kind/:id/preview', requireRole(['admin']), validateRequest(masterSchema.preview), masters.preview);
 router.post('/masters/:kind/:id/publish', requireRole(['admin']), validateRequest(masterSchema.publish), masters.publish);
 const previews = require('../controllers/payrollPreview.controller');
+const review = require('../controllers/payrollReview.controller');
+const reviewSchema = require('../validation/payrollReview.schema');
+router.get('/review/queue', validateRequest(reviewSchema.queue), review.queue);
+router.post('/review/bulk', validateRequest(reviewSchema.bulk), review.bulk);
+router.get('/rows/:rowId/review', validateRequest(reviewSchema.detail), review.detail);
+router.post('/rows/:rowId/review', validateRequest(reviewSchema.action), review.act);
 router.get('/runs', validateRequest(schema.listRuns), previews.list);
 router.post('/rows/:rowId/preview', validateRequest(schema.preview), previews.preview);
 router.get('/context', controller.context);

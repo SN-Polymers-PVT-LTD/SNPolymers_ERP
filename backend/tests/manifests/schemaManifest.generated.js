@@ -3742,6 +3742,42 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "review_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "0"
+        },
+        "review_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "submitted_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "accounts_verified_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "last_return_reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "last_return_stage": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -3886,6 +3922,42 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "from_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "to_status": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "actor_role": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "review_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
+        },
+        "review_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -4292,6 +4364,70 @@ module.exports = {
           "default": null
         },
         "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_review_revisions": {
+      "columns": {
+        "row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "content_version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "source_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "source_token": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "source_fingerprint": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "calculation_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
           "type": "text",
           "udtName": "text",
           "nullable": false,

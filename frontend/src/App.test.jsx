@@ -17,6 +17,8 @@ function setAuthenticatedRole(role) {
       });
     }
     if (url === '/hr/payroll/runs') return Promise.resolve({ data: { success: true, selection: { runs: [], total: 0 } } });
+    if (url === '/hr/payroll/review/queue') return Promise.resolve({ data: { success: true, queue: { rows: [], sheets: [], total: 0 } } });
+    if (url === '/hr/payroll/context') return Promise.resolve({ data: { success: true, context: { groups: [] } } });
     if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
     if (url === '/admin/sessions') return Promise.resolve({ data: { success: true, sessions: [] } });
@@ -171,6 +173,17 @@ describe('App Smoke Tests', () => {
     setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/previews');render(<App/>);
     await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));
     expect(screen.queryByRole('link',{name:'Payroll Previews'})).not.toBeInTheDocument();
+  });
+
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s employee payroll review navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll employee review'})).toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Payroll Review'}).length).toBeGreaterThan(0);
+    expect(await screen.findByText('No employees in this review queue.')).toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll review navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Review'})).not.toBeInTheDocument();
   });
 
   it.each([['policies','Payroll Policy Master'],['statutory','Statutory Deduction Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {

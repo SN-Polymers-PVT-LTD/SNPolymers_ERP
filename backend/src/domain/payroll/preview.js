@@ -1,5 +1,6 @@
 const D=require('./exact');const {resolveSources,fingerprint}=require('./sources');const {factoryDay}=require('./factory');const {permanentCalculation}=require('./permanent');const {statutoryReadiness}=require('./statutory');
 function calculatePreview(source){
+ source={...source,month_rows:source.month_rows.filter(r=>r.status!=='CANCELLED_DRAFT')};
  const resolution=resolveSources(source),blockers=[...resolution.blockers];let earnings=[],deductions=[],months=[],warnings=[];
  if(source.is_permanent){const permanent=permanentCalculation(source,resolution.days);({earnings,deductions,months,warnings}=permanent);blockers.push(...permanent.blockers);}
  for(const day of resolution.days.filter(d=>d.factory&&d.date>=source.row.period_from&&d.date<=source.row.period_to)){

@@ -34,7 +34,7 @@
     "test:p7:uat": "bash scripts/test-p7-local.sh uat",
     "test:p7:all": "bash scripts/test-p7-local.sh",
     "test:p7": "npm run test:p7:all",
-    "test:payroll:local": "bash scripts/test-local.sh --isolated tests/vitest/regression/payrollFoundation.test.js tests/vitest/regression/payrollApi.test.js tests/vitest/unit/payrollValidation.test.js tests/vitest/unit/payrollMasters.test.js tests/vitest/unit/payrollReadiness.test.js tests/vitest/regression/payrollMasters.test.js tests/vitest/regression/payrollMastersApi.test.js tests/vitest/unit/payrollPreview.test.js tests/vitest/regression/payrollPreview.test.js tests/vitest/regression/payrollPreviewApi.test.js"
+    "test:payroll:local": "bash scripts/test-local.sh --isolated tests/vitest/regression/payrollFoundation.test.js tests/vitest/regression/payrollApi.test.js tests/vitest/unit/payrollValidation.test.js tests/vitest/unit/payrollMasters.test.js tests/vitest/unit/payrollReadiness.test.js tests/vitest/regression/payrollMasters.test.js tests/vitest/regression/payrollMastersApi.test.js tests/vitest/unit/payrollPreview.test.js tests/vitest/regression/payrollPreview.test.js tests/vitest/regression/payrollPreviewApi.test.js tests/vitest/unit/payrollReview.test.js tests/vitest/regression/payrollReview.test.js tests/vitest/regression/payrollReviewApi.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.4",

@@ -55,6 +55,7 @@
     "payroll_professional_tax_slabs",
     "payroll_master_events",
     "payroll_statutory_scopes",
-    "payroll_statutory_scope_bindings"
+    "payroll_statutory_scope_bindings",
+    "payroll_review_revisions"
   ]
 }
