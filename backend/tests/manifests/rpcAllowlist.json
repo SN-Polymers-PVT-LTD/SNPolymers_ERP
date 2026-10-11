@@ -42,5 +42,7 @@
   "get_payroll_master_revisions",
   "resolve_payroll_master",
   "register_payroll_statutory_scope",
-  "bind_payroll_statutory_scope"
+  "bind_payroll_statutory_scope",
+  "get_payroll_preview_sources",
+  "list_payroll_preview_runs"
 ]

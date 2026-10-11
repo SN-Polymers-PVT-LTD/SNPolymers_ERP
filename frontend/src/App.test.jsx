@@ -16,6 +16,7 @@ function setAuthenticatedRole(role) {
         }
       });
     }
+    if (url === '/hr/payroll/runs') return Promise.resolve({ data: { success: true, selection: { runs: [], total: 0 } } });
     if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
     if (url === '/admin/sessions') return Promise.resolve({ data: { success: true, sessions: [] } });
@@ -158,6 +159,18 @@ describe('App Smoke Tests', () => {
     render(<App />);
     await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
     expect(screen.queryByRole('heading', { name: 'Daily Attendance' })).not.toBeInTheDocument();
+  });
+
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s read-only payroll preview navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/previews');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll salary previews'})).toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Payroll Previews'}).length).toBeGreaterThan(0);
+    expect(await screen.findByText('No accessible payroll draft runs.')).toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll preview navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/previews');render(<App/>);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('link',{name:'Payroll Previews'})).not.toBeInTheDocument();
   });
 
   it.each([['policies','Payroll Policy Master'],['statutory','Statutory Deduction Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {

@@ -9,7 +9,7 @@ describe('Subcontractor Estimate canonical reconciliation RPC', () => {
   beforeAll(async () => {
     await requireLocalSupabase();
     suffix = crypto.randomUUID().slice(0, 8);
-    const { data: user, error: userError } = await supabase.from('authorised_users').select('mobile_number').eq('role', 'admin').limit(1).maybeSingle();
+    const { data: user, error: userError } = await supabase.from('authorised_users').select('mobile_number').eq('role', 'admin').eq('is_active', true).limit(1).maybeSingle();
     if (userError) throw userError;
     if (!user) throw new Error('Draft RPC test requires an admin actor.');
     actor = user.mobile_number;

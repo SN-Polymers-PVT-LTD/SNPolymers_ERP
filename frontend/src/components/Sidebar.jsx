@@ -608,6 +608,7 @@ const Sidebar = () => {
 
   // 2. Define sub-navigation items based on active module and role access
   const navItems = [];
+  if (['admin','accounts','ho','factory_manager'].includes(user?.role)) navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
 
   if (user?.role === 'factory_manager' || currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')) {
     if (['ho', 'admin'].includes(user?.role)) {

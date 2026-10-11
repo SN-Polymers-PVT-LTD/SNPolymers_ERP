@@ -35,7 +35,7 @@ describe('Subcontract master contracts', () => {
   beforeAll(async () => {
     await requireLocalSupabase();
     suffix = crypto.randomUUID().slice(0, 8);
-    const { data: user, error: userError } = await supabase.from('authorised_users').select('mobile_number').limit(1).single();
+    const { data: user, error: userError } = await supabase.from('authorised_users').select('mobile_number').eq('role', 'admin').eq('is_active', true).limit(1).single();
     if (userError) throw userError;
     actor = user.mobile_number;
 

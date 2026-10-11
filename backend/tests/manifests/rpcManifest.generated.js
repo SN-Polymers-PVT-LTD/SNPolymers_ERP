@@ -643,6 +643,19 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_preview_sources": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_source_history": {
       "args": [
         {
@@ -710,6 +723,23 @@ module.exports = {
         }
       ],
       "returns": "integer"
+    },
+    "list_payroll_preview_runs": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
     },
     "lock_estimate_quotations": {
       "args": [

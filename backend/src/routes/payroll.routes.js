@@ -13,6 +13,9 @@ router.post('/masters/:kind/drafts', requireRole(['admin']), validateRequest(mas
 router.get('/masters/:kind/resolve', requireRole(['admin']), validateRequest(masterSchema.resolve), masters.resolve);
 router.get('/masters/:kind/:id/preview', requireRole(['admin']), validateRequest(masterSchema.preview), masters.preview);
 router.post('/masters/:kind/:id/publish', requireRole(['admin']), validateRequest(masterSchema.publish), masters.publish);
+const previews = require('../controllers/payrollPreview.controller');
+router.get('/runs', validateRequest(schema.listRuns), previews.list);
+router.post('/rows/:rowId/preview', validateRequest(schema.preview), previews.preview);
 router.get('/context', controller.context);
 router.post('/factory-scopes', requireRole(['admin']), validateRequest(schema.scope), controller.setScope);
 router.post('/source-history', requireRole(['admin']), validateRequest(schema.history), controller.recordHistory);

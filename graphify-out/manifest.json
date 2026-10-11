@@ -24,9 +24,9 @@
     "semantic_hash": "49fb7901d86e7c1e41ae5887dffa7f42"
   },
   "backend/package.json": {
-    "mtime": 1791716020.307513,
-    "seen": 1791716426.7084312,
-    "ast_hash": "c4062c6f1283f81549251edacc7b3335",
+    "mtime": 1791720264.7221265,
+    "seen": 1791721431.524967,
+    "ast_hash": "62f90c99a4710061ee9f0f82b71fa5b5",
     "semantic_hash": ""
   },
   "backend/scripts/apply-migrations.js": {
@@ -1686,15 +1686,15 @@
     "semantic_hash": ""
   },
   "backend/tests/manifests/rpcAllowlist.json": {
-    "mtime": 1791716064.2537751,
-    "seen": 1791716426.7088642,
-    "ast_hash": "1caf4b3846d0b5d90ae66c9ea14e3048",
+    "mtime": 1791720264.7218027,
+    "seen": 1791721431.5254335,
+    "ast_hash": "66249b8544e6889273a71dcae24f1550",
     "semantic_hash": ""
   },
   "backend/tests/manifests/rpcManifest.generated.js": {
-    "mtime": 1791716099.0196593,
-    "seen": 1791716426.7088652,
-    "ast_hash": "d7e448adf22a7858edd89917108bf949",
+    "mtime": 1791720502.3709464,
+    "seen": 1791721431.525435,
+    "ast_hash": "e93702e3c5080f0f272b6a9aba9dd964",
     "semantic_hash": ""
   },
   "backend/tests/manifests/schemaManifest.generated.js": {
@@ -2334,10 +2334,10 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/subcontractEstimateDraft.test.js": {
-    "mtime": 1790163704.0176659,
-    "seen": 1790921982.1301675,
-    "ast_hash": "9fc66cc986d246aba448fb5224312a6e",
-    "semantic_hash": "9fc66cc986d246aba448fb5224312a6e"
+    "mtime": 1791721055.104276,
+    "seen": 1791721431.525576,
+    "ast_hash": "649bbcfa274e870610f7171e88417c1c",
+    "semantic_hash": ""
   },
   "backend/tests/vitest/regression/subcontractEstimateFailureRecovery.test.js": {
     "mtime": 1791715687.6569843,
@@ -2376,10 +2376,10 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/subcontractMasters.test.js": {
-    "mtime": 1790163704.0187008,
-    "seen": 1790921982.1301785,
-    "ast_hash": "6e0929205395997135f2964e70a50b97",
-    "semantic_hash": "6e0929205395997135f2964e70a50b97"
+    "mtime": 1791721055.1039565,
+    "seen": 1791721431.5255842,
+    "ast_hash": "2125fe4533e2e7712adc427eba2cbd27",
+    "semantic_hash": ""
   },
   "backend/tests/vitest/regression/subcontractWorkIdentityConcurrency.test.js": {
     "mtime": 1791715687.658151,
@@ -2574,15 +2574,15 @@
     "semantic_hash": "a257ecbde880ba076daf21b5337d6ef7"
   },
   "frontend/src/App.jsx": {
-    "mtime": 1791711960.5226398,
-    "seen": 1791713032.220213,
-    "ast_hash": "3a91f9e184eb6b45ef7d13a93f72c6e2",
+    "mtime": 1791719892.222175,
+    "seen": 1791721431.525636,
+    "ast_hash": "bc69bf0d4d69dfee2b17bf08e3ea3cb0",
     "semantic_hash": ""
   },
   "frontend/src/App.test.jsx": {
-    "mtime": 1791712946.2760024,
-    "seen": 1791713032.2202144,
-    "ast_hash": "5ca0b54bf922d4e0f762bdb82503851c",
+    "mtime": 1791721055.1045165,
+    "seen": 1791721431.5256371,
+    "ast_hash": "7d06a81ef14b34aeeb24bbebcbdedc20",
     "semantic_hash": ""
   },
   "frontend/src/api/acctRequisitionsApi.js": {
@@ -2790,9 +2790,9 @@
     "semantic_hash": "94e25039c0b167cab73d763401fb7d95"
   },
   "frontend/src/components/Sidebar.jsx": {
-    "mtime": 1791711960.5233033,
-    "seen": 1791713032.2202604,
-    "ast_hash": "c8d121e7368eb86f9ab6fa00f9854c98",
+    "mtime": 1791719892.2227316,
+    "seen": 1791721431.5256848,
+    "ast_hash": "17874074e25d40f5cd4f567020fb7ef1",
     "semantic_hash": ""
   },
   "frontend/src/components/ThemeContext.jsx": {
@@ -5844,15 +5844,15 @@
     "semantic_hash": ""
   },
   "backend/src/routes/payroll.routes.js": {
-    "mtime": 1791711790.0215154,
-    "seen": 1791713032.2199035,
-    "ast_hash": "1c6f1d7c45eb6742a3b82d9d5262c383",
+    "mtime": 1791719892.1500344,
+    "seen": 1791721431.5253148,
+    "ast_hash": "1508cc768d6180052c79222fa39c8f55",
     "semantic_hash": ""
   },
   "backend/src/validation/payroll.schema.js": {
-    "mtime": 1791715687.6602893,
-    "seen": 1791716426.7088141,
-    "ast_hash": "c7aac38fad41ef334a05930423cb394d",
+    "mtime": 1791719892.1499188,
+    "seen": 1791721431.5253763,
+    "ast_hash": "450647135f96ce74266da7963bcdedb2",
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollApi.test.js": {
@@ -6006,9 +6006,111 @@
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Payroll_Phase2_Review_Hardening.md": {
-    "mtime": 1791716365.3673546,
-    "seen": 1791716426.7096927,
-    "ast_hash": "c37e422c8c96c1a1a13633424536b10d",
+    "mtime": 1791716504.2863011,
+    "seen": 1791718678.7415445,
+    "ast_hash": "193b9d8c0414a3c33950fa26926a86a5",
+    "semantic_hash": ""
+  },
+  "backend/src/controllers/payrollPreview.controller.js": {
+    "mtime": 1791719892.0829349,
+    "seen": 1791721431.525051,
+    "ast_hash": "4d82349d5472849ba6549fe140bbad79",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/109_payroll_read_only_preview_sources.sql": {
+    "mtime": 1791721517.3779924,
+    "seen": 1791721719.2743595,
+    "ast_hash": "87f6b939ce202cac194be95aaae379d6",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/exact.js": {
+    "mtime": 1791719605.6413221,
+    "seen": 1791721431.5252693,
+    "ast_hash": "c69d3a372ab783c3229f4ea973d693f4",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/factory.js": {
+    "mtime": 1791720336.8992805,
+    "seen": 1791721431.5252707,
+    "ast_hash": "b3ac76d6180d43baed5f56d28df6238d",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/permanent.js": {
+    "mtime": 1791720052.7724974,
+    "seen": 1791721431.5252724,
+    "ast_hash": "e36e254ebb2513b39dd948a1efd728cd",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/preview.js": {
+    "mtime": 1791720336.9002793,
+    "seen": 1791721431.5252733,
+    "ast_hash": "4a25237542fa9185ae1904268a096aec",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/reconciliation.js": {
+    "mtime": 1791719778.184964,
+    "seen": 1791721431.5252743,
+    "ast_hash": "cb700248a5f0e4d10accfe7312462676",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/sources.js": {
+    "mtime": 1791720916.4114935,
+    "seen": 1791721431.5252757,
+    "ast_hash": "13da1e0d1529515f94f571298ee048c4",
+    "semantic_hash": ""
+  },
+  "backend/src/domain/payroll/statutory.js": {
+    "mtime": 1791719892.081935,
+    "seen": 1791721431.5252767,
+    "ast_hash": "6adecc5d354320af4273b5edb06b0003",
+    "semantic_hash": ""
+  },
+  "backend/tests/helpers/payrollPreviewFixtures.js": {
+    "mtime": 1791720052.7044747,
+    "seen": 1791721431.5254068,
+    "ast_hash": "2e27ad3e5a591837e4e31b6f6fde0b32",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/regression/payrollPreview.test.js": {
+    "mtime": 1791721606.9216201,
+    "seen": 1791721719.2746294,
+    "ast_hash": "0a8f3ff827831ad868582e20ef81a72c",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/regression/payrollPreviewApi.test.js": {
+    "mtime": 1791720670.1656966,
+    "seen": 1791721431.5255647,
+    "ast_hash": "db86cdca512ae951384f4bcc2787a8fc",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/unit/payrollPreview.test.js": {
+    "mtime": 1791720670.1686518,
+    "seen": 1791721431.5256116,
+    "ast_hash": "97eebea510791421bd11ec493e605f80",
+    "semantic_hash": ""
+  },
+  "frontend/src/api/payrollPreviewApi.js": {
+    "mtime": 1791719892.1539357,
+    "seen": 1791721431.5256598,
+    "ast_hash": "03f42434eaf4579e5f6ff7a09ed1c3bf",
+    "semantic_hash": ""
+  },
+  "frontend/src/pages/hr/PayrollPreviews.jsx": {
+    "mtime": 1791720498.275983,
+    "seen": 1791721431.5261283,
+    "ast_hash": "200801b932ad5d53357689ec7d6c60b6",
+    "semantic_hash": ""
+  },
+  "frontend/src/pages/hr/PayrollPreviews.test.jsx": {
+    "mtime": 1791720336.8359752,
+    "seen": 1791721431.5261302,
+    "ast_hash": "068fd5f2ad55f4a438e57f904abff4f9",
+    "semantic_hash": ""
+  },
+  "documentation/SN_Polymers_Payroll_Phase3_Implementation.md": {
+    "mtime": 1791721409.563537,
+    "seen": 1791721431.52634,
+    "ast_hash": "45ec198a559862323bfe164adad8ded3",
     "semantic_hash": ""
   }
 }
