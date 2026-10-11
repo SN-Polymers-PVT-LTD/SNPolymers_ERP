@@ -97,6 +97,9 @@ test('source-resolution failures do not prevent withdrawing an unapproved oversi
  const a=await one(db,'SELECT id FROM payroll_employee_assignments WHERE revision_id=$1',[h]),run=await one(db,"SELECT * FROM create_payroll_draft_run($1,$2,$3,$4,'Custom',$5)",[f.group,f.department,f.from,to,users.fm.id]);
  const row=await one(db,'SELECT * FROM add_payroll_draft_employee($1,$2,$3,$4,$5)',[run.id,a.id,f.from,to,users.fm.id]);
  await reject(()=>one(db,'SELECT get_payroll_review_sources($1,$2)',[row.id,users.fm.id]),'22023');
+ const detail=(await one(db,'SELECT get_payroll_employee_review($1,$2) r',[row.id,users.fm.id])).r;
+ expect(detail.row.id).toBe(row.id);expect(detail.source).toBeNull();expect(detail.source_error.sqlstate).toBe('22023');expect(detail.content_versions).toHaveLength(1);
+ await reject(()=>one(db,'SELECT get_payroll_employee_review($1,$2)',[row.id,users.otherFm.id]),'42501');
  expect((await reviewAction(db,row.id,'cancel',users.fm.id,{reason:'Withdraw unsupported interval'})).row.status).toBe('CANCELLED_DRAFT');
 });
 

@@ -18,6 +18,7 @@ function setAuthenticatedRole(role) {
     }
     if (url === '/hr/payroll/runs') return Promise.resolve({ data: { success: true, selection: { runs: [], total: 0 } } });
     if (url === '/hr/payroll/review/queue') return Promise.resolve({ data: { success: true, queue: { rows: [], sheets: [], total: 0 } } });
+    if (url === '/hr/payroll/reports/register') return Promise.resolve({ data: { success: true, register: { rows: [], summaries: [], total: 0, payment_status: 'NOT_ELIGIBLE' } } });
     if (url === '/hr/payroll/context') return Promise.resolve({ data: { success: true, context: { groups: [] } } });
     if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
@@ -180,6 +181,13 @@ describe('App Smoke Tests', () => {
     expect(await screen.findByRole('heading',{name:'Payroll employee review'})).toBeInTheDocument();
     expect(screen.getAllByRole('link',{name:'Payroll Review'}).length).toBeGreaterThan(0);
     expect(await screen.findByText('No employees in this review queue.')).toBeInTheDocument();
+  });
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s payroll register navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/register');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll salary register'})).toBeInTheDocument();expect(screen.getAllByRole('link',{name:'Payroll Register'}).length).toBeGreaterThan(0);expect(await screen.findByText('No employee rows match these filters.')).toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll reporting navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/register');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Register'})).not.toBeInTheDocument();
   });
   it.each(['je','zo'])('denies %s direct payroll review navigation',async role=>{
     setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);

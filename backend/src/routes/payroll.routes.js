@@ -13,6 +13,11 @@ router.post('/masters/:kind/drafts', requireRole(['admin']), validateRequest(mas
 router.get('/masters/:kind/resolve', requireRole(['admin']), validateRequest(masterSchema.resolve), masters.resolve);
 router.get('/masters/:kind/:id/preview', requireRole(['admin']), validateRequest(masterSchema.preview), masters.preview);
 router.post('/masters/:kind/:id/publish', requireRole(['admin']), validateRequest(masterSchema.publish), masters.publish);
+const reports = require('../controllers/payrollReports.controller');
+const reportSchema = require('../validation/payrollReports.schema');
+router.get('/reports/register', validateRequest(reportSchema.register), reports.register);
+router.get('/reports/export', validateRequest(reportSchema.export), reports.exportReport);
+router.get('/rows/:rowId/payslip', validateRequest(reportSchema.payslip), reports.payslip);
 const previews = require('../controllers/payrollPreview.controller');
 const review = require('../controllers/payrollReview.controller');
 const reviewSchema = require('../validation/payrollReview.schema');

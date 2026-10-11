@@ -18,6 +18,7 @@ import SystemPolicy from './pages/SystemPolicy';
 // Dynamic Lazy Views for chunk splitting & optimistic preloading
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const PayrollPreviews = React.lazy(() => import('./pages/hr/PayrollPreviews'));
+const PayrollRegister = React.lazy(() => import('./pages/hr/PayrollRegister'));
 const PayrollReview = React.lazy(() => import('./pages/hr/PayrollReview'));
 const PayrollMasters = React.lazy(() => import('./pages/admin/PayrollMasters'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
@@ -221,6 +222,7 @@ function App() {
 
                 <Route element={<ProtectedRoute allowedRoles={['admin','accounts','ho','factory_manager']} />}>
                   <Route path="/hr/payroll/previews" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollPreviews /></React.Suspense>} />
+                  <Route path="/hr/payroll/register" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollRegister /></React.Suspense>} />
                   <Route path="/hr/payroll/review" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollReview /></React.Suspense>} />
                 </Route>
 

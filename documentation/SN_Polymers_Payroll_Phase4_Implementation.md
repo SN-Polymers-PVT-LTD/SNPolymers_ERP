@@ -72,6 +72,27 @@ source facts, dated masters and employee-month plans still invalidate it.
 Cancelled rows are excluded from month plans in both review snapshots and the
 reused calculation engine.
 
+Migration **112_payroll_review_source_recovery.sql** separates review metadata
+from preview source availability. A source parameter failure (SQLSTATE `22023`,
+including a legacy period exceeding the 24-month preview limit) returns
+`source_error: {code, sqlstate, message}` with metadata and immutable histories.
+The API returns `current_preview: null`, `source_stale: null` (unknown), no current
+source comparisons or assignment candidates, and excludes calculation,
+submission, forwarding and final-check actions until sources resolve. Authorized
+correction, withdrawal and return remain available. The UI displays the error,
+retains saved salary evidence and recovery controls, and supports retrying sources.
+Actor, current run scope and historical evidence scope checks remain mandatory;
+authorization and missing-row failures remain HTTP errors. Transactional action
+validation and financial gates are unchanged. The RPC signature is unchanged,
+so schema/RPC/index manifests require no new entries.
+
+Recovery regression coverage includes the PostgreSQL detail read, an HTTP
+oversized-draft correction/withdrawal cycle with scope denial and calculation
+rejection, and the UI recovery controls, saved evidence and source retry.
+Verification: complete isolated payroll suite **150/150**; focused review and
+DB schema/RPC/index suites **26/26**; PayrollReview UI suite **9/9**; frontend
+production build passed.
+
 Returns preserve their stage and exact revision. Corrections can refresh a
 canonical assignment ID only from the employee's current evidenced history, for
 the same immutable run/group/department/date interval. They refresh pay-history

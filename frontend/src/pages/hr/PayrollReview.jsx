@@ -1,4 +1,5 @@
 import React,{useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
 import {useQuery,useMutation,useQueryClient} from '@tanstack/react-query';
 import {useAuth} from '../../components/AuthContext';
 import {Button,Select,Pagination,Input,TextArea} from '../../components/ui';
@@ -9,8 +10,9 @@ const labels={calculate:'Save calculation revision',correct:'Save correction',su
 const states=['DRAFT','CALCULATED','PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL','RETURNED_TO_CREATOR','CANCELLED_DRAFT','LOCKED'];
 const errorMessage=e=>e?.response?.data?.message||e?.response?.data?.result?.code||e.message;
 export default function PayrollReview(){
+ const [searchParams]=useSearchParams();
  const {user}=useAuth(),allowed=['admin','accounts','ho','factory_manager'].includes(user?.role),client=useQueryClient();
- const [page,setPage]=useState(1),[status,setStatus]=useState(''),[rowId,setRowId]=useState(''),[selected,setSelected]=useState([]),[reason,setReason]=useState(''),[note,setNote]=useState(''),[assignment,setAssignment]=useState(''),[results,setResults]=useState([]),[lockBlockers,setLockBlockers]=useState([]);
+ const [page,setPage]=useState(1),[status,setStatus]=useState(''),[rowId,setRowId]=useState(searchParams.get('row')||''),[selected,setSelected]=useState([]),[reason,setReason]=useState(''),[note,setNote]=useState(''),[assignment,setAssignment]=useState(''),[results,setResults]=useState([]),[lockBlockers,setLockBlockers]=useState([]);
  const [editingRun,setEditingRun]=useState(null);
  const queue=useQuery({queryKey:['payroll-review-queue',user?.id,user?.role,page,status],enabled:allowed,queryFn:async()=>(await getPayrollReviewQueue({page,limit:20,...(status?{status}:{})})).data.queue});
  const detail=useQuery({queryKey:['payroll-employee-review',user?.id,user?.role,rowId],enabled:allowed&&!!rowId,queryFn:async()=>(await getPayrollEmployeeReview(rowId)).data.review});
@@ -37,11 +39,12 @@ export default function PayrollReview(){
  {rowId&&(detail.isPending?<p role="status">Loading employee history…</p>:detail.isError?<div role="alert">{errorMessage(detail.error)} <Button onClick={()=>detail.refetch()}>Retry employee</Button></div>:<>
  <h2 className="text-xl font-bold">Employee review: {detail.data.row.status}</h2>{detail.data.row.last_return_reason&&<p>Last return ({detail.data.row.last_return_stage}): {detail.data.row.last_return_reason}</p>}
  {detail.data.employee_self&&!detail.data.available_actions.length&&<p>An independent reviewer is required for your employee salary.</p>}
+ {detail.data.source_error&&<div role="alert">Salary sources unavailable ({detail.data.source_error.code}): {detail.data.source_error.message} Calculation and source-dependent approvals are unavailable. Authorized corrections, withdrawal and review history remain accessible. <Button onClick={()=>detail.refetch()} disabled={busy}>Retry salary sources</Button></div>}
  {detail.data.source_stale&&<p role="alert">Sources changed since the saved calculation. Return and recalculate before forwarding or final locking.</p>}
  <Input aria-label="Correction note" label="Correction note" value={note} onChange={e=>setNote(e.target.value)} maxLength={2000}/>
  <Select label="Evidenced assignment for correction" value={assignment} options={[{value:'',label:'Keep current assignment'},...(detail.data.assignment_candidates||[]).map(a=>({value:a.id,label:`${a.group_code} / ${a.effective_from} – ${a.effective_to||'ongoing'}`}))]} onChange={e=>setAssignment(e.target.value)}/>
  <div>{detail.data.available_actions.map(kind=><Button key={kind} disabled={busy||(needsReason(kind)&&!reason.trim())} onClick={()=>action.mutate({row:detail.data.row,action:kind,fp:detail.data.revisions.at(-1)?.source_fingerprint})}>{labels[kind]}</Button>)}</div>
- <p>Current authoritative salary diagnostic. Payment status: {detail.data.payment_status}.</p><SalaryPreview preview={detail.data.current_preview}/>
+ <p>Current authoritative salary diagnostic. Payment status: {detail.data.payment_status}.</p>{detail.data.current_preview?<SalaryPreview preview={detail.data.current_preview}/>:<p>Current salary preview unavailable.</p>}
  <details><summary>Changes since saved calculation</summary><pre className="text-xs whitespace-pre-wrap">{JSON.stringify(detail.data.changes_since_saved,null,2)}</pre></details>
  <h3 className="font-bold">Submission and calculation revisions</h3>{detail.data.revisions.map(v=><details key={v.revision}><summary>Revision {v.revision} / content {v.content_version} · {v.created_at} · {v.reason}</summary><p>Prepared by {v.created_by}. Correction note: {v.content_note||'—'}</p><pre className="text-xs whitespace-pre-wrap">{JSON.stringify(v.changes,null,2)}</pre><SalaryPreview preview={v.calculation_snapshot}/></details>)}
  <details><summary>Correction content and reviewer action history</summary><pre className="text-xs whitespace-pre-wrap">{JSON.stringify({content:detail.data.content_versions,actions:detail.data.actions},null,2)}</pre></details>

@@ -1,17 +1,17 @@
-# Graph Report - SNPolymers  (2026-10-11)
+# Graph Report - SNPolymers  (2026-10-12)
 
 ## Corpus Check
-- 1008 files · ~982,638 words
+- 1020 files · ~987,191 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 68 file(s) not represented in the graph (top: .log 29, .csv 20, (none) 12)
 
 ## Summary
-- 6197 nodes · 14908 edges · 496 communities (250 shown, 246 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 563 edges (avg confidence: 0.86)
+- 6285 nodes · 15090 edges · 503 communities (251 shown, 252 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 574 edges (avg confidence: 0.86)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `36b52ddb`
+- Built from commit: `c17dfc70`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -19,29 +19,29 @@
 - milestone_p3_m5.test.js
 - Phase 4: Requisition Management Module — Implementation Plan
 - 104_payroll_phase1_foundation.sql
-- Badge
-- supabase.js
-- backend/package.json
-- requisitions.controller.js
 - Input
+- supabase.js
+- deployContract.test.js
+- requisitions.controller.js
+- Select
 - App.jsx
 - Requisitions.jsx
-- hrPayStructures.test.js
+- hrFactoryMasters.test.js
 - ThemeContext.jsx
 - Button
 - Factory Manager UI/UX Audit & Reviewed Implementation Plan
 - milestone7.test.js
 - telegram.service.js
-- Table
+- ui/index.js
 - workOrderMappings.test.js
 - acctRequisition.controller.js
 - fundRequestAccountsImport.test.js
-- milestone_p7_m6.test.js
+- dailyProgress.routes.js
 - PermanentPayStructure.jsx
 - 102_hr_category_department_factory_rosters.sql
 - test_milestone_p7_api.js
 - idempotency.test.js
-- businessRuleInvariants.test.js
+- raFinalBill.routes.js
 - pg-connect.js
 - ref_vitest
 - fundRequests.controller.js
@@ -49,51 +49,51 @@
 - preview.js
 - Subcontract SQL Procedures
 - app.js
-- hrEmployees.schema.js
+- hrEmployeeCategories.js
 - ZoDashboard.jsx
-- acctSheetCloseReview.test.js
+- RequestDetailPanel.jsx
 - subcontractMasters.test.js
-- apiSnapshots.test.js
+- acctRequisitionsApi.js
 - mockApiScenario.js
 - Phase 4: Updated Payment Requisition Management Flow — Implementation Plan
 - auth.controller.js
-- Select
+- DailyAttendance.jsx
 - Accounting Database Schema
 - 108_payroll_typed_adjustments_canonical_scope.sql
 - manifest-queries.js
 - Subcontractor Database Indexes
-- verifyJwt.js
+- requireRole.js
 - estimates.core.controller.js
 - logError
-- mockRes.js
+- acctRequisitionImport.test.js
 - Database Audit Triggers
-- @tanstack/react-query
+- projects.controller.js
 - SubcontractEstimates.jsx
 - estimates.workflow.controller.js
-- hrFactoryMasters.routes.js
+- validateRequest.js
 - localTestRunner.test.js
 - estimates.controller.js
-- auth.routes.js
-- S. N. Polymers ERP — Employee Management Module
+- milestone_p7_m6.test.js
+- businessRuleInvariants.test.js
 - 106_payroll_policy_statutory_masters.sql
-- reports.controller.js
-- zod
+- hrPayStructures.test.js
+- estimatedBills.routes.js
 - userMappings.test.js
 - apiResponseShape.test.js
 - milestone_p4_m4.test.js
 - 097_hr_attendance_leave_foundation.sql
 - BubbleRiskMatrixChart.test.js
 - scripts
-- acctRequisitionsApi.js
-- ui/index.js
+- estimates.routes.js
+- useAuth
 - WorkOrderTelemetryTable.test.js
 - RAFinalBill.jsx
 - purchaseData.routes.js
 - scurveSeries.js
-- estimates.routes.js
+- rbacUsers.js
 - S. N. Polymers Pvt. Ltd. — Payroll Management: Business Rules & Workflow Specification
 - payrollMasters.schema.js
-- activityBreaks.controller.js
+- activityBreaks.routes.js
 - fundReturns.controller.js
 - estimatesApi.js
 - payrollFoundation.test.js
@@ -110,16 +110,16 @@
 - Beneficiary Database Migration
 - frontend/package.json
 - Linting and Tooling
-- calculatePreview
+- payrollReview.controller.js
 - What You Must Do When Invoked
 - dependencies
-- milestone_p5_m4.test.js
-- payrollMastersApi.test.js
+- backend/package.json
+- MaterialMaster.jsx
 - Subcontract Finance Integration
-- acctRequisitionLifecycle.test.js
+- payrollReports.controller.js
 - HR Attendance API Tests
 - What You Must Do When Invoked
-- ref_crypto
+- requireLocalSupabase.js
 - exact.js
 - apiSerialization.test.js
 - 6.3 Admin Payroll Policy Master — approved configurable architecture, controlled calculation methods
@@ -127,9 +127,9 @@
 - projectsHealth.test.js
 - Work Order Activity Monitoring
 - HR Employee Master Data
-- NEFT Export Service
+- bulkNeftExport.service.js
 - ZoDashboardView.jsx
-- getDisplayName
+- Docs.jsx
 - public.get_payroll_preview_sources
 - DailyAttendance.test.jsx
 - Zonal Fund Reconciliations
@@ -137,7 +137,7 @@
 - Subcontractor Ledger Hardening
 - Payment Requisition Lifecycle
 - Site Visit Monitoring
-- excessFundReturns.controller.js
+- zod
 - Payment Requisition Routing
 - IDBP Technical Reference Master Index
 - public.get_payroll_draft_run
@@ -148,12 +148,12 @@
 - Requisition Audit Triggers
 - Fund Request Integration
 - Accounts Rollover Integrity
-- hrSelfServiceLeave.test.js
+- pg
 - milestone_p4_m5.test.js
-- payrollMasters.js
-- materials.routes.js
+- DigitalTwinHub.jsx
+- hrEmployees.schema.js
 - public.create_payroll_draft_run
-- hrEmployees.test.js
+- hrEmployees.controller.js
 - Attendance and leave local E2E report — 3 October 2026
 - Fund Request Workflow
 - Subcontractor Payment Visibility
@@ -167,10 +167,10 @@
 - Estimate Revision Logging
 - 099_hr_attendance_ho_review.sql
 - hrAttendance.controller.js
-- PayrollReview.jsx
+- @tanstack/react-query
 - Data Import Scripts
 - Project Build Scripts
-- activityBreaks.routes.js
+- mockRes.js
 - payrollPreviewApi.test.js
 - Account Sheet Rollover
 - Subcontractor Work Capabilities
@@ -236,7 +236,7 @@
 - External Beneficiary Reconciliation
 - Beneficiary Master Audit
 - Role-Based Access Control
-- payrollReviewApi.test.js
+- payrollReportsApi.test.js
 - Vite Build Configuration
 - Frontend Dependencies
 - public.hr_employee_department_guard
@@ -268,7 +268,7 @@
 - Beneficiary Seed Data
 - Material Master Seed
 - Supabase Client Configuration
-- payroll.routes.js
+- PayrollRegister.jsx
 - Accounts Approval Design
 - System Architecture
 - Mapping Bug Reports
@@ -336,13 +336,13 @@
 - workflows/graphify.md
 - .codex/skills/graphify/references/extraction-spec.md
 - S.N. Polymers Pvt. Ltd. — Role Permissions Matrix
-- acctRequisitionImport.test.js
+- subcontractEstimates.routes.js
 - milestone4.test.js
 - 11. Payroll sheet, employee-row states and approvals
 - 3. Roles, ownership and separation of duties
-- express
+- masterDataVersion.test.js
 - How to Import
-- payroll.schema.js
+- App.test.jsx
 - 101_hr_leave_attendance_integrity.sql
 - FundRequests.jsx
 - ERP Feature Implementation
@@ -350,8 +350,8 @@
 - CODEBASE_DOCUMENTATION.md
 - 5. Payroll eligibility and pre-calculation readiness
 - Dashboard.jsx
-- requisitions.js
-- raFinalBill.routes.js
+- public.get_payroll_salary_register
+- milestone_p5_m4.test.js
 - "public"."accept_excess_fund_return"
 - unit/payrollPreview.test.js
 - 13. Salary register: improve the sample format
@@ -366,53 +366,58 @@
 - FundFlowWaterfallChart.test.js
 - react
 - indexContract.test.js
-- payrollReview.controller.js
-- hrEmployeeCategories.js
-- PayrollPreviews.jsx
+- payroll.routes.js
+- hrLeaves.controller.js
+- payroll.schema.js
 - ExecutiveKpiStrip.test.js
 - ref_path
-- RequestDetailPanel.jsx
+- businessRules/fundRequests.js
 - 107_payroll_phase2_review_hardening.sql
-- Payroll Phase 1 foundation
+- S. N. Polymers ERP — Employee Management Module
 - regression/payrollMasters.test.js
 - public.add_payroll_draft_employee
-- getZonalBalances
+- payrollMastersApi.test.js
 - daily_streak.test.js
-- subcontractEstimates.routes.js
-- Payroll Phase 3 — read-only calculation previews
-- payrollApi.test.js
+- verifyJwt.js
+- hrSelfServiceLeave.test.js
+- formatBreakPeriodLine
+- requisitions.js
 - DepartmentWiseEstimateChart.test.js
-- ref_node_assert
 - Payroll Phase 2 review of 93b028d against v1.4
-- processWebhookUpdate
 - Payroll Phase 2 — Policy and Statutory Masters
-- res
 - acctSheetCsv.js
-- App.test.jsx
-- AdminPanel.jsx
-- SubcontractEstimateView.test.jsx
 - useFundRequestUrlState.js
 - AuditComplianceCenter.jsx
 - rpcSignature.test.js
 - ref_fs
 - public.transition_payroll_employee_review
-- authApi.test.js
-- 109_payroll_read_only_preview_sources.sql
+- Payroll Phase 1 foundation
+- hrPayStructures.controller.js
+- processWebhookUpdate
 - subcontractEstimates.telegram.test.js
+- SubcontractEstimateView.test.jsx
+- ProjectBeneficiarySuggestions.jsx
+- seed_materials.js
+- res
+- res
+- authApi.test.js
+- milestone_p3_m4.test.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `react` - 311 edges
-2. `supabase` - 176 edges
-3. `Button()` - 162 edges
-4. `react-router-dom` - 156 edges
-5. `@testing-library/react` - 133 edges
-6. `Input` - 118 edges
-7. `useAuth()` - 114 edges
-8. `Modal()` - 107 edges
-9. `authApi` - 106 edges
+1. `react` - 314 edges
+2. `supabase` - 178 edges
+3. `Button()` - 164 edges
+4. `react-router-dom` - 160 edges
+5. `@testing-library/react` - 134 edges
+6. `Input` - 120 edges
+7. `useAuth()` - 116 edges
+8. `authApi` - 107 edges
+9. `Modal()` - 107 edges
 10. `Badge()` - 96 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Workflow and API` --references--> `statutory()`  [INFERRED]
+  documentation/SN_Polymers_Payroll_Phase2_Implementation.md → backend/tests/helpers/payrollMasterFixtures.js
 - `Spot 6: Inline Leave Form Location & Dialog Semantics (`LeaveForm`)` --references--> `Modal()`  [INFERRED]
   documentation/SN_Polymers_FM_UI_UX_Ergonomics_Plan.md → frontend/src/components/ui/Modal.jsx
 - `2. Sticky Opaque Employee Column` --references--> `TableCell()`  [INFERRED]
@@ -421,8 +426,6 @@
   documentation/Phase4_Implementation_Plan (1).md → frontend/src/pages/Requisitions.jsx
 - `3. HO Review Detail (`/factory-attendance/review/:sheetId`)` --references--> `LeaveDecision()`  [INFERRED]
   documentation/SN_Polymers_FM_UI_UX_Ergonomics_Plan.md → frontend/src/pages/hr/AttendanceReviewDetail.jsx
-- `2. Integration Across Factory Attendance Views` --references--> `SheetHistory()`  [INFERRED]
-  documentation/SN_Polymers_FM_UI_UX_Ergonomics_Plan.md → frontend/src/pages/hr/DailyAttendance.jsx
 
 ## Import Cycles
 - None detected.
@@ -435,11 +438,11 @@
 - **Project Governance and Mapping Core** — authorised_users, je_zo_mappings, work_order_mappings, projects_master [EXTRACTED 1.00]
 - **Authentication & OTP Flow** — docs_security_md, docs_api_md, docs_backend_md [INFERRED 0.95]
 
-## Communities (496 total, 246 thin omitted)
+## Communities (503 total, 252 thin omitted)
 
 ### Community 0 - "milestone_p3_m5.test.js"
-Cohesion: 0.10
-Nodes (23): getSessions(), getUsers(), { logError }, removeUser(), { supabase }, { toStoredMobileNumber, mobileNumberVariants }, updateUser(), adminLimiter (+15 more)
+Cohesion: 0.07
+Nodes (38): addUser(), getSessions(), getUsers(), { logError }, removeUser(), { supabase }, { toStoredMobileNumber, mobileNumberVariants }, updateUser() (+30 more)
 
 ### Community 1 - "Phase 4: Requisition Management Module — Implementation Plan"
 Cohesion: 0.06
@@ -449,48 +452,48 @@ Nodes (30): `actOnRequisition(req, res)` — `PATCH /api/v1/auth/requisitions/:i
 Cohesion: 0.12
 Nodes (12): payroll_allocation_phase1_gate, payroll_coverage_phase1_gate, payroll_employee_observations_employee_idx, payroll_entitlement_phase1_gate, payroll_factory_scope_latest_idx, public.get_payroll_foundation_context(), public.payroll_employee_observations, public.payroll_factory_scope_events (+4 more)
 
-### Community 3 - "Badge"
-Cohesion: 0.09
-Nodes (35): getBeneficiaries(), lookupBeneficiary(), searchBeneficiariesByAcNo(), upsertBeneficiary(), upsertIndianBank(), BeneficiaryAcNoSuggestions(), beneficiary, BeneficiaryAutofill() (+27 more)
+### Community 3 - "Input"
+Cohesion: 0.08
+Nodes (46): getBeneficiaries(), lookupBeneficiary(), searchBeneficiariesByAcNo(), upsertBeneficiary(), upsertIndianBank(), getProjectsBeneficiaries(), upsertIndianBank(), upsertProjectsBeneficiary() (+38 more)
 
 ### Community 4 - "supabase.js"
 Cohesion: 0.02
-Nodes (92): { supabase }, materials, seed(), { supabase }, { createClient }, { getLocalTestTarget }, supabase, { supabase } (+84 more)
+Nodes (106): { supabase }, getWorkOrdersWithoutRaBill(), { createClient }, { getLocalTestTarget }, supabase, { supabase }, { supabase }, { supabase } (+98 more)
 
-### Community 5 - "backend/package.json"
-Cohesion: 0.06
-Nodes (30): description, devDependencies, nodemon, pg, vitest, @vitest/ui, vitest, main (+22 more)
+### Community 5 - "deployContract.test.js"
+Cohesion: 0.13
+Nodes (11): test, getCookieOptions(), isOriginAllowed(), getBuildInfo(), pkg, backendDir, { execSync }, { getBuildInfo } (+3 more)
 
 ### Community 6 - "requisitions.controller.js"
-Cohesion: 0.03
-Nodes (85): actOnRequisition(), adjustSubcontractorBalance(), { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary }, cancelRequisition(), cleanupCancelledRequisitionAttachments(), { computeMainHeadCapacity, computeSubcontractorCapacity, computeSubcontractFinanceCapacity }, {
+Cohesion: 0.04
+Nodes (74): adjustSubcontractorBalance(), { BeneficiaryValidationError, resolveBeneficiaryBank, upsertProjectsBeneficiary: upsertSharedBeneficiary }, cancelRequisition(), cleanupCancelledRequisitionAttachments(), { computeMainHeadCapacity, computeSubcontractorCapacity, computeSubcontractFinanceCapacity }, {
   createRequisitionSchema, actOnRequisitionSchema, cancelRequisitionSchema, adjustSubcontractorBalanceSchema,
   payFromZoBalanceSchema, sendToAccountsSchema, upsertProjectsBeneficiarySchema, upsertIndianBankSchema
-}, crypto (+77 more)
+}, crypto, { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache } (+66 more)
 
-### Community 7 - "Input"
-Cohesion: 0.14
-Nodes (29): listPayrollMasters(), previewPayrollPublication(), publishPayrollMaster(), resolvePayrollMaster(), savePayrollMaster(), getProjectsBeneficiaries(), upsertIndianBank(), upsertProjectsBeneficiary() (+21 more)
+### Community 7 - "Select"
+Cohesion: 0.13
+Nodes (31): listPayrollMasters(), previewPayrollPublication(), publishPayrollMaster(), resolvePayrollMaster(), savePayrollMaster(), actOnPayrollEmployee(), actOnPayrollEmployees(), addPayrollDraftEmployee() (+23 more)
 
 ### Community 8 - "App.jsx"
 Cohesion: 0.05
-Nodes (77): AcctBankBalances, AcctBeneficiaryMaster, AcctCreditLedger, AcctHoQueue, AcctHoSheetView, AcctImportEligibleItems, AcctParticulars, AcctPaymentRequisitions (+69 more)
+Nodes (78): AcctBankBalances, AcctBeneficiaryMaster, AcctCreditLedger, AcctHoQueue, AcctHoSheetView, AcctImportEligibleItems, AcctParticulars, AcctPaymentRequisitions (+70 more)
 
 ### Community 9 - "Requisitions.jsx"
-Cohesion: 0.08
-Nodes (59): getEstimateById(), getEstimates(), actOnRequisition(), adjustSubcontractorBalance(), cancelRequisition(), createRequisition(), deleteGstBillPdf(), deleteRequisitionPdf() (+51 more)
-
-### Community 10 - "hrPayStructures.test.js"
 Cohesion: 0.07
-Nodes (25): refreshTokens(), generateTokens(), jwt, { supabase }, { v4: uuidv4 }, app, { Client }, crypto (+17 more)
+Nodes (65): getEstimates(), actOnRequisition(), adjustSubcontractorBalance(), cancelRequisition(), createRequisition(), deleteGstBillPdf(), deleteRequisitionPdf(), getMainHeadCapacity() (+57 more)
+
+### Community 10 - "hrFactoryMasters.test.js"
+Cohesion: 0.14
+Nodes (12): refreshTokens(), generateTokens(), app, { Client }, crypto, { generateTokens }, mockRes, { requireCurrentAdmin } (+4 more)
 
 ### Community 11 - "ThemeContext.jsx"
-Cohesion: 0.18
-Nodes (23): AuthProvider(), ModalContext, ModalProvider(), DARK_BACKGROUNDS, LIGHT_BACKGROUNDS, ThemeContext, ThemeProvider(), renderWithProviders() (+15 more)
+Cohesion: 0.16
+Nodes (25): AuthProvider(), ModalContext, ModalProvider(), DARK_BACKGROUNDS, LIGHT_BACKGROUNDS, ThemeContext, ThemeProvider(), renderWithProviders() (+17 more)
 
 ### Community 12 - "Button"
-Cohesion: 0.08
-Nodes (52): adjustCreditLedgerBalance(), upsertBankBalance(), actOnActivityBreak(), createActivityBreak(), getActivityBreaks(), addAuthorityRemarks(), createProgressReport(), getProgressReportById() (+44 more)
+Cohesion: 0.07
+Nodes (56): adjustCreditLedgerBalance(), actOnActivityBreak(), createActivityBreak(), getActivityBreaks(), addAuthorityRemarks(), createProgressReport(), getProgressReportById(), getProgressReports() (+48 more)
 
 ### Community 13 - "Factory Manager UI/UX Audit & Reviewed Implementation Plan"
 Cohesion: 0.06
@@ -514,11 +517,11 @@ Nodes (18): {
 
 ### Community 15 - "telegram.service.js"
 Cohesion: 0.13
-Nodes (30): actOnLineItemsBatch(), submitFundRequest(), buildReviewCompleteMessage(), escapeHtml(), getMappedZoForJe(), notifyAccountsFundRequestSubmitted(), notifyAcctSheetReviewComplete(), notifyAllEstimateFinalApproved() (+22 more)
+Nodes (46): actOnLineItemsBatch(), submitFundRequest(), actOnRequisition(), createRequisition(), transitionWorkflow(), resolveBeneficiaryBank(), broadcastTelegram(), buildReviewCompleteMessage() (+38 more)
 
-### Community 16 - "Table"
-Cohesion: 0.08
-Nodes (57): Approved Tightened Scope & Architectural Guardrails, createSheet(), getLineItems(), getPaymentRequisitions(), getRequisitionLogs(), getSheets(), reviewSubcontractEstimateRows(), baseItem (+49 more)
+### Community 16 - "ui/index.js"
+Cohesion: 0.07
+Nodes (70): Approved Tightened Scope & Architectural Guardrails, createSheet(), getCreditLedger(), getLineItems(), getPaymentRequisitions(), getRequisitionLogs(), getSheets(), importCreditInstallment() (+62 more)
 
 ### Community 17 - "workOrderMappings.test.js"
 Cohesion: 0.10
@@ -529,8 +532,8 @@ Nodes (25): createWorkOrderMapping(), { createWorkOrderMappingSchema, deactivate
 }, express (+17 more)
 
 ### Community 18 - "acctRequisition.controller.js"
-Cohesion: 0.05
-Nodes (67): {
+Cohesion: 0.03
+Nodes (107): actOnLineItem(), addLineItem(), {
   addLineItemSchema, updateLineItemSchema, actOnLineItemSchema, actOnLineItemsBatchSchema,
   resubmitLineItemSchema,
   upsertBankBalanceSchema, upsertAccountSubTitleSchema, upsertBeneficiarySchema,
@@ -538,64 +541,70 @@ Nodes (67): {
   upsertIndianBankSchema,
   exportNeftSchema,
   refreshIndianBanksCache
-}, adjustCreditLedgerBalance(), { buildBulkNeftWorkbook }, getAccountSubTitles(), { getActiveIndianBanks, validateActiveIndianBank, invalidateBankCache }, getBankBalanceLedger(), getBankBalances(), getBeneficiaries() (+59 more)
+}, adjustCreditLedgerBalance(), { buildBulkNeftWorkbook }, closeSheetReview(), createSheet(), deleteLineItem() (+99 more)
 
 ### Community 19 - "fundRequestAccountsImport.test.js"
-Cohesion: 0.16
-Nodes (18): createSheet(), deleteLineItem(), updateLineItem(), callActOnLineItem(), callCreateSheet(), callDeleteLineItem(), callDismissLineItem(), callGetEligible() (+10 more)
+Cohesion: 0.11
+Nodes (22): dismissImportEligibleItem(), { computeMainHeadCapacity }, { createPgClient }, createProjectWithEstimate(), crypto, { dismissImportEligibleItem, restoreFundRequestImport }, mockRes, callActOnLineItem() (+14 more)
 
-### Community 20 - "milestone_p7_m6.test.js"
-Cohesion: 0.05
-Nodes (52): addAuthorityRemarks(), createProgressReport(), {
+### Community 20 - "dailyProgress.routes.js"
+Cohesion: 0.10
+Nodes (30): addAuthorityRemarks(), createProgressReport(), {
   createProgressReportSchema,
   addRemarksSchema,
   getReportByIdSchema
-}, getMappedJeMobiles(), getProgressReportById(), getProgressReports(), resolveDisplayNames(), { supabase } (+44 more)
+}, getMappedJeMobiles(), getProgressReportById(), getProgressReports(), resolveDisplayNames(), { supabase } (+22 more)
 
 ### Community 21 - "PermanentPayStructure.jsx"
-Cohesion: 0.10
-Nodes (32): createEmployee(), getEmployees(), getErpUsers(), updateEmployee(), updateEmployeeStatus(), createPayStructure(), getAllPayStructures(), getEmployeePayStructures() (+24 more)
+Cohesion: 0.15
+Nodes (25): createEmployee(), getEmployees(), getErpUsers(), updateEmployee(), updateEmployeeStatus(), createPayStructure(), getAllPayStructures(), getEmployeePayStructures() (+17 more)
 
 ### Community 22 - "102_hr_category_department_factory_rosters.sql"
 Cohesion: 0.14
 Nodes (9): hr_attendance_employee_day_guard, hr_employee_department_guard, public.hr_attendance_guard_employee_day(), public.hr_attendance_guard_sheet(), public.hr_attendance_validate_sheet(), public.hr_employee_department_guard(), public.hr_leave_guard(), public.hr_permanent_pay_audit() (+1 more)
 
 ### Community 23 - "test_milestone_p7_api.js"
-Cohesion: 0.08
-Nodes (21): app, assert, crypto, jwt, { JWT_SECRET }, path, runApiTests(), { supabase } (+13 more)
+Cohesion: 0.09
+Nodes (20): app, assert, crypto, jwt, { JWT_SECRET }, path, runApiTests(), { supabase } (+12 more)
 
 ### Community 24 - "idempotency.test.js"
 Cohesion: 0.05
 Nodes (48): seedCapDivergenceScenario(), { seedFinancialScenario, cleanupFinancialScenario, insertRequisitionViaRpc }, cleanupFinancialScenario(), countLedgerRows(), crypto, ensureMaterialHead(), getLedgerRows(), getZoBalance() (+40 more)
 
-### Community 25 - "businessRuleInvariants.test.js"
-Cohesion: 0.06
-Nodes (46): createProject(), { createProjectSchema, updateProjectSchema, updateProjectStatusSchema }, getDashboardOverview(), getProjectByWorkOrder(), getProjectCapacity(), getProjects(), getProjectsCapacity(), { getWorkOrderCapacity, getBulkWorkOrderCapacity } (+38 more)
+### Community 25 - "raFinalBill.routes.js"
+Cohesion: 0.07
+Nodes (26): ALLOWED_MIMES, MIME_TO_EXT, { supabase }, uploadBillCopy(), { v4: uuidv4 }, authorisedRoles, {
+  createBill,
+  getBills,
+  getBillById,
+  getBillSummaryByWorkOrder,
+  getWorkOrdersWithoutRaBill
+}, { createBillSchema, getBillByIdSchema } (+18 more)
 
 ### Community 26 - "pg-connect.js"
-Cohesion: 0.06
-Nodes (34): { createPgClient }, fs, leadingNumber(), main(), MIGRATIONS_DIR, path, sortMigrations(), { Client } (+26 more)
+Cohesion: 0.07
+Nodes (29): { createPgClient }, fs, leadingNumber(), main(), MIGRATIONS_DIR, path, sortMigrations(), { Client } (+21 more)
 
 ### Community 27 - "ref_vitest"
 Cohesion: 0.15
 Nodes (18): authApi, failedQueue, creditLedgerItem, logEntry, acctSheetDetailFixture, acctSheetsFixture, describePageContract(), normalizeContractArgs() (+10 more)
 
 ### Community 28 - "fundRequests.controller.js"
-Cohesion: 0.05
-Nodes (53): { BeneficiaryValidationError, resolveBeneficiaryBank }, cancelFundRequest(), createFundRequest(), {
+Cohesion: 0.07
+Nodes (41): { BeneficiaryValidationError, resolveBeneficiaryBank }, cancelFundRequest(), createFundRequest(), {
   createFundRequestSchema,
   updateFundRequestDraftSchema,
   submitFundRequestSchema,
   cancelFundRequestSchema
-}, crypto, getEffectiveFrRole(), { getFinalApprovedEstimateMap, getFundRequestSubmittedTotal, getApprovedEstimateAmount }, getFundRequestById() (+45 more)
+}, crypto, getEffectiveFrRole(), { getFinalApprovedEstimateMap, getFundRequestSubmittedTotal, getApprovedEstimateAmount }, getFundRequestById() (+33 more)
 
 ### Community 29 - "cancelledRequisitionReuse.test.js"
 Cohesion: 0.05
-Nodes (49): createRequisition(), getActiveTestBankId(), validRequisitionBeneficiary(), crypto, { supabase }, {
+Nodes (46): getActiveTestBankId(), validRequisitionBeneficiary(), crypto, { supabase }, {
   createRequisition,
   getRequisitions,
   getRequisitionById
-}, crypto, { getActiveTestBankId, validRequisitionBeneficiary } (+41 more)
+}, crypto, { getActiveTestBankId, validRequisitionBeneficiary }, mockRes (+38 more)
 
 ### Community 30 - "preview.js"
 Cohesion: 0.10
@@ -609,25 +618,25 @@ Nodes (26): idx_cesc_source_line, idx_psel_adjusts_line, idx_psel_final_approved
 Cohesion: 0.04
 Nodes (47): acctRequisitionRoutes, activityBreaksRoutes, adminRoutes, analyticsRoutes, app, authRoutes, cookieParser, cors (+39 more)
 
-### Community 33 - "hrEmployees.schema.js"
+### Community 33 - "hrEmployeeCategories.js"
 Cohesion: 0.10
-Nodes (18): departmentsFor(), department, { factoryCategories: categories, departmentsFor }, params, row, selection, validDepartment(), { z } (+10 more)
+Nodes (25): create(), effective(), { factoryCategories, wageCategories }, list(), sendError(), { supabase }, definitions, departmentsFor() (+17 more)
 
 ### Community 34 - "ZoDashboard.jsx"
-Cohesion: 0.16
-Nodes (38): getHoActionableInsights(), getHoChartData(), refreshAnalyticsViews(), DEFAULT_COLORS, DepartmentWiseEstimateChart(), buildFallbackRows(), FundFlowWaterfallChart(), STAGE_METADATA_MAP (+30 more)
+Cohesion: 0.13
+Nodes (41): getHoActionableInsights(), getHoBudgetLeakage(), getHoChartData(), getHoKpis(), getHoZoneBenchmarking(), refreshAnalyticsViews(), DEFAULT_COLORS, DepartmentWiseEstimateChart() (+33 more)
 
-### Community 35 - "acctSheetCloseReview.test.js"
-Cohesion: 0.20
-Nodes (15): closeSheetReview(), getImportEligibleItems(), importLineItem(), callActOnLineItem(), callAddLineItem(), callCloseSheetReview(), callCreateSheet(), callGetEligible() (+7 more)
+### Community 35 - "RequestDetailPanel.jsx"
+Cohesion: 0.29
+Nodes (11): getProjectCapacity(), getIndianBanks(), formatCurrency(), formatDate(), formatDateTime(), getBeneficiaryValidationError(), getFinalApprovedEstimateDisplay(), RequestDetailPanel() (+3 more)
 
 ### Community 36 - "subcontractMasters.test.js"
 Cohesion: 0.05
-Nodes (52): canAccessEstimate(), createSubcontractEstimate(), getInit(), getSubcontractEstimate(), getSubcontractEstimates(), getSubcontractEstimateSummary(), isUuid(), readerRoles (+44 more)
+Nodes (49): canAccessEstimate(), createSubcontractEstimate(), getInit(), getSubcontractEstimate(), getSubcontractEstimates(), getSubcontractEstimateSummary(), isUuid(), readerRoles (+41 more)
 
-### Community 37 - "apiSnapshots.test.js"
-Cohesion: 0.10
-Nodes (17): getMe(), http, requestApp(), sanitizeForSnapshot(), stripIdsAndDates(), VOLATILE_ROOT_KEYS, app, { getMe } (+9 more)
+### Community 37 - "acctRequisitionsApi.js"
+Cohesion: 0.09
+Nodes (47): actOnLineItemsBatch(), addLineItem(), closeSheetReview(), deleteLineItem(), deleteSheetIfEmpty(), dismissImportEligibleItem(), exportBulkNeft(), getAccountSubTitles() (+39 more)
 
 ### Community 38 - "mockApiScenario.js"
 Cohesion: 0.07
@@ -638,12 +647,12 @@ Cohesion: 0.10
 Nodes (19): Automated Tests, Background & Scope, Component 1 — Database Migration, Component 2 — Backend Controllers & Validation, Component 3 — Frontend Pages, Manual Verification, [MODIFY] [approve_requisition_transact SQL function](file:///Users/aswint/Documents/GitHub/SNPolymers/backend/src/db/migrations/29_operational_integration_rpcs.sql), [MODIFY] [create_requisition_secure SQL function](file:///Users/aswint/Documents/GitHub/SNPolymers/supabase/migrations/20260709000000_fix_requisition_budget_calc.sql) (+11 more)
 
 ### Community 40 - "auth.controller.js"
-Cohesion: 0.05
-Nodes (62): addUser(), checkLinkStatus(), cookieOptions, findAuthorisedUserByMobile(), { generateOtp, hashOtp, storeOtp, verifyOtp }, { getCookieOptions }, jwt, { JWT_SECRET, generateTokens, createSession, closeSession, formatDuration } (+54 more)
+Cohesion: 0.06
+Nodes (52): checkLinkStatus(), cookieOptions, findAuthorisedUserByMobile(), { generateOtp, hashOtp, storeOtp, verifyOtp }, { getCookieOptions }, getProfileData(), jwt, { JWT_SECRET, generateTokens, createSession, closeSession, formatDuration } (+44 more)
 
-### Community 41 - "Select"
-Cohesion: 0.08
-Nodes (56): decideFactoryLeave(), getAttendanceCalendar(), getAttendanceHistory(), getAttendanceReviewDetail(), getAttendanceReviewQueue(), getFmAttendanceSummary(), loadAttendanceSheet(), populateAttendanceSheet() (+48 more)
+### Community 41 - "DailyAttendance.jsx"
+Cohesion: 0.09
+Nodes (49): decideFactoryLeave(), getAttendanceCalendar(), getAttendanceHistory(), getAttendanceReviewDetail(), getFmAttendanceSummary(), loadAttendanceSheet(), populateAttendanceSheet(), returnAttendanceSheet() (+41 more)
 
 ### Community 42 - "Accounting Database Schema"
 Cohesion: 0.08
@@ -661,9 +670,9 @@ Nodes (19): { createPgClient }, explainPlan(), fetchAppliedMigrations(), fetchEx
 Cohesion: 0.11
 Nodes (31): idx_pse_status, idx_pse_updated_at, idx_pse_work_order, idx_psel_estimate, idx_psel_estimate_party_work, idx_psel_estimate_work, idx_psel_subcontractor, idx_psel_work (+23 more)
 
-### Community 46 - "verifyJwt.js"
-Cohesion: 0.05
-Nodes (37): requireRole(), validate, validateRequest(), cookieOptions, jwt, { JWT_SECRET }, { supabase }, controller (+29 more)
+### Community 46 - "requireRole.js"
+Cohesion: 0.08
+Nodes (25): requireRole(), controller, requireCurrentAdmin(), requireRole, router, schema, { supabase }, validateRequest (+17 more)
 
 ### Community 47 - "estimates.core.controller.js"
 Cohesion: 0.10
@@ -679,24 +688,24 @@ Nodes (24): createEstimate(), { createEstimateSchema }, ESTIMATE_STATUS, getEsti
 }, getEstimateInitData(), getEstimates(), getEstimateSummary() (+16 more)
 
 ### Community 48 - "logError"
-Cohesion: 0.10
-Nodes (34): { getJeLeaderboard }, main(), enrichAuditsWithUserNames(), getAuditLog(), getHoActionableInsights(), getHoApprovalSla(), getHoBudgetLeakage(), getHoChartData() (+26 more)
-
-### Community 49 - "mockRes.js"
 Cohesion: 0.07
-Nodes (29): getCreditLedger(), searchBeneficiariesByAcNo(), upsertBeneficiary(), cleanupAcctRequisitionScenario(), crypto, seedAcctRequisitionScenario(), setupUsers, { supabase } (+21 more)
+Nodes (52): { getJeLeaderboard }, main(), enrichAuditsWithUserNames(), getAuditLog(), getHoActionableInsights(), getHoApprovalSla(), getHoBudgetLeakage(), getHoChartData() (+44 more)
+
+### Community 49 - "acctRequisitionImport.test.js"
+Cohesion: 0.06
+Nodes (48): deleteSheetIfEmpty(), getImportEligibleItems(), searchBeneficiariesByAcNo(), cleanupAcctRequisitionScenario(), crypto, seedAcctRequisitionScenario(), setupUsers, { supabase } (+40 more)
 
 ### Community 50 - "Database Audit Triggers"
 Cohesion: 0.06
 Nodes (6): "public"."audit_log", "public"."material_master", "public"."otp_requests", "trg_audit_log_append_only", "trg_audit_material_master", "trg_material_master_edited_at"
 
-### Community 51 - "@tanstack/react-query"
-Cohesion: 0.16
-Nodes (21): createFactoryRevision(), getEffectiveFactoryMasters(), getFactoryRevisions(), createSubcontractor(), createSubcontractWork(), getSubcontractWorks(), updateSubcontractor(), updateSubcontractorStatus() (+13 more)
+### Community 51 - "projects.controller.js"
+Cohesion: 0.12
+Nodes (24): createProject(), { createProjectSchema, updateProjectSchema, updateProjectStatusSchema }, getDashboardOverview(), getProjectByWorkOrder(), getProjects(), getProjectsCapacity(), { getWorkOrderCapacity, getBulkWorkOrderCapacity }, { supabase } (+16 more)
 
 ### Community 52 - "SubcontractEstimates.jsx"
-Cohesion: 0.06
-Nodes (40): createSubcontractEstimate(), getSubcontractEstimate(), getSubcontractEstimateInit(), getSubcontractEstimates(), getSubcontractEstimateSummary(), reconcileSubcontractEstimateLines(), transitionSubcontractEstimateWorkflow(), fetchAllActiveSubcontractors() (+32 more)
+Cohesion: 0.07
+Nodes (37): createSubcontractEstimate(), getSubcontractEstimate(), getSubcontractEstimateInit(), getSubcontractEstimates(), getSubcontractEstimateSummary(), reconcileSubcontractEstimateLines(), transitionSubcontractEstimateWorkflow(), fetchAllActiveSubcontractors() (+29 more)
 
 ### Community 53 - "estimates.workflow.controller.js"
 Cohesion: 0.13
@@ -712,9 +721,9 @@ Nodes (16): APPROVAL_STATUS, ESTIMATE_STATUS, {
   syncEditableCostEstimateForWorkOrderBestEffort
 }, { supabase } (+8 more)
 
-### Community 54 - "hrFactoryMasters.routes.js"
-Cohesion: 0.10
-Nodes (22): create(), effective(), { factoryCategories, wageCategories }, list(), sendError(), { supabase }, factoryCategories, wageCategories (+14 more)
+### Community 54 - "validateRequest.js"
+Cohesion: 0.20
+Nodes (9): validate, validateRequest(), controller, requireCurrentHrRole, requireRole, router, schema, validateRequest (+1 more)
 
 ### Community 55 - "localTestRunner.test.js"
 Cohesion: 0.12
@@ -724,80 +733,59 @@ Nodes (15): fs, { getLocalTestTarget }, validateStatus(), getLocalTestTarget(), 
 Cohesion: 0.13
 Nodes (31): { createEstimate, getEstimates, getEstimateSummary, getEstimateById, getEstimateInitData }, { _recalculateEstimateAmount }, { saveDraftItems, submitRowApprovals }, { submitEstimate, reviewEstimate, submitReview, requestRevision, getRevisionLog, reopenEstimate }, { uploadQuotation, listQuotations, deleteQuotation, toggleQuotationFlag }, canViewEstimate(), getEffectiveRole(), getEstimateById() (+23 more)
 
-### Community 57 - "auth.routes.js"
-Cohesion: 0.11
-Nodes (18): getProfileData(), globalLimiter, otpRequestLimiter, otpVerifyLimiter, rateLimit, refreshTokenLimiter, express, { otpRequestLimiter, otpVerifyLimiter, refreshTokenLimiter } (+10 more)
+### Community 57 - "milestone_p7_m6.test.js"
+Cohesion: 0.10
+Nodes (24): createBill(), {
+  getApprovedEstimateAmount,
+  resolveBillingCap
+}, getBillById(), getBills(), resolveDisplayNames(), { supabase }, {
+  createBill,
+  getBills,
+  getBillById,
+  getBillSummaryByWorkOrder
+}, crypto (+16 more)
 
-### Community 58 - "S. N. Polymers ERP — Employee Management Module"
+### Community 58 - "businessRuleInvariants.test.js"
 Cohesion: 0.11
-Nodes (15): Employee categories and six factory attendance rosters, Migration and historical compatibility, 1. Goal and implementation boundary, 2. Workforce categories and business context, 3. UI contract — Employee & Worker Master, 4. UI contract — Permanent Employee Pay Structure, 5. Proposed technical design (separate from the UI contract), 6. Proposed code integration and sequencing (+7 more)
+Nodes (22): getProjectCapacity(), getBillSummaryByWorkOrder(), FR_COMMITTED_STATUSES, getApprovedEstimateAmount(), getBillingTotal(), getFundRequestApprovedTotal(), getFundRequestCommittedAmount(), getFundRequestSubmittedTotal() (+14 more)
 
 ### Community 59 - "106_payroll_policy_statutory_masters.sql"
 Cohesion: 0.11
 Nodes (8): payroll_master_events_immutable, payroll_policy_guard, payroll_pt_guard, payroll_statutory_guard, public.payroll_master_events, public.payroll_master_payload(), public.payroll_professional_tax_slabs, public.payroll_validate_master()
 
-### Community 60 - "reports.controller.js"
-Cohesion: 0.21
-Nodes (16): createReport(), deleteReport(), getAllowedWorkOrders(), getReportById(), getReports(), getSoftDeletedReports(), isProjectClosed(), { logError } (+8 more)
+### Community 60 - "hrPayStructures.test.js"
+Cohesion: 0.17
+Nodes (10): app, crypto, employeeController, { generateTokens }, mockRes, payController, { requireCurrentAdmin }, { requireLocalSupabase } (+2 more)
 
-### Community 61 - "zod"
+### Community 61 - "estimatedBills.routes.js"
 Cohesion: 0.08
-Nodes (30): getEstimatedBill(), listEstimatedBills(), listWorkOrderOptions(), resolveDisplayNames(), { supabase }, upsertEstimatedBill(), allowedRoles, express (+22 more)
+Nodes (29): getEstimatedBill(), listEstimatedBills(), listWorkOrderOptions(), resolveDisplayNames(), { supabase }, upsertEstimatedBill(), allowedRoles, express (+21 more)
 
 ### Community 62 - "userMappings.test.js"
 Cohesion: 0.08
 Nodes (28): getTargetZOs(), createOrUpdateUserMapping(), { createUserMappingSchema }, deactivateUserMapping(), getEligibleJEs(), getEligibleZOs(), getUserMappings(), { supabase } (+20 more)
 
 ### Community 63 - "apiResponseShape.test.js"
-Cohesion: 0.11
-Nodes (20): mockRes, mockResWithCookies(), authMeResponseSchema, authUserSchema, errorResponseSchema, healthResponseSchema, projectsHealthItemSchema, projectsHealthResponseSchema (+12 more)
+Cohesion: 0.05
+Nodes (50): getMe(), crypto, deleteAuthTestUser(), FRONTEND_FORMAT(), loginTestUser(), { mobileNumberVariants }, mockResWithCookies, { requestOtp, verifyOtpCode } (+42 more)
 
 ### Community 64 - "milestone_p4_m4.test.js"
 Cohesion: 0.09
-Nodes (25): crypto, deleteGstBillPdf(), deleteRequisitionPdf(), handleDelete(), handleUpload(), sanitizeFilename(), { supabase }, uploadGstBillPdf() (+17 more)
+Nodes (27): crypto, deleteGstBillPdf(), deleteRequisitionPdf(), handleDelete(), handleUpload(), sanitizeFilename(), { supabase }, uploadGstBillPdf() (+19 more)
 
 ### Community 65 - "097_hr_attendance_leave_foundation.sql"
 Cohesion: 0.12
 Nodes (17): hr_attendance_row_guard, hr_attendance_sheet_guard, hr_leave_audit, hr_leave_guard, hr_leave_queue_idx, hr_row_audit, hr_rows_employee_idx, hr_rows_leave_idx (+9 more)
 
 ### Community 66 - "BubbleRiskMatrixChart.test.js"
-Cohesion: 0.12
-Nodes (20): BubbleRiskMatrixChart(), backendBubbles, emptyBubbles, fallbackBubbles, goldenProjects, goldenSummaryBubbles, x0, x105 (+12 more)
+Cohesion: 0.11
+Nodes (22): BubbleRiskMatrixChart(), backendBubbles, emptyBubbles, fallbackBubbles, goldenProjects, goldenSummaryBubbles, x0, x105 (+14 more)
 
 ### Community 67 - "scripts"
 Cohesion: 0.06
 Nodes (31): scripts, dev, generate:index-manifest, generate:manifests, generate:rpc-manifest, generate:schema-manifest, migrate, migrate:baseline:dev (+23 more)
 
-### Community 68 - "acctRequisitionsApi.js"
-Cohesion: 0.08
-Nodes (51): actOnLineItemsBatch(), addLineItem(), closeSheetReview(), deleteLineItem(), deleteSheetIfEmpty(), dismissImportEligibleItem(), exportBulkNeft(), getAccountSubTitles() (+43 more)
-
-### Community 69 - "ui/index.js"
-Cohesion: 0.08
-Nodes (43): getBankLedger(), getProjectDigitalTwin(), createEstimatedBillEntry(), getEstimatedBillLedger(), getEstimatedBills(), getWorkOrderOptions(), createUserMapping(), deactivateUserMapping() (+35 more)
-
-### Community 71 - "WorkOrderTelemetryTable.test.js"
-Cohesion: 0.17
-Nodes (9): allRes, emptyRes, goldenProjects, pageCount, searchRes1, searchRes2, seq1, seq2 (+1 more)
-
-### Community 72 - "RAFinalBill.jsx"
-Cohesion: 0.28
-Nodes (14): createBill(), getBillById(), getBills(), getBillSummary(), getWorkOrdersWithoutRaBill(), uploadBillCopy(), formatCurrency(), formatDate() (+6 more)
-
-### Community 73 - "purchaseData.routes.js"
-Cohesion: 0.15
-Nodes (14): createPurchaseOption(), getPurchaseOptions(), { supabase }, togglePurchaseOptionStatus(), updatePurchaseOption(), express, {
-  getPurchaseOptions,
-  createPurchaseOption,
-  updatePurchaseOption,
-  togglePurchaseOptionStatus
-}, requireAdmin (+6 more)
-
-### Community 74 - "scurveSeries.js"
-Cohesion: 0.26
-Nodes (16): averageProgress(), buildContractMonthKeys(), buildPlannedSeries(), buildRealSeries(), buildSyntheticActual(), buildSyntheticMonths(), computeSCurveSeries(), formatMonthLabel() (+8 more)
-
-### Community 75 - "estimates.routes.js"
+### Community 68 - "estimates.routes.js"
 Cohesion: 0.09
 Nodes (17): {
   createEstimateSchema,
@@ -823,30 +811,59 @@ Nodes (17): {
   toggleQuotationFlag
 }, jeRoles, multer, quotationUpload, requireRole, reviewRoles (+9 more)
 
+### Community 69 - "useAuth"
+Cohesion: 0.08
+Nodes (45): getProjectDigitalTwin(), createEstimatedBillEntry(), getEstimatedBillLedger(), getEstimatedBills(), getWorkOrderOptions(), createProject(), getProjects(), updateProject() (+37 more)
+
+### Community 71 - "WorkOrderTelemetryTable.test.js"
+Cohesion: 0.17
+Nodes (9): allRes, emptyRes, goldenProjects, pageCount, searchRes1, searchRes2, seq1, seq2 (+1 more)
+
+### Community 72 - "RAFinalBill.jsx"
+Cohesion: 0.28
+Nodes (14): createBill(), getBillById(), getBills(), getBillSummary(), getWorkOrdersWithoutRaBill(), uploadBillCopy(), formatCurrency(), formatDate() (+6 more)
+
+### Community 73 - "purchaseData.routes.js"
+Cohesion: 0.18
+Nodes (14): createPurchaseOption(), getPurchaseOptions(), { supabase }, togglePurchaseOptionStatus(), updatePurchaseOption(), express, {
+  getPurchaseOptions,
+  createPurchaseOption,
+  updatePurchaseOption,
+  togglePurchaseOptionStatus
+}, requireAdmin (+6 more)
+
+### Community 74 - "scurveSeries.js"
+Cohesion: 0.26
+Nodes (16): averageProgress(), buildContractMonthKeys(), buildPlannedSeries(), buildRealSeries(), buildSyntheticActual(), buildSyntheticMonths(), computeSCurveSeries(), formatMonthLabel() (+8 more)
+
+### Community 75 - "rbacUsers.js"
+Cohesion: 0.13
+Nodes (19): { createProject }, { getFundRequests }, RBAC_MATRIX, { userForRole }, mockRes, requireAdmin, requireRole, runControllerCase() (+11 more)
+
 ### Community 76 - "S. N. Polymers Pvt. Ltd. — Payroll Management: Business Rules & Workflow Specification"
 Cohesion: 0.13
 Nodes (14): 10. Calculation order and rounding, 15. Payment and reconciliation (distinct from payroll approval), 16. Exceptions and edge cases, 18. Implementation phases (suggested), 19. Open decisions requiring client confirmation, 1.1 Authoritative upstream data, 1. Business objective and system boundary, 21.1 What was actually executed (+6 more)
 
 ### Community 77 - "payrollMasters.schema.js"
-Cohesion: 0.11
-Nodes (20): selectProfessionalTaxSlab(), adjustmentBasis, adjustmentTypes, base, bounded(), components, configuration, decimal (+12 more)
+Cohesion: 0.12
+Nodes (22): { policy, statutory, adjustmentTypes, units }, selectProfessionalTaxSlab(), { z }, adjustmentBasis, adjustmentTypes, base, bounded(), components (+14 more)
 
-### Community 78 - "activityBreaks.controller.js"
-Cohesion: 0.17
-Nodes (23): ACTION_ROLES, actOnBreakRequest(), assertZoOwnsWorkOrder(), createBreakRequest(), getBreakRequestById(), getBreakRequests(), getVisibleWorkOrderNos(), JE_PUBLIC_FIELDS (+15 more)
+### Community 78 - "activityBreaks.routes.js"
+Cohesion: 0.11
+Nodes (25): ACTION_ROLES, actOnBreakRequest(), assertZoOwnsWorkOrder(), createBreakRequest(), getBreakRequestById(), getBreakRequests(), getVisibleWorkOrderNos(), JE_PUBLIC_FIELDS (+17 more)
 
 ### Community 79 - "fundReturns.controller.js"
-Cohesion: 0.11
-Nodes (28): acceptReturnRequest(), createReturnRequest(), {
+Cohesion: 0.10
+Nodes (31): acceptReturnRequest(), createReturnRequest(), {
   createReturnSchema,
   acceptReturnSchema,
   actionReturnSchema,
   hoActionReturnSchema
-}, crypto, getReturnRequests(), getTargetZOs(), hoActionOnReturn(), modifyReturnRequest() (+20 more)
+}, crypto, getReturnRequests(), getTargetZOs(), hoActionOnReturn(), modifyReturnRequest() (+23 more)
 
 ### Community 80 - "estimatesApi.js"
-Cohesion: 0.13
-Nodes (10): deleteQuotation(), getQuotations(), toggleQuotationFlag(), uploadQuotation(), QuotationList(), QuotationUpload(), canDeleteQuotation(), canFlagQuotation() (+2 more)
+Cohesion: 0.12
+Nodes (11): deleteQuotation(), getEstimateById(), getQuotations(), toggleQuotationFlag(), uploadQuotation(), QuotationList(), QuotationUpload(), canDeleteQuotation() (+3 more)
 
 ### Community 81 - "payrollFoundation.test.js"
 Cohesion: 0.22
@@ -861,7 +878,7 @@ Nodes (20): { executeReconciliation }, getZonalBalances(), getZonalLedger(), rec
 } (+12 more)
 
 ### Community 84 - "ExcessFundReturns.jsx"
-Cohesion: 0.20
+Cohesion: 0.21
 Nodes (12): acceptReturnRequest(), actionOnReturnRequest(), createReturnRequest(), getReturnRequests(), getTargetZOs(), modifyReturnRequest(), rejectReturnRequest(), useExcessFundReturnsUrlState() (+4 more)
 
 ### Community 85 - "estimates.items.controller.js"
@@ -876,7 +893,7 @@ Nodes (17): APPROVAL_STATUS, ESTIMATE_STATUS, APPROVAL_STATUS, crypto, { EDITABL
 
 ### Community 86 - "hrFactoryDepartmentRosters.test.js"
 Cohesion: 0.16
-Nodes (19): { computeMainHeadCapacity }, { createPgClient }, createProjectWithEstimate(), crypto, { dismissImportEligibleItem, restoreFundRequestImport }, mockRes, { Client }, crypto (+11 more)
+Nodes (18): { Client }, crypto, definitions, employee(), legacyEmployee(), members(), q(), rejected() (+10 more)
 
 ### Community 87 - "HoDashboardView.jsx"
 Cohesion: 0.26
@@ -910,9 +927,9 @@ Nodes (21): motion, vitest, name, private, type, version, autoprefixer, esbuild 
 Cohesion: 0.09
 Nodes (22): devDependencies, autoprefixer, esbuild, eslint, eslint-import-resolver-vite, @eslint/js, eslint-plugin-import, eslint-plugin-react-hooks (+14 more)
 
-### Community 95 - "calculatePreview"
-Cohesion: 0.12
-Nodes (19): rpc(), sendError(), { supabase }, rpc(), { sendError }, { supabase }, { validateMaster }, {calculatePreview} (+11 more)
+### Community 95 - "payrollReview.controller.js"
+Cohesion: 0.09
+Nodes (30): rpc(), sendError(), { supabase }, rpc(), { sendError }, { supabase }, { validateMaster }, {calculatePreview} (+22 more)
 
 ### Community 96 - "What You Must Do When Invoked"
 Cohesion: 0.08
@@ -922,21 +939,21 @@ Nodes (24): For /graphify add and --watch, For /graphify query, For the commit h
 Cohesion: 0.12
 Nodes (17): dependencies, bcrypt, cookie-parser, cors, dotenv, exceljs, express, express-rate-limit (+9 more)
 
-### Community 98 - "milestone_p5_m4.test.js"
-Cohesion: 0.15
-Nodes (10): ALLOWED_MIMES, MIME_TO_EXT, { supabase }, uploadSitePhoto(), { v4: uuidv4 }, http, https, mockRes (+2 more)
+### Community 98 - "backend/package.json"
+Cohesion: 0.07
+Nodes (24): description, devDependencies, nodemon, pg, vitest, @vitest/ui, vitest, main (+16 more)
 
-### Community 99 - "payrollMastersApi.test.js"
-Cohesion: 0.17
-Nodes (8): app, {Client}, crypto, {generateTokens}, {policy,statutory}, {requireLocalSupabase}, tokens, users
+### Community 99 - "MaterialMaster.jsx"
+Cohesion: 0.31
+Nodes (8): createMaterial(), getMaterialCategories(), getMaterials(), updateMaterial(), updateMaterialStatus(), Checkbox, MaterialMaster(), exportMaterialsToExcel()
 
 ### Community 100 - "Subcontract Finance Integration"
 Cohesion: 0.19
 Nodes (9): public.create_subcontract_requisition_secure(), public.get_subcontract_finance_capacity(), public.lock_subcontract_financial_scope_pooled(), public.lock_subcontract_financial_scopes(), public.mark_subcontractor_requisition_settled(), public.record_subcontractor_payment(), public.release_requisition_commitment_transact(), trg_guard_canonical_subcontract_requisition (+1 more)
 
-### Community 101 - "acctRequisitionLifecycle.test.js"
+### Community 101 - "payrollReports.controller.js"
 Cohesion: 0.13
-Nodes (25): actOnLineItem(), addLineItem(), exportBulkNeft(), getLineItems(), getSheets(), submitSheet(), callActOnLineItem(), callAddLineItem() (+17 more)
+Nodes (20): {excelReport,printableSummary}, exportReport(), fetchRegister(), payslip(), register(), {sendError}, {supabase}, addSheet() (+12 more)
 
 ### Community 102 - "HR Attendance API Tests"
 Cohesion: 0.16
@@ -946,17 +963,17 @@ Nodes (18): absent(), actors, app, { Client }, create(), crypto, date(), detail(
 Cohesion: 0.08
 Nodes (24): For /graphify add and --watch, For /graphify query, For the commit hook and native CLAUDE.md integration, For --update and --cluster-only, /graphify, Honesty Rules, Interpreter guard for subcommands, Part A - Structural extraction for code files (+16 more)
 
-### Community 104 - "ref_crypto"
-Cohesion: 0.05
-Nodes (37): requireLocalSupabase(), crypto, { getEstimateSummary }, mockRes, { requireLocalSupabase }, { supabase }, crypto, { requireLocalSupabase } (+29 more)
+### Community 104 - "requireLocalSupabase.js"
+Cohesion: 0.08
+Nodes (22): requireLocalSupabase(), { createPgClient }, crypto, { requireLocalSupabase }, crypto, { requireLocalSupabase }, { supabase }, { createPgClient } (+14 more)
 
 ### Community 105 - "exact.js"
 Cohesion: 0.23
 Nodes (13): add(), amount(), decimal(), div(), format(), fraction(), gcd(), mul() (+5 more)
 
 ### Community 106 - "apiSerialization.test.js"
-Cohesion: 0.05
-Nodes (51): { createProject }, { getFundRequests }, RBAC_MATRIX, { userForRole }, mockRes, requireAdmin, requireRole, runControllerCase() (+43 more)
+Cohesion: 0.07
+Nodes (34): assertSerialization(), authMeSerializationSchema, booleanField, executiveSummaryKpisSerializationSchema, fundRequestListItemSerializationSchema, fundRequestsListResponseSerializationSchema, hoActionableInsightsSerializationSchema, hoChartDataSerializationSchema (+26 more)
 
 ### Community 107 - "6.3 Admin Payroll Policy Master — approved configurable architecture, controlled calculation methods"
 Cohesion: 0.20
@@ -982,17 +999,17 @@ Nodes (9): idx_activity_breaks_active, idx_activity_breaks_one_active_per_wo, id
 Cohesion: 0.22
 Nodes (14): hr_employee_audit_write, hr_employee_no_delete, hr_employees_name_idx, hr_employees_status_category_idx, hr_pay_structures_employee_idx, hr_pay_structures_one_active_idx, hr_permanent_pay_audit_write, hr_permanent_pay_no_delete (+6 more)
 
-### Community 112 - "NEFT Export Service"
-Cohesion: 0.15
-Nodes (14): buildBulkNeftWorkbook(), COLUMN_WIDTHS, debitAccountWording(), ExcelJS, MEDIUM, { numberToIndianWords }, setCell(), TERMS_AND_CONDITIONS (+6 more)
+### Community 112 - "bulkNeftExport.service.js"
+Cohesion: 0.17
+Nodes (13): buildBulkNeftWorkbook(), COLUMN_WIDTHS, debitAccountWording(), ExcelJS, MEDIUM, { numberToIndianWords }, setCell(), TERMS_AND_CONDITIONS (+5 more)
 
 ### Community 113 - "ZoDashboardView.jsx"
-Cohesion: 0.19
-Nodes (13): getHoBudgetLeakage(), getHoKpis(), getHoZoneBenchmarking(), getJeLeaderboard(), getProjectsHealth(), getRecentActivity(), formatINR(), ZoDashboardView() (+5 more)
+Cohesion: 0.25
+Nodes (13): getJeLeaderboard(), getProjectsHealth(), getRecentActivity(), getZonalBalances(), getZonalLedger(), reconcileZonalBalances(), formatINR(), ZoDashboardView() (+5 more)
 
-### Community 114 - "getDisplayName"
-Cohesion: 0.28
-Nodes (20): transitionWorkflow(), broadcastTelegram(), fmtInr(), getDisplayName(), getJeUsersForWorkOrder(), getRoleRecipients(), getZoUsersForWorkOrder(), notifyAcctBankBalanceAdjusted() (+12 more)
+### Community 114 - "Docs.jsx"
+Cohesion: 0.15
+Nodes (12): useDocsUrlState(), DocBadge(), DocCallout(), DocContent(), DocNavSidebar(), DocRoleWorkflow(), DocStepList(), DocTOC() (+4 more)
 
 ### Community 116 - "DailyAttendance.test.jsx"
 Cohesion: 0.10
@@ -1018,14 +1035,14 @@ Nodes (8): idx_arli_source_requisition, idx_requisitions_payment_status, public.
 Cohesion: 0.25
 Nodes (11): buildLastPhotoVisitMap(), checkSiteVisitInactivity(), { escapeHtml }, formatDateDMY(), getDaysSinceVisit(), groupInactiveWorkOrders(), isWorkOrderInactive(), msUntilTargetTime() (+3 more)
 
-### Community 122 - "excessFundReturns.controller.js"
-Cohesion: 0.16
-Nodes (15): actionExcessFundReturn(), createExcessFundReturn(), { createReturnSchema, actionReturnSchema }, getExcessFundReturns(), resolveDisplayNames(), { supabase }, validate, {
+### Community 122 - "zod"
+Cohesion: 0.15
+Nodes (16): actionExcessFundReturn(), createExcessFundReturn(), { createReturnSchema, actionReturnSchema }, getExcessFundReturns(), resolveDisplayNames(), { supabase }, validate, {
   createExcessFundReturn,
   actionExcessFundReturn,
   getExcessFundReturns,
   getTargetZOs
-} (+7 more)
+} (+8 more)
 
 ### Community 123 - "Payment Requisition Routing"
 Cohesion: 0.19
@@ -1044,8 +1061,8 @@ Cohesion: 0.22
 Nodes (8): idx_scb_work_order, idx_scl_balance, idx_scl_reference, "public"."approve_requisition_transact"(), "public"."create_requisition_secure"(), "public"."subcontractor_balances", "public"."subcontractor_ledger", "public"."submit_row_approvals"()
 
 ### Community 127 - "FundReports.jsx"
-Cohesion: 0.12
-Nodes (29): createProject(), getProjects(), updateProject(), updateProjectStatus(), createReport(), deleteReport(), getDeletedReports(), getReports() (+21 more)
+Cohesion: 0.23
+Nodes (16): createReport(), deleteReport(), getDeletedReports(), getReports(), restoreReport(), updateReport(), useFundReportsUrlState(), ConfirmModal() (+8 more)
 
 ### Community 128 - "hrAttendanceCalendar.test.js"
 Cohesion: 0.17
@@ -1067,29 +1084,29 @@ Nodes (6): idx_arli_source_fund_request, idx_fr_accounts_line_item_id, "public".
 Cohesion: 0.26
 Nodes (6): idx_arli_source_fund_request, public.credit_approve_acct_line_item_transact(), public.delete_acct_line_item_transact(), public.delete_empty_acct_sheet_transact(), public.import_acct_line_item_transact(), public.submit_acct_sheet_transact()
 
-### Community 133 - "hrSelfServiceLeave.test.js"
+### Community 133 - "pg"
 Cohesion: 0.13
-Nodes (10): actors, app, { Client }, crypto, employees, { generateTokens }, { requireLocalSupabase }, tokens (+2 more)
+Nodes (10): app, { Client }, crypto, { generateTokens }, office, { requireLocalSupabase }, tokens, users (+2 more)
 
 ### Community 134 - "milestone_p4_m5.test.js"
 Cohesion: 0.13
 Nodes (15): { addUser, updateUser, removeUser }, createMockResWithCookies(), { createReport, updateReport }, { createSession }, crypto, { execSync }, fs, { getEstimates } (+7 more)
 
-### Community 135 - "payrollMasters.js"
-Cohesion: 0.20
-Nodes (14): {resolveMaster,calculationReadiness}, statutoryReadiness(), calculationReadiness(), { policy, statutory, adjustmentTypes, units }, resolveMaster(), validateMaster(), { z }, crypto (+6 more)
+### Community 135 - "DigitalTwinHub.jsx"
+Cohesion: 0.19
+Nodes (7): useAdminPanelUrlState(), useDigitalTwinHubUrlState(), VALID_STATUSES, AdminPanel(), TelegramBadgeIcon(), DigitalTwinHub(), formatINR()
 
-### Community 136 - "materials.routes.js"
-Cohesion: 0.20
-Nodes (13): createMaterial(), getMaterialById(), getMaterialCategories(), getMaterials(), getSubHeadsByMainHead(), { supabase }, updateMaterial(), updateMaterialStatus() (+5 more)
+### Community 136 - "hrEmployees.schema.js"
+Cohesion: 0.15
+Nodes (10): { categories, departmentsFor, legacyProjectCategory }, contact, date, departments, fields, link, roles, statuses (+2 more)
 
 ### Community 137 - "public.create_payroll_draft_run"
 Cohesion: 0.19
 Nodes (8): payroll_observe_employee_change, public.add_payroll_draft_employee(), public.create_payroll_draft_run(), public.get_payroll_draft_candidates(), public.get_payroll_source_history(), public.payroll_employee_assignments, public.payroll_permanent_pay_applicability, public.payroll_source_history_revisions
 
-### Community 138 - "hrEmployees.test.js"
-Cohesion: 0.14
-Nodes (17): changeStatus(), createEmployee(), getEmployee(), listEmployees(), listErpUsers(), sendError(), { supabase }, updateEmployee() (+9 more)
+### Community 138 - "hrEmployees.controller.js"
+Cohesion: 0.38
+Nodes (9): changeStatus(), createEmployee(), getEmployee(), listEmployees(), listErpUsers(), sendError(), { supabase }, updateEmployee() (+1 more)
 
 ### Community 139 - "Attendance and leave local E2E report — 3 October 2026"
 Cohesion: 0.18
@@ -1132,12 +1149,12 @@ Cohesion: 0.22
 Nodes (8): "public"."estimate_revision_log", "public"."project_cost_estimates", "public"."purchase_data", "public"."submit_estimate"(), "trg_audit_estimate_status", "trg_estimate_item_updated_at", "trg_estimate_updated_at", "trg_prevent_estimate_hard_delete"
 
 ### Community 151 - "hrAttendance.controller.js"
-Cohesion: 0.24
-Nodes (8): all(), checked(), { factoryDepartment }, handle(), sendError(), sheetById(), { supabase }, factoryDepartment()
+Cohesion: 0.13
+Nodes (14): all(), checked(), { factoryDepartment }, handle(), sendError(), sheetById(), { supabase }, controller (+6 more)
 
-### Community 152 - "PayrollReview.jsx"
-Cohesion: 0.17
-Nodes (20): actOnPayrollEmployee(), actOnPayrollEmployees(), addPayrollDraftEmployee(), createPayrollDraftRun(), getPayrollDraftCandidates(), getPayrollEmployeeReview(), getPayrollFoundationContext(), getPayrollReviewQueue() (+12 more)
+### Community 152 - "@tanstack/react-query"
+Cohesion: 0.15
+Nodes (23): getBankLedger(), upsertBankBalance(), createFactoryRevision(), getEffectiveFactoryMasters(), getFactoryRevisions(), BankBalanceEditor(), emptyForm(), todayISO() (+15 more)
 
 ### Community 153 - "Data Import Scripts"
 Cohesion: 0.28
@@ -1147,17 +1164,13 @@ Nodes (3): escape_sql_str(), process_material_master(), process_subcontract_work
 Cohesion: 0.22
 Nodes (9): scripts, build, dev, lint, preview, start, test, test:watch (+1 more)
 
-### Community 155 - "activityBreaks.routes.js"
-Cohesion: 0.16
-Nodes (12): {
-  createBreakRequest,
-  getBreakRequests,
-  getBreakRequestById,
-  actOnBreakRequest
-}, {
-  createBreakRequestSchema,
-  actOnBreakRequestSchema
-}, express, requireRole, router, validateRequest, verifyJwt, actOnBreakRequestSchema (+4 more)
+### Community 155 - "mockRes.js"
+Cohesion: 0.05
+Nodes (36): getSubcontractorLedger(), getSubcontractorLedgerEntries(), crypto, { getEstimateSummary }, mockRes, { requireLocalSupabase }, { supabase }, {
+  createFundRequest,
+  updateFundRequestDraft,
+  submitFundRequest
+} (+28 more)
 
 ### Community 156 - "payrollPreviewApi.test.js"
 Cohesion: 0.18
@@ -1216,8 +1229,8 @@ Cohesion: 0.38
 Nodes (4): public.activate_hr_pay_structure(), public.create_hr_pay_structure(), public.hr_permanent_pay_audit(), public.suspend_hr_pay_structure()
 
 ### Community 177 - "renderHelpers.jsx"
-Cohesion: 0.16
-Nodes (14): useAuditSessionsUrlState(), AuditLog(), mockSessions, mockUsers, renderAuditLog(), renderDocs(), assertCanonicalUrl(), assertUrlParams() (+6 more)
+Cohesion: 0.21
+Nodes (12): mockSessions, mockUsers, renderAuditLog(), renderDocs(), assertCanonicalUrl(), assertUrlParams(), readUrlParams(), HistoryControls() (+4 more)
 
 ### Community 179 - "Line Item Indexes"
 Cohesion: 0.53
@@ -1267,9 +1280,9 @@ Nodes (4): "public"."fn_validate_work_order_mapping_zonal_consistency"(), "publi
 Cohesion: 0.50
 Nodes (4): "public"."ra_final_bills", "trg_audit_ra_final_bill_insert", "trg_prevent_ra_final_bills_hard_delete", "trg_ra_final_bills_updated_at"
 
-### Community 221 - "payrollReviewApi.test.js"
-Cohesion: 0.12
-Nodes (24): {calculatePreview}, createReviewFixture(), createReviewUsers(), crypto, one(), {policy}, q(), reviewAction() (+16 more)
+### Community 221 - "payrollReportsApi.test.js"
+Cohesion: 0.08
+Nodes (38): calculatePreview(), {calculatePreview}, createReviewFixture(), createReviewUsers(), crypto, one(), {policy}, q() (+30 more)
 
 ### Community 223 - "Frontend Dependencies"
 Cohesion: 0.50
@@ -1280,12 +1293,12 @@ Cohesion: 0.67
 Nodes (3): "public"."work_order_mappings", "trg_audit_work_order_mappings", "trg_validate_work_order_mapping_zonal_consistency"
 
 ### Community 254 - "JeDashboardView.jsx"
-Cohesion: 0.37
-Nodes (9): getProgressReports(), JeDashboardView(), computeConsecutiveStreakFromVisitDates(), getLatestDprByVisitDate(), buildJeMappedProjects(), countEstimateBuckets(), DEFAULT_ESTIMATE_STATUS, resolveActiveZoMapping() (+1 more)
+Cohesion: 0.41
+Nodes (8): JeDashboardView(), computeConsecutiveStreakFromVisitDates(), getLatestDprByVisitDate(), buildJeMappedProjects(), countEstimateBuckets(), DEFAULT_ESTIMATE_STATUS, resolveActiveZoMapping(), resolveJeStreakCount()
 
-### Community 264 - "payroll.routes.js"
-Cohesion: 0.15
-Nodes (12): controller, masters, masterSchema, previews, requireCurrentHrRole, requireRole, review, reviewSchema (+4 more)
+### Community 264 - "PayrollRegister.jsx"
+Cohesion: 0.07
+Nodes (35): API and UI, Contract and workflow, Files and verification, Final-lock transaction and safeguards, Payroll Phase 4 — employee review and guarded final locking, Versioning, audit and source freshness, Architecture and evidence, Export formats (+27 more)
 
 ### Community 353 - "generate-index-manifest.js"
 Cohesion: 0.18
@@ -1351,9 +1364,9 @@ Nodes (3): For --cluster-only, For --update (incremental re-extraction), graphif
 Cohesion: 0.33
 Nodes (5): Access Levels, Important Security Rules & System Constraints, Matrix Table, Role Keys, S.N. Polymers Pvt. Ltd. — Role Permissions Matrix
 
-### Community 377 - "acctRequisitionImport.test.js"
-Cohesion: 0.20
-Nodes (18): deleteSheetIfEmpty(), dismissImportEligibleItem(), callActOnLineItem(), callAddLineItem(), callCreateSheet(), callDeleteLineItem(), callDeleteSheetIfEmpty(), callDismissLineItem() (+10 more)
+### Community 377 - "subcontractEstimates.routes.js"
+Cohesion: 0.15
+Nodes (11): controller, express, requireRole, router, schemas, validateRequest, verifyJwt, lineSchema (+3 more)
 
 ### Community 378 - "milestone4.test.js"
 Cohesion: 0.18
@@ -1371,20 +1384,16 @@ Nodes (5): 11.1 Two levels: parent sheet vs employee approval unit, 11.2 Per-emp
 Cohesion: 0.40
 Nodes (5): 3.1 Factory payroll — approved workflow, 3.1a Relationship with existing Accounts requisition workflow, 3.2 Non-factory payroll, 3.3 Permission matrix, 3. Roles, ownership and separation of duties
 
-### Community 382 - "express"
-Cohesion: 0.17
-Nodes (13): computeMasterDataVersion(), getMasterDataCatalog(), getMasterDataVersion(), { supabase }, express, { getMasterDataVersion, getMasterDataCatalog }, router, verifyJwt (+5 more)
+### Community 382 - "masterDataVersion.test.js"
+Cohesion: 0.29
+Nodes (8): computeMasterDataVersion(), getMasterDataCatalog(), getMasterDataVersion(), { supabase }, crypto, { getMasterDataVersion, getMasterDataCatalog }, mockRes, { supabase }
 
 ### Community 383 - "How to Import"
 Cohesion: 0.33
 Nodes (5): File Manifest, How to Import, Method 1: Supabase SQL Editor (Recommended), Method 2: Supabase Table Editor (CSV Upload), Supabase Import-Ready Files
 
-### Community 384 - "payroll.schema.js"
-Cohesion: 0.17
-Nodes (10): categories, assignment, { categories }, date, departments, historyBase, pagination, pay (+2 more)
-
 ### Community 386 - "FundRequests.jsx"
-Cohesion: 0.16
+Cohesion: 0.18
 Nodes (16): getEstimateSummary(), cancelFundRequest(), createFundRequestDraft(), getFundRequests(), submitFundRequest(), updateFundRequestDraft(), getRequisitions(), CancelFundRequestModal() (+8 more)
 
 ### Community 390 - "5. Payroll eligibility and pre-calculation readiness"
@@ -1395,20 +1404,13 @@ Nodes (5): 5.1 Employee selection, 5.2 Factory readiness — hard gates, 5.3 HO/
 Cohesion: 0.22
 Nodes (12): DashboardErrorBanner(), AcctDashboardView(), formatINR(), Dashboard(), formatINR(), StaffDashboardView(), countSheetsByStatus(), sumBankBalances() (+4 more)
 
-### Community 392 - "requisitions.js"
-Cohesion: 0.67
-Nodes (4): buildSubmittedRequisitionSumByWo(), computeRequisitionAdvisoryRemaining(), getRequisitionCommittedAmount(), REQ_COMMITTED_STATUSES
-
-### Community 393 - "raFinalBill.routes.js"
-Cohesion: 0.05
-Nodes (46): createBill(), {
-  getApprovedEstimateAmount,
-  resolveBillingCap
-}, getBillById(), getBills(), getWorkOrdersWithoutRaBill(), resolveDisplayNames(), { supabase }, ALLOWED_MIMES (+38 more)
+### Community 393 - "milestone_p5_m4.test.js"
+Cohesion: 0.17
+Nodes (10): ALLOWED_MIMES, MIME_TO_EXT, { supabase }, uploadSitePhoto(), { v4: uuidv4 }, http, https, mockRes (+2 more)
 
 ### Community 395 - "unit/payrollPreview.test.js"
-Cohesion: 0.12
-Nodes (18): policy(), pt(), statutory(), unresolved(), {dates,month}, factory(), leave(), office() (+10 more)
+Cohesion: 0.07
+Nodes (35): {resolveMaster,calculationReadiness}, statutoryReadiness(), calculationReadiness(), resolveMaster(), policy(), pt(), statutory(), unresolved() (+27 more)
 
 ### Community 396 - "13. Salary register: improve the sample format"
 Cohesion: 0.50
@@ -1451,24 +1453,24 @@ Cohesion: 0.22
 Nodes (6): alignedBackendData, backendEquivalentData, backendResult, empty, fallback, goldenProjects
 
 ### Community 413 - "react"
-Cohesion: 0.02
-Nodes (67): bank, pendingItem, renderPanel(), ControlledInputWrapper(), useAcctHoQueueUrlState(), useAcctRequisitionDetailsUrlState(), useAcctRequisitionsUrlState(), useDailyProgressUrlState() (+59 more)
+Cohesion: 0.03
+Nodes (57): bank, pendingItem, renderPanel(), ControlledInputWrapper(), options, useAcctHoQueueUrlState(), useAcctRequisitionDetailsUrlState(), useAcctRequisitionsUrlState() (+49 more)
 
 ### Community 414 - "indexContract.test.js"
 Cohesion: 0.25
 Nodes (5): allowlist, expected, { fetchIndexes }, fs, path
 
-### Community 415 - "payrollReview.controller.js"
+### Community 415 - "payroll.routes.js"
+Cohesion: 0.06
+Nodes (29): statuses, controller, masters, masterSchema, previews, reports, reportSchema, requireCurrentHrRole (+21 more)
+
+### Community 416 - "hrLeaves.controller.js"
 Cohesion: 0.11
-Nodes (22): act(), apply(), bulk(), {calculatePreview}, detail(), {previewChanges,availableActions}, queue(), {sendError} (+14 more)
+Nodes (17): checked(), getLinkedEmployee(), handle(), { officeCategories: ELIGIBLE_CATEGORIES, permanentCategories }, sendError(), { supabase }, officeCategories, permanentCategories (+9 more)
 
-### Community 416 - "hrEmployeeCategories.js"
-Cohesion: 0.08
-Nodes (26): checked(), getLinkedEmployee(), handle(), { officeCategories: ELIGIBLE_CATEGORIES, permanentCategories }, sendError(), { supabase }, createPayStructure(), getEmployeePayStructures() (+18 more)
-
-### Community 417 - "PayrollPreviews.jsx"
-Cohesion: 0.18
-Nodes (14): API and UI, Contract and workflow, Files and verification, Final-lock transaction and safeguards, Payroll Phase 4 — employee review and guarded final locking, Versioning, audit and source freshness, getPayrollRun(), listPayrollRuns() (+6 more)
+### Community 417 - "payroll.schema.js"
+Cohesion: 0.17
+Nodes (10): categories, assignment, { categories }, date, departments, historyBase, pagination, pay (+2 more)
 
 ### Community 418 - "ExecutiveKpiStrip.test.js"
 Cohesion: 0.22
@@ -1478,69 +1480,57 @@ Nodes (7): backendEquivalentData, backendRes, emptyRes, goldenProjects, partialD
 Cohesion: 0.33
 Nodes (3): generators, path, { spawnSync }
 
-### Community 420 - "RequestDetailPanel.jsx"
-Cohesion: 0.12
-Nodes (25): getProjectCapacity(), searchProjectsBeneficiaries(), formatCurrency(), formatDate(), formatDateTime(), getBeneficiaryValidationError(), getFinalApprovedEstimateDisplay(), RequestDetailPanel() (+17 more)
+### Community 420 - "businessRules/fundRequests.js"
+Cohesion: 0.29
+Nodes (11): buildApprovedFundRequestSumByWo(), buildSubmittedFrSumByWo(), canCancelFundRequest(), canEditFundRequest(), canSubmitFundRequest(), computeFrRemainingForWo(), computeFundRequestRemaining(), computeHoApproveRemaining() (+3 more)
 
-### Community 422 - "Payroll Phase 1 foundation"
-Cohesion: 0.09
-Nodes (21): verifyJwt(), API and access, Factory Manager Daily Attendance — Phase 4 + 5, Files, Transaction and UI design, Verification — 30 September 2026, Access and integration, API and UI (+13 more)
+### Community 422 - "S. N. Polymers ERP — Employee Management Module"
+Cohesion: 0.07
+Nodes (26): verifyJwt(), API and access, Factory Manager Daily Attendance — Phase 4 + 5, Files, Transaction and UI design, Verification — 30 September 2026, Employee categories and six factory attendance rosters, Migration and historical compatibility (+18 more)
 
 ### Community 424 - "regression/payrollMasters.test.js"
 Cohesion: 0.29
 Nodes (10): {Client}, crypto, {policy,statutory,pt}, preview(), publish(), q(), rejected(), {requireLocalSupabase} (+2 more)
 
-### Community 428 - "getZonalBalances"
-Cohesion: 0.40
-Nodes (5): getZonalBalances(), getZonalLedger(), reconcileZonalBalances(), useZonalBalancesUrlState(), ZonalBalances()
+### Community 428 - "payrollMastersApi.test.js"
+Cohesion: 0.17
+Nodes (8): app, {Client}, crypto, {generateTokens}, {policy,statutory}, {requireLocalSupabase}, tokens, users
 
 ### Community 429 - "daily_streak.test.js"
 Cohesion: 0.19
 Nodes (11): checkAndSendStreakReminders(), msUntilTargetTime(), startStreakReminderScheduler(), { supabase }, { checkAndSendStreakReminders }, { createProgressReport }, crypto, mockRes (+3 more)
 
-### Community 433 - "subcontractEstimates.routes.js"
-Cohesion: 0.15
-Nodes (11): controller, express, requireRole, router, schemas, validateRequest, verifyJwt, lineSchema (+3 more)
+### Community 433 - "verifyJwt.js"
+Cohesion: 0.07
+Nodes (30): createMaterial(), getMaterialById(), getMaterialCategories(), getMaterials(), getSubHeadsByMainHead(), { supabase }, updateMaterial(), updateMaterialStatus() (+22 more)
 
-### Community 440 - "Payroll Phase 3 — read-only calculation previews"
-Cohesion: 0.25
-Nodes (7): API/UI and freshness, Explicit policy and statutory boundaries, Files and compatibility, Implemented formulas, Initial Phase 3 verification and remaining risks, Payroll Phase 3 — read-only calculation previews, Review corrections to 9fc2427
-
-### Community 441 - "payrollApi.test.js"
+### Community 440 - "hrSelfServiceLeave.test.js"
 Cohesion: 0.18
-Nodes (8): app, { Client }, crypto, { generateTokens }, office, { requireLocalSupabase }, tokens, users
+Nodes (8): actors, app, { Client }, crypto, employees, { generateTokens }, { requireLocalSupabase }, tokens
 
-### Community 442 - "DepartmentWiseEstimateChart.test.js"
-Cohesion: 0.40
-Nodes (3): goldenProjects, preComputedItems, buildDonutSlices()
+### Community 441 - "formatBreakPeriodLine"
+Cohesion: 0.42
+Nodes (10): formatBreakPeriodLine(), getActiveHoTelegramRecipients(), getJeTelegramUser(), getZoTelegramUserForWorkOrder(), notifyBreakHoApproved(), notifyBreakReopenRequested(), notifyBreakRequestSubmitted(), notifyBreakStatusChanged() (+2 more)
 
-### Community 443 - "ref_node_assert"
-Cohesion: 0.33
-Nodes (3): emptyMetrics, goldenProjects, metrics
+### Community 442 - "requisitions.js"
+Cohesion: 0.67
+Nodes (4): buildSubmittedRequisitionSumByWo(), computeRequisitionAdvisoryRemaining(), getRequisitionCommittedAmount(), REQ_COMMITTED_STATUSES
+
+### Community 443 - "DepartmentWiseEstimateChart.test.js"
+Cohesion: 0.20
+Nodes (5): goldenProjects, preComputedItems, emptyMetrics, goldenProjects, metrics
 
 ### Community 446 - "Payroll Phase 2 review of 93b028d against v1.4"
 Cohesion: 0.40
 Nodes (4): Findings and fixes, Migration and activation boundary, Payroll Phase 2 review of 93b028d against v1.4, Verification
 
-### Community 449 - "processWebhookUpdate"
-Cohesion: 0.33
-Nodes (6): handleTelegramWebhook(), { processWebhookUpdate }, processWebhookUpdate(), sendBotMessage(), sendContactRequestKeyboard(), startPolling()
-
 ### Community 451 - "Payroll Phase 2 — Policy and Statutory Masters"
-Cohesion: 0.29
-Nodes (6): Compatibility and scope, Database and resolution, Frontend and changed files, Payroll Phase 2 — Policy and Statutory Masters, Remaining decisions and Phase 3 boundary, Verification
+Cohesion: 0.25
+Nodes (7): Compatibility and scope, Database and resolution, Frontend and changed files, Payroll Phase 2 — Policy and Statutory Masters, Remaining decisions and Phase 3 boundary, Verification, Workflow and API
 
 ### Community 453 - "acctSheetCsv.js"
 Cohesion: 0.31
 Nodes (6): buildSheetCsv(), CSV_COLUMNS, escapeCsvField(), sheet, formatDateDDMMYYYY(), isWithinLastNDays()
-
-### Community 456 - "AdminPanel.jsx"
-Cohesion: 0.48
-Nodes (3): useAdminPanelUrlState(), AdminPanel(), TelegramBadgeIcon()
-
-### Community 458 - "SubcontractEstimateView.test.jsx"
-Cohesion: 0.29
-Nodes (6): mockGetSubcontractEstimate, mockNavigate, mockParams, mockReviewSubcontractEstimateRows, mockTransitionSubcontractEstimateWorkflow, mockUser
 
 ### Community 459 - "useFundRequestUrlState.js"
 Cohesion: 0.33
@@ -1558,28 +1548,52 @@ Nodes (5): allowlist, expected, { fetchRpcFunctions }, fs, path
 Cohesion: 0.40
 Nodes (3): fs, MANIFESTS_DIR, path
 
+### Community 491 - "Payroll Phase 1 foundation"
+Cohesion: 0.20
+Nodes (9): Changed files, Deliberate Phase 1 limits and compatibility risks, Executed results — 11 October 2026, Existing contracts and detected gaps, Follow-up: local test lifecycle correction, Payroll Phase 1 foundation, Remaining business decisions and Phase 2 recommendation, Resolving source dependencies (+1 more)
+
+### Community 493 - "hrPayStructures.controller.js"
+Cohesion: 0.33
+Nodes (8): createPayStructure(), getEmployeePayStructures(), listPayStructures(), PERMANENT_CATEGORIES, { permanentCategories }, sendPayError(), { supabase }, suspendPayStructure()
+
+### Community 494 - "processWebhookUpdate"
+Cohesion: 0.33
+Nodes (6): handleTelegramWebhook(), { processWebhookUpdate }, processWebhookUpdate(), sendBotMessage(), sendContactRequestKeyboard(), startPolling()
+
 ### Community 495 - "subcontractEstimates.telegram.test.js"
 Cohesion: 0.50
 Nodes (3): { supabase }, telegramService, { transitionWorkflow }
 
+### Community 496 - "SubcontractEstimateView.test.jsx"
+Cohesion: 0.29
+Nodes (6): mockGetSubcontractEstimate, mockNavigate, mockParams, mockReviewSubcontractEstimateRows, mockTransitionSubcontractEstimateWorkflow, mockUser
+
+### Community 497 - "ProjectBeneficiarySuggestions.jsx"
+Cohesion: 0.53
+Nodes (3): searchProjectsBeneficiaries(), ProjectBeneficiarySuggestions(), sampleBeneficiary
+
+### Community 498 - "seed_materials.js"
+Cohesion: 0.40
+Nodes (3): materials, seed(), { supabase }
+
 ## Knowledge Gaps
-- **2125 isolated node(s):** `name`, `version`, `description`, `main`, `start` (+2120 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 2966 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **246 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **2159 isolated node(s):** `name`, `version`, `description`, `main`, `start` (+2154 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 3019 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **252 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `supabase` connect `supabase.js` to `milestone_p3_m5.test.js`, `requisitions.controller.js`, `milestone_p4_m5.test.js`, `materials.routes.js`, `raFinalBill.routes.js`, `hrEmployees.test.js`, `hrPayStructures.test.js`, `milestone7.test.js`, `telegram.service.js`, `workOrderMappings.test.js`, `acctRequisition.controller.js`, `fundRequestAccountsImport.test.js`, `milestone_p7_m6.test.js`, `hrAttendance.controller.js`, `idempotency.test.js`, `businessRuleInvariants.test.js`, `test_milestone_p7_api.js`, `fundRequests.controller.js`, `cancelledRequisitionReuse.test.js`, `payrollReview.controller.js`, `app.js`, `hrEmployeeCategories.js`, `acctSheetCloseReview.test.js`, `subcontractMasters.test.js`, `apiSnapshots.test.js`, `auth.controller.js`, `daily_streak.test.js`, `verifyJwt.js`, `estimates.core.controller.js`, `logError`, `mockRes.js`, `estimates.workflow.controller.js`, `hrFactoryMasters.routes.js`, `estimates.controller.js`, `reports.controller.js`, `zod`, `userMappings.test.js`, `apiResponseShape.test.js`, `milestone_p4_m4.test.js`, `purchaseData.routes.js`, `activityBreaks.controller.js`, `fundReturns.controller.js`, `milestone_p7_m4.test.js`, `estimates.items.controller.js`, `hrAttendanceLeave.test.js`, `Attendance Review Tests`, `calculatePreview`, `milestone_p5_m4.test.js`, `acctRequisitionLifecycle.test.js`, `HR Attendance API Tests`, `ref_crypto`, `acctRequisitionImport.test.js`, `projectsHealth.test.js`, `milestone4.test.js`, `subcontractEstimates.telegram.test.js`, `Site Visit Monitoring`, `excessFundReturns.controller.js`, `express`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
-- **Why does `react` connect `react` to `FundRequests.jsx`, `Badge`, `Dashboard.jsx`, `App.jsx`, `Input`, `Requisitions.jsx`, `ThemeContext.jsx`, `Button`, `Table`, `PermanentPayStructure.jsx`, `PayrollReview.jsx`, `ref_vitest`, `PayrollPreviews.jsx`, `ZoDashboard.jsx`, `RequestDetailPanel.jsx`, `mockApiScenario.js`, `Select`, `getZonalBalances`, `renderHelpers.jsx`, `@tanstack/react-query`, `SubcontractEstimates.jsx`, `BubbleRiskMatrixChart.test.js`, `acctRequisitionsApi.js`, `ui/index.js`, `App.test.jsx`, `AdminPanel.jsx`, `RAFinalBill.jsx`, `SubcontractEstimateView.test.jsx`, `useFundRequestUrlState.js`, `AuditComplianceCenter.jsx`, `estimatesApi.js`, `ExcessFundReturns.jsx`, `HoDashboardView.jsx`, `frontend/package.json`, `ZoDashboardView.jsx`, `DailyAttendance.test.jsx`, `JeDashboardView.jsx`, `FundReports.jsx`?**
-  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+- **Why does `supabase` connect `supabase.js` to `milestone_p3_m5.test.js`, `requisitions.controller.js`, `milestone_p4_m5.test.js`, `milestone_p5_m4.test.js`, `hrEmployees.controller.js`, `hrFactoryMasters.test.js`, `milestone7.test.js`, `telegram.service.js`, `workOrderMappings.test.js`, `acctRequisition.controller.js`, `fundRequestAccountsImport.test.js`, `dailyProgress.routes.js`, `hrAttendance.controller.js`, `idempotency.test.js`, `raFinalBill.routes.js`, `test_milestone_p7_api.js`, `mockRes.js`, `fundRequests.controller.js`, `cancelledRequisitionReuse.test.js`, `app.js`, `hrEmployeeCategories.js`, `hrLeaves.controller.js`, `subcontractMasters.test.js`, `auth.controller.js`, `daily_streak.test.js`, `requireRole.js`, `estimates.core.controller.js`, `logError`, `verifyJwt.js`, `acctRequisitionImport.test.js`, `projects.controller.js`, `estimates.workflow.controller.js`, `estimates.controller.js`, `milestone_p7_m6.test.js`, `businessRuleInvariants.test.js`, `hrPayStructures.test.js`, `estimatedBills.routes.js`, `userMappings.test.js`, `apiResponseShape.test.js`, `milestone_p4_m4.test.js`, `purchaseData.routes.js`, `rbacUsers.js`, `activityBreaks.routes.js`, `fundReturns.controller.js`, `milestone_p7_m4.test.js`, `estimates.items.controller.js`, `hrAttendanceLeave.test.js`, `Attendance Review Tests`, `payrollReportsApi.test.js`, `payrollReview.controller.js`, `payrollReports.controller.js`, `HR Attendance API Tests`, `requireLocalSupabase.js`, `hrPayStructures.controller.js`, `projectsHealth.test.js`, `milestone4.test.js`, `subcontractEstimates.telegram.test.js`, `seed_materials.js`, `milestone_p3_m4.test.js`, `Site Visit Monitoring`, `zod`, `masterDataVersion.test.js`?**
+  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+- **Why does `react` connect `react` to `App.test.jsx`, `FundRequests.jsx`, `Input`, `Dashboard.jsx`, `App.jsx`, `Select`, `PayrollRegister.jsx`, `ThemeContext.jsx`, `Button`, `Requisitions.jsx`, `DigitalTwinHub.jsx`, `ui/index.js`, `PermanentPayStructure.jsx`, `@tanstack/react-query`, `ref_vitest`, `ZoDashboard.jsx`, `RequestDetailPanel.jsx`, `acctRequisitionsApi.js`, `mockApiScenario.js`, `DailyAttendance.jsx`, `renderHelpers.jsx`, `SubcontractEstimates.jsx`, `BubbleRiskMatrixChart.test.js`, `useAuth`, `RAFinalBill.jsx`, `useFundRequestUrlState.js`, `AuditComplianceCenter.jsx`, `estimatesApi.js`, `ExcessFundReturns.jsx`, `HoDashboardView.jsx`, `frontend/package.json`, `MaterialMaster.jsx`, `SubcontractEstimateView.test.jsx`, `ProjectBeneficiarySuggestions.jsx`, `Docs.jsx`, `ZoDashboardView.jsx`, `DailyAttendance.test.jsx`, `JeDashboardView.jsx`, `FundReports.jsx`?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
 - **Why does `history()` connect `payrollFoundation.test.js` to `public.payroll_preview_decimals`, `public.get_payroll_preview_sources`?**
-  _High betweenness centrality (0.018) - this node is a cross-community bridge._
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **What connects `name`, `version`, `description` to the rest of the system?**
-  _2125 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _2159 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `milestone_p3_m5.test.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.10153846153846154 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06976744186046512 - nodes in this community are weakly interconnected._
 - **Should `Phase 4: Requisition Management Module — Implementation Plan` be split into smaller, more focused modules?**
   _Cohesion score 0.06451612903225806 - nodes in this community are weakly interconnected._
 - **Should `104_payroll_phase1_foundation.sql` be split into smaller, more focused modules?**

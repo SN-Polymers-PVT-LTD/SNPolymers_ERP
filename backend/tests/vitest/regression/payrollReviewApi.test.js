@@ -24,6 +24,23 @@ describe('payroll per-employee review HTTP API',()=>{
   for(const data of [{...body,calculation:{}},{...body,source:{}},{...body,net_salary:'100'},{...body,actor_id:users.admin.id},{...body,reason:''},{...body,action:'reject'}])expect((await request('POST',`/rows/${id}/review`,'fm',data)).status).toBe(400);
   expect((await request('POST',`/rows/${id}/review`,'accounts',body)).status).toBe(403);
  });
+ test('oversized legacy detail retains corrections, withdrawal and history without bypassing scope or preview guards',async()=>{
+  const f=await fixture({factory:true}),employee=f.employees[0],to=`${Number(f.from.slice(0,4))+3}-10-01`;
+  const history=(await one(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5) id',[employee.id,'ASSIGNMENT',JSON.stringify([{group_code:f.group,employee_category:f.category,department:f.department,effective_from:f.from,effective_to:to,employment_joined_on:f.from}]),'SYNTHETIC oversized source',users.admin.id])).id;
+  const assignment=await one(db,'SELECT id FROM payroll_employee_assignments WHERE revision_id=$1',[history]);
+  const run=await one(db,"SELECT * FROM create_payroll_draft_run($1,$2,$3,$4,'Custom',$5)",[f.group,f.department,f.from,to,users.fm.id]);
+  const row=await one(db,'SELECT * FROM add_payroll_draft_employee($1,$2,$3,$4,$5)',[run.id,assignment.id,f.from,to,users.fm.id]);
+  const response=await request('GET',`/rows/${row.id}/review`,'fm');expect(response.status).toBe(200);
+  const view=response.body.review;expect(view.row.id).toBe(row.id);expect(view.current_preview).toBeNull();expect(view.source_stale).toBeNull();expect(view.changes_since_saved).toEqual([]);
+  expect(view.source_error).toEqual({code:'PAYROLL_SOURCE_UNAVAILABLE',sqlstate:'22023',message:'Preview at most 24 months at a time'});
+  expect(view.available_actions).toEqual(['correct','cancel']);expect(view.assignment_candidates).toEqual([]);expect(view.content_versions).toHaveLength(1);expect(view).not.toHaveProperty('source');
+  expect((await request('GET',`/rows/${row.id}/review`,'otherFm')).status).toBe(403);
+  expect((await act(row.id,'calculate','fm')).status).toBe(400);
+  expect((await act(row.id,'correct','fm',{reason:'Record unsupported period for recovery',note:'Withdraw and recreate the proper interval'})).status).toBe(200);
+  const corrected=await inspect(row.id,'fm');expect(corrected.content_versions).toHaveLength(2);expect(corrected.content_versions[1].note).toBe('Withdraw and recreate the proper interval');expect(corrected.actions.map(a=>a.action)).toContain('CORRECTED');
+  expect((await act(row.id,'cancel','fm')).body.result.row.status).toBe('CANCELLED_DRAFT');
+  const withdrawn=await inspect(row.id,'fm');expect(withdrawn.available_actions).toEqual([]);expect(withdrawn.content_versions).toHaveLength(2);expect(withdrawn.actions.map(a=>a.action)).toContain('CANCELLED_DRAFT');expect(withdrawn.payment_status).toBe('NOT_ELIGIBLE');
+ });
  test.each(['SNP Factory','Fabric Factory'])('same granted FM completes %s review/return cycle and HO lock reports prerequisites',async department=>{
   const f=await fixture({factory:true,department}),id=f.rows[0].id;
   expect((await act(id,'calculate','fm')).status).toBe(200);expect((await act(id,'submit','fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');

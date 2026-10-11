@@ -48,5 +48,6 @@
   "get_payroll_review_sources",
   "transition_payroll_employee_review",
   "get_payroll_review_queue",
-  "get_payroll_employee_review"
+  "get_payroll_employee_review",
+  "get_payroll_salary_register"
 ]

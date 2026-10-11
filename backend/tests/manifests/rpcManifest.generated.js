@@ -707,6 +707,27 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_salary_register": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_filters",
+          "type": "jsonb DEFAULT '{}'::jsonb"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_source_history": {
       "args": [
         {
