@@ -6,6 +6,7 @@ const PERMANENT_CATEGORIES = new Set(permanentCategories);
 const payStructureSelect = 'id,employee_id,revision_number,pay_basis,guaranteed_monthly_gross,basic_salary,staff_welfare,other_fixed_components,epf_enrolment,esi_enrolment,status,created_at,updated_at,created_by,updated_by';
 
 function sendPayError(res, error) {
+  if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   if (error?.message?.includes('Permanent pay structures can only be created') || error?.code === '23514') {
     return res.status(400).json({ success: false, message: error.message || 'Invalid pay structure values.' });
   }
@@ -133,35 +134,45 @@ async function suspendPayStructure(req, res) {
 
 async function listPayStructures(req, res) {
   try {
-    const { data: employees, error } = await supabase
-      .from('hr_employees')
-      .select(`
-        id,
-        employee_code,
-        employee_name,
-        employee_category,
-        department,
-        active_status,
-        pay_structures:hr_permanent_pay_structures(
+    // The existing response is a complete employee/pay-structure directory.
+    // PostgREST caps one request at 1,000 rows; fetch stable batches so newer
+    // employee structures do not silently disappear from Employee Management.
+    const employees = [];
+    const batchSize = 1000;
+    for (let offset = 0; ; offset += batchSize) {
+      const { data, error } = await supabase
+        .from('hr_employees')
+        .select(`
           id,
-          revision_number,
-          pay_basis,
-          guaranteed_monthly_gross,
-          basic_salary,
-          staff_welfare,
-          other_fixed_components,
-          epf_enrolment,
-          esi_enrolment,
-          status,
-          created_at,
-          updated_at
-        )
-      `)
-      .in('employee_category', Array.from(PERMANENT_CATEGORIES))
-      .order('employee_code', { ascending: true })
-      .order('revision_number', { foreignTable: 'hr_permanent_pay_structures', ascending: false });
+          employee_code,
+          employee_name,
+          employee_category,
+          department,
+          active_status,
+          pay_structures:hr_permanent_pay_structures(
+            id,
+            revision_number,
+            pay_basis,
+            guaranteed_monthly_gross,
+            basic_salary,
+            staff_welfare,
+            other_fixed_components,
+            epf_enrolment,
+            esi_enrolment,
+            status,
+            created_at,
+            updated_at
+          )
+        `)
+        .in('employee_category', Array.from(PERMANENT_CATEGORIES))
+        .order('employee_code', { ascending: true })
+        .order('revision_number', { foreignTable: 'hr_permanent_pay_structures', ascending: false })
+        .range(offset, offset + batchSize - 1);
 
-    if (error) throw error;
+      if (error) throw error;
+      employees.push(...(data || []));
+      if (!data || data.length < batchSize) break;
+    }
 
     return res.json({ success: true, pay_structures: employees || [] });
   } catch (error) {

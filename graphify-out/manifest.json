@@ -294,9 +294,9 @@
     "semantic_hash": ""
   },
   "backend/src/controllers/hrPayStructures.controller.js": {
-    "mtime": 1791595135.3629427,
-    "seen": 1791595573.9257624,
-    "ast_hash": "499ebccd1ec0ead0d69930d68b0ee940",
+    "mtime": 1791800354.6670842,
+    "seen": 1791812903.8741355,
+    "ast_hash": "03ee5d738efe59fa4cd10e5be4379867",
     "semantic_hash": ""
   },
   "backend/src/controllers/masterData.controller.js": {
@@ -6534,9 +6534,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/unit/payrollSourceConflict.test.js": {
-    "mtime": 1791796463.2737737,
-    "seen": 1791796765.5551794,
-    "ast_hash": "58d480ccc962938e3c4cc3c2372b88e7",
+    "mtime": 1791800354.7060843,
+    "seen": 1791812903.8749495,
+    "ast_hash": "6adbd6169eb6d1c38ae414b6e513304f",
     "semantic_hash": ""
   },
   "backend/src/db/migrations/128_payroll_source_fence_period_bounds.sql": {
@@ -6555,6 +6555,24 @@
     "mtime": 1791797420.1927638,
     "seen": 1791797596.7191672,
     "ast_hash": "b953fa5186f01282b71d97588e5d2c72",
+    "semantic_hash": ""
+  },
+  "backend/tests/vitest/unit/hrPayStructureDirectory.test.js": {
+    "mtime": 1791800214.5293162,
+    "seen": 1791812903.8749254,
+    "ast_hash": "69f988db618132b4a0365733cc0f9406",
+    "semantic_hash": ""
+  },
+  "documentation/SN_Polymers_Payroll_Local_UAT_Checklist.md": {
+    "mtime": 1791812878.005498,
+    "seen": 1791812903.8757694,
+    "ast_hash": "4d6ea66dbb2f3346dfb2c3b44dc42028",
+    "semantic_hash": ""
+  },
+  "documentation/SN_Polymers_Payroll_Local_UAT_Report.md": {
+    "mtime": 1791812988.048215,
+    "seen": 1791813198.7305005,
+    "ast_hash": "cbd16e34d246fc260843b8bb014c047c",
     "semantic_hash": ""
   }
 }
