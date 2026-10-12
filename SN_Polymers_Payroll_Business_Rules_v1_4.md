@@ -973,6 +973,8 @@ No user should need to reverse-engineer a spreadsheet formula to understand the 
 
 ## 19. Open decisions requiring client confirmation
 
+**Phase 6 decision update (12 October 2026):** See [the client decision record](documentation/SN_Polymers_Payroll_Phase6_Decisions.md) for newer explicit approvals and remaining pending items. The user approved recommendations except their stated pending items and explicitly excluded answer #12. In particular, D22 calendar-weighted allocation architecture and D14 negative/zero-net treatment now have client approval; complete applicable statutory configuration and recovery evidence/limits remain required. The latest user instruction assigns statutory master setup to Accounts and does not request a separate advisor sign-off workflow, superseding historical Admin-only setup ownership; implementation must still validate complete rule inputs. The follow-up confirms both Fixed30 and Actual Calendar Days as client-selectable join/exit methods, and HO as final adjustment approver; normally paid weekly offs/holidays are excluded from LOP under the research-selected no-sandwich convention, subject to evidenced calendar/legal entitlement. Employee beneficiary setup is authorized; no payment or payment-reconciliation workflow is authorized by these answers. The historical table below remains available for traceability and must be read with this update.
+
 | ID | Decision | Why it matters | Suggested default pending approval |
 |---|---|---|---|
 | **D01** | **RESOLVED LOP DEFAULT**: all permanent LOP uses **published Fixed ÷30**. **OPEN JOIN/EXIT**: original gross/30 per-day instruction versus proposed **actual calendar-day** partial-month calculation; settle eligible date count and holiday handling | Do not conflate LOP and joining/leaving salary | Keep Fixed30 LOP; proration method `UNRESOLVED` until explicit sign-off |
@@ -1377,4 +1379,3 @@ The following references inform **system design**; they do not override the conf
 - **Strengthened:** full-month-unpaid `BLOCKED_POLICY`, weekly-off/no-sandwich distinction, negative/residual salary checks, submitted-preview invalidation after master changes, and per-employee month-ledger reconciliation.
 - **Extended:** proposed database entities, Admin UI, audit/versioning requirements and `POL-001..018` test matrix; preserved all original `SIM-*` test IDs and historical dry-run result counts.
 - **Documented:** official ERP sources as **research references only**; the final client policy and statutory definitions remain the controlling sources for production use.
-

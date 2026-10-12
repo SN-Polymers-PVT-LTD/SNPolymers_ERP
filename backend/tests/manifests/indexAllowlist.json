@@ -84,5 +84,19 @@
   "payroll_statutory_scope_bindings_scope_idx",
   "payroll_review_revisions_pkey",
   "payroll_review_action_version_unique",
-  "payroll_employee_review_queue_idx"
+  "payroll_employee_review_queue_idx",
+  "payroll_employee_statutory_profiles_pkey",
+  "payroll_profile_interval_nonoverlap",
+  "payroll_adjustment_employee_idx",
+  "payroll_statutory_month_idx",
+  "payroll_advance_application_month_idx",
+  "payroll_calendar_published_unique",
+  "payroll_adjustments_pkey",
+  "payroll_adjustment_events_pkey",
+  "payroll_financial_snapshots_pkey",
+  "payroll_statutory_entries_pkey",
+  "payroll_adjustment_applications_pkey",
+  "payroll_period_cutoffs_pkey",
+  "payroll_assignment_employee_scope_idx",
+  "payroll_run_employee_source_period_idx"
 ]

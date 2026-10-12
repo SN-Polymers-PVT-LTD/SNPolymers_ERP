@@ -1811,6 +1811,7 @@ async function upsertBeneficiary(req, res) {
 
     return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
   } catch (error) {
+    if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
     console.error(`upsertBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
   }
@@ -1993,6 +1994,7 @@ async function upsertIndianBank(req, res) {
 
     return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
   } catch (error) {
+    if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
     console.error(`upsertIndianBank failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save Indian bank.' });
   }

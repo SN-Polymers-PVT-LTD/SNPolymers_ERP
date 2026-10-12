@@ -1,11 +1,14 @@
 const { supabase } = require('../db/supabase');
 
-const employeeSelect = 'id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,created_at,updated_at,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
-const listSelect = 'id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
+const employeeSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,created_at,updated_at,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
+const listSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
 
 function sendError(res, error) {
+  if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   if (error?.code === '23505') return res.status(409).json({ success: false, message: 'Employee code or ERP account is already assigned.' });
-  if (error?.code === '23503') return res.status(400).json({ success: false, message: 'Referenced ERP account does not exist.' });
+  if (error?.code === '42501') return res.status(403).json({success:false,message:'Employee beneficiary access denied.'});
+  if (error?.code === '22023') return res.status(400).json({success:false,message:error.message});
+  if (error?.code === '23503') return res.status(400).json({ success: false, message: 'Referenced ERP account or beneficiary does not exist.' });
   if (error?.code === '23514') return res.status(400).json({ success: false, message: 'Invalid employee field value.' });
   if (error?.code === 'P0001') return res.status(400).json({ success: false, message: error.message || 'Business rule violation.' });
   console.error('HR employee operation failed:', error);

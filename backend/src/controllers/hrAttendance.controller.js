@@ -3,6 +3,7 @@ const { factoryDepartment } = require('../domain/hrEmployeeCategories');
 const sheetFactory = (query, department) => query.or(`department.eq.${department},department.is.null`);
 
 function sendError(res, error) {
+  if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   const code = error?.code;
   if (code === 'P0002' || code === 'PGRST116') return res.status(404).json({ success: false, code: 'ATTENDANCE_NOT_FOUND', message: 'Attendance sheet, employee row or leave request was not found.' });
   if (code === '42501') return res.status(403).json({ success: false, code: 'FACTORY_ACCESS_DENIED', message: 'Factory attendance access denied.' });

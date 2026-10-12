@@ -19,6 +19,8 @@ function setAuthenticatedRole(role) {
     if (url === '/hr/payroll/runs') return Promise.resolve({ data: { success: true, selection: { runs: [], total: 0 } } });
     if (url === '/hr/payroll/review/queue') return Promise.resolve({ data: { success: true, queue: { rows: [], sheets: [], total: 0 } } });
     if (url === '/hr/payroll/reports/register') return Promise.resolve({ data: { success: true, register: { rows: [], summaries: [], total: 0, payment_status: 'NOT_ELIGIBLE' } } });
+    if (url === '/hr/payroll/statutory-profiles/employees') return Promise.resolve({data:{success:true,result:{employees:[],total:0}}});
+    if (url === '/hr/payroll/statutory-profiles/context') return Promise.resolve({data:{success:true,result:{scopes:[],bindings:[],total:0}}});
     if (url === '/hr/payroll/context') return Promise.resolve({ data: { success: true, context: { groups: [] } } });
     if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
@@ -194,6 +196,13 @@ describe('App Smoke Tests', () => {
     await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Review'})).not.toBeInTheDocument();
   });
 
+  it('opens Accounts statutory setup without enabling HR master edits',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/payroll/statutory');render(<App/>);expect(await screen.findByRole('heading',{name:'Statutory Deduction Master'})).toBeInTheDocument();});
+  it('opens the Admin statutory profile foundation route',async()=>{
+    setAuthenticatedRole('admin');window.history.pushState({},'', '/admin/payroll/statutory-profiles');render(<App/>);expect(await screen.findByRole('heading',{name:'Employee statutory profiles'})).toBeInTheDocument();expect(screen.getAllByRole('link',{name:'Employee Statutory Profiles'}).length).toBeGreaterThan(0);
+  });
+  it.each(['ho','factory_manager','je','zo'])('denies %s direct statutory profile administration',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/admin/payroll/statutory-profiles');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Employee Statutory Profiles'})).not.toBeInTheDocument();
+  });
   it.each([['policies','Payroll Policy Master'],['statutory','Statutory Deduction Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {
     setAuthenticatedRole('admin');
     window.history.pushState({}, '', `/admin/payroll/${kind}`);
@@ -203,7 +212,7 @@ describe('App Smoke Tests', () => {
     expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();
   });
 
-  it.each(['factory_manager','je','zo','ho','accounts'].flatMap(role => ['/admin/payroll/policies','/admin/payroll/statutory'].map(path => [role,path])))('denies %s direct payroll master navigation to %s', async (role,path) => {
+  it.each(['factory_manager','je','zo','ho','accounts'].flatMap(role => (role==='accounts'?['/admin/payroll/policies']:['/admin/payroll/policies','/admin/payroll/statutory']).map(path => [role,path])))('denies %s direct payroll master navigation to %s', async (role,path) => {
     setAuthenticatedRole(role);
     window.history.pushState({}, '', path);
     render(<App />);

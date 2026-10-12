@@ -10,9 +10,9 @@ beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw
  server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}`;});
 afterAll(async()=>{if(server)await new Promise(resolve=>server.close(resolve));if(db){await q('UPDATE authorised_users SET is_active=false WHERE id=ANY($1::uuid[])',[Object.values(users)]);await db.end();}});
 describe('Phase 2 authenticated HTTP boundary',()=>{
- test('current Admin only across reads/writes/publication, no forged actor or status accepted',async()=>{
+ test('Admin policies and Accounts/Admin statutory reads/writes/publication, no forged actor or status accepted',async()=>{
   expect((await request('GET','/policies','anonymous')).status).toBe(401);
-  for(const role of ['accounts','ho','factory_manager','je','zo'])for(const path of ['/policies','/statutory']){expect((await request('GET',path,role)).status).toBe(403);expect((await request('POST',`${path}/drafts`,role,{id:null,expected_version:0,data:policy()})).status).toBe(403);expect((await request('POST',`${path}/${crypto.randomUUID()}/publish`,role,{})).status).toBe(403);}
+  for(const role of ['accounts','ho','factory_manager','je','zo'])for(const path of ['/policies','/statutory']){if(role==='accounts'&&path==='/statutory'){expect((await request('GET',path,role)).status).toBe(200);continue;}expect((await request('GET',path,role)).status).toBe(403);expect((await request('POST',`${path}/drafts`,role,{id:null,expected_version:0,data:policy()})).status).toBe(403);expect((await request('POST',`${path}/${crypto.randomUUID()}/publish`,role,{})).status).toBe(403);}
   expect((await request('POST','/policies/drafts','admin',{id:null,expected_version:0,data:policy(),actor_id:users.ho})).status).toBe(400);
   expect((await request('POST','/policies/drafts','admin',{id:null,expected_version:0,data:policy({status:'PUBLISHED'})})).status).toBe(400);
  });

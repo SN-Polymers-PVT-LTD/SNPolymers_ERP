@@ -14,7 +14,7 @@ function validateMaster(kind, data) {
   const c = d.configuration;
   for (const key of ['eligibility','calculation_method','conditions']) if (['UNRESOLVED','PROFILE_EXEMPTIONS'].includes(c[key])) block(key,'UNSUPPORTED_OR_UNRESOLVED');
   if (c.rounding.method === 'UNRESOLVED') block('rounding');
-  if (d.verification_status !== 'ADVISOR_VERIFIED') block('verification_status','ADVISOR_VERIFICATION_REQUIRED');
+  if (!['ADVISOR_VERIFIED','ACCOUNTS_CONFIRMED'].includes(d.verification_status)) block('verification_status','ADVISOR_VERIFICATION_REQUIRED');
   if (d.scheme === 'PT') { if (!d.slabs.length) block('slabs','INCOMPLETE_SLABS'); }
   else {
    for (const key of ['employee_rate','employer_rate']) if (c[key] === null) block(key,'RATE_REQUIRED');
@@ -36,9 +36,9 @@ function resolveMaster(kind, revisions, scope, date) {
  if (kind === 'policies' && !scope.group_code) return error('PAYROLL_GROUP_REQUIRED');
  if (kind === 'policies' && ['SNP_CASUAL','SNP_LOCAL','FABRIC_CASUAL','FABRIC_LOCAL'].includes(scope.group_code)) return error('DAILY_WAGE_MASTER_REQUIRED');
  if (kind === 'statutory' && (!scope.scheme || (!scope.statutory_scope_id && (!scope.jurisdiction || !scope.establishment)))) return error('STATUTORY_SCOPE_REQUIRED');
- let rows = revisions.filter(r => r.status === 'PUBLISHED' && r.effective_from <= date && date <= r.effective_to);
+ let rows = revisions.filter(r => r.status === 'PUBLISHED' && r.effective_from <= date && (!r.effective_to || date <= r.effective_to));
  if (kind === 'policies') { const specific = rows.filter(r => r.group_code === scope.group_code); rows = specific.length ? specific : rows.filter(r => r.group_code === null); }
- else rows = rows.filter(r => r.scheme === scope.scheme && (scope.statutory_scope_id ? r.statutory_scope_id === scope.statutory_scope_id : r.jurisdiction === scope.jurisdiction && r.establishment === scope.establishment) && r.verification_status === 'ADVISOR_VERIFIED');
+ else rows = rows.filter(r => r.scheme === scope.scheme && (scope.statutory_scope_id ? r.statutory_scope_id === scope.statutory_scope_id : r.jurisdiction === scope.jurisdiction && r.establishment === scope.establishment) && ['ADVISOR_VERIFIED','ACCOUNTS_CONFIRMED'].includes(r.verification_status));
  if (rows.length !== 1) return error(rows.length ? 'AMBIGUOUS_POLICY' : 'MISSING_POLICY');
  const r = rows[0], validation = validateMaster(kind, r.data);
  if (!validation.valid) return { ...error('INVALID_POLICY'), revision_id: r.id, issues: validation.issues };

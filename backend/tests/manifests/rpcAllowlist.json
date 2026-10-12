@@ -49,5 +49,15 @@
   "transition_payroll_employee_review",
   "get_payroll_review_queue",
   "get_payroll_employee_review",
-  "get_payroll_salary_register"
+  "get_payroll_salary_register",
+  "record_payroll_statutory_profiles",
+  "get_payroll_statutory_profiles",
+  "get_payroll_statutory_profile_context",
+  "create_payroll_adjustment",
+  "act_payroll_adjustment",
+  "get_payroll_adjustments",
+  "publish_payroll_calendar_days",
+  "set_payroll_period_cutoff",
+  "get_payroll_official_payslip",
+  "get_payroll_statutory_employees"
 ]

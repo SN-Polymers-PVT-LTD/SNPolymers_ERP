@@ -13,7 +13,7 @@ async function detail(req,res){
  try{
   const {data,error}=await supabase.rpc('get_payroll_employee_review',{p_row_id:req.params.rowId,p_actor_id:req.user.id});
   if(error)return sendError(res,error);
-  const current=data.source?calculatePreview(data.source):null,latest=data.revisions.at(-1)?.calculation_snapshot||null;
+  const current=data.row.status==='LOCKED'?data.locked_calculation:(data.source?calculatePreview(data.source):null),latest=data.revisions.at(-1)?.calculation_snapshot||null;
   const revisions=data.revisions.map((v,i)=>{
    const note=data.content_versions.find(c=>c.version===v.content_version)?.note||'';
    const previous=data.revisions[i-1],oldNote=data.content_versions.find(c=>c.version===previous?.content_version)?.note||'';
@@ -21,7 +21,7 @@ async function detail(req,res){
   });
   const {source,...review}=data;
   const assignmentCandidates=(source?.assignments||[]).filter(a=>a.group_code===data.run.group_code&&a.department===data.run.department&&a.effective_from<=data.row.period_from&&(!a.effective_to||data.row.period_to<=a.effective_to)).map(a=>({id:a.id,group_code:a.group_code,effective_from:a.effective_from,effective_to:a.effective_to}));
-  return res.json({success:true,review:{...review,revisions,assignment_candidates:assignmentCandidates,current_preview:current,source_stale:current?!!latest&&latest.source_fingerprint!==current.source_fingerprint:null,changes_since_saved:current?previewChanges(latest,current):[],available_actions:availableActions({...data.row,employee_self:data.employee_self},req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(data.run.department)).filter(action=>current||!['calculate','submit','forward','approve_lock'].includes(action))}});
+  return res.json({success:true,review:{...review,revisions,assignment_candidates:assignmentCandidates,current_preview:current,source_stale:data.row.status==='LOCKED'?false:current?!!latest&&latest.source_fingerprint!==current.source_fingerprint:null,changes_since_saved:current?previewChanges(latest,current):[],available_actions:availableActions({...data.row,employee_self:data.employee_self},req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(data.run.department)).filter(action=>current||!['calculate','submit','forward','approve_lock'].includes(action))}});
  }catch(error){return sendError(res,error);}
 }
 // Both single and bulk actions call the same single-employee transactional RPC.

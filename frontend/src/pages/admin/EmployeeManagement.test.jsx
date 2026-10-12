@@ -19,6 +19,7 @@ vi.mock('../../api/authApi', () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn()
   }
 }));
@@ -139,10 +140,17 @@ function renderWithClient(ui, initialEntries = ['/admin/employee-management']) {
 }
 
 describe('Phase 1 Employee Management Component Contracts', () => {
+  it('persists the selected canonical beneficiary through the existing employee edit form',async()=>{
+    const user=userEvent.setup();renderWithClient(<EmployeeManagement/>);await user.click(await screen.findByText('Amit Sharma'));await user.click(screen.getByRole('button',{name:/Edit Employee/i}));
+    const beneficiary=await screen.findByLabelText('Saved employee beneficiary');await user.selectOptions(beneficiary,'beneficiary-uuid');await user.click(screen.getByRole('button',{name:'Save Changes'}));
+    await waitFor(()=>expect(authApi.patch).toHaveBeenCalledWith('/hr/employees/emp-1-uuid',expect.objectContaining({beneficiary_id:'beneficiary-uuid'})));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
 
     authApi.get.mockImplementation((url, config) => {
+      if(url==='/acct-requisitions/beneficiary-master')return Promise.resolve({data:{beneficiaries:[{id:'beneficiary-uuid',beneficiary_name:'Synthetic beneficiary',account_number:'123456789012',ifsc:'TEST0000001'}],pagination:{totalPages:1}}});
+      if(url==='/acct-requisitions/indian-banks')return Promise.resolve({data:{indianBanks:[]}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -976,4 +984,3 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(perPageSelect.value).toBe('15');
   });
 });
-

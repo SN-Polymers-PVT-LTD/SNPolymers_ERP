@@ -131,7 +131,7 @@ describe('Phase 2 review database protections',()=>{
   await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[first.id,scope,'SYNTHETIC ONLY - approved mapping',admin]);
   const r=await resolve('statutory',{scheme:'EPF',statutory_scope_id:scope},'2091-02-01');expect(r.revision_id).toBe(first.id);expect(r.statutory_scope_id).toBe(scope);expect(r.data.jurisdiction).toBe(data.jurisdiction);
   const alias=await publish('statutory',await save('statutory',{...data,jurisdiction:crypto.randomUUID()}));
-  for(const [who,code] of [[accounts,'42501'],[admin,'23P01']]){
+  for(const [who,code] of [[await actor('ho'),'42501'],[accounts,'23P01'],[admin,'23P01']]){
    await q('SAVEPOINT binding_failure');await expect(q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[alias.id,scope,'Synthetic alias',who])).rejects.toMatchObject({code});await q('ROLLBACK TO SAVEPOINT binding_failure');
   }
   await q('SAVEPOINT mapping_immutable');await expect(q('DELETE FROM payroll_statutory_scope_bindings WHERE revision_id=$1',[first.id])).rejects.toMatchObject({code:'42501'});await q('ROLLBACK TO SAVEPOINT mapping_immutable');

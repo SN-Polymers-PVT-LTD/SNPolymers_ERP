@@ -32,6 +32,7 @@ import {
   LEGACY_PROJECT_CATEGORY,
   getDepartmentsForCategory
 } from './employeeConstants';
+import EmployeeBeneficiary from '../../components/hr/EmployeeBeneficiary';
 import { exportEmployeesToExcel } from '../../utils/exportHelpers';
 
 const INITIAL_FORM = {
@@ -42,7 +43,8 @@ const INITIAL_FORM = {
   erp_role: '',
   erp_user_id: '',
   joining_date: new Date().toISOString().split('T')[0],
-  active_status: 'Active'
+  active_status: 'Active',
+  beneficiary_id: null
 };
 
 export default function EmployeeMaster({ onNavigateToPayStructure }) {
@@ -62,6 +64,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
   const [inspectingEmployee, setInspectingEmployee] = useState(null);
   const [form, setForm] = useState(INITIAL_FORM);
   const [formErrors, setFormErrors] = useState({});
+  const [beneficiaryReady,setBeneficiaryReady]=useState(true);
 
 
   // Status Action Modal
@@ -200,6 +203,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
     setErpUserPage(1);
     setLoadedErpUsersMap({});
     setFormErrors({});
+    setBeneficiaryReady(true);
     setIsModalOpen(true);
   };
 
@@ -214,11 +218,13 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
       erp_role: emp.erp_user?.role || '',
       erp_user_id: emp.erp_user_id || '',
       joining_date: emp.joining_date || '',
-      active_status: emp.active_status || 'Active'
+      active_status: emp.active_status || 'Active',
+      beneficiary_id: emp.beneficiary_id || null
     });
     setErpUserPage(1);
     setLoadedErpUsersMap({});
     setFormErrors({});
+    setBeneficiaryReady(true);
     setIsModalOpen(true);
   };
 
@@ -317,6 +323,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
       return;
     }
 
+    if(!beneficiaryReady)return;
     const payload = {
       employee_name: form.employee_name.trim(),
       employee_category: form.employee_category,
@@ -324,7 +331,8 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
       contact_number: form.contact_number.trim() ? form.contact_number.trim() : null,
       erp_user_id: form.erp_user_id ? form.erp_user_id : null,
       joining_date: form.joining_date,
-      active_status: form.active_status
+      active_status: form.active_status,
+      beneficiary_id: form.beneficiary_id
     };
 
     saveMutation.mutate(payload);
@@ -845,6 +853,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
             </Select>
           </div>
 
+          {isModalOpen&&<EmployeeBeneficiary key={editingEmployee?.id||'new'} value={form.beneficiary_id} record={editingEmployee?.beneficiary} onChange={id=>setForm(f=>({...f,beneficiary_id:id}))} onReady={setBeneficiaryReady}/>}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <Button
               type="button"
@@ -859,7 +868,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
               type="submit"
               variant="primary"
               size="md"
-              disabled={saveMutation.isPending}
+              disabled={saveMutation.isPending || !beneficiaryReady}
             >
               {saveMutation.isPending ? 'Saving...' : editingEmployee ? 'Save Changes' : 'Create Employee'}
             </Button>

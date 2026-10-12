@@ -76,8 +76,9 @@ spreadsheet deductions. Contractual BASIC/STAFF_WELFARE/other components appear
 as separately labelled component evidence rather than additional earned amounts.
 
 Department exports include information and department/state summaries. Printable
-HTML summaries include the same filters, rows, department/state totals, generation
-time and diagnostic notice; open the downloaded document and use browser print
+HTML summaries respect the selected report type: department reports contain only
+aggregate tables; register reports also include employee rows. Both include filters,
+department/state totals, generation time and the diagnostic notice; open the downloaded document and use browser print
 (or Save as PDF). Diagnostic employee payslips can be printed from the register.
 
 All monetary cells are **exact decimal text**, including values beyond Excel's

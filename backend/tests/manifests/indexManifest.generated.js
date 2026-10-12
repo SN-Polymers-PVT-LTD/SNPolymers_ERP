@@ -237,6 +237,30 @@ module.exports = {
       "table": "subcontract_work_master",
       "definition": "CREATE INDEX idx_swm_sub_head ON public.subcontract_work_master USING btree (sub_head)"
     },
+    "payroll_adjustment_applications_pkey": {
+      "table": "payroll_adjustment_applications",
+      "definition": "CREATE UNIQUE INDEX payroll_adjustment_applications_pkey ON public.payroll_adjustment_applications USING btree (adjustment_id, salary_row_id, contribution_month)"
+    },
+    "payroll_adjustment_employee_idx": {
+      "table": "payroll_adjustments",
+      "definition": "CREATE INDEX payroll_adjustment_employee_idx ON public.payroll_adjustments USING btree (employee_id, effective_date, id)"
+    },
+    "payroll_adjustment_events_pkey": {
+      "table": "payroll_adjustment_events",
+      "definition": "CREATE UNIQUE INDEX payroll_adjustment_events_pkey ON public.payroll_adjustment_events USING btree (id)"
+    },
+    "payroll_adjustments_pkey": {
+      "table": "payroll_adjustments",
+      "definition": "CREATE UNIQUE INDEX payroll_adjustments_pkey ON public.payroll_adjustments USING btree (id)"
+    },
+    "payroll_advance_application_month_idx": {
+      "table": "payroll_adjustment_applications",
+      "definition": "CREATE INDEX payroll_advance_application_month_idx ON public.payroll_adjustment_applications USING btree (adjustment_id, contribution_month, salary_row_id)"
+    },
+    "payroll_assignment_employee_scope_idx": {
+      "table": "payroll_employee_assignments",
+      "definition": "CREATE INDEX payroll_assignment_employee_scope_idx ON public.payroll_employee_assignments USING btree (employee_id, group_code, employee_category)"
+    },
     "payroll_assignment_nonoverlap": {
       "table": "payroll_employee_assignments",
       "definition": "CREATE INDEX payroll_assignment_nonoverlap ON public.payroll_employee_assignments USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
@@ -244,6 +268,10 @@ module.exports = {
     "payroll_calendar_group_date_idx": {
       "table": "payroll_work_calendar_days",
       "definition": "CREATE INDEX payroll_calendar_group_date_idx ON public.payroll_work_calendar_days USING btree (group_code, department, calendar_date)"
+    },
+    "payroll_calendar_published_unique": {
+      "table": "payroll_work_calendar_days",
+      "definition": "CREATE UNIQUE INDEX payroll_calendar_published_unique ON public.payroll_work_calendar_days USING btree (group_code, department, calendar_date) WHERE (status = 'PUBLISHED'::text)"
     },
     "payroll_employee_finalized_nonoverlap": {
       "table": "payroll_employee_coverage",
@@ -261,6 +289,10 @@ module.exports = {
       "table": "payroll_run_employees",
       "definition": "CREATE INDEX payroll_employee_review_queue_idx ON public.payroll_run_employees USING btree (status, run_id, id)"
     },
+    "payroll_employee_statutory_profiles_pkey": {
+      "table": "payroll_employee_statutory_profiles",
+      "definition": "CREATE UNIQUE INDEX payroll_employee_statutory_profiles_pkey ON public.payroll_employee_statutory_profiles USING btree (id)"
+    },
     "payroll_entitlement_employee_unique": {
       "table": "payroll_employee_month_entitlements",
       "definition": "CREATE UNIQUE INDEX payroll_entitlement_employee_unique ON public.payroll_employee_month_entitlements USING btree (id, employee_id)"
@@ -268,6 +300,10 @@ module.exports = {
     "payroll_factory_scope_latest_idx": {
       "table": "payroll_factory_scope_events",
       "definition": "CREATE INDEX payroll_factory_scope_latest_idx ON public.payroll_factory_scope_events USING btree (user_id, department, id DESC)"
+    },
+    "payroll_financial_snapshots_pkey": {
+      "table": "payroll_financial_snapshots",
+      "definition": "CREATE UNIQUE INDEX payroll_financial_snapshots_pkey ON public.payroll_financial_snapshots USING btree (row_id)"
     },
     "payroll_history_run_idx": {
       "table": "payroll_action_history",
@@ -285,6 +321,10 @@ module.exports = {
       "table": "payroll_permanent_pay_applicability",
       "definition": "CREATE INDEX payroll_pay_applicability_nonoverlap ON public.payroll_permanent_pay_applicability USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
     },
+    "payroll_period_cutoffs_pkey": {
+      "table": "payroll_period_cutoffs",
+      "definition": "CREATE UNIQUE INDEX payroll_period_cutoffs_pkey ON public.payroll_period_cutoffs USING btree (run_id, version)"
+    },
     "payroll_policy_published_nonoverlap": {
       "table": "payroll_policy_master_revisions",
       "definition": "CREATE INDEX payroll_policy_published_nonoverlap ON public.payroll_policy_master_revisions USING gist (COALESCE(group_code, 'GLOBAL'::text), daterange(effective_from, effective_to, '[]'::text)) WHERE (status = 'PUBLISHED'::text)"
@@ -292,6 +332,10 @@ module.exports = {
     "payroll_policy_revision_number_unique": {
       "table": "payroll_policy_master_revisions",
       "definition": "CREATE UNIQUE INDEX payroll_policy_revision_number_unique ON public.payroll_policy_master_revisions USING btree (COALESCE(group_code, 'GLOBAL'::text), revision_number) WHERE (status = 'PUBLISHED'::text)"
+    },
+    "payroll_profile_interval_nonoverlap": {
+      "table": "payroll_employee_statutory_profiles",
+      "definition": "CREATE INDEX payroll_profile_interval_nonoverlap ON public.payroll_employee_statutory_profiles USING gist (revision_id, scheme, daterange(effective_from, effective_to, '[]'::text))"
     },
     "payroll_pt_slab_nonoverlap": {
       "table": "payroll_professional_tax_slabs",
@@ -305,6 +349,10 @@ module.exports = {
       "table": "payroll_review_revisions",
       "definition": "CREATE UNIQUE INDEX payroll_review_revisions_pkey ON public.payroll_review_revisions USING btree (row_id, revision)"
     },
+    "payroll_run_employee_source_period_idx": {
+      "table": "payroll_run_employees",
+      "definition": "CREATE INDEX payroll_run_employee_source_period_idx ON public.payroll_run_employees USING btree (employee_id, period_from, period_to, run_id)"
+    },
     "payroll_run_employees_run_id_employee_id_key": {
       "table": "payroll_run_employees",
       "definition": "CREATE UNIQUE INDEX payroll_run_employees_run_id_employee_id_key ON public.payroll_run_employees USING btree (run_id, employee_id)"
@@ -316,6 +364,14 @@ module.exports = {
     "payroll_sources_row_version_idx": {
       "table": "payroll_source_links",
       "definition": "CREATE INDEX payroll_sources_row_version_idx ON public.payroll_source_links USING btree (row_id, row_version)"
+    },
+    "payroll_statutory_entries_pkey": {
+      "table": "payroll_statutory_entries",
+      "definition": "CREATE UNIQUE INDEX payroll_statutory_entries_pkey ON public.payroll_statutory_entries USING btree (salary_row_id, scheme, contribution_month)"
+    },
+    "payroll_statutory_month_idx": {
+      "table": "payroll_statutory_entries",
+      "definition": "CREATE INDEX payroll_statutory_month_idx ON public.payroll_statutory_entries USING btree (employee_id, scheme, contribution_month, salary_row_id)"
     },
     "payroll_statutory_published_nonoverlap": {
       "table": "payroll_statutory_rule_revisions",

@@ -26,7 +26,15 @@ describe('payroll report/export contracts',()=>{
   const sheet=book.getWorksheet('Source Evidence');const parts=[];sheet.eachRow((r,i)=>{if(i>2&&r.getCell(2).value==='source_references')parts.push(r.getCell(4).value);});expect(parts).toHaveLength(2);expect(parts.join('')).toBe(JSON.stringify(source_references));expect(parts.every(p=>p.length<=30000)).toBe(true);
  });
  test('printable summary escapes untrusted names/filter text and labels diagnostic totals',()=>{
-  const html=printableSummary(makeReport([{...row,employee_name:'<script>bad()</script>'}]));expect(html).not.toContain('<script>');expect(html).toContain('&lt;script&gt;');expect(html).toContain('not approved liability');expect(html).toContain('Unavailable');
+  const html=printableSummary(makeReport([{...row,employee_name:'<script>bad()</script>'}]));expect(html).not.toContain('<script>');expect(html).toContain('&lt;script&gt;');expect(html).toContain('not approved liabilities');expect(html).toContain('Unavailable');
+ });
+ test('department-only printable HTML omits employee identities and individual amounts while register HTML retains them',()=>{
+  const rows=[{...row,employee_name:'Synthetic Alice',gross_after_lop:'12345.67',net_salary:'11234.56'},{...row,employee_name:'Synthetic Bob',gross_after_lop:'23456.78',net_salary:'21345.67'}];
+  const report=makeReport(rows);report.summaries=[{department:'Head Office',status:'CALCULATED',row_count:2,gross_known_rows:2,known_gross_total:'35802.45',gross_total:'35802.45',known_lop_total:'0.00'}];
+  const summary=printableSummary(report,'departments'),detailed=printableSummary(report,'register');
+  expect(summary).toContain('Head Office');expect(summary).toContain('35802.45');expect(summary).not.toContain('<th>Employee Name</th>');
+  for(const employee of rows)for(const value of [employee.employee_name,employee.gross_after_lop,employee.net_salary]){expect(summary).not.toContain(value);expect(detailed).toContain(value);}
+  expect(detailed).toContain('<th>Employee Name</th>');
  });
  test('validates filters, periods, export bounds, and payslip modes without client monetary inputs',()=>{
   expect(schema.register.query.safeParse({from:'2091-11-01',to:'2091-10-01'}).success).toBe(false);

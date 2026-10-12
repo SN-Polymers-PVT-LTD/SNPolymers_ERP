@@ -56,6 +56,13 @@
     "payroll_master_events",
     "payroll_statutory_scopes",
     "payroll_statutory_scope_bindings",
-    "payroll_review_revisions"
+    "payroll_review_revisions",
+    "payroll_employee_statutory_profiles",
+    "payroll_adjustments",
+    "payroll_adjustment_events",
+    "payroll_financial_snapshots",
+    "payroll_statutory_entries",
+    "payroll_adjustment_applications",
+    "payroll_period_cutoffs"
   ]
 }

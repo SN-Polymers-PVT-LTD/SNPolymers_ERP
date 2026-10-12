@@ -3,7 +3,7 @@ function sendError(res, error) {
   const code = error?.code;
   if (code === '42501') return res.status(403).json({ success: false, code: 'PAYROLL_ACCESS_DENIED', message: error.message });
   if (code === 'P0002') return res.status(404).json({ success: false, code: 'PAYROLL_NOT_FOUND', message: error.message });
-  if (['23505', '23P01', '40001', 'PY409'].includes(code)) return res.status(409).json({ success: false, code: 'PAYROLL_CONFLICT', message: error.message });
+  if (['23505', '23P01', '40001', '40P01', 'PY409'].includes(code)) return res.status(409).json({ success: false, code: 'PAYROLL_CONFLICT', message: error.message });
   if (['23503', '23514', '23502', '22023', '22007', '22008', '22P02', '22003'].includes(code)) return res.status(400).json({ success: false, code: 'INVALID_PAYROLL_SOURCE', message: error.message });
   console.error('Payroll foundation operation failed:', code);
   return res.status(500).json({ success: false, message: 'Payroll foundation operation failed.' });

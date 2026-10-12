@@ -608,6 +608,8 @@ const Sidebar = () => {
 
   // 2. Define sub-navigation items based on active module and role access
   const navItems = [];
+  if (['admin','accounts'].includes(user?.role)) navItems.push({to:'/admin/payroll/statutory-profiles',label:'Employee Statutory Profiles',icon:<span aria-hidden="true">₹</span>});
+  if (['admin','accounts'].includes(user?.role)) navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
   if (['admin','accounts','ho','factory_manager'].includes(user?.role)) navItems.push({to:'/hr/payroll/register',label:'Payroll Register',icon:<span aria-hidden="true">₹</span>});
   if (['admin','accounts','ho','factory_manager'].includes(user?.role)) navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
   if (['admin','accounts','ho','factory_manager'].includes(user?.role)) navItems.push({to:'/hr/payroll/review',label:'Payroll Review',icon:<span aria-hidden="true">✓</span>});

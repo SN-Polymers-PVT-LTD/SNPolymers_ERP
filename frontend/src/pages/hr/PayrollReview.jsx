@@ -4,6 +4,8 @@ import {useQuery,useMutation,useQueryClient} from '@tanstack/react-query';
 import {useAuth} from '../../components/AuthContext';
 import {Button,Select,Pagination,Input,TextArea} from '../../components/ui';
 import SalaryPreview from '../../components/payroll/SalaryPreview';
+import EmployeeAdjustments from '../../components/payroll/EmployeeAdjustments';
+import PayrollPeriodSetup from '../../components/payroll/PayrollPeriodSetup';
 import PayrollDraftEditor from '../../components/payroll/PayrollDraftEditor';
 import {getPayrollReviewQueue,getPayrollEmployeeReview,actOnPayrollEmployee,actOnPayrollEmployees} from '../../api/payrollReviewApi';
 const labels={calculate:'Save calculation revision',correct:'Save correction',submit:'Submit employee',forward:'Verify and forward',return:'Return for correction',approve_lock:'Check final lock',cancel:'Withdraw draft'};
@@ -46,7 +48,7 @@ export default function PayrollReview(){
  <div>{detail.data.available_actions.map(kind=><Button key={kind} disabled={busy||(needsReason(kind)&&!reason.trim())} onClick={()=>action.mutate({row:detail.data.row,action:kind,fp:detail.data.revisions.at(-1)?.source_fingerprint})}>{labels[kind]}</Button>)}</div>
  <p>Current authoritative salary diagnostic. Payment status: {detail.data.payment_status}.</p>{detail.data.current_preview?<SalaryPreview preview={detail.data.current_preview}/>:<p>Current salary preview unavailable.</p>}
  <details><summary>Changes since saved calculation</summary><pre className="text-xs whitespace-pre-wrap">{JSON.stringify(detail.data.changes_since_saved,null,2)}</pre></details>
- <h3 className="font-bold">Submission and calculation revisions</h3>{detail.data.revisions.map(v=><details key={v.revision}><summary>Revision {v.revision} / content {v.content_version} · {v.created_at} · {v.reason}</summary><p>Prepared by {v.created_by}. Correction note: {v.content_note||'—'}</p><pre className="text-xs whitespace-pre-wrap">{JSON.stringify(v.changes,null,2)}</pre><SalaryPreview preview={v.calculation_snapshot}/></details>)}
+ <PayrollPeriodSetup key={detail.data.run.id} run={detail.data.run} cutoff={detail.data.period_cutoff} user={user}/><EmployeeAdjustments key={detail.data.row.employee_id} employeeId={detail.data.row.employee_id} rowId={detail.data.row.id} employeeSelf={detail.data.employee_self} user={user}/><h3 className="font-bold">Submission and calculation revisions</h3>{detail.data.revisions.map(v=><details key={v.revision}><summary>Revision {v.revision} / content {v.content_version} · {v.created_at} · {v.reason}</summary><p>Prepared by {v.created_by}. Correction note: {v.content_note||'—'}</p><pre className="text-xs whitespace-pre-wrap">{JSON.stringify(v.changes,null,2)}</pre><SalaryPreview preview={v.calculation_snapshot}/></details>)}
  <details><summary>Correction content and reviewer action history</summary><pre className="text-xs whitespace-pre-wrap">{JSON.stringify({content:detail.data.content_versions,actions:detail.data.actions},null,2)}</pre></details>
  </>)}
  </div>;

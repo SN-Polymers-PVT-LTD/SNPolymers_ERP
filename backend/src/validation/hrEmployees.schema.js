@@ -41,6 +41,7 @@ const fields = {
   department: z.enum(departments),
   contact_number: contact,
   erp_user_id: link,
+  beneficiary_id: link,
   joining_date: date,
   active_status: z.enum(statuses)
 };

@@ -22,6 +22,35 @@ module.exports = {
       ],
       "returns": "excess_fund_returns"
     },
+    "act_payroll_adjustment": {
+      "args": [
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_data",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "add_payroll_draft_employee": {
       "args": [
         {
@@ -88,6 +117,23 @@ module.exports = {
         }
       ],
       "returns": "void"
+    },
+    "create_payroll_adjustment": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_data",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "create_payroll_draft_run": {
       "args": [
@@ -571,6 +617,27 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_adjustments": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_draft_candidates": {
       "args": [
         {
@@ -656,6 +723,19 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_official_payslip": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_preview_sources": {
       "args": [
         {
@@ -729,6 +809,61 @@ module.exports = {
       "returns": "jsonb"
     },
     "get_payroll_source_history": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_statutory_employees": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_search",
+          "type": "text DEFAULT ''::text"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_statutory_profile_context": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_search",
+          "type": "text DEFAULT ''::text"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_statutory_profiles": {
       "args": [
         {
           "name": "p_employee_id",
@@ -860,6 +995,31 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "publish_payroll_calendar_days": {
+      "args": [
+        {
+          "name": "p_group",
+          "type": "text"
+        },
+        {
+          "name": "p_department",
+          "type": "text"
+        },
+        {
+          "name": "p_days",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "publish_payroll_master": {
       "args": [
         {
@@ -934,6 +1094,31 @@ module.exports = {
         }
       ],
       "returns": "uuid"
+    },
+    "record_payroll_statutory_profiles": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_intervals",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "refresh_analytics_views": {
       "args": [],
@@ -1196,6 +1381,35 @@ module.exports = {
         }
       ],
       "returns": "payroll_factory_scope_events"
+    },
+    "set_payroll_period_cutoff": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_cutoff",
+          "type": "timestamp with time zone"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "submit_fund_request_transact": {
       "args": [

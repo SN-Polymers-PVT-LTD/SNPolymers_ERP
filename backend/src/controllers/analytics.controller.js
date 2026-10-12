@@ -488,22 +488,33 @@ async function getProjectsHealth(req, res) {
     let enrichedData = healthData || [];
     if (enrichedData.length > 0) {
       const woNumbers = enrichedData.map(p => p.work_order_no);
-      const [pmRes, woMapRes] = await Promise.all([
-        supabase.from('projects_master').select('work_order_no, department').in('work_order_no', woNumbers),
-        supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true).in('work_order_no', woNumbers)
+      const CHUNK_SIZE = 50;
+      const fetchInChunks = async (table, selectStr, extraFilter = null) => {
+        let allData = [];
+        for (let i = 0; i < woNumbers.length; i += CHUNK_SIZE) {
+          const chunk = woNumbers.slice(i, i + CHUNK_SIZE);
+          let q = supabase.from(table).select(selectStr).in('work_order_no', chunk);
+          if (extraFilter) q = extraFilter(q);
+          const { data, error } = await q;
+          if (error) throw error;
+          if (data) allData = allData.concat(data);
+        }
+        return allData;
+      };
+
+      const [pmData, woMapData] = await Promise.all([
+        fetchInChunks('projects_master', 'work_order_no, department'),
+        fetchInChunks('work_order_mappings', 'work_order_no, je_user_id', q => q.eq('is_active', true))
       ]);
 
-      if (pmRes.error) throw pmRes.error;
-      if (woMapRes.error) throw woMapRes.error;
-
       const deptMap = {};
-      (pmRes.data || []).forEach(p => {
+      (pmData || []).forEach(p => {
         if (p.department) deptMap[p.work_order_no] = p.department;
       });
 
       const jeMobileMap = {};
       const jeMobiles = [];
-      (woMapRes.data || []).forEach(m => {
+      (woMapData || []).forEach(m => {
         if (!jeMobileMap[m.work_order_no]) {
           jeMobileMap[m.work_order_no] = [];
         }
@@ -512,14 +523,19 @@ async function getProjectsHealth(req, res) {
       });
 
       const userMap = {};
-      if (jeMobiles.length > 0) {
-        const { data: users } = await supabase
-          .from('authorised_users')
-          .select('mobile_number, display_name')
-          .in('mobile_number', Array.from(new Set(jeMobiles)));
-        (users || []).forEach(u => {
-          userMap[u.mobile_number] = u.display_name;
-        });
+      const uniqueJeMobiles = Array.from(new Set(jeMobiles));
+      if (uniqueJeMobiles.length > 0) {
+        for (let i = 0; i < uniqueJeMobiles.length; i += CHUNK_SIZE) {
+          const chunk = uniqueJeMobiles.slice(i, i + CHUNK_SIZE);
+          const { data: users, error: userErr } = await supabase
+            .from('authorised_users')
+            .select('mobile_number, display_name')
+            .in('mobile_number', chunk);
+          if (userErr) throw userErr;
+          (users || []).forEach(u => {
+            userMap[u.mobile_number] = u.display_name;
+          });
+        }
       }
 
       enrichedData = enrichedData.map(p => {

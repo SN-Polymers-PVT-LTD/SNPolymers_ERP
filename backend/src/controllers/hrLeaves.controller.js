@@ -1,6 +1,7 @@
 const { supabase } = require('../db/supabase');
 
 function sendError(res, error) {
+  if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   const code = error?.code;
   if (code === 'P0002' || code === 'PGRST116') {
     return res.status(404).json({ success: false, code: 'LEAVE_NOT_FOUND', message: 'Leave request or employee not found.' });

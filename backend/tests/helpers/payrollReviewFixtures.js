@@ -10,14 +10,14 @@ async function createReviewUsers(db){
   users[key]=await one(db,'INSERT INTO authorised_users(mobile_number,role,display_name,is_active) VALUES($1,$2,$3,true) RETURNING *',[String(crypto.randomInt(7000000000,9999999999)),role,'Synthetic Phase 4 '+key]);
  }return users;
 }
-async function createReviewFixture(db,users,{factory=false,department=factory?'SNP Factory':'Head Office',count=1}={}){
+async function createReviewFixture(db,users,{factory=false,department=factory?'SNP Factory':'Head Office',count=1,policyOverrides={}}={}){
  const year=Math.max(2800,Number((await one(db,"SELECT coalesce(max(extract(year FROM effective_to)),2799) y FROM payroll_policy_master_revisions WHERE status='PUBLISHED'")).y)+2);
  const from=`${year}-10-01`,to=factory?from:`${year}-10-31`,creator=factory?users.fm:users.accounts;
  const group=factory?(department==='SNP Factory'?'SNP_CASUAL':'FABRIC_CASUAL'):'HO_STAFF';
  const category=factory?(department==='SNP Factory'?'SNP Casual Factory Labour':'Fabric Factory Casual Factory Labour'):'HO Staff';
  if(factory)await q(db,'SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[creator.id,department,'SYNTHETIC review fixture',users.admin.id]);
  else{
-  const data=policy({group_code:group,effective_from:from,effective_to:to,rounding:{lop:{method:'HALF_UP',precision:2,stage:'MONTH'},proration:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'},allocation:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'}}});
+  const data=policy({group_code:group,effective_from:from,effective_to:to,rounding:{lop:{method:'HALF_UP',precision:2,stage:'MONTH'},proration:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'},allocation:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'}},...policyOverrides});
   const d=(await one(db,"SELECT save_payroll_master_draft('policies',NULL,0,$1,$2) r",[JSON.stringify(data),users.admin.id])).r;
   const p=(await one(db,"SELECT preview_payroll_master_publication('policies',$1,$2) r",[d.id,users.admin.id])).r;
   await q(db,"SELECT publish_payroll_master('policies',$1,1,$2,'SYNTHETIC ONLY',$3)",[d.id,p.preview_token,users.admin.id]);

@@ -21,7 +21,7 @@ BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$BACKEND_DIR/.." && pwd)"
 
 # ─── Local Supabase static credentials (safe: localhost only, public) ────────
-export LOCAL_SUPABASE_TEST_PROFILE=shared
+export LOCAL_SUPABASE_TEST_PROFILE="${LOCAL_SUPABASE_TEST_PROFILE:-shared}"
 # Full integration runs include payroll; keep them off the shared fixture stack.
 if [ $# -eq 0 ]; then export LOCAL_SUPABASE_TEST_PROFILE=payroll; fi
 if [ "${1:-}" = "--isolated" ]; then

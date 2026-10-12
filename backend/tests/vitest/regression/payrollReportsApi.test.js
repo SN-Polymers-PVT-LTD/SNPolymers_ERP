@@ -48,8 +48,17 @@ describe('scoped saved payroll reporting API and PostgreSQL',()=>{
  test('Excel and printable exports match the same saved rows/totals and protect injected identity text',async()=>{
   const f=await fixture({}),id=f.rows[0].id;await q(db,'UPDATE hr_employees SET employee_name=$1,updated_by=$2 WHERE id=$3',['=HYPERLINK("evil")',users.admin.id,f.employees[0].id]);await reviewAction(db,id,'calculate',users.accounts.id);
   const response=await request('/reports/export?'+query({run_id:f.run.id,format:'xlsx'}),'accounts',true);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');const book=new ExcelJS.Workbook();await book.xlsx.load(response.body);expect(book.getWorksheet('Salary Register').getCell('C3').value).toBe("'=HYPERLINK(\"evil\")");expect(book.getWorksheet('Salary Register').getCell('L3').value).toBe('30000.00');
-  const printable=await request('/reports/export?'+query({run_id:f.run.id,format:'html'}),'accounts',true);expect(printable.body.toString()).toContain('30000.00');expect(printable.body.toString()).toContain('not approved liability');
+  const printable=await request('/reports/export?'+query({run_id:f.run.id,format:'html'}),'accounts',true);expect(printable.body.toString()).toContain('30000.00');expect(printable.body.toString()).toContain('not approved liabilities');
   const empty=await request('/reports/export?'+query({run_id:f.run.id,search:'does not exist',format:'xlsx'}),'accounts',true);const blank=new ExcelJS.Workbook();await blank.xlsx.load(empty.body);expect(blank.getWorksheet('Salary Register').rowCount).toBe(2);
+ });
+ test('department-only HTML exports contain aggregate totals without individual names or salaries',async()=>{
+  const f=await fixture({count:2});for(const row of f.rows)await reviewAction(db,row.id,'calculate',users.accounts.id);
+  const summary=await request('/reports/export?'+query({run_id:f.run.id,format:'html',report:'departments'}),'accounts',true);
+  const detailed=await request('/reports/export?'+query({run_id:f.run.id,format:'html',report:'register'}),'accounts',true);
+  expect(summary.status).toBe(200);expect(detailed.status).toBe(200);const html=summary.body.toString(),register=detailed.body.toString();
+  expect(html).toContain('60000.00');expect(html).not.toContain('30000.00');expect(html).not.toContain('<th>Employee Name</th>');
+  for(const employee of f.employees){expect(html).not.toContain(employee.employee_name);expect(register).toContain(employee.employee_name);}
+  expect(register).toContain('30000.00');expect(register).toContain('<th>Employee Name</th>');
  });
  test('oversized exports fail explicitly without partial bytes; legacy Admin ownership remains unchanged',async()=>{
   const {supabase}=require('../../../src/db/supabase');const original=supabase.rpc.bind(supabase);

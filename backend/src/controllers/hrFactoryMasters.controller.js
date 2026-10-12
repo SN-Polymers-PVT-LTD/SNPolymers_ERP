@@ -2,6 +2,7 @@ const { supabase } = require('../db/supabase');
 const { factoryCategories, wageCategories } = require('../domain/hrEmployeeCategories');
 
 function sendError(res, error) {
+  if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   if (error?.code === '23505') return res.status(409).json({ success: false, code: 'REVISION_DATE_CONFLICT', message: 'A revision already exists for this category and effective date.' });
   if (error?.code === '42501') return res.status(403).json({ success: false, message: 'Factory access denied.' });
   if (['23514', '23503', '22003'].includes(error?.code)) return res.status(400).json({ success: false, message: 'Invalid factory master values.' });
