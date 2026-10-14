@@ -99,7 +99,8 @@ test('source-resolution failures do not prevent withdrawing an unapproved oversi
  await reject(()=>one(db,'SELECT get_payroll_review_sources($1,$2)',[row.id,users.fm.id]),'22023');
  const detail=(await one(db,'SELECT get_payroll_employee_review($1,$2) r',[row.id,users.fm.id])).r;
  expect(detail.row.id).toBe(row.id);expect(detail.source).toBeNull();expect(detail.source_error.sqlstate).toBe('22023');expect(detail.content_versions).toHaveLength(1);
- await reject(()=>one(db,'SELECT get_payroll_employee_review($1,$2)',[row.id,users.otherFm.id]),'42501');
+ expect((await one(db,'SELECT get_payroll_employee_review($1,$2) r',[row.id,users.otherFm.id])).r.row.id).toBe(row.id);
+ await reject(()=>reviewAction(db,row.id,'cancel',users.otherFm.id,{reason:'Cannot take over another preparer'}),'42501');
  expect((await reviewAction(db,row.id,'cancel',users.fm.id,{reason:'Withdraw unsupported interval'})).row.status).toBe('CANCELLED_DRAFT');
 });
 

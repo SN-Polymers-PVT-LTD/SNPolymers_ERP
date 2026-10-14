@@ -1357,31 +1357,6 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
-    "set_payroll_factory_scope": {
-      "args": [
-        {
-          "name": "p_user_id",
-          "type": "uuid"
-        },
-        {
-          "name": "p_department",
-          "type": "text"
-        },
-        {
-          "name": "p_allowed",
-          "type": "boolean"
-        },
-        {
-          "name": "p_reason",
-          "type": "text"
-        },
-        {
-          "name": "p_actor_id",
-          "type": "uuid"
-        }
-      ],
-      "returns": "payroll_factory_scope_events"
-    },
     "set_payroll_period_cutoff": {
       "args": [
         {

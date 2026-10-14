@@ -15,8 +15,7 @@ async function createReviewFixture(db,users,{factory=false,department=factory?'S
  const from=`${year}-10-01`,to=factory?from:`${year}-10-31`,creator=factory?users.fm:users.accounts;
  const group=factory?(department==='SNP Factory'?'SNP_CASUAL':'FABRIC_CASUAL'):'HO_STAFF';
  const category=factory?(department==='SNP Factory'?'SNP Casual Factory Labour':'Fabric Factory Casual Factory Labour'):'HO Staff';
- if(factory)await q(db,'SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[creator.id,department,'SYNTHETIC review fixture',users.admin.id]);
- else{
+ if(!factory){
   const data=policy({group_code:group,effective_from:from,effective_to:to,rounding:{lop:{method:'HALF_UP',precision:2,stage:'MONTH'},proration:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'},allocation:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'}},...policyOverrides});
   const d=(await one(db,"SELECT save_payroll_master_draft('policies',NULL,0,$1,$2) r",[JSON.stringify(data),users.admin.id])).r;
   const p=(await one(db,"SELECT preview_payroll_master_publication('policies',$1,$2) r",[d.id,users.admin.id])).r;

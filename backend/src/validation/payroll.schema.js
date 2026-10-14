@@ -16,7 +16,6 @@ const pagination = z.object({ page: z.coerce.number().int().min(1).max(100000).d
 module.exports = {
   listRuns: { query: pagination },
   preview: { params: z.object({ rowId: z.uuid() }).strict(), body: z.object({ expected_source_fingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional() }).strict() },
-  scope: { body: z.object({ user_id: z.uuid(), department: z.enum(['SNP Factory', 'Fabric Factory']), allowed: z.boolean(), reason }).strict() },
   history: { body: z.discriminatedUnion('kind', [
     z.object({ ...historyBase, kind: z.literal('ASSIGNMENT'), intervals: z.array(assignment).min(1).max(1000) }).strict(),
     z.object({ ...historyBase, kind: z.literal('PERMANENT_PAY'), intervals: z.array(pay).min(1).max(1000) }).strict()

@@ -297,10 +297,6 @@ module.exports = {
       "table": "payroll_employee_month_entitlements",
       "definition": "CREATE UNIQUE INDEX payroll_entitlement_employee_unique ON public.payroll_employee_month_entitlements USING btree (id, employee_id)"
     },
-    "payroll_factory_scope_latest_idx": {
-      "table": "payroll_factory_scope_events",
-      "definition": "CREATE INDEX payroll_factory_scope_latest_idx ON public.payroll_factory_scope_events USING btree (user_id, department, id DESC)"
-    },
     "payroll_financial_snapshots_pkey": {
       "table": "payroll_financial_snapshots",
       "definition": "CREATE UNIQUE INDEX payroll_financial_snapshots_pkey ON public.payroll_financial_snapshots USING btree (row_id)"

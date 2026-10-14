@@ -17,7 +17,6 @@ const rpc = (name, params, key, status = 200) => async (req, res) => {
 };
 module.exports = {
   context: rpc('get_payroll_foundation_context', () => ({}), 'context'),
-  setScope: rpc('set_payroll_factory_scope', req => ({ p_user_id: req.body.user_id, p_department: req.body.department, p_allowed: req.body.allowed, p_reason: req.body.reason }), 'scope_event', 201),
   recordHistory: rpc('record_payroll_source_history', req => ({ p_employee_id: req.body.employee_id, p_kind: req.body.kind, p_intervals: req.body.intervals, p_evidence: req.body.evidence_reference }), 'revision_id', 201),
   sourceHistory: rpc('get_payroll_source_history', req => ({ p_employee_id: req.params.employeeId }), 'history'),
   createRun: rpc('create_payroll_draft_run', req => ({ p_group_code: req.body.group_code, p_department: req.body.department, p_from: req.body.period_from, p_to: req.body.period_to, p_cycle: req.body.cycle }), 'run', 201),

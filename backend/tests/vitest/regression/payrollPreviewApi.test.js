@@ -46,7 +46,7 @@ describe('authenticated read-only payroll previews',()=>{
   }finally{await c2.query('ROLLBACK');await c1.end();await c2.end();}
  });
  test('run listing is paginated and an existing session cannot retain a revoked account role',async()=>{
-  expect((await request('GET','/runs?limit=101')).status).toBe(400);expect((await request('GET','/runs','factory_manager')).body.selection.runs).toEqual([]);
+  expect((await request('GET','/runs?limit=101')).status).toBe(400);expect((await request('GET','/runs','factory_manager')).body.selection.runs.every(r=>['SNP Factory','Fabric Factory'].includes(r.department))).toBe(true);
   await q("UPDATE authorised_users SET role='je' WHERE id=$1",[users.accounts]);expect([401,403]).toContain((await request('POST',`/rows/${row.id}/preview`,'accounts',{})).status);
  });
 });

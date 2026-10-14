@@ -1,5 +1,6 @@
 # Payroll Phase 6 — guarded financial finalization
 
+> Factory grant references below describe the historical implementation. The 14 October 2026 client decision and migration 131 supersede them: active FMs access payroll for both factories without grants. See [factory access removal](SN_Polymers_Payroll_Factory_Access_Removal.md).
 Implemented on `employee_management`, without committing or pushing. Production financial finalization remains disabled. Payment processing, bank debits, payment reconciliation and statutory posting are excluded under the client’s later instruction to ignore decision 12. No Phase 7 work is included.
 
 ## Architecture and formulas

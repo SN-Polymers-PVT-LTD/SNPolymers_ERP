@@ -17,7 +17,7 @@ Target: `employee_management`, isolated Docker Supabase `SNPolymersPayrollTests`
 | H02 | Admin | Employee permanent/factory setup; beneficiary reference | Existing HR form and canonical beneficiary linking; masked payroll bank details | Pass — browser HR edit form/canonical saved beneficiary; HR/beneficiary writes covered by integration tests |
 | H03 | Admin | Effective payroll policy setup | Fixed30/Actual Calendar proration, monthly package and rounding fields; draft/published history | Pass — browser selected both methods, saved/published PROJECTS_JE policy; publication history retained |
 | H04 | Accounts | Statutory master and employee profile screens | Accounts configuration access, canonical schemes/scopes, effective dates and explicit evidence | Pass — browser Accounts masters/profile timeline/evidence controls; write/publication/profile validation covered by integration |
-| H05 | FM | SNP and Fabric factory selection | Both granted scopes available; unrelated groups excluded | Pass — browser same FM sees all six SNP/Fabric groups; ungranted FM sees none |
+| H05 | FM | SNP and Fabric factory selection | Both factories available for every active FM; office groups excluded | Updated acceptance — automated coverage added; browser rerun pending |
 | H06 | Accounts | Custom HO/Projects draft; select employee | Arbitrary valid range within assignment; canonical employee/row identity | Pass — browser created custom 2028-01-03–19 Projects sheet and empty-candidate recovery; employee selection/addition covered by API integration |
 | H07 | FM | Factory custom draft and preview | Locked attendance/finalized leave references; factory wage/rule calculations | Pass — browser SNP/Fabric source-backed previews; custom factory draft coverage in payroll API integration |
 | H08 | Accounts | Monthly permanent preview | Itemized gross/LOP, source revisions, statutory deduction/employer contribution separation | Pass — browser 30000.00 gross, 703.70 EPF, 29296.30 net; employer 925.93 separate |
@@ -41,7 +41,7 @@ Target: `employee_management`, isolated Docker Supabase `SNPolymersPayrollTests`
 | ID | Scenario | Expected | Result |
 |---|---|---|---|
 | A01 | JE/ZO open review/register/statutory setup directly | Unauthorized routes/API blocked; own employee payslip remains identity-scoped | Pass — browser JE register and ZO review/statutory redirect; authenticated API JE/ZO all forbidden |
-| A02 | FM open HO/Projects salary or ungranted factory | Backend denies scope; no unrelated names or salaries | Pass — browser/API FM office denied; ungranted FM empty queue and factory detail denied |
+| A02 | FM open HO/Projects salary and both factories | Backend denies office payroll; both factories readable; another FM cannot act as creator | Updated acceptance — automated coverage added; browser rerun pending |
 | A03 | HO/FM attempt statutory setup; Accounts policy administration | Administrative role boundaries preserved | Pass — authenticated API HO/FM statutory and Accounts policy administration forbidden; no master data returned |
 | A04 | Self-approval or wrong reviewer transition | Denied by backend/database, no history mutation | Pass — API wrong reviewer denied; self-approval/current-role guards in PostgreSQL/API regression |
 | A05 | Blank return/correction/approval evidence or stale version | Validation/409; existing values/history retained | Pass — browser reason-gated buttons/stale-source check; validation/CAS regression passed |
@@ -49,7 +49,7 @@ Target: `employee_management`, isolated Docker Supabase `SNPolymersPayrollTests`
 | A07 | Legacy oversized period/source resolver failure | Metadata/history/withdraw/correction still accessible; structured source error | Pass — browser source_error, correction saved, withdrawal completed; audit verified through API |
 | A08 | Legacy Admin-created draft ownership | No invented ownership handoff or bypass | Pass — payroll report/review regression preserves legacy Admin ownership; no handoff introduced |
 | A09 | FM official download for another employee | Denied even if register visibility is permitted | Pass — browser/API FM official payslip forbidden |
-| A10 | Unauthenticated/stale role/grant revoked account | Authentication/current database role and grant checks deny access | Pass — unauthenticated API denied; revoked grant/current-role regressions passed |
+| A10 | Unauthenticated/inactive/stale-role account | Authentication/current database role and activity checks deny access; no grants exist | Updated acceptance — automated coverage added; browser rerun pending |
 
 ## Financial/source edge cases
 

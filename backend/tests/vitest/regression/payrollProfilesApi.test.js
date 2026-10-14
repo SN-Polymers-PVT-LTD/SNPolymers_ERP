@@ -62,7 +62,7 @@ describe('statutory profiles PostgreSQL/API safe Phase 6A',()=>{
   const calculation=calculatePreview(after);expect(calculation.statutory[0].status).toBe('BLOCKED');expect(calculation.blockers.map(b=>b.code)).toContain('STATUTORY_COLLECTION_TIMING_REQUIRED');expect(calculation.statutory[0].employee_deduction).toBeNull();expect(calculation.statutory.slice(1).every(r=>r.status==='DOCUMENTED_NOT_APPLICABLE'&&r.employee_deduction==='0.00')).toBe(true);expect(calculation.final_net_salary).toBeNull();expect(calculation.source_fingerprint).not.toBe(calculatePreview(before).source_fingerprint);
   expect((await request('POST',`/rows/${f.rows[0].id}/preview`,'accounts',{})).body.preview.source_references.statutory_profiles).toHaveLength(3);
  });
- test('the granted Factory Manager sees only diagnostic identifiers in both factories, while other managers are denied',async()=>{
+ test('active Factory Managers see only diagnostic identifiers in both factories without grants',async()=>{
   for(const department of ['SNP Factory','Fabric Factory']){
    const f=await fixture({factory:true,department}),scopeId=await scope(db,users.admin.id);
    const revision=await rule(db,users.admin.id,scopeId,f.from,f.to);
@@ -71,7 +71,7 @@ describe('statutory profiles PostgreSQL/API safe Phase 6A',()=>{
    expect(response.status).toBe(200);expect(response.body.preview.source_references.statutory_rule_links.map(r=>r.id)).toContain(revision);
    const payload=JSON.stringify(response.body);
    for(const privateField of ['SYNTHETIC advisor','ISOLATED TEST ONLY','SYNTHETIC EPF enrolment','employee_rate','establishment'])expect(payload).not.toContain(privateField);
-   expect((await request('POST',endpoint,'otherFm',{})).status).toBe(403);
+   const other=await request('POST',endpoint,'otherFm',{});expect(other.status).toBe(200);expect(JSON.stringify(other.body)).not.toContain('SYNTHETIC advisor');
   }
  });
  test('source changes prevent stale approval; even verified profiles leave final locking and all postings blocked',async()=>{

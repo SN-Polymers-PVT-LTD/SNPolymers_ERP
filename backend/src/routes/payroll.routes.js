@@ -45,7 +45,6 @@ router.post('/rows/:rowId/review', validateRequest(reviewSchema.action), review.
 router.get('/runs', validateRequest(schema.listRuns), previews.list);
 router.post('/rows/:rowId/preview', validateRequest(schema.preview), previews.preview);
 router.get('/context', controller.context);
-router.post('/factory-scopes', requireRole(['admin']), validateRequest(schema.scope), controller.setScope);
 router.post('/source-history', requireRole(['admin']), validateRequest(schema.history), controller.recordHistory);
 router.get('/employees/:employeeId/source-history', requireRole(['admin']), validateRequest(schema.employeeHistory), controller.sourceHistory);
 router.post('/runs', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.createRun), controller.createRun);

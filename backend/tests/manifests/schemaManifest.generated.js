@@ -3353,58 +3353,6 @@ module.exports = {
         }
       }
     },
-    "payroll_factory_scope_events": {
-      "columns": {
-        "id": {
-          "type": "bigint",
-          "udtName": "int8",
-          "nullable": false,
-          "default": null
-        },
-        "user_id": {
-          "type": "uuid",
-          "udtName": "uuid",
-          "nullable": false,
-          "default": null
-        },
-        "department": {
-          "type": "text",
-          "udtName": "text",
-          "nullable": false,
-          "default": null
-        },
-        "allowed": {
-          "type": "boolean",
-          "udtName": "bool",
-          "nullable": false,
-          "default": null
-        },
-        "reason": {
-          "type": "text",
-          "udtName": "text",
-          "nullable": false,
-          "default": null
-        },
-        "created_by": {
-          "type": "uuid",
-          "udtName": "uuid",
-          "nullable": false,
-          "default": null
-        },
-        "created_at": {
-          "type": "timestamp with time zone",
-          "udtName": "timestamptz",
-          "nullable": false,
-          "default": "now()"
-        },
-        "event_source": {
-          "type": "text",
-          "udtName": "text",
-          "nullable": false,
-          "default": "'ADMIN'::text"
-        }
-      }
-    },
     "payroll_policy_master_revisions": {
       "columns": {
         "id": {

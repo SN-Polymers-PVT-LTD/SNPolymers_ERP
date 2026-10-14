@@ -23,7 +23,6 @@ describe('read-only preview database sources',()=>{
  test.each(['admin','accounts','ho','factory_manager'])('no employee profile: %s receives no unrelated statutory masters or metadata in its source fingerprint',async role=>{
   const factory=role==='factory_manager',e=await employee(factory?'SNP Casual Factory Labour':'HO Staff',factory?'SNP Factory':'Head Office');
   const row=await runRow(e,factory?'SNP_CASUAL':'HO_STAFF');
-  if(factory)await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,'SNP Factory','Synthetic preview grant',admin]);
   const actor={admin,accounts,ho,factory_manager:fm}[role],before=await source(row,actor);
   for(const scheme of ['EPF','ESI']){
    const data=statutory({scheme,jurisdiction:'UNRELATED_'+crypto.randomUUID(),establishment:'UNRELATED_ESTABLISHMENT',advisor_name:'UNRELATED_ADVISOR',verification_reference:'UNRELATED_VERIFICATION_METADATA',effective_from:'2500-01-01',effective_to:'2500-12-31'});
@@ -56,23 +55,20 @@ describe('read-only preview database sources',()=>{
   await q('SELECT save_hr_attendance_rows($1,$2,$3)',[sheet.id,JSON.stringify([patch]),admin]);
   await q("SELECT transition_hr_attendance_sheet($1,'submit',NULL,$2)",[sheet.id,admin]);await q("SELECT transition_hr_attendance_sheet($1,'review',NULL,$2)",[sheet.id,ho]);
   const row=await runRow(e,group,date,date);const s=await source(row),r=calculatePreview(s);expect(s.attendance[0].sheet_status).toBe('Locked');expect(typeof s.attendance[0].actual_hours).toBe('string');expect(r.gross_after_lop).toBe(local?'800.00':'700.00');expect(r.source_references.attendance[0].id).toBe(s.attendance[0].id);
-  await rejected('SELECT get_payroll_preview_sources($1,$2)',[row.id,fm],'42501');await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,department,'Synthetic scoped access',admin]);expect((await source(row,fm)).row.id).toBe(row.id);
+  expect((await source(row,fm)).row.id).toBe(row.id);
  });
- test('run selection is scoped, current grants and private helpers cannot be bypassed',async()=>{
-  const {row}=await office();expect((await one('SELECT list_payroll_preview_runs($1,1,100) r',[fm])).r.runs).toEqual([]);expect((await one('SELECT list_payroll_preview_runs($1,1,100) r',[accounts])).r.runs.some(r=>r.id===row.run_id)).toBe(true);
+ test('run selection enforces factory versus office roles and private helpers cannot be bypassed',async()=>{
+  const {row}=await office();expect((await one('SELECT list_payroll_preview_runs($1,1,100) r',[fm])).r.runs.every(r=>['SNP Factory','Fabric Factory'].includes(r.department))).toBe(true);expect((await one('SELECT list_payroll_preview_runs($1,1,100) r',[accounts])).r.runs.some(r=>r.id===row.run_id)).toBe(true);
   await q('SET LOCAL ROLE service_role');await rejected("SELECT payroll_preview_decimals('{}','{}')",[],'42501');expect((await source(row,accounts)).row.id).toBe(row.id);await q('RESET ROLE');
  });
 });
 
-test('monthly source snapshot checks every evidenced factory scope, including a transfer outside the selected run dates',async()=>{
+test('monthly source snapshot allows both evidenced factories without grants, including transfers outside selected run dates',async()=>{
  const e=await employee('SNP Permanent Factory Labour','SNP Factory');
  const intervals=[{group_code:'SNP_PERMANENT',employee_category:'SNP Permanent Factory Labour',department:'SNP Factory',effective_from:'2500-02-01',effective_to:'2500-02-15',employment_joined_on:'2500-01-01'},{group_code:'FABRIC_PERMANENT',employee_category:'Fabric Factory Permanent Employees',department:'Fabric Factory',effective_from:'2500-02-16',effective_to:'2500-02-28',employment_joined_on:'2500-01-01'}];
  const h=(await one('SELECT record_payroll_source_history($1,$2,$3,$4,$5) id',[e.id,'ASSIGNMENT',JSON.stringify(intervals),'SYNTHETIC evidenced transfer',admin])).id;
  const a=await one("SELECT id FROM payroll_employee_assignments WHERE revision_id=$1 AND department='SNP Factory'",[h]);
  const run=await one("SELECT * FROM create_payroll_draft_run('SNP_PERMANENT','SNP Factory','2500-02-01','2500-02-15','Custom',$1)",[admin]);
  const row=await one("SELECT * FROM add_payroll_draft_employee($1,$2,'2500-02-01','2500-02-15',$3)",[run.id,a.id,admin]);
- await q("SELECT set_payroll_factory_scope($1,'SNP Factory',true,'Synthetic one-factory grant',$2)",[fm,admin]);
- await rejected('SELECT get_payroll_preview_sources($1,$2)',[row.id,fm],'42501');
- await q("SELECT set_payroll_factory_scope($1,'Fabric Factory',true,'Synthetic second-factory grant',$2)",[fm,admin]);
  expect((await source(row,fm)).assignments.map(a=>a.department)).toEqual(['SNP Factory','Fabric Factory']);
 });

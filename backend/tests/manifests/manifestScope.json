@@ -40,7 +40,6 @@
     "payroll_employee_assignments",
     "payroll_permanent_pay_applicability",
     "payroll_employee_observations",
-    "payroll_factory_scope_events",
     "payroll_policy_master_revisions",
     "payroll_work_calendar_days",
     "payroll_runs",

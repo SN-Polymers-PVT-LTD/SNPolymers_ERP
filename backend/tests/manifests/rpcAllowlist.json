@@ -27,7 +27,6 @@
   "decide_hr_factory_sheet_leave",
   "get_hr_attendance_review_state",
   "get_hr_attendance_review_queue",
-  "set_payroll_factory_scope",
   "record_payroll_source_history",
   "create_payroll_draft_run",
   "add_payroll_draft_employee",

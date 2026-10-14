@@ -1,5 +1,6 @@
 # Payroll Phase 6A — Statutory profile foundation
 
+> Factory grant references below describe the historical implementation. The 14 October 2026 client decision and migration 131 supersede them: active FMs access payroll for both factories without grants. See [factory access removal](SN_Polymers_Payroll_Factory_Access_Removal.md).
 Phase 6 is **not financially complete**. This delivery stops at the safe employee-profile subphase permitted by the request. No statutory deduction formula, final net salary, monthly statutory ledger, salary locking, payment ledger, bank debit, statutory posting or settlement has been activated. Existing Phase 1 posting gates and Phase 4 `approve_lock` blockers remain intact. No commit or push was made.
 
 ## Why financial implementation stops here

@@ -237,6 +237,83 @@ export default function FmDashboardView() {
           </Link>
         </div>
       </section>
+
+      {/* Factory Payroll Operations */}
+      <section aria-label="Factory Payroll Operations" className="space-y-4">
+        <div className="border-b border-white/5 pb-2">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-400 font-mono block">
+            Factory Payroll & Wage Runs
+          </span>
+          <h2 className="text-lg font-bold text-slate-100 mt-0.5">
+            Factory Payroll Operations
+          </h2>
+          <p className="text-xs text-slate-400">
+            Generate wage calculations, review worker line items, and audit monthly payroll registers for factory personnel.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Card 1: Payroll Register */}
+          <Link
+            to="/hr/payroll/register"
+            className="glass-panel p-5 rounded-2xl border border-white/10 bg-slate-900/60 hover:border-emerald-500/30 hover:bg-slate-900/80 transition group flex flex-col justify-between space-y-3"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 font-mono">Salary Register</span>
+                <span className="text-sm font-bold text-slate-400 group-hover:text-emerald-400 group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-100 group-hover:text-emerald-300 transition-colors">Payroll Register</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Run monthly factory payroll calculations, filter runs by department and state, and export salary registers.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 pt-2 block border-t border-white/5">
+              Open Register →
+            </span>
+          </Link>
+
+          {/* Card 2: Payroll Previews */}
+          <Link
+            to="/hr/payroll/previews"
+            className="glass-panel p-5 rounded-2xl border border-white/10 bg-slate-900/60 hover:border-amber-500/30 hover:bg-slate-900/80 transition group flex flex-col justify-between space-y-3"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 font-mono">Draft Audits</span>
+                <span className="text-sm font-bold text-slate-400 group-hover:text-amber-400 group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-100 group-hover:text-amber-300 transition-colors">Payroll Previews</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Examine draft salary runs, verify gross and net wage breakdowns, and inspect active calculation inputs.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 pt-2 block border-t border-white/5">
+              View Previews →
+            </span>
+          </Link>
+
+          {/* Card 3: Payroll Review */}
+          <Link
+            to="/hr/payroll/review"
+            className="glass-panel p-5 rounded-2xl border border-white/10 bg-slate-900/60 hover:border-indigo-500/30 hover:bg-slate-900/80 transition group flex flex-col justify-between space-y-3"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 font-mono">Employee Checks</span>
+                <span className="text-sm font-bold text-slate-400 group-hover:text-indigo-400 group-hover:translate-x-1 transition-transform">→</span>
+              </div>
+              <h3 className="text-base font-bold text-slate-100 group-hover:text-indigo-300 transition-colors">Payroll Review</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Review employee-level attendance metrics, payable days, overtime allowances, and individual pay items.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-400 pt-2 block border-t border-white/5">
+              Open Review Queue →
+            </span>
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }

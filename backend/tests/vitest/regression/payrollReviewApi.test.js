@@ -17,12 +17,13 @@ describe('payroll per-employee review HTTP API',()=>{
   const f=await fixture({factory:true}),id=f.rows[0].id;
   expect((await request('GET','/review/queue','anonymous')).status).toBe(401);
   for(const role of ['je','zo'])expect((await request('GET','/review/queue',role)).status).toBe(403);
-  expect((await request('GET',`/rows/${id}/review`,'otherFm')).status).toBe(403);expect((await request('GET','/review/queue','otherFm')).body.queue.rows).toEqual([]);
+  expect((await request('GET',`/rows/${id}/review`,'otherFm')).status).toBe(200);expect((await request('GET',`/rows/${id}/review`,'otherFm')).body.review.available_actions).toEqual([]);expect((await request('GET',`/review/queue?run_id=${f.run.id}`,'otherFm')).body.queue.rows.some(r=>r.id===id)).toBe(true);
   expect((await request('GET','/review/queue?limit=101')).status).toBe(400);expect((await request('GET','/review/queue?status=REJECTED')).status).toBe(400);
   expect((await request('GET',`/rows/${crypto.randomUUID()}/review`)).status).toBe(404);
   const row=(await inspect(id)).row,body={action:'calculate',expected_version:row.current_version,expected_review_version:row.review_version,reason:'Test'};
   for(const data of [{...body,calculation:{}},{...body,source:{}},{...body,net_salary:'100'},{...body,actor_id:users.admin.id},{...body,reason:''},{...body,action:'reject'}])expect((await request('POST',`/rows/${id}/review`,'fm',data)).status).toBe(400);
   expect((await request('POST',`/rows/${id}/review`,'accounts',body)).status).toBe(403);
+  expect((await request('POST',`/rows/${id}/review`,'otherFm',body)).status).toBe(403);
  });
  test('oversized legacy detail retains corrections, withdrawal and history without bypassing scope or preview guards',async()=>{
   const f=await fixture({factory:true}),employee=f.employees[0],to=`${Number(f.from.slice(0,4))+3}-10-01`;
@@ -34,14 +35,14 @@ describe('payroll per-employee review HTTP API',()=>{
   const view=response.body.review;expect(view.row.id).toBe(row.id);expect(view.current_preview).toBeNull();expect(view.source_stale).toBeNull();expect(view.changes_since_saved).toEqual([]);
   expect(view.source_error).toEqual({code:'PAYROLL_SOURCE_UNAVAILABLE',sqlstate:'22023',message:'Preview at most 24 months at a time'});
   expect(view.available_actions).toEqual(['correct','cancel']);expect(view.assignment_candidates).toEqual([]);expect(view.content_versions).toHaveLength(1);expect(view).not.toHaveProperty('source');
-  expect((await request('GET',`/rows/${row.id}/review`,'otherFm')).status).toBe(403);
+  const otherView=await request('GET',`/rows/${row.id}/review`,'otherFm');expect(otherView.status).toBe(200);expect(otherView.body.review.available_actions).toEqual([]);
   expect((await act(row.id,'calculate','fm')).status).toBe(400);
   expect((await act(row.id,'correct','fm',{reason:'Record unsupported period for recovery',note:'Withdraw and recreate the proper interval'})).status).toBe(200);
   const corrected=await inspect(row.id,'fm');expect(corrected.content_versions).toHaveLength(2);expect(corrected.content_versions[1].note).toBe('Withdraw and recreate the proper interval');expect(corrected.actions.map(a=>a.action)).toContain('CORRECTED');
   expect((await act(row.id,'cancel','fm')).body.result.row.status).toBe('CANCELLED_DRAFT');
   const withdrawn=await inspect(row.id,'fm');expect(withdrawn.available_actions).toEqual([]);expect(withdrawn.content_versions).toHaveLength(2);expect(withdrawn.actions.map(a=>a.action)).toContain('CANCELLED_DRAFT');expect(withdrawn.payment_status).toBe('NOT_ELIGIBLE');
  });
- test.each(['SNP Factory','Fabric Factory'])('same granted FM completes %s review/return cycle and HO lock reports prerequisites',async department=>{
+ test.each(['SNP Factory','Fabric Factory'])('same active FM completes %s review/return cycle and HO lock reports prerequisites',async department=>{
   const f=await fixture({factory:true,department}),id=f.rows[0].id;
   expect((await act(id,'calculate','fm')).status).toBe(200);expect((await act(id,'submit','fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');
   expect((await act(id,'forward','reviewer')).body.result.row.status).toBe('PENDING_HO_APPROVAL');
@@ -71,8 +72,8 @@ describe('payroll per-employee review HTTP API',()=>{
   const before=await q(db,'SELECT (SELECT count(*) FROM payroll_employee_coverage) coverage,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT sum(available_balance)::text FROM bank_balance_master) bank');
   const locks=await Promise.all([act(id,'approve_lock','ho'),act(id,'approve_lock','admin')]);expect(locks.map(r=>r.status)).toEqual([422,422]);expect((await inspect(id)).row.status).toBe('PENDING_HO_APPROVAL');expect(await q(db,'SELECT (SELECT count(*) FROM payroll_employee_coverage) coverage,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT sum(available_balance)::text FROM bank_balance_master) bank')).toEqual(before);
  });
- test('an existing token cannot preserve revoked factory grants or allow creator self-approval after a role change',async()=>{
-  const f=await fixture({factory:true}),id=f.rows[0].id;await act(id,'calculate','fm');await act(id,'submit','fm');await q(db,'SELECT set_payroll_factory_scope($1,$2,false,$3,$4)',[users.fm.id,f.department,'SYNTHETIC revoke',users.admin.id]);expect((await request('GET',`/rows/${id}/review`,'fm')).status).toBe(403);
+ test('an existing token cannot preserve inactive access or allow creator self-approval after a role change',async()=>{
+  const f=await fixture({factory:true}),id=f.rows[0].id;await act(id,'calculate','fm');await act(id,'submit','fm');await q(db,'UPDATE authorised_users SET is_active=false WHERE id=$1',[users.fm.id]);expect([401,403]).toContain((await request('GET',`/rows/${id}/review`,'fm')).status);await q(db,'UPDATE authorised_users SET is_active=true WHERE id=$1',[users.fm.id]);
   const office=await fixture({}),officeId=office.rows[0].id;await act(officeId,'calculate','accounts');await act(officeId,'submit','accounts');
   const changed=await one(db,"UPDATE authorised_users SET role='admin' WHERE id=$1 RETURNING *",[users.accounts.id]);expect([401,403]).toContain((await act(officeId,'approve_lock','accounts')).status);
   const session=await one(db,'INSERT INTO sessions(user_id,is_active,jwt_jti) VALUES($1,true,$2) RETURNING id',[changed.id,crypto.randomUUID()]);tokens.accounts=generateTokens(changed,session.id,crypto.randomUUID()).accessToken;

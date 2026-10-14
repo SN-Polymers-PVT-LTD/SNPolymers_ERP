@@ -1,5 +1,6 @@
 # Payroll Phase 1 foundation
 
+> Factory grant references below describe the historical implementation. The 14 October 2026 client decision and migration 131 supersede them: active FMs access payroll for both factories without grants. See [factory access removal](SN_Polymers_Payroll_Factory_Access_Removal.md).
 Implemented on `employee_management`, using the root file
 `SN_Polymers_Payroll_Business_Rules_v1_4.md` (version 1.4, 11 October 2026).
 The requested `documentation/` copy does not exist. The original specification

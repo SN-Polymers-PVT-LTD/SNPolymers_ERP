@@ -1,5 +1,6 @@
 # Payroll local technical UAT — 12 October 2026
 
+> Historical UAT evidence: factory grant scenarios below predate the 14 October 2026 removal decision. All active FMs now have both factory payroll departments after migration 131. The former ungranted-FM/grant-revocation browser expectations are superseded; browser UAT for the new model must be rerun. See [factory access removal](SN_Polymers_Payroll_Factory_Access_Removal.md).
 Local technical UAT is complete against `employee_management`, using the isolated `SNPolymersPayrollTests` Docker Supabase and synthetic fixtures. All 54 checklist scenarios have browser and/or automated coverage; the checklist identifies the method for each case. This is engineering verification, not client sign-off or validation of production employee/legal evidence. No commit or push was made.
 
 ## Environment and protections

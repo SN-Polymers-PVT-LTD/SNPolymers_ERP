@@ -33,16 +33,15 @@ afterAll(async () => {
   }
 });
 describe('payroll foundation HTTP and PostgreSQL boundary', () => {
-  test('current roles and explicit factory grants control reads and draft creation', async () => {
+  test('current roles control both factory reads and draft creation without grants', async () => {
     expect((await request('GET', '/context', 'anonymous')).status).toBe(401);
     for (const role of ['je','zo']) expect((await request('GET','/context',role)).status).toBe(403);
-    expect((await request('GET','/context','factory_manager')).body.context.groups).toHaveLength(0);
+    expect((await request('GET','/context','factory_manager')).body.context.groups).toHaveLength(6);
     const scope = { user_id: users.factory_manager, department: 'SNP Factory', allowed: true, reason: 'Synthetic payroll authorization' };
-    expect((await request('POST','/factory-scopes','accounts',scope)).status).toBe(403);
-    expect((await request('POST','/factory-scopes','admin',scope)).status).toBe(201);
+    expect((await request('POST','/factory-scopes','admin',scope)).status).toBe(404);
     const factory = { ...office, group_code: 'SNP_LOCAL', department: 'SNP Factory' };
     const created = await request('POST','/runs','factory_manager',factory); expect(created.status).toBe(201); factoryRun = created.body.run;
-    expect((await request('POST','/runs','factory_manager',{ ...factory, group_code: 'FABRIC_LOCAL', department: 'Fabric Factory' })).status).toBe(403);
+    expect((await request('POST','/runs','factory_manager',{ ...factory, group_code: 'FABRIC_LOCAL', department: 'Fabric Factory' })).status).toBe(201);
     expect((await request('POST','/runs','factory_manager',office)).status).toBe(403);
     expect((await request('POST','/runs','ho',office)).status).toBe(403);
     expect((await request('POST','/runs','accounts',factory)).status).toBe(403);
@@ -87,9 +86,9 @@ describe('payroll foundation HTTP and PostgreSQL boundary', () => {
     const response = await fetch(`${base}${prefix}/rows/${row.id}/lock`,{method:'POST',headers:{Cookie:`accessToken=${tokens.ho}`,'Content-Type':'application/json'},body:'{}'});
     expect(response.status).toBe(404);
   });
-  test('revoking a factory grant and changing an account role invalidate live access', async () => {
-    expect((await request('POST','/factory-scopes','admin',{ user_id: users.factory_manager, department: 'SNP Factory', allowed: false, reason: 'Synthetic grant revoked' })).status).toBe(201);
-    expect((await request('GET',`/runs/${factoryRun.id}`,'factory_manager')).status).toBe(403);
+  test('deactivation and role changes invalidate live access despite existing tokens', async () => {
+    await q('UPDATE authorised_users SET is_active=false WHERE id=$1',[users.factory_manager]);
+    expect([401,403]).toContain((await request('GET',`/runs/${factoryRun.id}`,'factory_manager')).status);
     await q("UPDATE authorised_users SET role='je' WHERE id=$1",[users.accounts]);
     expect([401,403]).toContain((await request('GET',`/runs/${officeRun.id}`,'accounts')).status);
   });

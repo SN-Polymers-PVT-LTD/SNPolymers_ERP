@@ -63,25 +63,26 @@ describe('payroll Phase 1 database foundation', () => {
       await rejected('SELECT record_payroll_source_history($1,$2,$3,$4,$5)', [e.id, 'ASSIGNMENT', JSON.stringify([bad]), 'Evidence', admin], '23503');
     }
   });
-  test('FM has no implicit scope; grants, revocations, role changes and inactive users are current', async () => {
-    await rejected("SELECT create_payroll_draft_run('SNP_LOCAL','SNP Factory',$1,$1,'Custom',$2)", [day, fm], '42501');
-    await q("SELECT set_payroll_factory_scope($1,'SNP Factory',true,'Explicit factory grant',$2)", [fm, admin]);
-    expect((await run('SNP_LOCAL', 'SNP Factory', fm)).created_by).toBe(fm);
-    for (const [group, dept] of [['FABRIC_LOCAL', 'Fabric Factory'], ['HO_STAFF', 'Head Office']]) {
-      await rejected('SELECT create_payroll_draft_run($1,$2,$3,$3,$4,$5)', [group, dept, day, 'Custom', fm], '42501');
+  test('active FMs access both factories without grants but cannot access office payroll', async () => {
+    const context = (await q('SELECT get_payroll_foundation_context($1) AS data', [fm]))[0].data;
+    expect(context.groups).toHaveLength(6);
+    expect([...new Set(context.groups.map(g => g.department))].sort()).toEqual(['Fabric Factory','SNP Factory']);
+    for (const [group, department] of [['SNP_LOCAL','SNP Factory'],['FABRIC_LOCAL','Fabric Factory']]) {
+      const created = await run(group, department, fm);
+      expect(created.created_by).toBe(fm);
+      expect((await q('SELECT get_payroll_draft_run($1,$2) data',[created.id,fm]))[0].data.run.id).toBe(created.id);
     }
-    const other = await run('FABRIC_LOCAL', 'Fabric Factory', admin);
-    await rejected('SELECT get_payroll_draft_run($1,$2)', [other.id, fm], '42501');
-    await rejected("SELECT set_payroll_factory_scope($1,'Fabric Factory',true,'Forged grant',$2)", [fm, accounts], '42501');
-    await rejected("SELECT create_payroll_draft_run('SNP_LOCAL','SNP Factory',$1,$1,'Custom',$2)", [day, accounts], '42501');
-    await rejected("SELECT create_payroll_draft_run('HO_STAFF','Head Office',$1,$1,'Custom',$2)", [day, ho], '42501');
-    await q("SELECT set_payroll_factory_scope($1,'SNP Factory',false,'Revoke payroll access',$2)", [fm, admin]);
-    await rejected("SELECT create_payroll_draft_run('SNP_LOCAL','SNP Factory',$1,$1,'Custom',$2)", [day, fm], '42501');
-    expect((await q('SELECT get_payroll_foundation_context($1) AS data', [fm]))[0].data.groups).toHaveLength(0);
-    await q('UPDATE authorised_users SET is_active=false WHERE id=$1', [accounts]);
-    await rejected('SELECT get_payroll_foundation_context($1)', [accounts], '42501');
-    await q("UPDATE authorised_users SET role='je' WHERE id=$1", [fm]);
-    await rejected('SELECT get_payroll_foundation_context($1)', [fm], '42501');
+    for (const [group, department] of [['HO_STAFF','Head Office'],['PROJECTS_JE','Projects']]) {
+      await rejected('SELECT create_payroll_draft_run($1,$2,$3,$3,$4,$5)',[group,department,day,'Custom',fm],'42501');
+      const office = await run(group, department, admin);
+      await rejected('SELECT get_payroll_draft_run($1,$2)',[office.id,fm],'42501');
+    }
+    await rejected("SELECT create_payroll_draft_run('SNP_LOCAL','SNP Factory',$1,$1,'Custom',$2)",[day,accounts],'42501');
+    await rejected("SELECT create_payroll_draft_run('HO_STAFF','Head Office',$1,$1,'Custom',$2)",[day,ho],'42501');
+    await q('UPDATE authorised_users SET is_active=false WHERE id=$1',[fm]);
+    await rejected('SELECT get_payroll_foundation_context($1)',[fm],'42501');
+    await q("UPDATE authorised_users SET is_active=true,role='je' WHERE id=$1",[fm]);
+    await rejected('SELECT get_payroll_foundation_context($1)',[fm],'42501');
   });
   test('historical employee UUID and dated transfers survive present-day exit; observations do not fabricate dates', async () => {
     const e = await employee('Local Daily-Wage Workers', 'SNP Factory');
@@ -205,12 +206,13 @@ describe('payroll Phase 1 database foundation', () => {
   test('direct policy publication stays forbidden; invalid divisors and calendar activation remain blocked', async () => {
     // Phase 2 adds controlled master publication, while financial gates stay intact.
     const beforeCount = (await q('SELECT count(*) FROM payroll_policy_master_revisions'))[0].count;
+    const beforeCalendars = (await q("SELECT count(*) FROM payroll_work_calendar_days WHERE status<>'DRAFT'"))[0].count;
     await rejected(`INSERT INTO payroll_policy_master_revisions(effective_from,effective_to,status,monthly_entitlement_method,lop_method,lop_fixed_divisor,reason,created_by)
       VALUES('1600-10-01','1600-10-31','PUBLISHED','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',30,'Not enabled',$1)`, [admin], '42501');
     await rejected(`INSERT INTO payroll_policy_master_revisions(effective_from,effective_to,monthly_entitlement_method,lop_method,lop_fixed_divisor,reason,created_by)
       VALUES('1600-10-01','1600-10-31','CONTRACTUAL_MONTHLY_GROSS','FIXED_DIVISOR',0,'Invalid divisor',$1)`, [admin], '22023');
     expect((await q('SELECT count(*) FROM payroll_policy_master_revisions'))[0].count).toBe(beforeCount);
-    expect((await q("SELECT count(*) FROM payroll_work_calendar_days WHERE status<>'DRAFT'"))[0].count).toBe('0');
+    expect((await q("SELECT count(*) FROM payroll_work_calendar_days WHERE status<>'DRAFT'"))[0].count).toBe(beforeCalendars);
   });
 });
 
@@ -264,14 +266,17 @@ describe('Phase 1 carryover hardening',()=>{
   const salary=await pay(e);await history(e,'PERMANENT_PAY',[{pay_structure_id:salary.id,effective_from:'1600-10-01',effective_to:null}]);
   expect((await q('SELECT effective_to FROM payroll_permanent_pay_applicability WHERE employee_id=$1',[e.id]))[0].effective_to).toBeNull();
  });
- test('both factory grants require explicit regrant after inactivity or a role round trip',async()=>{
-  for(const department of ['SNP Factory','Fabric Factory'])await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,department,'Explicit synthetic grant',admin]);
-  await q('UPDATE authorised_users SET is_active=false WHERE id=$1',[fm]);await q('UPDATE authorised_users SET is_active=true WHERE id=$1',[fm]);
-  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(0);
-  for(const department of ['SNP Factory','Fabric Factory'])await q('SELECT set_payroll_factory_scope($1,$2,true,$3,$4)',[fm,department,'Explicit regrant',admin]);
-  await q("UPDATE authorised_users SET role='je' WHERE id=$1",[fm]);await q("UPDATE authorised_users SET role='factory_manager' WHERE id=$1",[fm]);
-  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(0);
-  expect((await q("SELECT count(*) FROM payroll_factory_scope_events WHERE user_id=$1 AND event_source='ACCOUNT_ACCESS_CHANGE'",[fm]))[0].count).toBe('4');
+ test('restoring an active FM role restores both factories and obsolete grant objects are absent',async()=>{
+  await q('UPDATE authorised_users SET is_active=false WHERE id=$1',[fm]);
+  await rejected('SELECT get_payroll_foundation_context($1)',[fm],'42501');
+  await q('UPDATE authorised_users SET is_active=true WHERE id=$1',[fm]);
+  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(6);
+  await q("UPDATE authorised_users SET role='je' WHERE id=$1",[fm]);
+  await rejected('SELECT get_payroll_foundation_context($1)',[fm],'42501');
+  await q("UPDATE authorised_users SET role='factory_manager' WHERE id=$1",[fm]);
+  expect((await q('SELECT get_payroll_foundation_context($1) data',[fm]))[0].data.groups).toHaveLength(6);
+  expect((await q("SELECT to_regclass('public.payroll_factory_scope_events') table_name,to_regprocedure('public.set_payroll_factory_scope(uuid,text,boolean,text,uuid)') setter,to_regprocedure('public.payroll_revoke_factory_grants()') revoker"))[0]).toEqual({table_name:null,setter:null,revoker:null});
+  expect((await q("SELECT count(*) FROM pg_trigger WHERE tgname='payroll_revoke_factory_grants'"))[0].count).toBe('0');
  });
  test('exact allocation ownership foreign keys reject cross-employee rows on a temporary copy while real posting stays disabled',async()=>{
   const e=await employee(),other=await employee(),a=(await assign(e))[0],b=(await assign(other))[0],r=await run(),one=await add(r,a),two=await add(r,b);

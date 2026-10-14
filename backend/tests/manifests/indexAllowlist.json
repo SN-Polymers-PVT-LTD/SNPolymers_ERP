@@ -67,7 +67,6 @@
   "payroll_employee_finalized_nonoverlap",
   "payroll_employee_month_entitlement_employee_id_salary_month_key",
   "payroll_runs_scope_period_idx",
-  "payroll_factory_scope_latest_idx",
   "payroll_sources_row_version_idx",
   "payroll_history_run_idx",
   "payroll_employee_observations_employee_idx",

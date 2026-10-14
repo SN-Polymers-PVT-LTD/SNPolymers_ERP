@@ -35,12 +35,15 @@ describe('scoped saved payroll reporting API and PostgreSQL',()=>{
   expect((await report({search:employee.employee_name,from:f.from,to:f.to})).body.register.total).toBe(1);
   await reviewAction(db,second.id,'cancel',users.accounts.id);const cancelled=(await report({run_id:run.id})).body.register.rows[0];expect(cancelled.evidence_status).toBe('WITHDRAWN');expect(cancelled.earnings_total).toBeNull();
  });
- test('FM reporting/export/payslip reads enforce both factories and revoked scopes; other roles see authorized office data',async()=>{
+ test('active FMs share both factory reports and diagnostic payslips but cannot access office payroll',async()=>{
   const snp=await fixture({factory:true}),fabric=await fixture({factory:true,department:'Fabric Factory'}),office=await fixture({});
   for(const f of [snp,fabric]){expect((await report({run_id:f.run.id},'fm')).status).toBe(200);expect((await request('/reports/export?'+query({run_id:f.run.id,format:'xlsx'}),'fm',true)).status).toBe(200);}
   expect((await report({run_id:office.run.id},'fm')).status).toBe(403);for(const role of ['accounts','ho','admin'])expect((await report({run_id:office.run.id},role)).status).toBe(200);
-  for(const role of ['je','zo','otherFm','anonymous']){const expected=role==='anonymous'?401:403;expect((await report({run_id:snp.run.id},role)).status).toBe(expected);expect((await request('/reports/export?'+query({run_id:snp.run.id}),role,true)).status).toBe(expected);expect((await request(`/rows/${snp.rows[0].id}/payslip`,role)).status).toBe(expected);}
-  await q(db,'SELECT set_payroll_factory_scope($1,$2,false,$3,$4)',[users.fm.id,fabric.department,'SYNTHETIC revoke reporting',users.admin.id]);expect((await report({run_id:fabric.run.id},'fm')).status).toBe(403);expect((await report({},'fm')).body.register.rows.every(r=>r.department==='SNP Factory')).toBe(true);
+  for(const role of ['je','zo','anonymous']){const expected=role==='anonymous'?401:403;expect((await report({run_id:snp.run.id},role)).status).toBe(expected);expect((await request('/reports/export?'+query({run_id:snp.run.id}),role,true)).status).toBe(expected);expect((await request(`/rows/${snp.rows[0].id}/payslip`,role)).status).toBe(expected);}
+  for(const f of [snp,fabric]){expect((await report({run_id:f.run.id},'otherFm')).status).toBe(200);expect((await request('/reports/export?'+query({run_id:f.run.id,format:'xlsx'}),'otherFm',true)).status).toBe(200);}
+  await reviewAction(db,snp.rows[0].id,'calculate',users.fm.id);
+  expect((await request(`/rows/${snp.rows[0].id}/payslip`,'otherFm')).status).toBe(200);
+  expect((await report({},'fm')).body.register.rows.every(r=>['SNP Factory','Fabric Factory'].includes(r.department))).toBe(true);
   expect((await report({run_id:snp.run.id,search:"%' OR true --"},'fm')).body.register.total).toBe(0);
   expect((await report({limit:10001})).status).toBe(400);expect((await report({from:'2091-10-31',to:'2091-10-01'})).status).toBe(400);
   const permissions=await one(db,"SELECT has_function_privilege('anon','get_payroll_salary_register(uuid,jsonb,integer,integer)','execute') anon,has_function_privilege('authenticated','get_payroll_salary_register(uuid,jsonb,integer,integer)','execute') authenticated");expect(permissions).toEqual({anon:false,authenticated:false});

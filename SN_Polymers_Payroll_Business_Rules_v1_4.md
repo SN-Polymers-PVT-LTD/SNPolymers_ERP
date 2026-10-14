@@ -132,7 +132,7 @@ The category names below match the current HR directory. Employment categories a
 
 ### 3.1 Factory payroll — approved workflow
 
-**[CONFIRMED]** Factory Manager creates and submits a **payroll sheet** for their authorized factory/group/period. **Each employee salary row** independently follows FM → Accounts → HO/Admin, and HO/Admin alone can finally lock that row.
+**[CONFIRMED]** Factory Manager creates and submits a **payroll sheet** for either factory and its valid group/period. **Each employee salary row** independently follows FM → Accounts → HO/Admin, and HO/Admin alone can finally lock that row.
 
 ```text
 Factory Manager creates/ calculates payroll sheet
@@ -191,11 +191,11 @@ Factory Manager creates/ calculates payroll sheet
 | Maintain statutory deduction master | No | View only unless Admin delegates in future | Admin only; audited publish/revise **[CONFIRMED]** |
 | Maintain approved payroll adjustment | Draft request only **[PROPOSED]** | Review/create by policy | Approve final adjustments |
 | Execute/reconcile payments | No | Yes | View/oversight |
-| View workforce/pay data | Authorized factory only; scope TBD | Payroll access by responsibility | Authorized company-wide oversight |
+| View workforce/pay data | Both factories for an active Factory Manager; no HO/Projects payroll | Payroll access by responsibility | Authorized company-wide oversight |
 
 **[PROPOSED]** Enforce maker-checker **per employee row**: the person who created or materially edited a salary calculation cannot be its final approver, even if their role changes. Accounts factory verification and HO final approval must use current permissions and store actor identities on each row.
 
-**[DECISION REQUIRED]** Assign factory scope explicitly (`SNP Factory`, `Fabric Factory`, or both) to each Factory Manager. Current ERP role `factory_manager` alone must not automatically authorize confidential payroll visibility for both factories. Server-side payroll calculation may need protected access to Admin-owned pay structures without granting unrestricted Employee Management access to the FM.
+**[CONFIRMED — 14 October 2026]** Active Factory Managers may create and view payroll for both SNP Factory and Fabric Factory without separate user/factory grants, matching factory attendance access. They cannot prepare or view Head Office/Projects payroll. Original-preparer ownership, independent Accounts verification, HO/Admin locking, and official payslip restrictions remain enforced. Payroll calculation may read protected pay structures without granting unrestricted Employee Management access. This supersedes the earlier explicit factory-grant proposal.
 
 ---
 
@@ -732,7 +732,7 @@ The table names below are **proposed design names**, not assertions that they al
 
 ### 12.2 Security
 
-**[PROPOSED]** Expose payroll operations through permission-checked server endpoints or controlled database RPCs; do not trust the browser's actor ID, employee set, statutory amounts, review status or total. Use the authenticated account's **current** role and factory scope. Apply least-privilege read permissions, avoid logging payslips/identifiers into diagnostics, and maintain access audits for payroll exports.
+**[PROPOSED]** Expose payroll operations through permission-checked server endpoints or controlled database RPCs; do not trust the browser's actor ID, employee set, statutory amounts, review status or total. Use the authenticated account's **current** role and department permissions. Apply least-privilege read permissions, avoid logging payslips/identifiers into diagnostics, and maintain access audits for payroll exports.
 
 ---
 
@@ -892,7 +892,7 @@ No user should need to reverse-engineer a spreadsheet formula to understand the 
 | Simultaneous HO final approvals | Serialize per employee/statutory month, idempotent; only one final record and one coverage set per employee-date range |
 | Master rate changed retroactively | Block/flag impacts and require managed recomputation for only unfinalized runs; locked unchanged |
 | Employee has no EPF/ESI liability | Record exemption/nonapplicability reason; do not assume missing config is zero |
-| Role/factory access changes during review | Re-check **current** role/factory scope at action time |
+| Role/factory access changes during review | Re-check **current** role, activity and department permissions at action time |
 
 ---
 
@@ -900,7 +900,7 @@ No user should need to reverse-engineer a spreadsheet formula to understand the 
 
 ### 17.1 Workflow and authorization
 
-- **PAY-001** FM can create SNP and Fabric payroll only for assigned factory scopes; cannot create HO/Projects.
+- **PAY-001** Active FM can create and view SNP and Fabric payroll without grants; cannot create or view HO/Projects.
 - **PAY-002** Accounts cannot directly modify FM-submitted financial figures; can return or verify/forward **each employee row** independently, with mandatory return reason.
 - **PAY-003** HO/Admin can approve and atomically lock **an individually ready, correctly reviewed employee row** without waiting for other sheet rows.
 - **PAY-004** Each Accounts-created HO/Projects employee salary row requires independent HO/Admin final approval.
@@ -988,7 +988,7 @@ No user should need to reverse-engineer a spreadsheet formula to understand the 
 | **D09** | Statutory deductions across fortnightly runs | Prevent double PT/incorrect monthly aggregation | Monthly statutory ledger |
 | **D10** | Mobile bill: employee recovery or reimbursement? | Sample places it under deductions | Exclude until confirmed |
 | **D11** | **RESOLVED ARCHITECTURE**: Separate auditable adjustment/recovery ledger. Remaining: permitted limits/approval per recovery type. | Prevent double/unauthorized deductions | Approved recovery ledger |
-| **D12** | Can factory managers view permanent employees' salaries? Which factory scopes? | Privacy and authorization | Least privilege; explicit mapping |
+| **D12** | **RESOLVED — 14 October 2026:** Active FMs can view payroll for both factories without grants. | Privacy and authorization | Both factories for active FM; no office payroll; separate ownership/approval checks |
 | **D13** | Nonfactory Accounts-generated payroll peer review required? | Segregation of duties | Accounts creator → HO/Admin approver |
 | **D14** | Treatment of negative net, zero-pay periods and off-cycle corrections | Payment safety | Block until approved rule |
 | **D15** | **RESOLVED**: Requisition-style **per-employee Accounts/HO review and HO final locking** in a batch payroll sheet. Remaining: bank/cash settlement mechanics. | Independent salary rows; parent is not an approval unit | Separate payroll tables, employee row snapshots, audit and payment; no automatic bank debit on approval |
@@ -1224,7 +1224,7 @@ The following 75 rows constitute **implementation acceptance-test requirements**
 - Factory row: `DRAFT → SUBMITTED_TO_ACCOUNTS → PENDING_HO_APPROVAL → LOCKED`; either reviewer can `RETURN_FOR_CORRECTION` an individual row with a mandatory reason.
 - Accounts-created HO/Projects row: `DRAFT → PENDING_HO_APPROVAL → LOCKED`; no redundant self-review by Accounts.
 - On correction, increment a **row version**; invalidate all earlier Accounts clearance / HO decisions. An FM-resubmitted row returns to Accounts even if HO was the person who returned it.
-- Authorization uses **current database role, assigned factory scope, row state, and creator/reviewer identity**. Prevent maker-checker self-approval even where one physical person has broad Admin rights, unless the client explicitly approves an emergency audited exception. The latter is **not confirmed**.
+- Authorization uses **current database role and active status, department permissions, row state, and creator/reviewer identity**. Prevent maker-checker self-approval even where one physical person has broad Admin rights, unless the client explicitly approves an emergency audited exception. The latter is **not confirmed**.
 - The row being returned/held/rejected must not change another row's state or revoke a sibling's locked result. Batch APIs report `successes[]` and `failures[]` per salary row; do not emit one generic “All approved” response for mixed results.
 - **Optimistic concurrency / compare-and-swap:** `UPDATE ... WHERE id = ? AND version = ? AND status = ?` with row count = 1, or an equivalent PostgreSQL row lock and status check. Return HTTP 409 for stale reviewer operations. UI must show last reviewer, last version, reason and resubmission history.
 
