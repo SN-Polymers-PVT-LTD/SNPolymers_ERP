@@ -1,0 +1,14 @@
+import authApi from './authApi';
+const base='/hr/payroll';
+export const getPayrollReviewQueue=params=>authApi.get(`${base}/review/queue`,{params});
+export const getPayrollEmployeeReview=id=>authApi.get(`${base}/rows/${id}/review`);
+export const actOnPayrollEmployee=(id,request)=>authApi.post(`${base}/rows/${id}/review`,request);
+export const actOnPayrollEmployees=actions=>authApi.post(`${base}/review/bulk`,{actions});
+export const getPayrollFoundationContext=()=>authApi.get(`${base}/context`);
+export const createPayrollDraftRun=data=>authApi.post(`${base}/runs`,data);
+export const generatePayrollRun=data=>authApi.post(`${base}/runs/generate`,data);
+export const refreshPayrollRun=id=>authApi.post(`${base}/runs/${id}/generate`,{});
+export const getPayrollDraftCandidates=(id,params)=>authApi.get(`${base}/runs/${id}/candidates`,{params});
+export const addPayrollDraftEmployee=(id,data)=>authApi.post(`${base}/runs/${id}/employees`,data);
+
+export const deletePayrollRun=(id,reason)=>authApi.delete(`${base}/runs/${id}`,{data:{reason}});

@@ -472,7 +472,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('11. getSubcontractorLedger lists balances filtered by work order, enriched with project info', async () => {
-    const req = { query: { work_order_no: workOrder } };
+    const req = { user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder } };
     const res = mockRes();
     await getSubcontractorLedger(req, res);
 
@@ -505,7 +505,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(paymentRow?.settlement_status).toBe('SETTLED');
     expect(Number(paymentRow?.amount)).toBe(-10000);
 
-    const req = { query: { work_order_no: workOrder, material_sub_head: SUB_HEAD, material_details: DETAILS } };
+    const req = { user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder, material_sub_head: SUB_HEAD, material_details: DETAILS } };
     const res = mockRes();
     await getSubcontractorLedgerEntries(req, res);
 
@@ -544,6 +544,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(paymentDateError).toBeNull();
 
     const req = {
+      user: { role: 'admin', mobile_number: adminMobile },
       query: {
         work_order_no: workOrder,
         material_sub_head: SUB_HEAD,
@@ -564,7 +565,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('13. getSubcontractorRequisitions lists every requisition for a Sub Contractor, filterable by work order', async () => {
-    const req = { query: { work_order_no: workOrder } };
+    const req = { user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder } };
     const res = mockRes();
     await getSubcontractorRequisitions(req, res);
 
@@ -583,7 +584,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     // Use two days ahead so converting the instant to a UTC date cannot
     // accidentally produce the current IST calendar day around midnight.
     const future = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const req = { query: { work_order_no: workOrder, date_from: future } };
+    const req = { user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder, date_from: future } };
     const res = mockRes();
     await getSubcontractorRequisitions(req, res);
 
@@ -592,7 +593,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
   });
 
   test('15. getSubcontractorRequisitions search filter matches on subcontractor name', async () => {
-    const req = { query: { work_order_no: workOrder, search: DETAILS.toLowerCase() } };
+    const req = { user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder, search: DETAILS.toLowerCase() } };
     const res = mockRes();
     await getSubcontractorRequisitions(req, res);
 
@@ -601,7 +602,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(res.jsonData.requisitions.every(r => r.material_details === DETAILS)).toBe(true);
 
     const resNoMatch = mockRes();
-    await getSubcontractorRequisitions({ query: { work_order_no: workOrder, search: 'no-such-subcontractor-xyz' } }, resNoMatch);
+    await getSubcontractorRequisitions({ user: { role: 'admin', mobile_number: adminMobile }, query: { work_order_no: workOrder, search: 'no-such-subcontractor-xyz' } }, resNoMatch);
     expect(resNoMatch.jsonData.requisitions.length).toBe(0);
   });
 
@@ -636,7 +637,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
 
   test('17. getSubcontractorLedger applies DB-first search and pagination with exact total', async () => {
     // Search with match on workOrder
-    const reqMatch = { query: { search: workOrder, page: 1, limit: 10 } };
+    const reqMatch = { user: { role: 'admin', mobile_number: adminMobile }, query: { search: workOrder, page: 1, limit: 10 } };
     const resMatch = mockRes();
     await getSubcontractorLedger(reqMatch, resMatch);
     expect(resMatch.statusCode).toBe(200);
@@ -646,7 +647,7 @@ describe('Subcontractor Ledger — credit on estimate item HO approval, debit on
     expect(resMatch.jsonData.balances.every(b => b.work_order_no === workOrder)).toBe(true);
 
     // Search with non-matching term
-    const reqNoMatch = { query: { search: 'NON_EXISTENT_SUBCONTRACTOR_XYZ_999', page: 1, limit: 10 } };
+    const reqNoMatch = { user: { role: 'admin', mobile_number: adminMobile }, query: { search: 'NON_EXISTENT_SUBCONTRACTOR_XYZ_999', page: 1, limit: 10 } };
     const resNoMatch = mockRes();
     await getSubcontractorLedger(reqNoMatch, resNoMatch);
     expect(resNoMatch.statusCode).toBe(200);

@@ -1,0 +1,83 @@
+{
+  "sheets": [
+    {
+      "attendance_date": "2026-10-02T18:30:00.000Z",
+      "employee_category": "Local Daily-Wage Workers",
+      "status": "Locked",
+      "submission_count": 1,
+      "return_remarks": null
+    },
+    {
+      "attendance_date": "2026-10-02T18:30:00.000Z",
+      "employee_category": "SNP Casual Factory Labour",
+      "status": "Locked",
+      "submission_count": 1,
+      "return_remarks": null
+    },
+    {
+      "attendance_date": "2026-10-03T18:30:00.000Z",
+      "employee_category": "SNP Casual Factory Labour",
+      "status": "Locked",
+      "submission_count": 2,
+      "return_remarks": "E2E rejection: correct attendance explicitly"
+    },
+    {
+      "attendance_date": "2026-10-04T18:30:00.000Z",
+      "employee_category": "Fabric Factory Permanent Employees",
+      "status": "Submitted",
+      "submission_count": 1,
+      "return_remarks": null
+    },
+    {
+      "attendance_date": "2026-10-04T18:30:00.000Z",
+      "employee_category": "SNP Permanent Factory Labour",
+      "status": "Submitted",
+      "submission_count": 1,
+      "return_remarks": null
+    },
+    {
+      "attendance_date": "2026-10-05T18:30:00.000Z",
+      "employee_category": "SNP Casual Factory Labour",
+      "status": "Locked",
+      "submission_count": 2,
+      "return_remarks": "Leave approved as Unpaid. Correct attendance treatment before resubmission."
+    }
+  ],
+  "leaves": [
+    {
+      "leave_type": "Medical Leave",
+      "from_date": "2026-10-03T18:30:00.000Z",
+      "to_date": "2026-10-03T18:30:00.000Z",
+      "approval_status": "Rejected",
+      "pay_treatment": "Unpaid",
+      "reason": "Synthetic E2E medical leave rejection scenario"
+    },
+    {
+      "leave_type": "Paid Leave",
+      "from_date": "2026-10-05T18:30:00.000Z",
+      "to_date": "2026-10-05T18:30:00.000Z",
+      "approval_status": "Approved",
+      "pay_treatment": "Unpaid",
+      "reason": "Synthetic paid request approved unpaid"
+    },
+    {
+      "leave_type": "Other Leave",
+      "from_date": "2026-10-09T18:30:00.000Z",
+      "to_date": "2026-10-09T18:30:00.000Z",
+      "approval_status": "Rejected",
+      "pay_treatment": "Unpaid",
+      "reason": "Synthetic HO self-service leave"
+    },
+    {
+      "leave_type": "Other Leave",
+      "from_date": "2026-10-10T18:30:00.000Z",
+      "to_date": "2026-10-10T18:30:00.000Z",
+      "approval_status": "Approved",
+      "pay_treatment": "Paid",
+      "reason": "Synthetic Projects JE leave edited"
+    }
+  ],
+  "migrations": {
+    "count": "107"
+  }
+}

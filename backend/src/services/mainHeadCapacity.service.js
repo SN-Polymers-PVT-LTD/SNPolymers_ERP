@@ -37,36 +37,23 @@ async function computeMainHeadCapacity(workOrderNo, materialMainHead) {
       : null
   };
 
-  let mainHeadEstimate = 0;
-  let cumulativeApproved = 0;
+  const { data: capData, error: capError } = await supabase.rpc('get_main_head_capacity', {
+    p_work_order_no: trimmedWo,
+    p_material_main_head: trimmedHead,
+    p_exclude_requisition_id: null
+  });
 
-  if (latestEstimate && latestEstimate.estimate_status === 'Final Approved') {
-    const { data: itemData, error: itemError } = await supabase
-      .from('project_cost_estimate_items')
-      .select('amount')
-      .eq('estimate_id', latestEstimate.estimate_id)
-      .eq('material_main_head', trimmedHead);
+  if (capError) throw capError;
 
-    if (itemError) throw itemError;
-
-    mainHeadEstimate = (itemData || []).reduce((sum, item) => sum + Number(item.amount), 0);
-  }
-
-  const { data: approvedReqs, error: approvedError } = await supabase
-    .from('requisitions')
-    .select('approved_amount')
-    .eq('work_order_no', trimmedWo)
-    .eq('material_main_head', trimmedHead)
-    .eq('requisition_status', 'Approved');
-
-  if (approvedError) throw approvedError;
-
-  cumulativeApproved = (approvedReqs || []).reduce((sum, r) => sum + Number(r.approved_amount), 0);
+  const cap = Array.isArray(capData) ? capData[0] : capData;
+  const mainHeadEstimate = Number(cap?.main_head_estimate || 0);
+  const cumulativeApproved = Number(cap?.cumulative_approved || 0);
+  const remainingCapacity = Number(cap?.remaining_capacity || 0);
 
   return {
     mainHeadEstimate,
     cumulativeApproved,
-    remainingCapacity: mainHeadEstimate - cumulativeApproved,
+    remainingCapacity,
     estimateLifecycle
   };
 }
@@ -138,7 +125,28 @@ async function computeSubcontractorCapacity(workOrderNo, materialSubHead, materi
   };
 }
 
+/** Canonical Phase 6 capacity. The database RPC is the only formula owner. */
+async function computeSubcontractFinanceCapacity(workOrderNo, subcontractorId, subcontractWorkId) {
+  const { data, error } = await supabase.rpc('get_subcontract_finance_capacity', {
+    p_work_order_no: workOrderNo,
+    p_subcontractor_id: subcontractorId,
+    p_subcontract_work_id: subcontractWorkId
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || {
+    approved_capacity: 0,
+    reserved_amount: 0,
+    paid_or_settled_amount: 0,
+    consumed_amount: 0,
+    available_contractor_capacity: 0,
+    available_cost_estimate_capacity: 0,
+    effective_available_capacity: 0
+  };
+}
+
 module.exports = {
   computeMainHeadCapacity,
-  computeSubcontractorCapacity
+  computeSubcontractorCapacity,
+  computeSubcontractFinanceCapacity
 };

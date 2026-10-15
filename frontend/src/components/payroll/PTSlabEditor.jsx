@@ -1,0 +1,23 @@
+import React,{useState} from 'react';
+import {Input,Select,Button} from '../ui';
+const months=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const rowsFor=(slabs,m)=>slabs.filter(s=>s.month===m).map(({lower_bound,upper_bound,deduction_amount})=>({lower_bound,upper_bound,deduction_amount}));
+const amountKey=v=>v===null?null:String(v).replace(/^0+(?=\d)/,'').replace(/(\.\d*?[1-9])0+$|\.0+$/,'$1');
+const same=(a,b)=>JSON.stringify(a.map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,amountKey(v)]))))===JSON.stringify(b.map(r=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,amountKey(v)]))));
+const blank=()=>({lower_bound:'',upper_bound:null,deduction_amount:''});
+export default function PTSlabEditor({slabs,onChange,effectiveFrom}){
+ const [noLevy,setNoLevy]=useState(()=>slabs.length===12&&slabs.every(s=>amountKey(s.lower_bound)==='0'&&s.upper_bound===null&&amountKey(s.deduction_amount)==='0'));
+ const [month,setMonth]=useState('2'),[showExceptions,setShowExceptions]=useState(false),[explicit,setExplicit]=useState([]);
+ const schedules=months.map((_,i)=>rowsFor(slabs,i+1));
+ const base=schedules.reduce((best,rows)=>schedules.filter(s=>same(s,rows)).length>schedules.filter(s=>same(s,best)).length?rows:best,schedules[0]);
+ const exceptions=months.map((_,i)=>i+1).filter(m=>explicit.includes(m)||!same(rowsFor(slabs,m),base));
+ const write=(normal,overrides)=>onChange(months.flatMap((_,i)=>(overrides[i+1]||normal).map(s=>({...s,month:i+1}))));
+ const update=(m,rows)=>{const overrides=Object.fromEntries(exceptions.map(n=>[n,rowsFor(slabs,n)]));if(m===0)write(rows,overrides);else write(base,{...overrides,[m]:rows});};
+ const table=(rows,m,prefix)=><div className="space-y-2">{rows.map((s,i)=><div key={i} className="grid sm:grid-cols-4 gap-2">{['lower_bound','upper_bound','deduction_amount'].map(key=><Input key={key} label={`${prefix} ${i+1} ${key.replaceAll('_',' ')}`} inputMode="decimal" value={s[key]??''} onChange={e=>update(m,rows.map((r,j)=>j===i?{...r,[key]:key==='upper_bound'?e.target.value||null:e.target.value}:r))}/>)}<Button type="button" variant="danger" onClick={()=>update(m,rows.filter((_,j)=>i!==j))}>Remove {prefix.toLowerCase()} {i+1}</Button></div>)}<Button type="button" variant="secondary" onClick={()=>update(m,[...rows,blank()])}>{m===0?'Add slab':`Add ${months[m-1]} slab`}</Button></div>;
+ return <fieldset className="col-span-full space-y-4"><legend>PT slab schedule</legend><p className="text-xs">Effective from {effectiveFrom||'the revision effective date'}. This normal schedule applies to every month unless a month exception is recorded. New rates require a new effective-dated revision.</p>
+ <label className="flex gap-2 text-sm"><input type="checkbox" checked={noLevy} onChange={e=>{setNoLevy(e.target.checked);setExplicit([]);setShowExceptions(false);onChange(e.target.checked?months.map((_,i)=>({month:i+1,lower_bound:'0',upper_bound:null,deduction_amount:'0'})):[]);}}/>No PT levy for this state during this effective period</label>
+ {noLevy?<p className="text-xs">An explicit zero schedule will be saved for this revision. Record the government notification in the confirmation evidence; no employee exemption is created.</p>:<>{table(base,0,'Slab')}<p className="text-xs">Salary ranges use lower inclusive / upper exclusive boundaries. Leave the final upper limit blank.</p><Button type="button" variant="ghost" onClick={()=>setShowExceptions(v=>!v)}>{showExceptions?'Hide month exceptions':'Month exceptions (optional)'}</Button>
+ {(showExceptions||exceptions.length>0)&&<div className="space-y-3"><p className="text-xs">Use only when the government schedule specifies different collection amounts for a particular month.</p>{exceptions.map(m=><fieldset key={m} className="border border-white/10 rounded-xl p-3"><legend>{months[m-1]} exception</legend>{table(rowsFor(slabs,m),m,months[m-1]+' slab')}<Button type="button" variant="ghost" onClick={()=>{setExplicit(old=>old.filter(n=>n!==m));write(base,Object.fromEntries(exceptions.filter(n=>n!==m).map(n=>[n,rowsFor(slabs,n)])));}}>Use normal schedule for {months[m-1]}</Button></fieldset>)}<div className="flex gap-2"><Select label="Exception month" value={month} options={months.map((name,i)=>({value:String(i+1),label:name}))} onChange={e=>setMonth(e.target.value)}/><Button type="button" disabled={exceptions.includes(Number(month))||!base.length} onClick={()=>{setExplicit(old=>[...old,Number(month)]);write(base,{...Object.fromEntries(exceptions.map(m=>[m,rowsFor(slabs,m)])),[Number(month)]:base});}}>Add month exception</Button></div></div>}
+ </>}
+ </fieldset>;
+}
