@@ -14,6 +14,8 @@ import {
   exportAllEmployeeSheetsToExcel
 } from '../../utils/exportHelpers';
 
+vi.mock('../../components/AuthContext',()=>({useAuth:()=>({user:{id:'admin',role:'admin'}})}));
+
 vi.mock('../../api/authApi', () => ({
   default: {
     get: vi.fn(),
@@ -142,7 +144,7 @@ function renderWithClient(ui, initialEntries = ['/admin/employee-management']) {
 describe('Phase 1 Employee Management Component Contracts', () => {
   it('persists the selected canonical beneficiary through the existing employee edit form',async()=>{
     const user=userEvent.setup();renderWithClient(<EmployeeManagement/>);await user.click(await screen.findByText('Amit Sharma'));await user.click(screen.getByRole('button',{name:/Edit Employee/i}));
-    const beneficiary=await screen.findByLabelText('Saved employee beneficiary');await user.selectOptions(beneficiary,'beneficiary-uuid');await user.click(screen.getByRole('button',{name:'Save Changes'}));
+    await screen.findByLabelText('Bank');await user.type(screen.getByLabelText('Beneficiary name'),'Synthetic beneficiary');await user.type(screen.getByLabelText('Account number'),'123456789012');await user.type(screen.getByLabelText('IFSC'),'TEST0000001');await user.selectOptions(screen.getByLabelText('Bank'),'bank-uuid');authApi.put.mockResolvedValueOnce({data:{beneficiary:{id:'beneficiary-uuid',beneficiary_name:'Synthetic beneficiary',account_number:'123456789012',ifsc:'TEST0000001',beneficiary_bank_id:'bank-uuid'}}});await user.click(screen.getByRole('button',{name:'Save beneficiary'}));await waitFor(()=>expect(screen.getByRole('button',{name:'Save Changes'})).toBeEnabled());await user.click(screen.getByRole('button',{name:'Save Changes'}));
     await waitFor(()=>expect(authApi.patch).toHaveBeenCalledWith('/hr/employees/emp-1-uuid',expect.objectContaining({beneficiary_id:'beneficiary-uuid'})));
   });
   beforeEach(() => {
@@ -150,7 +152,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
 
     authApi.get.mockImplementation((url, config) => {
       if(url==='/acct-requisitions/beneficiary-master')return Promise.resolve({data:{beneficiaries:[{id:'beneficiary-uuid',beneficiary_name:'Synthetic beneficiary',account_number:'123456789012',ifsc:'TEST0000001'}],pagination:{totalPages:1}}});
-      if(url==='/acct-requisitions/indian-banks')return Promise.resolve({data:{indianBanks:[]}});
+      if(url==='/acct-requisitions/indian-banks')return Promise.resolve({data:{indianBanks:[{id:'bank-uuid',bank_name:'Synthetic bank',is_active:true}]}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -377,59 +379,26 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     });
   });
 
-  it('renders Permanent Employee Pay Structure with 11 approved fields and validates component reconciliation', async () => {
+  it('creates a gross-only pay revision without component inputs or copying legacy component values', async () => {
     const user = userEvent.setup();
     renderWithClient(<EmployeeManagement />, ['/admin/employee-management?tab=pay-structure&employeeId=emp-1-uuid']);
-
-    await waitFor(() => {
-      expect(screen.getByText('Current Active Pay Structure')).toBeInTheDocument();
-    });
-
-    // Check presence of approved fields
-    expect(screen.getByText(/1\. Employee ID/i)).toBeInTheDocument();
-    expect(screen.getByText(/2\. Employee Name/i)).toBeInTheDocument();
-    expect(screen.getByText(/3\. Permanent Employee Category/i)).toBeInTheDocument();
-    expect(screen.getByText(/4\. Pay Basis/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/5\. Guaranteed Monthly Gross/i)[0]).toBeInTheDocument();
-    expect(screen.getByText(/6\. Basic Salary/i)).toBeInTheDocument();
-    expect(screen.getByText(/7\. Staff Welfare/i)).toBeInTheDocument();
-    expect(screen.getByText(/8\. Other Fixed Components/i)).toBeInTheDocument();
-    expect(screen.getByText(/9\. EPF Enrolment/i)).toBeInTheDocument();
-    expect(screen.getByText(/10\. ESI Enrolment/i)).toBeInTheDocument();
-    expect(screen.getByText(/11\. Pay Structure Status/i)).toBeInTheDocument();
-
-    // Verify removed workbook fields do not appear
-    expect(screen.queryByText(/Annual Package/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Salary Effective From/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Payment Method/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Payment Details Verified/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Bank Account/i)).not.toBeInTheDocument();
-
-    // Click "Create New Revision"
-    const newRevBtn = screen.getByRole('button', { name: /Create New Revision/i });
-    await user.click(newRevBtn);
-
-    expect(screen.getByRole('heading', { name: /Configure Pay Structure Revision/i })).toBeInTheDocument();
-
-    // Test component reconciliation: set gross to 20000 and basic to 25000
-    const grossInput = screen.getByPlaceholderText(/e\.g\. 45000/i);
-    const basicInput = screen.getByLabelText(/6\. Basic Salary/i);
-
-    await user.clear(grossInput);
-    await user.type(grossInput, '20000');
-    expect(grossInput.value).toBe('20,000');
-
-    await user.clear(basicInput);
-    await user.type(basicInput, '25000');
-    expect(basicInput.value).toBe('25,000');
-
-    // Reconciliation warning should appear and submit button disabled
-    await waitFor(() => {
-      expect(screen.getByText(/Exceeds Gross by/i)).toBeInTheDocument();
-    });
-
-    const submitBtn = screen.getByRole('button', { name: /Save Pay Structure/i });
-    expect(submitBtn).toBeDisabled();
+    await screen.findByText('Current Active Pay Structure');
+    expect(screen.getByText(/6\. EPF Enrolment/i)).toBeInTheDocument();
+    expect(screen.getByText(/7\. ESI Enrolment/i)).toBeInTheDocument();
+    expect(screen.getByText(/8\. Pay Structure Status/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Create New Revision/i }));
+    const modal=screen.getByRole('dialog');
+    expect(within(modal).queryByLabelText(/Basic Salary/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Staff Welfare/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByLabelText(/Other Fixed Components/i)).not.toBeInTheDocument();
+    expect(within(modal).queryByText(/Fixed Component Breakdown/i)).not.toBeInTheDocument();
+    const gross=within(modal).getByPlaceholderText(/e\.g\. 45000/i);
+    await user.clear(gross);await user.type(gross,'20000');
+    await user.click(within(modal).getByRole('button',{name:/Save Pay Structure/i}));
+    await waitFor(()=>expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures',{
+      employee_id:'emp-1-uuid',pay_basis:'Monthly salary',guaranteed_monthly_gross:20000,
+      epf_enrolment:true,esi_enrolment:false,status:'Active'
+    }));
   });
 
   it('handles employee deactivation and reactivation status updates', async () => {

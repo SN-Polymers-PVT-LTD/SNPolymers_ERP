@@ -7,7 +7,7 @@ const monthBounds=date=>{const from=date.slice(0,7)+'-01';return {from,to:new Da
 function month(date){const {from,to}=monthBounds(date);return {from,to:new Date(Date.parse(to+'T00:00:00Z')-86400000).toISOString().slice(0,10)};}
 const covers=(r,d)=>r.effective_from<=d&&(!r.effective_to||d<=r.effective_to);
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])]));return value;}
-function fingerprint(source){return crypto.createHash('sha256').update(JSON.stringify(canonical({engine_version:'PAYROLL_PREVIEW_V1',calculation_revision:'PHASE6_V1',source}))).digest('hex');}
+function fingerprint(source){return crypto.createHash('sha256').update(JSON.stringify(canonical({engine_version:'PAYROLL_PREVIEW_V1',calculation_revision:'PHASE6_CATEGORY_RULES_V1',source}))).digest('hex');}
 function resolveSources(source){
  const blockers=[],days=[];const block=(code,date,reference)=>blockers.push({code,date,reference,kind:'source'});
  const selected=source.assignments.find(a=>a.id===source.row.assignment_id);

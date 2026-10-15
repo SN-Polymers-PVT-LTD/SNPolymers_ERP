@@ -69,9 +69,6 @@ async function createPayStructure(req, res) {
       employee_id,
       pay_basis,
       guaranteed_monthly_gross,
-      basic_salary = null,
-      staff_welfare = null,
-      other_fixed_components = null,
       epf_enrolment = false,
       esi_enrolment = false
     } = req.body;
@@ -98,9 +95,6 @@ async function createPayStructure(req, res) {
       p_employee_id: employee_id,
       p_pay_basis: pay_basis,
       p_guaranteed_monthly_gross: guaranteed_monthly_gross,
-      p_basic_salary: basic_salary,
-      p_staff_welfare: staff_welfare,
-      p_other_fixed_components: other_fixed_components,
       p_epf_enrolment: epf_enrolment,
       p_esi_enrolment: esi_enrolment,
       p_status: 'Active',

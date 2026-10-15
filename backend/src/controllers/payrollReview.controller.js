@@ -54,4 +54,56 @@ async function bulk(req,res){
  }
  return res.json({success:results.every(r=>r.success),results,financial_finalization_enabled:false});
 }
-module.exports={queue,detail,act,bulk};
+async function generateSheet(runId,actorId){
+ const populated=await supabase.rpc('populate_payroll_draft_run',{p_run_id:runId,p_actor_id:actorId});
+ if(populated.error)return populated;
+ const {rows,saved_rows,...generation}=populated.data,results=[],source_checks=[];
+ for(const row of rows){
+  try{
+   const result=await apply(row.id,{action:'calculate',expected_version:row.current_version,expected_review_version:row.review_version,reason:'Initial automatic payroll generation'},actorId);
+   if(result.error)results.push({row_id:row.id,success:false,code:result.error.code,message:result.error.message});
+   else results.push({row_id:row.id,success:result.data.applied});
+  }catch(error){
+   console.error('Payroll generation calculation failed:',error.code);
+   results.push({row_id:row.id,success:false,code:'PAYROLL_CALCULATION_FAILED',message:'Calculation failed; retry initial calculations or inspect employee details.'});
+  }
+ }
+ for(const saved of saved_rows){
+  try{
+   const current=await supabase.rpc('get_payroll_review_sources',{p_row_id:saved.row_id,p_actor_id:actorId});
+   if(current.error)source_checks.push({row_id:saved.row_id,status:'UNAVAILABLE',code:current.error.code,message:current.error.message});
+   else source_checks.push({row_id:saved.row_id,status:calculatePreview(current.data).source_fingerprint===saved.source_fingerprint?'CURRENT':'CHANGED'});
+  }catch{source_checks.push({row_id:saved.row_id,status:'UNAVAILABLE',message:'Unable to check current salary sources.'});}
+ }
+ return {data:{...generation,results,source_checks}};
+}
+async function generate(req,res){
+ try{
+  const result=await generateSheet(req.params.runId,req.user.id);
+  if(result.error)return sendError(res,result.error);
+  return res.set('Cache-Control','no-store').json({success:true,generation:result.data});
+ }catch(error){return sendError(res,error);}
+}
+async function generateNew(req,res){
+ try{
+  const {group_code,department,period_from,period_to,cycle}=req.body;
+  const created=await supabase.rpc('create_payroll_draft_run',{p_group_code:group_code,p_department:department,p_from:period_from,p_to:period_to,p_cycle:cycle,p_actor_id:req.user.id});
+  if(created.error)return sendError(res,created.error);
+  // Returning the created sheet on population failure lets the UI retry this
+  // sheet instead of creating another run and losing the recovery path.
+  let generation;
+  try{
+   const result=await generateSheet(created.data.id,req.user.id);
+   generation=result.error?{issues:[{code:result.error.code,message:result.error.message}],results:[],added:0,retained:0}:result.data;
+  }catch{generation={issues:[{code:'PAYROLL_GENERATION_FAILED',message:'Sheet created; retry population on this sheet.'}],results:[],added:0,retained:0};}
+  return res.set('Cache-Control','no-store').status(201).json({success:true,run:created.data,generation});
+ }catch(error){return sendError(res,error);}
+}
+async function cancelRun(req,res){
+ try{
+  const {data,error}=await supabase.rpc('cancel_payroll_draft_run',{p_run_id:req.params.runId,p_reason:req.body.reason,p_actor_id:req.user.id});
+  if(error)return sendError(res,error);
+  return res.set('Cache-Control','no-store').json({success:true,result:data});
+ }catch(error){return sendError(res,error);}
+}
+module.exports={queue,detail,act,bulk,generate,generateNew,cancelRun};

@@ -27,7 +27,7 @@ describe('Phase 2 actual PostgreSQL master integrity',()=>{
   const historical=await resolve('policies',{group_code:'HO_STAFF'},'2091-02-01');expect(historical.revision_id).toBe(old.id);expect(historical.data.lop_fixed_divisor).toBe('30');
   expect((await resolve('policies',{group_code:'HO_STAFF'},'2093-02-01')).revision_id).toBe(next.id);
   const row=(await q('SELECT effective_to::text,published_effective_to::text,lop_method FROM payroll_policy_master_revisions WHERE id=$1',[old.id]))[0];expect(row).toEqual({effective_to:'2091-12-31',published_effective_to:'2099-12-31',lop_method:'FIXED_DIVISOR'});
-  expect((await q("SELECT count(*) FROM payroll_master_events WHERE action='SUPERSEDED_FUTURE'"))[0].count).toBe('1');
+  expect((await q("SELECT count(*) FROM payroll_master_events WHERE action='SUPERSEDED_FUTURE' AND policy_revision_id=$1",[old.id]))[0].count).toBe('1');
   await rejected("UPDATE payroll_policy_master_revisions SET lop_fixed_divisor=31 WHERE id=$1",[old.id],'42501');
   await rejected("UPDATE payroll_policy_master_revisions SET effective_to='2020-01-01' WHERE id=$1",[old.id],'42501');
   await rejected('DELETE FROM payroll_policy_master_revisions WHERE id=$1',[old.id],'42501');

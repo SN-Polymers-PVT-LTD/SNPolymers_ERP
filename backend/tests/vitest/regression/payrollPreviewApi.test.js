@@ -19,7 +19,7 @@ describe('authenticated read-only payroll previews',()=>{
   expect((await request('POST',`/rows/${crypto.randomUUID()}/preview`,'admin',{})).status).toBe(404);
  });
  test('missing sources/statutory profiles are informative blockers with no invented final salary',async()=>{
-  const r=(await request('POST',`/rows/${row.id}/preview`,'accounts',{})).body.preview;expect(r.blockers.map(b=>b.code)).toEqual(expect.arrayContaining(['MISSING_PAY_SOURCE','MISSING_POLICY','EMPLOYEE_STATUTORY_PROFILE_REQUIRED']));expect(r.final_net_salary).toBeNull();expect(r.gross_after_lop).toBeNull();expect(r.preview_persisted).toBe(false);
+  const r=(await request('POST',`/rows/${row.id}/preview`,'accounts',{})).body.preview;expect(r.blockers.map(b=>b.code)).toEqual(expect.arrayContaining(['MISSING_PAY_SOURCE','MISSING_POLICY','STATUTORY_PROFILE_PERIOD_COVERAGE_REQUIRED']));expect(r.final_net_salary).toBeNull();expect(r.gross_after_lop).toBeNull();expect(r.preview_persisted).toBe(false);
  });
  test('fingerprint checks detect note/source changes and require a fresh preview',async()=>{
   const first=(await request('POST',`/rows/${row.id}/preview`,'accounts',{})).body.preview;expect((await request('POST',`/rows/${row.id}/preview`,'accounts',{expected_source_fingerprint:first.source_fingerprint})).status).toBe(200);

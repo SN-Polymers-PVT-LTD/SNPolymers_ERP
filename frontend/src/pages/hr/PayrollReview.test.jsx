@@ -1,19 +1,21 @@
 import React from 'react';import {describe,it,expect,beforeEach,vi} from 'vitest';import {render,screen,fireEvent,waitFor,within} from '@testing-library/react';import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import {MemoryRouter} from 'react-router-dom';
 import * as ledger from '../../api/payrollLedgerApi';import PayrollReview from './PayrollReview';import * as api from '../../api/payrollReviewApi';vi.mock('../../api/payrollLedgerApi');vi.mock('../../api/payrollReviewApi');let user={id:'creator',role:'accounts'};vi.mock('../../components/AuthContext',()=>({useAuth:()=>({user})}));
-vi.mock('../../components/payroll/PayrollDraftEditor',()=>({default:()=>null}));
+const editorStub=vi.hoisted(()=>vi.fn(()=>null));
+vi.mock('../../components/payroll/PayrollDraftEditor',()=>({default:props=>editorStub(props)}));
+import * as previewsApi from '../../api/payrollPreviewApi';import * as reportsApi from '../../api/payrollReportsApi';vi.mock('../../api/payrollPreviewApi');vi.mock('../../api/payrollReportsApi');
 const mount=(path='/')=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><MemoryRouter initialEntries={[path]}><PayrollReview/></MemoryRouter></QueryClientProvider>);
 const row={id:'row-a',employee_id:'employee-a',employee_name:'Synthetic A',employee_code:'A',created_by:'creator',department:'Head Office',status:'CALCULATED',current_version:1,review_version:1,source_fingerprint:'a'.repeat(64),period_from:'2091-10-01',period_to:'2091-10-31',available_actions:['calculate','correct','submit','cancel']};
 const preview={row_id:row.id,employee:{employee_name:'Synthetic A',employee_code:'A'},source_fingerprint:row.source_fingerprint,status:'BLOCKED_STATUTORY',period_from:row.period_from,period_to:row.period_to,gross_after_lop:'30000.00',final_net_salary:null,earnings:[{code:'CONTRACTUAL_BASE',amount:'30000.00',salary_month:row.period_from,source_ids:['pay']}],deductions:[],blockers:[{code:'EMPLOYEE_STATUTORY_PROFILE_REQUIRED'}],monthly_reconciliation:[],statutory:[],enrolment:[],source_references:{},configuration_warnings:[]};
 const review={row,run:{id:'run',group_code:'HO_STAFF',department:'Head Office',status:'DRAFT'},available_actions:row.available_actions,current_preview:preview,revisions:[{revision:1,content_version:1,source_fingerprint:row.source_fingerprint,created_at:'2091-10-01',reason:'Synthetic calculation',calculation_snapshot:preview,changes:[]}],changes_since_saved:[],content_versions:[],actions:[],assignment_candidates:[],payment_status:'NOT_ELIGIBLE'};
-beforeEach(()=>{vi.resetAllMocks();ledger.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[],total:0}}});user={id:'creator',role:'accounts'};api.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[row],sheets:[{id:'run',group_code:'HO_STAFF',period_from:row.period_from,period_to:row.period_to,progress:{status:'DRAFT',total:1,locked:0,accounts:0,ho:0,returned:0,draft:1,cancelled:0}}],total:1}}});api.getPayrollEmployeeReview.mockResolvedValue({data:{review}});api.actOnPayrollEmployee.mockResolvedValue({data:{result:{applied:true,row}}});});
+beforeEach(()=>{vi.resetAllMocks();editorStub.mockImplementation(()=>null);ledger.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[],total:0}}});user={id:'creator',role:'accounts'};api.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[row],sheets:[{id:'run',group_code:'HO_STAFF',period_from:row.period_from,period_to:row.period_to,progress:{status:'DRAFT',total:1,locked:0,accounts:0,ho:0,returned:0,draft:1,cancelled:0}}],total:1}}});api.getPayrollEmployeeReview.mockResolvedValue({data:{review}});api.actOnPayrollEmployee.mockResolvedValue({data:{result:{applied:true,row}}});});
 describe('employee payroll review',()=>{
  it('opens register drill-down directly in the existing employee review screen',async()=>{
   mount('/hr/payroll/review?row=row-a');expect(await screen.findByText('Employee review: CALCULATED')).toBeInTheDocument();expect(api.getPayrollEmployeeReview).toHaveBeenCalledWith('row-a');expect(screen.getByRole('button',{name:'Save correction'})).toBeInTheDocument();
  });
  it('shows independent progress, source-backed preview/history and submits only the selected employee/version/fingerprint',async()=>{
   mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect((await screen.findAllByText(/Gross after LOP: 30000.00/))[0]).toHaveTextContent('Final net: unavailable');expect(screen.getByText(/Locked 0\/1/)).toBeInTheDocument();expect(screen.getByText('Submission and calculation revisions')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Save correction'})).toBeDisabled();
-  fireEvent.click(screen.getByRole('button',{name:'Submit employee'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'submit',expected_version:1,expected_review_version:1,source_fingerprint:'a'.repeat(64)}));expect(screen.queryByRole('button',{name:/Pay|Disburse|Post statutory/i})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Submit employee'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'submit',expected_version:1,expected_review_version:1,source_fingerprint:'a'.repeat(64)}));expect(screen.queryByRole('button',{name:/^(Pay|Disburse|Post statutory)/i})).not.toBeInTheDocument();
  });
  it('requires a reason and records correction note; returned rows cannot bypass recalculation',async()=>{
   const returned={...row,status:'RETURNED_TO_CREATOR',last_return_reason:'Verify LOP dates',last_return_stage:'HO',available_actions:['calculate','correct','cancel']};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,row:returned,available_actions:returned.available_actions}}});mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect(await screen.findByText(/Last return \(HO\): Verify LOP dates/)).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Submit employee'})).not.toBeInTheDocument();
@@ -44,4 +46,27 @@ describe('employee payroll review',()=>{
  it('renders empty/loading/error and retry states',async()=>{
   api.getPayrollReviewQueue.mockImplementationOnce(()=>new Promise(()=>{}));const first=mount();expect(screen.getByRole('status')).toHaveTextContent('Loading employee review queue');first.unmount();api.getPayrollReviewQueue.mockResolvedValueOnce({data:{queue:{rows:[],sheets:[],total:0}}});const second=mount();expect(await screen.findByText('No employees in this review queue.')).toBeInTheDocument();second.unmount();api.getPayrollReviewQueue.mockRejectedValueOnce(new Error('Queue unavailable'));mount();expect(await screen.findByRole('alert')).toHaveTextContent('Queue unavailable');expect(screen.getByRole('button',{name:'Retry queue'})).toBeInTheDocument();
  });
+});
+
+ it('restores a sheet from its URL and lets a reviewer view rows without preparer controls',async()=>{
+  user={id:'ho',role:'ho'};
+  previewsApi.getPayrollRun.mockResolvedValue({data:{draft:{run:{id:'restored',created_by:'creator',department:'Head Office',group_code:'HO_STAFF',period_from:row.period_from,period_to:row.period_to}}}});
+  reportsApi.getSalaryRegister.mockResolvedValue({data:{register:{rows:[{...row,revision:1,net_salary:null,epf:null,esi:null,pt:null,blockers:[]}],total:1}}});
+  mount('/hr/payroll/review?run=restored');
+  expect(await screen.findByText('Payroll calculation table')).toBeInTheDocument();
+  expect(previewsApi.getPayrollRun).toHaveBeenCalledWith('restored',{page:1,limit:1});
+  expect(screen.queryByRole('button',{name:'Refresh eligible employees'})).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Submit selected employees'})).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole('button',{name:'View payroll details'}));
+  expect(await screen.findByText('Employee review: CALCULATED')).toBeInTheDocument();
+ });
+
+it('clears the selected sheet and row after successful deletion and returns to the payroll list',async()=>{
+ previewsApi.getPayrollRun.mockResolvedValue({data:{draft:{run:{id:'owned',created_by:'creator',department:'Head Office',group_code:'HO_STAFF'}}}});
+ editorStub.mockImplementation(({run,onDeleted})=>run?<button onClick={onDeleted}>Simulate successful sheet deletion</button>:<p>New payroll sheet form</p>);
+ mount('/hr/payroll/review?run=owned&row=row-a');
+ fireEvent.click(await screen.findByRole('button',{name:'Simulate successful sheet deletion'}));
+ expect(await screen.findByText('Payroll sheet deleted. Audit history is preserved.')).toBeInTheDocument();
+ expect(screen.getByText('New payroll sheet form')).toBeInTheDocument();expect(screen.queryByText('Employee review: CALCULATED')).not.toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Review employee'})).toBeInTheDocument();
 });

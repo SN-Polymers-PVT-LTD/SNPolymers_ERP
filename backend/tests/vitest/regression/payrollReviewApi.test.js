@@ -54,7 +54,7 @@ describe('payroll per-employee review HTTP API',()=>{
   const f=await fixture({}),id=f.rows[0].id;await act(id,'calculate','accounts');const before=await inspect(id);expect(before.current_preview.gross_after_lop).toBe('30000.00');await act(id,'submit','accounts');
   expect((await act(id,'forward','reviewer')).status).toBe(409);expect((await inspect(id)).row.status).toBe('PENDING_HO_APPROVAL');
   // A finalized authoritative pay history correction invalidates the saved source.
-  const pay=await one(db,"SELECT * FROM create_hr_pay_structure($1,'Monthly salary',31000,11000,2000,NULL,true,false,'Active',$2)",[f.employees[0].id,users.admin.id]);
+  const pay=await one(db,"SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',31000,11000,2000,NULL,true,false,'Active',$2)",[f.employees[0].id,users.admin.id]);
   await q(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[f.employees[0].id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:pay.id,effective_from:f.from,effective_to:f.to}]),'SYNTHETIC dated correction',users.admin.id]);
   expect((await inspect(id)).source_stale).toBe(true);expect((await act(id,'approve_lock','ho')).status).toBe(409);expect((await act(id,'return','ho',{reason:'Refresh pay history'})).status).toBe(200);
   await act(id,'correct','accounts',{note:'Authoritative pay-history refresh'});await act(id,'calculate','accounts');const after=await inspect(id);expect(after.revisions[0].calculation_snapshot.gross_after_lop).toBe('30000.00');expect(after.current_preview.gross_after_lop).toBe('31000.00');expect(after.revisions[1].changes.map(c=>c.field)).toEqual(expect.arrayContaining(['earnings','correction_note']));

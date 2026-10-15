@@ -59,13 +59,13 @@ describe('statutory profiles PostgreSQL/API safe Phase 6A',()=>{
   await save(db,employee,users.admin.id,0,[interval(scopeId,f.from,f.to)]);
   const after=await source(f.rows[0].id);expect(after.statutory_rule_links.map(r=>r.id)).toEqual([selected]);expect(JSON.stringify(after)).not.toContain(unrelated);expect(after.statutory_rules).toEqual([]);
   expect(after.statutory_profiles).toHaveLength(3);for(const p of after.statutory_profiles){expect(p).not.toHaveProperty('basis_reference');expect(p).not.toHaveProperty('advisor_name');expect(p).not.toHaveProperty('verification_reference');}
-  const calculation=calculatePreview(after);expect(calculation.statutory[0].status).toBe('BLOCKED');expect(calculation.blockers.map(b=>b.code)).toContain('STATUTORY_COLLECTION_TIMING_REQUIRED');expect(calculation.statutory[0].employee_deduction).toBeNull();expect(calculation.statutory.slice(1).every(r=>r.status==='DOCUMENTED_NOT_APPLICABLE'&&r.employee_deduction==='0.00')).toBe(true);expect(calculation.final_net_salary).toBeNull();expect(calculation.source_fingerprint).not.toBe(calculatePreview(before).source_fingerprint);
+  const calculation=calculatePreview(after);expect(calculation.statutory[0].status).toBe('BLOCKED');expect(calculation.blockers.map(b=>b.code)).toContain('STATUTORY_COLLECTION_TIMING_REQUIRED');expect(calculation.statutory[0].employee_deduction).toBeNull();expect(calculation.statutory[1]).toMatchObject({status:'NOT_APPLICABLE_BY_EMPLOYEE_RULE',employee_deduction:'0.00'});expect(calculation.statutory[2].employee_deduction).toBeNull();expect(calculation.final_net_salary).toBeNull();expect(calculation.source_fingerprint).not.toBe(calculatePreview(before).source_fingerprint);
   expect((await request('POST',`/rows/${f.rows[0].id}/preview`,'accounts',{})).body.preview.source_references.statutory_profiles).toHaveLength(3);
  });
  test('active Factory Managers see only diagnostic identifiers in both factories without grants',async()=>{
   for(const department of ['SNP Factory','Fabric Factory']){
    const f=await fixture({factory:true,department}),scopeId=await scope(db,users.admin.id);
-   const revision=await rule(db,users.admin.id,scopeId,f.from,f.to);
+   const revision=await rule(db,users.admin.id,scopeId,f.from,f.to,true,'PT');
    await save(db,f.employees[0].id,users.admin.id,0,[interval(scopeId,f.from,f.to)]);
    const endpoint=`/rows/${f.rows[0].id}/preview`,response=await request('POST',endpoint,'fm',{});
    expect(response.status).toBe(200);expect(response.body.preview.source_references.statutory_rule_links.map(r=>r.id)).toContain(revision);

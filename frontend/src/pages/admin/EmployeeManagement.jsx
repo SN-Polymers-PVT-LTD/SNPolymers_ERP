@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams,Navigate } from 'react-router-dom';
 import { Button } from '../../components/ui';
 import EmployeeMaster from './EmployeeMaster';
 import PermanentPayStructure from './PermanentPayStructure';
+import EmployeeStatutorySetup from '../../components/payroll/EmployeeStatutorySetup';
+import {useAuth} from '../../components/AuthContext';
 import { getEmployees } from '../../api/hrEmployeesApi';
 import { getAllPayStructures } from '../../api/hrPayStructuresApi';
 import { exportAllEmployeeSheetsToExcel } from '../../utils/exportHelpers';
@@ -10,18 +12,18 @@ import { exportAllEmployeeSheetsToExcel } from '../../utils/exportHelpers';
 export default function EmployeeManagement() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
-  const activeTab = urlTab === 'pay-structure' ? 'pay-structure' : 'directory';
+  const {user}=useAuth();
+  const isAdmin=user?.role==='admin',allowed=['admin','accounts'].includes(user?.role);
+  const activeTab = !isAdmin ? 'payroll-setup' : ['pay-structure','payroll-setup'].includes(urlTab) ? urlTab : 'directory';
   const selectedEmployeeId = searchParams.get('employeeId') || '';
   const [isExportingWorkbook, setIsExportingWorkbook] = useState(false);
 
   const handleTabChange = (tab, employeeId = '') => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (tab === 'pay-structure') {
-        next.set('tab', 'pay-structure');
-        if (employeeId) {
-          next.set('employeeId', employeeId);
-        }
+      if (['pay-structure','payroll-setup'].includes(tab)) {
+        next.set('tab', tab);
+        if (employeeId) next.set('employeeId', employeeId); else next.delete('employeeId');
       } else {
         next.delete('tab');
         next.delete('employeeId');
@@ -53,6 +55,8 @@ export default function EmployeeManagement() {
     }
   };
 
+  if(!allowed)return <p role="alert">Accounts or Admin employee management access is required.</p>;
+  if(!isAdmin&&urlTab!=='payroll-setup'){const params=new URLSearchParams(searchParams);params.set('tab','payroll-setup');return <Navigate to={{pathname:'/admin/employee-management',search:'?'+params.toString()}} replace/>;}
   return (
     <div className="space-y-6">
       {/* Module Title & Tab Navigation */}
@@ -60,7 +64,7 @@ export default function EmployeeManagement() {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-              Admin Module
+              Employee Management
             </span>
             <span className="text-xs text-slate-500">/</span>
             <span className="text-xs text-slate-400 font-semibold">Employee Management</span>
@@ -72,6 +76,7 @@ export default function EmployeeManagement() {
 
         {/* Tab & Export Buttons */}
         <div className="flex flex-wrap items-center gap-3 self-start sm:self-auto">
+          {isAdmin && <>
           <Button
             size="sm"
             variant="ghost"
@@ -86,7 +91,9 @@ export default function EmployeeManagement() {
             <span>{isExportingWorkbook ? 'Exporting...' : 'Export Both Sheets'}</span>
           </Button>
 
+          </>}
           <div className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-950/60 border border-white/10">
+            {isAdmin && <>
             <Button
               size="sm"
               variant={activeTab === 'directory' ? 'primary' : 'ghost'}
@@ -103,14 +110,17 @@ export default function EmployeeManagement() {
             >
               Permanent Employee Pay Structure
             </Button>
+            </>}
+            <Button size="sm" variant={activeTab==='payroll-setup'?'primary':'ghost'} onClick={()=>handleTabChange('payroll-setup')}>Employee Payroll Setup</Button>
           </div>
         </div>
       </div>
 
       {/* Render Active View */}
-      {activeTab === 'directory' ? (
+      {activeTab === 'payroll-setup' ? <EmployeeStatutorySetup key={selectedEmployeeId} initialEmployeeId={selectedEmployeeId} onEmployeeChange={id=>handleTabChange('payroll-setup',id)}/> : activeTab === 'directory' ? (
         <EmployeeMaster
           onNavigateToPayStructure={(empId) => handleTabChange('pay-structure', empId)}
+          onNavigateToPayrollSetup={empId=>handleTabChange('payroll-setup',empId)}
         />
       ) : (
         <PermanentPayStructure initialEmployeeId={selectedEmployeeId} />

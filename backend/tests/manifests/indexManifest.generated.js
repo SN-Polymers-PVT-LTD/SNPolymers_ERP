@@ -381,6 +381,14 @@ module.exports = {
       "table": "payroll_statutory_scope_bindings",
       "definition": "CREATE INDEX payroll_statutory_scope_bindings_scope_idx ON public.payroll_statutory_scope_bindings USING btree (statutory_scope_id, revision_id)"
     },
+    "payroll_statutory_states_name_key_key": {
+      "table": "payroll_statutory_states",
+      "definition": "CREATE UNIQUE INDEX payroll_statutory_states_name_key_key ON public.payroll_statutory_states USING btree (name_key)"
+    },
+    "payroll_statutory_states_pkey": {
+      "table": "payroll_statutory_states",
+      "definition": "CREATE UNIQUE INDEX payroll_statutory_states_pkey ON public.payroll_statutory_states USING btree (id)"
+    },
     "uq_pcei_generated_subcontract_work": {
       "table": "project_cost_estimate_items",
       "definition": "CREATE UNIQUE INDEX uq_pcei_generated_subcontract_work ON public.project_cost_estimate_items USING btree (estimate_id, subcontract_work_id) WHERE ((source_type)::text = 'SUBCONTRACT_ESTIMATE'::text)"

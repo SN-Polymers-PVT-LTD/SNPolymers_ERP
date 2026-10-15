@@ -72,3 +72,37 @@ Custom periods, calendar-weighted residual allocations, selectable joining/leavi
 ## Factory payroll access decision — 14 October 2026
 
 The user explicitly requested clean removal of the AI-introduced factory payroll grant system. The project is in development; no production legacy-data adjustment is required. Active Factory Managers can create/view payroll for both SNP Factory and Fabric Factory, matching attendance access. Separate grants, revocations and the grant-management endpoint are removed by forward migration 131. Head Office/Projects payroll remains unavailable to FMs. Original-preparer ownership, independent Accounts/HO review and final lock gates remain unchanged; other employees' official payslips remain restricted. This supersedes earlier references to granted factory scopes, including decision 9. Statutory establishment/jurisdiction scopes are unrelated and remain intact.
+
+## Gross-only employee pay setup decision — 14 October 2026
+
+The user explicitly requested removal of Basic Salary, Staff Welfare and Other Fixed inputs from Employee Management pay-structure setup before implementing automatic payroll population/calculation. New revisions record pay basis and agreed gross, with employee EPF/ESI enrolment facts retained. Rates, ceilings, slabs, wage inclusion and rounding are owned by the configurable statutory master; no automatic rewrite of existing published configuration is authorized. This supersedes decision 6's editable component breakdown for new pay setup.
+
+Migration 132 replaces public pay-structure creation with a gross-only signature. The original implementation is retained as a private historical helper, not executable by browser or service roles. Existing revisions and locked payroll snapshots remain unchanged. New component columns are NULL, not invented zero amounts. The existing payroll calculator represents unallocated gross as PACKAGE_BALANCE. A statutory master requiring absent BASIC/STAFF_WELFARE/OTHER_FIXED evidence keeps the calculation blocked; Accounts must explicitly configure the intended wage basis before those scenarios can be finalized. Employee applicability/enrolment remains evidenced in profiles; master rates do not establish an employee's applicability.
+
+Beneficiary setup remains in the Employee Master form for every category. It reuses Accounts beneficiary_master/indian_bank_master and stores only the canonical beneficiary_id on hr_employees. No duplicate banking fields/table or payment workflow is introduced.
+
+## Automatic payroll generation decision — 14 October 2026
+
+The user approved a populated table similar to Accounts requisitions and explicitly requested automatic calculation as well. The separately requested gross-only pay setup (migration 132) was implemented and verified first. Generate payroll now creates a sheet, populates recorded category/department assignment intervals and saves initial per-employee calculations through the existing authoritative engine. Submission, Accounts review, HO/Admin lock and payment remain separate explicit workflows.
+
+Refresh adds missing employees and retries unfinished initial calculations. It checks retained saved sources and flags changes without overwriting existing calculations, corrections, submitted rows or locked results. Explicit recalculation requires a reason and creates a new employee revision. Missing/ambiguous assignments and source/calculation failures are reported independently; unresolved amounts remain unavailable. There is still one employee row per sheet, so multiple matching intervals require deliberate individual selection rather than silent merging. Migration 133 implements transactional, creator-only population.
+
+## Draft-sheet deletion (14 October 2026)
+
+The user approved Delete draft sheet after the UAT employee beneficiary seed. Whole-sheet cancellation is limited to the originating preparer and unsubmitted/returned salary rows, with a required reason and retained audit/calculation history. Submitted, under-review and locked rows block the entire operation; cancelled containers are omitted from active review/preview/report/export surfaces. See [the implementation contract](SN_Polymers_Payroll_Draft_Sheet_Deletion.md).
+
+## Employee Management enrolment reuse — 14 October 2026
+
+The user requested removal of duplicate permanent-employee EPF/ESI enrolment inputs from statutory setup. Migration 136 derives enrolment from Employee Management, using dated pay-source revisions where available, in bulk and individual profile writes. Rates remain in shared masters, and statutory scope/applicability/effective evidence remain separate. This does not approve blanket nonpermanent exemption. The earliest committed v1.4 spec already describes the Statutory Deduction Master (§8.1–8.2) and Employee Statutory Profile (§8.3); a separate profile page is an implementation choice rather than a required layout.
+
+## Confirmed category applicability — 14 October 2026
+
+The user clarified: no EPF/ESI for Casual/Local; automatic PT for all except Local daily wagers, with no employee on/off. This supersedes earlier discretionary profile applicability. Migration 137 normalizes profile writes, guards direct profile/ledger inserts and changes financial finalization to require only applicable scheme/month entries. Calculation and diagnostics resolve the dated assignment and Employee Management pay enrolment. Excluded schemes return zero without profile/master prerequisites and post no entries. Accounts/Admin configure PT slabs. Existing immutable snapshots are unchanged; old drafts must be explicitly recalculated, indicated by the new PHASE6_CATEGORY_RULES_V1 fingerprint revision. Positive previous monthly collections block automatic exemption and require an approved correction.
+
+## State directory and simpler PT schedule — 15 October 2026
+
+The user requested a state dropdown (Assam, Bihar, West Bengal, Odisha), a separate Add state action in Create Draft, and effective-dated PT slabs instead of twelve repetitive tables. Migration 138 adds an Accounts/Admin state directory and canonical state link on statutory revisions, while retaining immutable legacy labels. Adding duplicate state names reuses the existing identity. State selection is not publication or legal approval. The normal PT table expands to all months, with explicit exceptions for any month and a documented state-level no-levy schedule. Existing effective revision resolution, publication checks, exact monetary strings and locked payroll history remain unchanged. No legal rates are seeded automatically.
+
+## Retire standalone statutory profiles page — 15 October 2026
+
+The user agreed to consolidate the remaining employee setup into Employee Management. The new Employee Payroll Setup tab retains existing audited timeline/bulk operations. A selected directory employee can open this tab directly; its UUID is retained in the URL. The old profile route and compatibility redirect are removed during development. Accounts may open only this tab, with no directory/pay editor/export exposure; backend master-edit authorization remains Admin-only. Shared mapping registration and published-revision binding moved to the deduction master. Sidebar, module links and Accounts dashboard use the new destinations. No schema migration or historical data rewrite is required; calculation continues consuming the same profile records and canonical mappings.

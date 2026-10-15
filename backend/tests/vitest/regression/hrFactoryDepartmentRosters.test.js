@@ -170,7 +170,7 @@ describe('category and department mapping with six factory rosters', () => {
     for (const category of ['Zonal Office','Junior Engineer','Local project supervisor','Head office']) {
       const e = await employee(category,'Projects');
       await q('UPDATE hr_employees SET erp_user_id=$1,updated_by=$1 WHERE id=$2',[actor,e.id]);
-      const pay = (await q("SELECT * FROM create_hr_pay_structure($1,'Monthly salary',1000,NULL,NULL,NULL,false,false,'Active',$2)",[e.id,actor]))[0];
+      const pay = (await q("SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',1000,NULL,NULL,NULL,false,false,'Active',$2)",[e.id,actor]))[0];
       expect(pay.employee_id).toBe(e.id);
       const leave = (await q("SELECT * FROM save_hr_leave_request(NULL,$1,'SELF_SERVICE',$2,$2,'Other Leave','Personal','Pending',$3)",[e.id,day,actor]))[0];
       expect(leave.employee_category).toBe(category);

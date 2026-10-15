@@ -20,7 +20,6 @@ const Dashboard = React.lazy(() => import('./pages/Dashboard'));
 const PayrollPreviews = React.lazy(() => import('./pages/hr/PayrollPreviews'));
 const PayrollRegister = React.lazy(() => import('./pages/hr/PayrollRegister'));
 const PayrollReview = React.lazy(() => import('./pages/hr/PayrollReview'));
-const PayrollStatutoryProfiles = React.lazy(() => import('./pages/admin/PayrollStatutoryProfiles'));
 const PayrollOfficialPayslip = React.lazy(()=>import('./pages/hr/PayrollOfficialPayslip'));
 const PayrollMasters = React.lazy(() => import('./pages/admin/PayrollMasters'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
@@ -229,7 +228,7 @@ function App() {
                 </Route>
 
                 <Route element={<ProtectedRoute allowedRoles={['admin','accounts']} />}>
-                  <Route path="/admin/payroll/statutory-profiles" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollStatutoryProfiles /></React.Suspense>} />
+                  <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
                   <Route path="/admin/payroll/statutory" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollMasters key="statutory" kind="statutory" /></React.Suspense>} />
                 </Route>
 
@@ -241,7 +240,6 @@ function App() {
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                   <Route path="/admin" element={<React.Suspense fallback={<AppChunkLoader />}><AdminPanel /></React.Suspense>} />
                   <Route path="/admin/payroll/policies" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollMasters key="policies" kind="policies" /></React.Suspense>} />
-                  <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
                   <Route path="/admin/sessions" element={<React.Suspense fallback={<AppChunkLoader />}><AuditLog /></React.Suspense>} />
                   <Route path="/admin/master-data" element={<React.Suspense fallback={<AppChunkLoader />}><MasterData /></React.Suspense>} />
                   <Route path="/admin/purchase-options" element={<React.Suspense fallback={<AppChunkLoader />}><PurchaseOptions /></React.Suspense>} />

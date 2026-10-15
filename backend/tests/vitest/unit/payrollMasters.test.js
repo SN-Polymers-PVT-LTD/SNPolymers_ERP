@@ -44,7 +44,7 @@ describe('Phase 2 pure master validation and historical resolution',()=>{
  });
  test('enrolment flags preserved while forged EPF/ESI amounts or rates fail existing pay schema',()=>{
   const pay={employee_id:'d8f353ed-1ac4-4543-a608-bb57e54ef792',pay_basis:'Monthly salary',guaranteed_monthly_gross:1000,epf_enrolment:true,esi_enrolment:true};
-  expect(create.body.parse(pay)).toMatchObject({epf_enrolment:true,esi_enrolment:true});for(const field of ['epf_amount','esi_amount','epf_rate','esi_rate','employee_rate','employer_rate'])expect(create.body.safeParse({...pay,[field]:1}).success).toBe(false);
+  expect(create.body.parse(pay)).toMatchObject({epf_enrolment:true,esi_enrolment:true});for(const field of ['basic_salary','staff_welfare','other_fixed_components','epf_amount','esi_amount','epf_rate','esi_rate','employee_rate','employer_rate'])expect(create.body.safeParse({...pay,[field]:1}).success).toBe(false);
  });
  test('synthetic reference arithmetic uses exact integer fractions; February and October stay distinct',()=>{
   // Test-only reference examples, not a salary calculator or production rounding default.

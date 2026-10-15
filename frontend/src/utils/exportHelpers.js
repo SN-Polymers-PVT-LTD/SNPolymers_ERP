@@ -1117,9 +1117,17 @@ export async function exportCombinedExpenditureSheet({
   XLSX.writeFile(workbook, filename);
 }
 
+// Keep bank account numbers as text so Excel preserves leading zeros and precision.
+const employeeBeneficiaryColumns = employee => ({
+  "Beneficiary Name": employee.beneficiary?.beneficiary_name || '',
+  "Beneficiary Account Number": employee.beneficiary?.account_number || '',
+  "Beneficiary IFSC": employee.beneficiary?.ifsc || '',
+  "Beneficiary Bank": employee.beneficiary?.beneficiary_bank_name || employee.beneficiary?.beneficiary_bank?.bank_name || '',
+});
+
 /**
  * Exports Employee & Worker Master directory records to Excel.
- * Follows the approved 9-column UI specification order.
+ * Includes linked beneficiary details after the employee directory columns.
  *
  * @param {Array} employees
  */
@@ -1148,7 +1156,8 @@ export async function exportEmployeesToExcel(employees) {
       "Existing ERP Role": erpRole || 'No ERP account',
       "Existing ERP Account": erpAccount,
       "Joining Date": emp.joining_date || '',
-      "Active Status": emp.active_status || 'Active'
+      "Active Status": emp.active_status || 'Active',
+      ...employeeBeneficiaryColumns(emp)
     };
   });
 
@@ -1276,7 +1285,8 @@ export async function exportAllEmployeeSheetsToExcel(employees, payRecords) {
         "Existing ERP Role": erpRole || 'No ERP account',
         "Existing ERP Account": erpAccount,
         "Joining Date": emp.joining_date || '',
-        "Active Status": emp.active_status || 'Active'
+        "Active Status": emp.active_status || 'Active',
+        ...employeeBeneficiaryColumns(emp)
       };
     });
     const empSheet = XLSX.utils.json_to_sheet(empRows);

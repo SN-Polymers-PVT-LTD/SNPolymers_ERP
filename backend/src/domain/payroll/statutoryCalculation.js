@@ -1,3 +1,4 @@
+const {schemeApplies}=require('./statutoryPolicy');
 const D=require('./exact');const {month,dates}=require('./sources');const {configuration,slab}=require('../../validation/payrollMasters.schema');const {signed}=require('./adjustments');
 const schemes=['EPF','ESI','PT'],confirmed=p=>['ADVISOR_VERIFIED','ACCOUNTS_CONFIRMED'].includes(p?.verification_status);
 const ref=r=>D.fraction(BigInt(r.numerator),BigInt(r.denominator));
@@ -8,20 +9,21 @@ function statutoryCalculation(source,earnings,deductions){
  for(const start of starts)for(const scheme of schemes){
   const bounds=month(start),from=source.row.period_from>bounds.from?source.row.period_from:bounds.from,to=source.row.period_to<bounds.to?source.row.period_to:bounds.to;
   const block=code=>blockers.push({kind:'statutory',code,scheme,date:start});
+  const applies=schemeApplies(source,scheme,from,to);
+  if(applies===false){
+   const prior=(source.statutory_entries||[]).filter(e=>e.scheme===scheme&&e.contribution_month===start);
+   if(prior.some(e=>D.decimal(e.employee_amount).n||D.decimal(e.employer_amount).n)){block('STATUTORY_APPLICABILITY_CHANGE_REQUIRES_ADJUSTMENT');continue;}
+   rules.push({scheme,contribution_month:start,status:'NOT_APPLICABLE_BY_EMPLOYEE_RULE',employee_deduction:'0.00',employer_contribution:'0.00',revision_id:null,statutory_scope_id:null});continue;
+  }
+  if(applies===null){block('EMPLOYEE_CATEGORY_OR_PAY_ENROLMENT_REQUIRED');continue;}
   const ps=(source.statutory_profiles||[]).filter(p=>p.scheme===scheme&&p.effective_from<=from&&(!p.effective_to||p.effective_to>=to));
   const result={scheme,contribution_month:start,status:'BLOCKED',employee_deduction:null,employer_contribution:null,revision_id:null,statutory_scope_id:null};rules.push(result);
   if(ps.length!==1){block(ps.length?'AMBIGUOUS_EMPLOYEE_STATUTORY_PROFILE':'STATUTORY_PROFILE_PERIOD_COVERAGE_REQUIRED');continue;}
-  const p=ps[0];result.profile_id=p.id;result.statutory_scope_id=p.statutory_scope_id;
-  if(!confirmed(p)||!p.statutory_scope_id||p.applicability==='UNRESOLVED'){block('CONFIRMED_EMPLOYEE_PROFILE_REQUIRED');continue;}
-  if(scheme!=='PT'&&(typeof p.enrolled!=='boolean'||(source.pay_structures||[]).some(pay=>typeof pay[scheme==='EPF'?'epf_enrolment':'esi_enrolment']==='boolean'&&pay[scheme==='EPF'?'epf_enrolment':'esi_enrolment']!==p.enrolled))){block('ENROLMENT_EVIDENCE_CONFLICT');continue;}
+  const p={...ps[0],applicability:'APPLICABLE',enrolled:scheme==='PT'?null:true};result.profile_id=p.id;result.statutory_scope_id=p.statutory_scope_id;
+  if(!confirmed(p)||!p.statutory_scope_id){block('CONFIRMED_EMPLOYEE_PROFILE_REQUIRED');continue;}
   const prior=(source.statutory_entries||[]).filter(e=>e.scheme===scheme&&e.contribution_month===start);
   if(prior.some(e=>e.statutory_scope_id!==p.statutory_scope_id)){block('STATUTORY_SCOPE_CHANGE_REQUIRES_ADJUSTMENT');continue;}
   const employeeCollected=D.sum(prior.map(e=>D.decimal(e.employee_amount))),employerAccrued=D.sum(prior.map(e=>D.decimal(e.employer_amount)));
-  if(p.applicability==='NOT_APPLICABLE'){
-   if(employeeCollected.n||employerAccrued.n){block('STATUTORY_APPLICABILITY_CHANGE_REQUIRES_ADJUSTMENT');continue;}
-   Object.assign(result,{status:'DOCUMENTED_NOT_APPLICABLE',employee_deduction:'0.00',employer_contribution:'0.00',eligible_wage:'0.00'});
-   entries.push({salary_month:start,scheme,statutory_scope_id:p.statutory_scope_id,rule_revision_id:null,source_profile_id:p.id,eligible_wage:D.reference(D.zero()),employee_amount:'0.00',employer_amount:'0.00',monthly_employee_liability:'0.00',monthly_employer_liability:'0.00',previous_employee_collected:'0.00',previous_employer_accrued:'0.00'});continue;
-  }
   const masters=(source.statutory_calculation_rules||[]).filter(r=>r.scheme===scheme&&r.statutory_scope_id===p.statutory_scope_id&&r.effective_from<=start&&(!r.effective_to||r.effective_to>=start));
   if(masters.length!==1){block(masters.length?'AMBIGUOUS_EMPLOYEE_SCOPED_RULE':'STATUTORY_MONTH_START_RULE_REQUIRED');continue;}
   const rule=masters[0],parsed=configuration.safeParse(rule.configuration);result.revision_id=rule.id;

@@ -93,23 +93,23 @@ const AcctDashboardView = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Card 1: Statutory Profiles */}
+            {/* Card 1: Employee payroll setup */}
             <Link
-              to="/admin/payroll/statutory-profiles"
+              to="/admin/employee-management?tab=payroll-setup"
               className="p-4 rounded-2xl bg-slate-950/40 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition group flex flex-col justify-between space-y-2"
             >
               <div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 font-mono">Profiles & Banking</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 font-mono">Payroll Setup</span>
                   <span className="text-xs text-slate-500 group-hover:text-emerald-400 transition">&rarr;</span>
                 </div>
-                <h3 className="text-xs font-bold text-slate-200 group-hover:text-emerald-300 mt-1">Employee Statutory Profiles</h3>
+                <h3 className="text-xs font-bold text-slate-200 group-hover:text-emerald-300 mt-1">Employee Payroll Setup</h3>
                 <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                  Worker PF/UAN, ESIC numbers, PAN, PT state bindings, and verified bank account beneficiaries.
+                  Maintain employee state / establishment mappings, effective dates and confirmed payroll setup.
                 </p>
               </div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 pt-1 block">
-                Manage Profiles →
+                Open Employee Management →
               </span>
             </Link>
 

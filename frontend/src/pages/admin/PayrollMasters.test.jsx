@@ -6,11 +6,13 @@ import {MemoryRouter} from 'react-router-dom';
 import {ModalProvider} from '../../components/ModalContext';
 import PayrollMasters from './PayrollMasters';
 import * as api from '../../api/payrollMastersApi';
+import * as profiles from '../../api/payrollProfilesApi';
+vi.mock('../../api/payrollProfilesApi');
 vi.mock('../../api/payrollMastersApi');
 let role='admin';vi.mock('../../components/AuthContext',()=>({useAuth:()=>({user:{role}})}));
 function mount(kind='policies'){return render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><ModalProvider><MemoryRouter><PayrollMasters kind={kind}/></MemoryRouter></ModalProvider></QueryClientProvider>);}
 const empty={revisions:[],events:[],total:0,groups:[{code:'HO_STAFF'}]};
-beforeEach(()=>{vi.resetAllMocks();role='admin';api.listPayrollMasters.mockResolvedValue({data:{result:empty}});api.savePayrollMaster.mockResolvedValue({data:{result:{id:'draft'}}});});
+beforeEach(()=>{vi.resetAllMocks();profiles.getStatutoryProfileContext.mockResolvedValue({data:{result:{scopes:[],bindings:[],total:0}}});profiles.getStatutoryStates.mockResolvedValue({data:{result:[{id:'assam',name:'Assam'},{id:'bihar',name:'Bihar'},{id:'wb',name:'West Bengal'},{id:'odisha',name:'Odisha'}]}});role='admin';api.listPayrollMasters.mockResolvedValue({data:{result:empty}});api.savePayrollMaster.mockResolvedValue({data:{result:{id:'draft'}}});});
 describe('Admin payroll master screens',()=>{
  it('shows empty state and approved business method distinct from publication',async()=>{mount();expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();expect(screen.getByText(/Fixed 30 is the currently approved/)).toBeInTheDocument();});
  it('loading, server error and retry are visible',async()=>{api.listPayrollMasters.mockImplementation(()=>new Promise(()=>{}));const view=mount();expect(screen.getByText(/Loading revisions/)).toBeInTheDocument();view.unmount();api.listPayrollMasters.mockRejectedValue(new Error('Synthetic API unavailable'));mount();expect(await screen.findByRole('alert')).toHaveTextContent('Synthetic API unavailable');expect(screen.getByRole('button',{name:'Retry'})).toBeInTheDocument();});

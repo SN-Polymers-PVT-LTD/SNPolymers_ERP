@@ -17,6 +17,10 @@ router.get('/masters/:kind/:id/preview', masterAccess, validateRequest(masterSch
 router.post('/masters/:kind/:id/publish', masterAccess, validateRequest(masterSchema.publish), masters.publish);
 const profiles = require('../controllers/payrollProfiles.controller');
 const profileSchema = require('../validation/payrollProfiles.schema');
+router.get('/statutory-states',requireRole(['admin','accounts']),validateRequest(profileSchema.states),profiles.states);
+router.post('/statutory-states',requireRole(['admin','accounts']),validateRequest(profileSchema.registerState),profiles.registerState);
+router.get('/statutory-profiles/setup-candidates', requireRole(['admin','accounts']), validateRequest(profileSchema.candidates), profiles.candidates);
+router.post('/statutory-profiles/bulk', requireRole(['admin','accounts']), validateRequest(profileSchema.bulk), profiles.bulk);
 router.get('/statutory-profiles/context', requireRole(['admin','accounts']), validateRequest(profileSchema.context), profiles.context);
 router.get('/employees/:employeeId/statutory-profile', requireRole(['admin','accounts']), validateRequest(profileSchema.history), profiles.history);
 router.post('/employees/:employeeId/statutory-profile', requireRole(['admin','accounts']), validateRequest(profileSchema.save), profiles.save);
@@ -40,6 +44,8 @@ const review = require('../controllers/payrollReview.controller');
 const reviewSchema = require('../validation/payrollReview.schema');
 router.get('/review/queue', validateRequest(reviewSchema.queue), review.queue);
 router.post('/review/bulk', validateRequest(reviewSchema.bulk), review.bulk);
+router.post('/runs/generate', requireRole(['accounts','factory_manager']), validateRequest(schema.createRun), review.generateNew);
+router.post('/runs/:runId/generate', requireRole(['accounts','factory_manager']), validateRequest(reviewSchema.generate), review.generate);
 router.get('/rows/:rowId/review', validateRequest(reviewSchema.detail), review.detail);
 router.post('/rows/:rowId/review', validateRequest(reviewSchema.action), review.act);
 router.get('/runs', validateRequest(schema.listRuns), previews.list);
@@ -49,6 +55,7 @@ router.post('/source-history', requireRole(['admin']), validateRequest(schema.hi
 router.get('/employees/:employeeId/source-history', requireRole(['admin']), validateRequest(schema.employeeHistory), controller.sourceHistory);
 router.post('/runs', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.createRun), controller.createRun);
 router.get('/runs/:runId/candidates', validateRequest(schema.detail), controller.candidates);
+router.delete('/runs/:runId', requireRole(['accounts','factory_manager']), validateRequest(reviewSchema.cancelRun), review.cancelRun);
 router.get('/runs/:runId', validateRequest(schema.detail), controller.detail);
 router.post('/runs/:runId/employees', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.addEmployee), controller.addEmployee);
 router.patch('/rows/:rowId/note', requireRole(['admin', 'accounts', 'factory_manager']), validateRequest(schema.reviseNote), controller.reviseNote);

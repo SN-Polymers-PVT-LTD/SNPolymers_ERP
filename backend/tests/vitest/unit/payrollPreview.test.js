@@ -102,7 +102,7 @@ describe('extended source/period safeguards',()=>{
   const {statutoryReadiness}=require('../../../src/domain/payroll/statutory'),{statutory,pt}=require('../../helpers/payrollMasterFixtures');
   const data=[statutory(),statutory({scheme:'ESI'}),pt()],scope='9e198a5e-df3a-41f1-ad43-76dd137b54b0';
   const source={statutory_profile:{verified:true,effective_from:'2090-01-01',schemes:Object.fromEntries(data.map(d=>[d.scheme,{statutory_scope_id:scope}]))},statutory_rules:data.map(d=>({id:d.scheme,status:'PUBLISHED',...d,data:d,statutory_scope_id:scope}))};
-  const result=statutoryReadiness(source,'2091-02-01');expect(result.rules.map(r=>r.revision_id)).toEqual(['EPF','ESI','PT']);expect(result.rules.every(r=>r.employee_deduction===null&&r.employer_contribution===null)).toBe(true);expect(result.blockers).toContainEqual({kind:'statutory',code:'STATUTORY_CALCULATION_NOT_ACTIVATED'});
+  const result=statutoryReadiness(source,'2091-02-01');expect(result.blockers.some(b=>b.code==='EMPLOYEE_CATEGORY_OR_PAY_ENROLMENT_REQUIRED')).toBe(true);expect(result.rules).toEqual([]);
  });
 });
 test('LOP DAILY and MONTH rounding remain independent and reproducible',()=>{

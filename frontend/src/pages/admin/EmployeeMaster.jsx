@@ -47,7 +47,7 @@ const INITIAL_FORM = {
   beneficiary_id: null
 };
 
-export default function EmployeeMaster({ onNavigateToPayStructure }) {
+export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPayrollSetup }) {
   const queryClient = useQueryClient();
 
   // URL / Filter State
@@ -932,6 +932,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure }) {
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
               <div>
+                {onNavigateToPayrollSetup && inspectingEmployee.employee_category!=='Local Daily-Wage Workers' && <Button variant="glass" size="sm" onClick={()=>{const id=inspectingEmployee.id;setInspectingEmployee(null);onNavigateToPayrollSetup(id);}}>Maintain Payroll Setup</Button>}
                 {PERMANENT_CATEGORIES.has(inspectingEmployee.employee_category) && onNavigateToPayStructure && (
                   <Button
                     variant="glass"

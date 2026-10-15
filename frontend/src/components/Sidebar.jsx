@@ -186,19 +186,10 @@ export const MobileHeader = () => {
     if (['accounts', 'admin'].includes(user?.role)) {
       finItems.push({
         to: '/acct-requisitions/sub-titles',
-        label: 'Sub-titles',
+        label: 'Sub-titles & Particulars',
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-          </svg>
-        )
-      });
-      finItems.push({
-        to: '/acct-requisitions/particulars',
-        label: 'Particulars',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V18a2 2 0 01-2 2z" />
           </svg>
         )
       });
@@ -382,7 +373,7 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
       payrollItems.push({ to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> });
     }
     if (['admin', 'accounts'].includes(user?.role)) {
-      payrollItems.push({ to: '/admin/payroll/statutory-profiles', label: 'Employee Statutory Profiles', icon: <span aria-hidden="true">₹</span> });
+      if(user.role==='accounts')payrollItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
       payrollItems.push({ to: '/admin/payroll/statutory', label: 'Statutory Deduction Master', icon: <span aria-hidden="true">₹</span> });
     }
     payrollItems.push(
@@ -495,7 +486,7 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
                     <h4 className="text-[9px] font-bold text-slate-500 uppercase tracking-widest px-3">{group.title}</h4>
                     <div className="space-y-1">
                       {group.items.map((item) => {
-                        const active = currentPath === item.to || (item.to !== '/dashboard' && currentPath.startsWith(item.to) && !(item.to === '/factory-attendance' && currentPath.startsWith('/factory-attendance/review')));
+                        const active = currentPath === item.to.split('?')[0] || (item.to === '/acct-requisitions/sub-titles' && currentPath === '/acct-requisitions/particulars') || (item.to !== '/dashboard' && currentPath.startsWith(item.to.split('?')[0]) && !(item.to === '/factory-attendance' && currentPath.startsWith('/factory-attendance/review')));
                         return (
                           <Link
                             key={item.to}
@@ -731,21 +722,95 @@ const Sidebar = () => {
       label: 'Payroll Review',
       icon: <span aria-hidden="true">✓</span>
     });
+  } else if (user?.role === 'accounts' && (isAccountsModule || isPayrollModule || currentPath.startsWith('/admin/employee-management'))) {
+    navItems.push({
+      to: '/acct-requisitions',
+      label: 'Acct Requisitions',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/acct-requisitions/bank-balances',
+      label: 'Bank Balances',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/acct-requisitions/credit-ledger',
+      label: 'Credit Ledger',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a4 4 0 00-8 0v2M5 9h14l-1 11H6L5 9z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/acct-requisitions/logs',
+      label: 'Requisition Logs',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/acct-requisitions/sub-titles',
+      label: 'Sub-titles & Particulars',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/acct-requisitions/beneficiary-master',
+      label: 'Beneficiary Master',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4zm6 0a4 4 0 10-4-4" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/admin/payroll/statutory',
+      label: 'Statutory Deduction Master',
+      icon: <span aria-hidden="true">₹</span>
+    });
+    if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
+    navItems.push({
+      to: '/hr/payroll/register',
+      label: 'Payroll Register',
+      icon: <span aria-hidden="true">₹</span>
+    });
+    if (currentPath.startsWith('/hr/payroll/previews')) {
+      navItems.push({
+        to: '/hr/payroll/previews',
+        label: 'Payroll Previews',
+        icon: <span aria-hidden="true">₹</span>
+      });
+    }
+    navItems.push({
+      to: '/hr/payroll/review',
+      label: 'Payroll Review',
+      icon: <span aria-hidden="true">✓</span>
+    });
   } else if (isPayrollModule) {
     if (user?.role === 'admin') {
       navItems.push({ to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> });
     }
-    if (['admin','accounts'].includes(user?.role)) {
-      navItems.push({to:'/admin/payroll/statutory-profiles',label:'Employee Statutory Profiles',icon:<span aria-hidden="true">₹</span>});
-      navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
+    if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
+    if(['admin','accounts'].includes(user?.role))navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
+    navItems.push({to:'/hr/payroll/register',label:'Payroll Register',icon:<span aria-hidden="true">₹</span>});
+    if (currentPath.startsWith('/hr/payroll/previews')) {
+      navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
     }
-    if (['admin','accounts'].includes(user?.role)) {
-      navItems.push({to:'/hr/payroll/register',label:'Payroll Register',icon:<span aria-hidden="true">₹</span>});
-      if (currentPath.startsWith('/hr/payroll/previews')) {
-        navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
-      }
-      navItems.push({to:'/hr/payroll/review',label:'Payroll Review',icon:<span aria-hidden="true">✓</span>});
-    }
+    navItems.push({to:'/hr/payroll/review',label:'Payroll Review',icon:<span aria-hidden="true">✓</span>});
   } else if (isFactoryModule) {
     if (user?.role === 'admin') {
       navItems.push({
@@ -1001,19 +1066,10 @@ const Sidebar = () => {
     if (['accounts', 'admin'].includes(user?.role)) {
       navItems.push({
         to: '/acct-requisitions/sub-titles',
-        label: 'Sub-titles',
+        label: 'Sub-titles & Particulars',
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/acct-requisitions/particulars',
-        label: 'Particulars',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h5.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V18a2 2 0 01-2 2z" />
           </svg>
         )
       });
@@ -1027,10 +1083,11 @@ const Sidebar = () => {
         )
       });
       navItems.push({
-        to: '/admin/payroll/statutory-profiles',
-        label: 'Statutory Profiles',
+        to: '/admin/payroll/statutory',
+        label: 'Statutory Deduction Master',
         icon: <span aria-hidden="true">₹</span>
       });
+      if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
       navItems.push({
         to: '/hr/payroll/register',
         label: 'Payroll Register',
@@ -1186,7 +1243,7 @@ const Sidebar = () => {
         </div>
 
         {/* Dynamic Icons (Fixed Rail) */}
-        <nav className="flex flex-col items-center gap-3 my-auto">
+        <nav className="flex flex-col items-center gap-3 my-auto overflow-y-auto no-scrollbar max-h-[calc(100vh-180px)] py-1">
           {currentPath !== '/dashboard' && (
             <button
               onClick={() => navigate(-1)}
@@ -1199,7 +1256,13 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = ['/docs','/factory-attendance/review'].includes(to) ? currentPath.startsWith(to) : currentPath === to;
+            const isActive = ['/docs','/factory-attendance/review'].includes(to)
+              ? currentPath.startsWith(to)
+              : to === '/acct-requisitions/sub-titles'
+                ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')
+                : to === '/admin/payroll/statutory'
+                  ? currentPath === '/admin/payroll/statutory'
+                  : currentPath === to.split('?')[0];
             return (
               <Link
                 key={to}
@@ -1299,7 +1362,13 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = ['/docs','/factory-attendance/review'].includes(to) ? currentPath.startsWith(to) : currentPath === to;
+            const isActive = ['/docs','/factory-attendance/review'].includes(to)
+              ? currentPath.startsWith(to)
+              : to === '/acct-requisitions/sub-titles'
+                ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')
+                : to === '/admin/payroll/statutory'
+                  ? currentPath === '/admin/payroll/statutory'
+                  : currentPath === to.split('?')[0];
             return (
               <Link
                 key={to}

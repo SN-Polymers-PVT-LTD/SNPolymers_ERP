@@ -11,6 +11,8 @@ const action=z.discriminatedUnion('action',[
 module.exports={
  queue:{query:z.object({run_id:z.uuid().optional(),status:z.enum(statuses).optional(),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)}).strict()},
  detail:{params:z.object({rowId:z.uuid()}).strict()},
+ cancelRun:{params:z.object({runId:z.uuid()}).strict(),body:z.object({reason}).strict()},
+ generate:{params:z.object({runId:z.uuid()}).strict(),body:z.object({}).strict()},
  action:{params:z.object({rowId:z.uuid()}).strict(),body:action},
  bulk:{body:z.object({actions:z.array(z.object({row_id:z.uuid(),request:action}).strict()).min(1).max(50)}).strict()}
 };

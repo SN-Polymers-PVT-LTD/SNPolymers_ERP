@@ -118,6 +118,77 @@ module.exports = {
       ],
       "returns": "void"
     },
+    "bulk_record_payroll_statutory_profiles": {
+      "args": [
+        {
+          "name": "p_employees",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_interval",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "cancel_payroll_draft_run": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "create_hr_pay_structure": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_pay_basis",
+          "type": "text"
+        },
+        {
+          "name": "p_guaranteed_monthly_gross",
+          "type": "numeric"
+        },
+        {
+          "name": "p_epf_enrolment",
+          "type": "boolean"
+        },
+        {
+          "name": "p_esi_enrolment",
+          "type": "boolean"
+        },
+        {
+          "name": "p_status",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "hr_permanent_pay_structures"
+    },
     "create_payroll_adjustment": {
       "args": [
         {
@@ -876,6 +947,48 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_statutory_setup_candidates": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_search",
+          "type": "text DEFAULT ''::text"
+        },
+        {
+          "name": "p_department",
+          "type": "text DEFAULT NULL::text"
+        },
+        {
+          "name": "p_category",
+          "type": "text DEFAULT NULL::text"
+        },
+        {
+          "name": "p_unconfigured_only",
+          "type": "boolean DEFAULT true"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_statutory_states": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_subcontract_financial_consumption": {
       "args": [
         {
@@ -977,6 +1090,19 @@ module.exports = {
         }
       ],
       "returns": "hr_attendance_sheets"
+    },
+    "populate_payroll_draft_run": {
+      "args": [
+        {
+          "name": "p_run_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "preview_payroll_master_publication": {
       "args": [
@@ -1144,6 +1270,19 @@ module.exports = {
         }
       ],
       "returns": "uuid"
+    },
+    "register_payroll_statutory_state": {
+      "args": [
+        {
+          "name": "p_name",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "reopen_subcontract_estimate": {
       "args": [

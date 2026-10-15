@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Button, Input, Select, Pagination } from '../ui';
+import PayrollSheetTable from './PayrollSheetTable';
 import {
   getPayrollFoundationContext,
-  createPayrollDraftRun,
+  generatePayrollRun,
   getPayrollDraftCandidates,
   addPayrollDraftEmployee,
 } from '../../api/payrollReviewApi';
 
 const message = (e) => e?.response?.data?.message || e.message;
 
-export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }) {
+export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, onReviewRow, onDeleted }) {
   const preparer = ['accounts', 'factory_manager'].includes(user?.role);
-  const owned = !!run && !!user?.id && run.created_by === user.id;
+  const owned = !!run && !!user?.id && run.created_by === user.id && user.role === (['SNP Factory','Fabric Factory'].includes(run.department)?'factory_manager':'accounts');
 
   const [group, setGroup] = useState('');
   const [from, setFrom] = useState(owned ? run.period_from : '');
@@ -37,7 +38,7 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
   const create = useMutation({
     mutationFn: () => {
       const selected = context.data.groups.find((g) => `${g.code}:${g.department}` === group);
-      return createPayrollDraftRun({
+      return generatePayrollRun({
         group_code: selected.code,
         department: selected.department,
         period_from: from,
@@ -46,7 +47,7 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
       });
     },
     onSuccess: (r) => {
-      onRunChange(r.data.run);
+      onRunChange({ ...r.data.run, generation: r.data.generation });
       onUpdated();
     },
   });
@@ -89,15 +90,15 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
           </div>
           <div>
             <h2 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-              {owned ? 'Prepare employee drafts' : 'Create payroll sheet'}
+              {owned ? 'Prepare employee payroll' : 'Generate payroll sheet'}
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
                 {owned ? 'Draft In Progress' : 'New Sheet'}
               </span>
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               {owned
-                ? `${run.group_code} / ${run.department} / ${run.period_from} – ${run.period_to}. Add only evidenced assignment intervals.`
-                : 'Draft an authoritative department payroll sheet interval without pre-calculating financial lines.'}
+                ? 'Add verified employee assignments to this draft sheet interval.'
+                : 'Populate eligible recorded assignments and calculate salaries for the selected category and period.'}
             </p>
           </div>
         </div>
@@ -105,6 +106,9 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
 
       {owned ? (
         <div className="space-y-4">
+          <PayrollSheetTable run={run} user={user} onUpdated={onUpdated} onReviewRow={onReviewRow} onDeleted={onDeleted} />
+          <details className="border border-white/10 rounded-xl p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Add an individual employee interval (exception)</summary>
           <p className="text-xs text-slate-300 font-medium">
             {run.group_code} / {run.department} / {run.period_from} – {run.period_to}. Add only evidenced assignment intervals.
           </p>
@@ -159,6 +163,31 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
               />
             </div>
           )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Input
+            aria-label="Draft period from"
+            label="Draft period from"
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+          <Input
+            aria-label="Draft period to"
+            label="Draft period to"
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+            <Button
+              disabled={busy || !candidate || !valid}
+              onClick={() => add.mutate()}
+              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/20"
+            >
+              Add employee draft
+            </Button>
+          {added && <p role="status" className="text-xs text-emerald-300">Employee draft added. Refresh eligible employees to calculate unfinished drafts.</p>}
+          </details>
         </div>
       ) : context.isPending ? (
         <p role="status" className="text-xs text-slate-400 animate-pulse">
@@ -232,63 +261,11 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated }
         </div>
       )}
 
-      {owned && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            aria-label="Draft period from"
-            label="Draft period from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-          <Input
-            aria-label="Draft period to"
-            label="Draft period to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center gap-3 pt-2">
-        {owned ? (
-          <>
-            <Button
-              disabled={busy || !candidate || !valid}
-              onClick={() => add.mutate()}
-              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl shadow-lg shadow-emerald-500/20"
-            >
-              Add employee draft
-            </Button>
-            <Button
-              disabled={busy}
-              variant="ghost"
-              onClick={() => onRunChange(null)}
-              className="text-slate-400 hover:text-white px-4 py-2 rounded-xl border border-white/10 hover:bg-white/5"
-            >
-              Prepare a new sheet
-            </Button>
-          </>
-        ) : (
-          <Button
-            disabled={busy || !group || !valid}
-            onClick={() => create.mutate()}
-            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20"
-          >
-            Create draft sheet
-          </Button>
+        {owned ? <Button disabled={busy} variant="ghost" onClick={()=>onRunChange(null)}>Prepare a new sheet</Button> : (
+          <Button disabled={busy||!group||!valid} onClick={()=>create.mutate()}>Generate payroll</Button>
         )}
       </div>
-
-      {added && (
-        <p role="status" className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Employee draft added. Calculate and review it independently.
-        </p>
-      )}
 
       {(create.error || add.error) && (
         <p role="alert" className="text-xs font-semibold text-rose-400">

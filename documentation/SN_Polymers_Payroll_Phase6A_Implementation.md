@@ -29,7 +29,7 @@ API authorization and service-only database RPC actor checks both require Admin 
 
 - Database: migration 114; schema/RPC/index manifest scope, allowlists and regenerated manifests.
 - Backend: `payrollProfiles.controller.js`, `payrollProfiles.schema.js`, `payroll.routes.js`, `domain/payroll/statutory.js`, `domain/payroll/preview.js`; `package.json` isolated payroll suite registration.
-- Frontend: `payrollProfilesApi.js`, `PayrollStatutoryProfiles.jsx`, Admin route, sidebar and statutory-master navigation.
+- Frontend: `payrollProfilesApi.js`, `EmployeeStatutorySetup.jsx` within Employee Management, Accounts/Admin route, sidebar and statutory-master navigation. The standalone profiles route has been removed.
 - Tests: synthetic `payrollProfileFixtures.js`, profile unit/API/PostgreSQL regressions, profile screen and Admin route tests.
 - The pre-existing uncommitted Phase 5 department-only HTML export fix is preserved separately; this subphase does not change payroll reporting semantics or official-payslip eligibility.
 

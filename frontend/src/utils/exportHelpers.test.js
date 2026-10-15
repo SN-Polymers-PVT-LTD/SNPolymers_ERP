@@ -132,7 +132,7 @@ describe('employee and permanent pay structure export contracts', () => {
     mockJsonToSheet.mockClear();
   });
 
-  test('exportEmployeesToExcel maps 9 approved columns to Employee Master sheet', async () => {
+  test('exportEmployeesToExcel includes linked beneficiary details and preserves account text', async () => {
     const { exportEmployeesToExcel } = await import('./exportHelpers');
     await exportEmployeesToExcel([
       {
@@ -143,7 +143,8 @@ describe('employee and permanent pay structure export contracts', () => {
         contact_number: '9876543210',
         erp_user: { role: 'admin', display_name: 'John Admin' },
         joining_date: '2026-01-01',
-        active_status: 'Active'
+        active_status: 'Active',
+        beneficiary: {beneficiary_name:'John Doe',account_number:'001234567890123456',ifsc:'TEST0000001',beneficiary_bank_name:'Test Bank'}
       }
     ]);
 
@@ -158,7 +159,11 @@ describe('employee and permanent pay structure export contracts', () => {
         "Existing ERP Role": 'admin',
         "Existing ERP Account": 'John Admin (admin)',
         "Joining Date": '2026-01-01',
-        "Active Status": 'Active'
+        "Active Status": 'Active',
+        "Beneficiary Name": 'John Doe',
+        "Beneficiary Account Number": '001234567890123456',
+        "Beneficiary IFSC": 'TEST0000001',
+        "Beneficiary Bank": 'Test Bank'
       }
     ]);
     expect(mockAppendSheet).toHaveBeenCalledWith(expect.anything(), expect.anything(), 'Employee & Worker Master');
@@ -214,6 +219,9 @@ describe('employee and permanent pay structure export contracts', () => {
 
     const sheetNames = mockAppendSheet.mock.calls.map(c => c[2]);
     expect(sheetNames).toContain('Employee & Worker Master');
+    expect(mockJsonToSheet.mock.calls[0][0][0]).toMatchObject({
+      'Beneficiary Name':'','Beneficiary Account Number':'','Beneficiary IFSC':'','Beneficiary Bank':''
+    });
     expect(sheetNames).toContain('Permanent Pay Structure');
     expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^SN_Polymers_Employee_Master_and_Pay_/));
   });

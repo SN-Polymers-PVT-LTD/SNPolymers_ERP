@@ -1,7 +1,7 @@
 import {beforeAll,afterAll,beforeEach,afterEach,describe,test,expect} from 'vitest';
 const {Client}=require('pg');const {requireLocalSupabase}=require('../../helpers/requireLocalSupabase');
 const {q,one,createReviewUsers,createReviewFixture,reviewAction}=require('../../helpers/payrollReviewFixtures');
-const {interval,scope,save}=require('../../helpers/payrollProfileFixtures');const {statutory}=require('../../helpers/payrollMasterFixtures');
+const {interval,scope,save}=require('../../helpers/payrollProfileFixtures');const {statutory,pt}=require('../../helpers/payrollMasterFixtures');
 let db,users;
 beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw new Error('Isolated payroll profile required');await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();});
 afterAll(async()=>db?.end());beforeEach(async()=>{await db.query('BEGIN');users=await createReviewUsers(db);});afterEach(async()=>db.query('ROLLBACK'));
@@ -15,6 +15,11 @@ async function prepared({gate=false,count=1,split=false,factory=false}={}){
  const draft=(await one(db,"SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(d),users.accounts.id])).r;
  const p=(await one(db,"SELECT preview_payroll_master_publication('statutory',$1,$2) r",[draft.id,users.accounts.id])).r;
  await q(db,"SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC setup',$3)",[draft.id,p.preview_token,users.accounts.id]);await q(db,'SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[draft.id,scopeId,'SYNTHETIC explicit binding',users.accounts.id]);
+ // Synthetic zero PT slab preserves the focus of unrelated financial invariants.
+ const tax=pt({...d,scheme:'PT',configuration:{...d.configuration,employee_rate:null,employer_rate:null,eligibility:'JURISDICTION_PROFILE',eligibility_ceiling:null,wage_ceiling:null,calculation_method:'SLABS'},slabs:Array.from({length:12},(_,i)=>({month:i+1,lower_bound:'0',upper_bound:null,deduction_amount:'0'}))});
+ const td=(await one(db,"SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(tax),users.accounts.id])).r;
+ const tp=(await one(db,"SELECT preview_payroll_master_publication('statutory',$1,$2) r",[td.id,users.accounts.id])).r;
+ await q(db,"SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC zero PT slab',$3)",[td.id,tp.preview_token,users.accounts.id]);await q(db,'SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[td.id,scopeId,'SYNTHETIC PT binding',users.accounts.id]);
  const cutoff=`${Number(f.to.slice(0,4))+1}-01-01T00:00:00+05:30`;
  await q(db,"SELECT set_payroll_period_cutoff($1,0,'propose',$2,'SYNTHETIC cutoff',$3)",[f.run.id,cutoff,users.accounts.id]);await q(db,"SELECT set_payroll_period_cutoff($1,1,'approve',NULL,'SYNTHETIC HO cutoff',$2)",[f.run.id,users.ho.id]);
  // Owner-only test substitutions are transaction-scoped and rolled back.
@@ -27,7 +32,11 @@ describe('guarded payroll financial transactions',()=>{
   const f=await prepared();await submit(f);const r=await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect(r.applied).toBe(false);expect(r.blockers.map(b=>b.code)).toContain('FINANCIAL_FINALIZATION_DISABLED');expect((await one(db,'SELECT count(*) n FROM payroll_financial_snapshots WHERE row_id=$1',[f.rows[0].id])).n).toBe('0');
  });
  test('lock atomically freezes snapshot, coverage, statutory month and entitlement; all remain immutable',async()=>{
-  const f=await prepared({gate:true});await submit(f);const r=await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect(r.row.status).toBe('LOCKED');expect((await one(db,'SELECT net_salary::text FROM payroll_financial_snapshots WHERE row_id=$1',[r.row.id])).net_salary).toBe('29296.30');expect((await q(db,'SELECT * FROM payroll_statutory_entries WHERE salary_row_id=$1',[r.row.id]))).toHaveLength(3);
+  const f=await prepared({gate:true});await submit(f);const r=await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect(r.row.status).toBe('LOCKED');expect((await one(db,'SELECT net_salary::text FROM payroll_financial_snapshots WHERE row_id=$1',[r.row.id])).net_salary).toBe('29296.30');expect((await q(db,'SELECT * FROM payroll_statutory_entries WHERE salary_row_id=$1',[r.row.id]))).toHaveLength(2);
+  await reject(()=>q(db,'SELECT cancel_payroll_draft_run($1,$2,$3)',[f.run.id,'Synthetic locked-sheet deletion',users.accounts.id]),'PY409');
+  const refresh=(await one(db,'SELECT populate_payroll_draft_run($1,$2) r',[f.run.id,users.accounts.id])).r;
+  expect(refresh.added).toBe(0);expect(refresh.rows).toEqual([]);expect(refresh.saved_rows).toEqual([]);
+  expect((await one(db,'SELECT status FROM payroll_run_employees WHERE id=$1',[r.row.id])).status).toBe('LOCKED');
   await reject(()=>reviewAction(db,r.row.id,'approve_lock',users.ho.id),'PY409');await reject(()=>q(db,'UPDATE payroll_financial_snapshots SET net_salary=0 WHERE row_id=$1',[r.row.id]),'42501');await reject(()=>q(db,'DELETE FROM payroll_employee_coverage WHERE salary_row_id=$1',[r.row.id]),'42501');
   const register=(await one(db,'SELECT get_payroll_salary_register($1,$2,1,20) r',[users.accounts.id,JSON.stringify({run_id:f.run.id})])).r;expect(register.rows[0]).toMatchObject({evidence_status:'IMMUTABLE_LOCKED',net_salary:'29296.30',payment_status:'NOT_RECORDED'});expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.accounts.id])).r.official).toBe(true);await q(db,'UPDATE hr_employees SET erp_user_id=$2,updated_by=$3 WHERE id=$1',[r.row.employee_id,users.je.id,users.admin.id]);expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.je.id])).r.official).toBe(true);await reject(()=>q(db,'SELECT get_payroll_official_payslip($1,$2)',[r.row.id,users.fm.id]),'42501');
  });

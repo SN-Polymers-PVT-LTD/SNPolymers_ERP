@@ -119,7 +119,7 @@ describe('HR permanent pay structures (Stage 2)', () => {
   });
 
   test('creates pay structure immediately as Active, validates reconciliation, and supersedes previous active revision atomically', async () => {
-    // 1. Create Initial Pay Structure directly as Active with valid component reconciliation
+    // 1. Create Initial Pay Structure directly as Active with gross-only inputs
     const rev1Res = mockRes();
     await payController.createPayStructure({
       user: admin,
@@ -127,9 +127,6 @@ describe('HR permanent pay structures (Stage 2)', () => {
         employee_id: permanentEmp.id,
         pay_basis: 'Monthly salary',
         guaranteed_monthly_gross: 35000,
-        basic_salary: 20000,
-        staff_welfare: 5000,
-        other_fixed_components: 10000,
         epf_enrolment: true,
         esi_enrolment: false
       }
@@ -158,9 +155,6 @@ describe('HR permanent pay structures (Stage 2)', () => {
         employee_id: permanentEmp.id,
         pay_basis: 'Special package',
         guaranteed_monthly_gross: 40000,
-        basic_salary: 25000,
-        staff_welfare: 5000,
-        other_fixed_components: 10000,
         epf_enrolment: true,
         esi_enrolment: true
       }
@@ -223,9 +217,6 @@ describe('HR permanent pay structures (Stage 2)', () => {
         employee_id: permanentEmp.id,
         pay_basis: 'Monthly salary',
         guaranteed_monthly_gross: 45000,
-        basic_salary: 30000,
-        staff_welfare: 5000,
-        other_fixed_components: 10000,
         epf_enrolment: true,
         esi_enrolment: false
       }
@@ -282,9 +273,6 @@ describe('HR permanent pay structures (Stage 2)', () => {
       p_employee_id: employeeId,
       p_pay_basis: 'Monthly salary',
       p_guaranteed_monthly_gross: 10000,
-      p_basic_salary: 10000,
-      p_staff_welfare: null,
-      p_other_fixed_components: null,
       p_epf_enrolment: false,
       p_esi_enrolment: false,
       p_status: 'Active',
@@ -325,16 +313,25 @@ describe('HR permanent pay structures (Stage 2)', () => {
 
     const created = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
       employee_id: employeeId, pay_basis: 'Monthly salary',
-      guaranteed_monthly_gross: 12000, basic_salary: 12000,
+      guaranteed_monthly_gross: 12000,
       epf_enrolment: true, esi_enrolment: false
     });
     expect(created.status).toBe(201);
     expect(created.body.pay_structure.status).toBe('Active');
+    expect(created.body.pay_structure.basic_salary).toBeNull();
+    expect(created.body.pay_structure.staff_welfare).toBeNull();
+    expect(created.body.pay_structure.other_fixed_components).toBeNull();
+    for (const field of ['basic_salary','staff_welfare','other_fixed_components']) {
+      const componentAttempt = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
+        employee_id: employeeId, pay_basis: 'Monthly salary', guaranteed_monthly_gross: 12000, [field]: 1000
+      });
+      expect(componentAttempt.status).toBe(400);
+    }
 
     // Reject client-supplied Draft status
     const draftAttempt = await requestRoute('POST', '/api/v1/auth/hr/pay-structures/', adminToken, {
       employee_id: employeeId, pay_basis: 'Monthly salary',
-      guaranteed_monthly_gross: 15000, basic_salary: 15000,
+      guaranteed_monthly_gross: 15000,
       status: 'Draft'
     });
     expect(draftAttempt.status).toBe(400);

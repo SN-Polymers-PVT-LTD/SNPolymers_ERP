@@ -130,6 +130,8 @@ The category names below match the current HR directory. Employment categories a
 
 ## 3. Roles, ownership and separation of duties
 
+**[CONFIRMED — 14 October 2026: pay-setup simplification]** New Employee Management pay revisions record agreed gross and pay basis without editable Basic Salary, Staff Welfare or Other Fixed amounts. Historical component descriptions elsewhere in this document refer to legacy records only. EPF/ESI/PT calculation rules are configured in the statutory master; absent component evidence remains blocked rather than inferred as zero. Published rules and historical/locked financial snapshots are not silently rewritten. Employee enrolment/applicability and beneficiary linkage remain employee facts, separate from rates, ceilings and slabs.
+
 ### 3.1 Factory payroll — approved workflow
 
 **[CONFIRMED]** Factory Manager creates and submits a **payroll sheet** for either factory and its valid group/period. **Each employee salary row** independently follows FM → Accounts → HO/Admin, and HO/Admin alone can finally lock that row.
@@ -1379,3 +1381,21 @@ The following references inform **system design**; they do not override the conf
 - **Strengthened:** full-month-unpaid `BLOCKED_POLICY`, weekly-off/no-sandwich distinction, negative/residual salary checks, submitted-preview invalidation after master changes, and per-employee month-ledger reconciliation.
 - **Extended:** proposed database entities, Admin UI, audit/versioning requirements and `POL-001..018` test matrix; preserved all original `SIM-*` test IDs and historical dry-run result counts.
 - **Documented:** official ERP sources as **research references only**; the final client policy and statutory definitions remain the controlling sources for production use.
+
+### Enrolment input simplification — 14 October 2026
+
+Permanent/office EPF and ESI enrolment is recorded once in Employee Management. New statutory profiles reuse those flags server-side, resolving the dated permanent-pay source when available. Statutory editors do not request duplicate permanent enrolment. Rates remain centrally configured; scope, applicability, effective dates and evidence are retained. Existing historical profiles are not rewritten. No blanket Casual/Local exemption is inferred from this UI simplification.
+
+### Confirmed statutory category rules — 14 October 2026
+
+This client clarification supersedes earlier references to discretionary employee applicability/exemptions. Casual factory workers and Local Daily-Wage Workers have no EPF or ESI deductions. Permanent/office EPF/ESI enrolment is read from Employee Management pay structures; rates and wage rules remain in the shared statutory master. PT is automatically applicable to every category except Local Daily-Wage Workers, with no employee-level on/off selection. Accounts/Admin configure effective jurisdiction/establishment PT slabs; a zero slab deduction is not an employee exemption. Both factories use the same category rules. Excluded schemes require neither profile nor master and post no statutory ledger entry. Applicable schemes retain scope, effective-date, verified configuration and monthly reconciliation requirements. Existing locked snapshots are preserved; historical positive collections are never silently discarded.
+
+### State selection and effective-dated PT editor — 15 October 2026
+
+Statutory drafts select a saved state (initial directory: Assam, Bihar, West Bengal, Odisha). Accounts/Admin add a state through a separate Add state action beside the Create Draft selector, not a dropdown option. Canonical state IDs are retained alongside historical jurisdiction display labels; published legacy revisions remain unchanged. States are shared and deduplicated case/whitespace-insensitively.
+
+PT has one normal salary-band schedule per effective-dated master revision, with optional month exceptions. The UI expands the normal schedule and exceptions into the existing twelve-month payload, preserving calculation and monthly reconciliation contracts. New government schedules use new effective dates rather than overwriting historical rates. A no-levy period is an explicit full-range zero schedule with confirmation evidence at the state/master level, never an employee toggle. No government rates or automatic Odisha treatment are seeded; Accounts/Admin must configure and publish the evidenced effective revision. Existing publication timing safeguards remain in force.
+
+### Employee payroll setup consolidation — 15 October 2026
+
+Employee state/establishment assignments, effective dates and setup evidence are maintained in Employee Management → Employee Payroll Setup. The standalone Statutory Profiles page is retired; the old URL and compatibility redirect are removed during development. Admin retains employee/worker and permanent-pay editing/export. Accounts can access only the payroll setup tab, using the existing protected statutory APIs; this does not grant employee-master or pay-structure administration. Local daily-wage workers require no statutory setup. Shared state/establishment registrations and published master bindings are maintained beside the Statutory Deduction Master. Profile revisions and canonical scope IDs remain internal authoritative records consumed by payroll, without rewriting historical profiles or locked salaries. This is a UI/workflow consolidation, not a change to category applicability, rates, statutory calculation or review authorization.

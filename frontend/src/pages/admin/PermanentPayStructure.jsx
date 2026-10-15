@@ -58,9 +58,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
   const [form, setForm] = useState({
     pay_basis: 'Monthly salary',
     guaranteed_monthly_gross: '',
-    basic_salary: '',
-    staff_welfare: '',
-    other_fixed_components: '',
     epf_enrolment: false,
     esi_enrolment: false,
     status: 'Active'
@@ -240,24 +237,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
     };
   }, [allPayData]);
 
-  // Component Reconciliation calculation
-  const reconciliation = useMemo(() => {
-    const gross = parseFloat(form.guaranteed_monthly_gross) || 0;
-    const basic = parseFloat(form.basic_salary) || 0;
-    const welfare = parseFloat(form.staff_welfare) || 0;
-    const other = parseFloat(form.other_fixed_components) || 0;
-    const totalComponents = Number((basic + welfare + other).toFixed(2));
-    const isExceeded = gross > 0 && totalComponents > gross;
-    const difference = Number((gross - totalComponents).toFixed(2));
-
-    return {
-      gross,
-      totalComponents,
-      isExceeded,
-      difference
-    };
-  }, [form.guaranteed_monthly_gross, form.basic_salary, form.staff_welfare, form.other_fixed_components]);
-
   // Mutations
   const createMutation = useMutation({
     mutationFn: (payload) => createPayStructure(payload),
@@ -294,9 +273,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
     setForm({
       pay_basis: source?.pay_basis || 'Monthly salary',
       guaranteed_monthly_gross: source?.guaranteed_monthly_gross ? String(source.guaranteed_monthly_gross) : '',
-      basic_salary: source?.basic_salary ? String(source.basic_salary) : '',
-      staff_welfare: source?.staff_welfare ? String(source.staff_welfare) : '',
-      other_fixed_components: source?.other_fixed_components ? String(source.other_fixed_components) : '',
       epf_enrolment: source ? Boolean(source.epf_enrolment) : false,
       esi_enrolment: source ? Boolean(source.esi_enrolment) : false,
       status: 'Active'
@@ -315,10 +291,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       errors.guaranteed_monthly_gross = 'Guaranteed monthly gross must be a valid non-negative number.';
     }
 
-    if (reconciliation.isExceeded) {
-      errors.guaranteed_monthly_gross = `Fixed components (${formatINR(reconciliation.totalComponents)}) cannot exceed Guaranteed Monthly Gross (${formatINR(grossNum)}).`;
-    }
-
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
@@ -327,9 +299,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
     const basePayload = {
       pay_basis: form.pay_basis,
       guaranteed_monthly_gross: grossNum,
-      basic_salary: form.basic_salary ? parseFloat(form.basic_salary) : null,
-      staff_welfare: form.staff_welfare ? parseFloat(form.staff_welfare) : null,
-      other_fixed_components: form.other_fixed_components ? parseFloat(form.other_fixed_components) : null,
       epf_enrolment: Boolean(form.epf_enrolment),
       esi_enrolment: Boolean(form.esi_enrolment),
       status: 'Active'
@@ -546,9 +515,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                     <TableCell isHeader>Department</TableCell>
                     <TableCell isHeader>Pay Basis</TableCell>
                     <TableCell isHeader>Guaranteed Gross</TableCell>
-                    <TableCell isHeader>Basic Salary</TableCell>
-                    <TableCell isHeader>Staff Welfare</TableCell>
-                    <TableCell isHeader>Other Fixed</TableCell>
                     <TableCell isHeader>EPF / ESI</TableCell>
                     <TableCell isHeader>Pay Status</TableCell>
                     <TableCell isHeader className="text-right">Action</TableCell>
@@ -587,15 +553,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                         </TableCell>
                         <TableCell className="font-mono font-bold text-emerald-400 whitespace-nowrap">
                           {active ? formatINR(active.guaranteed_monthly_gross) : (isSuspended ? formatINR(latest.guaranteed_monthly_gross) : '—')}
-                        </TableCell>
-                        <TableCell className="font-mono text-slate-300 whitespace-nowrap">
-                          {active?.basic_salary ? formatINR(active.basic_salary) : (isSuspended && latest?.basic_salary ? formatINR(latest.basic_salary) : '—')}
-                        </TableCell>
-                        <TableCell className="font-mono text-slate-300 whitespace-nowrap">
-                          {active?.staff_welfare ? formatINR(active.staff_welfare) : (isSuspended && latest?.staff_welfare ? formatINR(latest.staff_welfare) : '—')}
-                        </TableCell>
-                        <TableCell className="font-mono text-slate-300 whitespace-nowrap">
-                          {active?.other_fixed_components ? formatINR(active.other_fixed_components) : (isSuspended && latest?.other_fixed_components ? formatINR(latest.other_fixed_components) : '—')}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
                           {hasStructure ? (
@@ -800,25 +757,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    6. Basic Salary (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-200">{formatINR(activeStructure.basic_salary)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    7. Staff Welfare (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-200">{formatINR(activeStructure.staff_welfare)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    8. Other Fixed Components (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-200">{formatINR(activeStructure.other_fixed_components)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    9. EPF Enrolment
+                    6. EPF Enrolment
                   </span>
                   <Badge variant={activeStructure.epf_enrolment ? 'primary' : 'neutral'}>
                     {activeStructure.epf_enrolment ? 'Enrolled' : 'Not Enrolled'}
@@ -826,7 +765,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    10. ESI Enrolment
+                    7. ESI Enrolment
                   </span>
                   <Badge variant={activeStructure.esi_enrolment ? 'primary' : 'neutral'}>
                     {activeStructure.esi_enrolment ? 'Enrolled' : 'Not Enrolled'}
@@ -834,7 +773,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    11. Pay Structure Status
+                    8. Pay Structure Status
                   </span>
                   <Badge variant="success">{activeStructure.status}</Badge>
                 </div>
@@ -911,25 +850,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    6. Basic Salary (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-400">{formatINR(suspendedStructure.basic_salary)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    7. Staff Welfare (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-400">{formatINR(suspendedStructure.staff_welfare)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    8. Other Fixed Components (₹/month)
-                  </span>
-                  <span className="font-mono text-slate-400">{formatINR(suspendedStructure.other_fixed_components)}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    9. EPF Enrolment
+                    6. EPF Enrolment
                   </span>
                   <Badge variant={suspendedStructure.epf_enrolment ? 'primary' : 'neutral'}>
                     {suspendedStructure.epf_enrolment ? 'Enrolled' : 'Not Enrolled'}
@@ -937,7 +858,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    10. ESI Enrolment
+                    7. ESI Enrolment
                   </span>
                   <Badge variant={suspendedStructure.esi_enrolment ? 'primary' : 'neutral'}>
                     {suspendedStructure.esi_enrolment ? 'Enrolled' : 'Not Enrolled'}
@@ -945,7 +866,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                    11. Pay Structure Status
+                    8. Pay Structure Status
                   </span>
                   <Badge variant="warning">Suspended</Badge>
                 </div>
@@ -1001,9 +922,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                     <TableCell isHeader>Revision</TableCell>
                     <TableCell isHeader>Pay Basis</TableCell>
                     <TableCell isHeader>Guaranteed Gross</TableCell>
-                    <TableCell isHeader>Basic Salary</TableCell>
-                    <TableCell isHeader>Staff Welfare</TableCell>
-                    <TableCell isHeader>Other Fixed</TableCell>
                     <TableCell isHeader>EPF / ESI</TableCell>
                     <TableCell isHeader>Status</TableCell>
                     <TableCell isHeader>Updated Date</TableCell>
@@ -1068,6 +986,9 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
         title="Configure Pay Structure Revision"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Configure Pay Structure Revision"
         size="lg"
       >
         <form onSubmit={handleSubmitForm} className="space-y-5">
@@ -1126,55 +1047,9 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
             </div>
           </div>
 
-          {/* Fixed Components Section */}
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-white/10 space-y-4">
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-              Fixed Component Breakdown (₹/month)
-            </h4>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <FormattedCurrencyInput
-                  label="6. Basic Salary (₹/month)"
-                  placeholder="Optional"
-                  value={form.basic_salary}
-                  onValueChange={(val) => setForm((prev) => ({ ...prev, basic_salary: val }))}
-                />
-              </div>
-
-              <div>
-                <FormattedCurrencyInput
-                  label="7. Staff Welfare (₹/month)"
-                  placeholder="Optional"
-                  value={form.staff_welfare}
-                  onValueChange={(val) => setForm((prev) => ({ ...prev, staff_welfare: val }))}
-                />
-              </div>
-
-              <div>
-                <FormattedCurrencyInput
-                  label="8. Other Fixed Components (₹/month)"
-                  placeholder="Optional"
-                  value={form.other_fixed_components}
-                  onValueChange={(val) => setForm((prev) => ({ ...prev, other_fixed_components: val }))}
-                />
-              </div>
-            </div>
-
-            {/* Reconciliation summary indicator */}
-            <div className={`p-3 rounded-lg border text-xs flex items-center justify-between ${
-              reconciliation.isExceeded
-                ? 'bg-red-500/10 border-red-500/30 text-red-400'
-                : 'bg-white/5 border-white/10 text-slate-300'
-            }`}>
-              <span>Total Fixed Components: <strong className="font-mono">{formatINR(reconciliation.totalComponents)}</strong></span>
-              {reconciliation.isExceeded ? (
-                <span className="font-bold">Exceeds Gross by {formatINR(Math.abs(reconciliation.difference))}!</span>
-              ) : (
-                <span className="text-slate-400">Balance: <strong className="font-mono">{formatINR(reconciliation.difference)}</strong></span>
-              )}
-            </div>
-          </div>
+          <p className="text-xs text-slate-400">
+            Record the agreed gross here. EPF, ESI and PT rates, wage basis, ceilings and slabs are configured in the Statutory Deduction Master.
+          </p>
 
           {/* Statutory Enrolments */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1185,7 +1060,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 id="epf-check"
               />
               <label htmlFor="epf-check" className="cursor-pointer">
-                <span className="block text-xs font-bold text-white">9. EPF Enrolment</span>
+                <span className="block text-xs font-bold text-white">6. EPF Enrolment</span>
                 <span className="block text-[11px] text-slate-400">Record Employee Provident Fund enrolment</span>
               </label>
             </div>
@@ -1197,7 +1072,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                 id="esi-check"
               />
               <label htmlFor="esi-check" className="cursor-pointer">
-                <span className="block text-xs font-bold text-white">10. ESI Enrolment</span>
+                <span className="block text-xs font-bold text-white">7. ESI Enrolment</span>
                 <span className="block text-[11px] text-slate-400">Record Employee State Insurance enrolment</span>
               </label>
             </div>
@@ -1207,7 +1082,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
           <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-center justify-between text-xs">
             <div className="space-y-0.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
-                11. Pay Structure Status
+                8. Pay Structure Status
               </span>
               <span className="text-white font-medium">Saves and activates immediately</span>
             </div>
@@ -1228,7 +1103,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               type="submit"
               variant="primary"
               size="md"
-              disabled={reconciliation.isExceeded || createMutation.isPending}
+              disabled={createMutation.isPending}
             >
               {createMutation.isPending
                 ? 'Saving...'

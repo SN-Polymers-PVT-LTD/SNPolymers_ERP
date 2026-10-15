@@ -7,6 +7,8 @@ import SalaryPreview from '../../components/payroll/SalaryPreview';
 import EmployeeAdjustments from '../../components/payroll/EmployeeAdjustments';
 import PayrollPeriodSetup from '../../components/payroll/PayrollPeriodSetup';
 import PayrollDraftEditor from '../../components/payroll/PayrollDraftEditor';
+import PayrollSheetTable from '../../components/payroll/PayrollSheetTable';
+import {getPayrollRun} from '../../api/payrollPreviewApi';
 import {
   getPayrollReviewQueue,
   getPayrollEmployeeReview,
@@ -58,7 +60,7 @@ const errorMessage = (e) =>
   e?.response?.data?.message || e?.response?.data?.result?.code || e.message;
 
 export default function PayrollReview() {
-  const [searchParams] = useSearchParams();
+  const [searchParams,setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
   const client = useQueryClient();
@@ -72,7 +74,16 @@ export default function PayrollReview() {
   const [assignment, setAssignment] = useState('');
   const [results, setResults] = useState([]);
   const [lockBlockers, setLockBlockers] = useState([]);
+  const [deletedMessage,setDeletedMessage]=useState('');
   const [editingRun, setEditingRun] = useState(null);
+  const runParam=searchParams.get('run')||'';
+  const restoredRun=useQuery({queryKey:['payroll-selected-run',user?.id,user?.role,runParam],enabled:allowed&&!!runParam&&editingRun?.id!==runParam,queryFn:async()=>(await getPayrollRun(runParam,{page:1,limit:1})).data.draft.run});
+  const activeRun=runParam?(editingRun?.id===runParam?editingRun:restoredRun.data):null;
+  const canPrepareRun=activeRun?.created_by===user?.id&&user?.role===(['SNP Factory','Fabric Factory'].includes(activeRun?.department)?'factory_manager':'accounts');
+  const changeRun=run=>{
+    setEditingRun(run);setRowId('');setSelected([]);
+    setSearchParams(previous=>{const next=new URLSearchParams(previous);next.delete('row');if(run)next.set('run',run.id);else next.delete('run');return next;});
+  };
 
   const queue = useQuery({
     queryKey: ['payroll-review-queue', user?.id, user?.role, page, status],
@@ -90,6 +101,9 @@ export default function PayrollReview() {
     client.invalidateQueries({ queryKey: ['payroll-review-queue'] });
     client.invalidateQueries({ queryKey: ['payroll-employee-review'] });
     client.invalidateQueries({ queryKey: ['payroll-preview-run'] });
+    client.invalidateQueries({ queryKey: ['salary-register'] });
+    client.invalidateQueries({ queryKey: ['payroll-sheet-register'] });
+    client.invalidateQueries({ queryKey: ['payroll-sheet-actions'] });
   };
 
   const requestFor = (row, actionKind, fp) => ({
@@ -202,14 +216,21 @@ export default function PayrollReview() {
         </div>
       </div>
 
+      {deletedMessage&&<p role="status" className="text-emerald-700 dark:text-emerald-300">{deletedMessage}</p>}
       {/* Sheet Draft Editor Modal/Panel */}
+      {runParam&&!activeRun&&(restoredRun.isError?<div role="alert">{errorMessage(restoredRun.error)} <Button onClick={()=>restoredRun.refetch()}>Retry payroll sheet</Button><Button onClick={()=>changeRun(null)}>Prepare a new sheet</Button></div>:<p role="status">Loading payroll sheet…</p>)}
+      {(!runParam||activeRun)&&(!activeRun||canPrepareRun)&&
       <PayrollDraftEditor
-        key={`${user.id}:${editingRun?.id || 'new'}`}
+        key={`${user.id}:${activeRun?.id || 'new'}`}
         user={user}
-        run={editingRun}
-        onRunChange={setEditingRun}
+        run={activeRun}
+        onRunChange={changeRun}
         onUpdated={refresh}
+        onDeleted={()=>{changeRun(null);setDeletedMessage('Payroll sheet deleted. Audit history is preserved.');}}
+        onReviewRow={id=>{setRowId(id);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}
       />
+      }
+      {activeRun&&!canPrepareRun&&<PayrollSheetTable key={activeRun.id} run={activeRun} user={user} onUpdated={refresh} onReviewRow={id=>{setRowId(id);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}/>}
 
       {/* Parent Sheet Progress Section */}
       {queue.data?.sheets && queue.data.sheets.length > 0 && (
@@ -247,14 +268,15 @@ export default function PayrollReview() {
                       </h3>
                     </div>
 
-                    {s.created_by === user.id && ['accounts', 'factory_manager'].includes(user.role) && (
+                    {(
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setEditingRun(s)}
+                        onClick={() => changeRun(s)}
+                        disabled={busy}
                         className="text-xs"
                       >
-                        Prepare employee drafts in this sheet
+                        Open payroll sheet
                       </Button>
                     )}
                   </div>
@@ -312,6 +334,7 @@ export default function PayrollReview() {
         </section>
       )}
 
+      {!activeRun && <>
       {/* Filter and Control Bar */}
       <div className="glass-panel p-4 rounded-2xl border border-white/10 bg-slate-900/40 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
         <div className="w-full sm:w-72">
@@ -638,6 +661,8 @@ export default function PayrollReview() {
           </div>
         )}
       </section>
+
+      </>}
 
       {/* Selected Individual Employee Review Panel */}
       {rowId && (
