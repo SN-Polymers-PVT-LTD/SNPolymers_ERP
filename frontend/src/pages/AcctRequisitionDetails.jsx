@@ -36,7 +36,7 @@ const AcctRequisitionDetails = () => {
             beneficiary, debit bank, status, or date range.
           </p>
         </div>
-        <Button variant="glass" size="sm" onClick={() => navigate(backTo)}>
+        <Button variant="glass" size="sm" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(backTo))}>
           {backLabel}
         </Button>
       </div>

@@ -1,0 +1,10 @@
+const definitions = require('../../../shared/hrEmployeeCategories.json');
+const legacyProjectCategory = 'Projects Department Employees';
+const categories = [...definitions.map(item => item.category), legacyProjectCategory];
+const factoryCategories = definitions.filter(item => item.type !== 'office').map(item => item.category);
+const wageCategories = definitions.filter(item => ['casual', 'local'].includes(item.type)).map(item => item.category);
+const officeCategories = [...definitions.filter(item => item.type === 'office').map(item => item.category), legacyProjectCategory];
+const permanentCategories = [...definitions.filter(item => ['office', 'permanent'].includes(item.type)).map(item => item.category), legacyProjectCategory];
+const departmentsFor = category => definitions.find(item => item.category === category)?.departments || (category === legacyProjectCategory ? ['Projects'] : []);
+const factoryDepartment = (category, department) => department || departmentsFor(category)[0];
+module.exports = { categories, factoryCategories, wageCategories, officeCategories, permanentCategories, departmentsFor, factoryDepartment, legacyProjectCategory };

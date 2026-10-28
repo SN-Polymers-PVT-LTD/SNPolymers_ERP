@@ -55,7 +55,7 @@ async function addUser(req, res) {
     return res.status(409).json({ success: false, message: 'This mobile number is already whitelisted.' });
   }
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -101,7 +101,7 @@ async function updateUser(req, res) {
   const { id } = req.params;
   const { displayName, role, permissions, isActive, telegramChatId } = req.body;
 
-  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts'];
+  const ALLOWED_ROLES = ['admin', 'je', 'zo', 'ho', 'accounts', 'factory_manager'];
   if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({
       success: false,
@@ -127,14 +127,7 @@ async function updateUser(req, res) {
 
     if (error) throw error;
 
-    // If deactivated, invalidate all their active sessions
-    if (isActive === false) {
-      await supabase
-        .from('sessions')
-        .update({ is_active: false, logout_at: new Date().toISOString() })
-        .eq('user_id', id)
-        .eq('is_active', true);
-    }
+    // Account-access trigger atomically revokes sessions on role change/deactivation.
 
     return res.status(200).json({ success: true, user: data, message: 'User updated successfully.' });
   } catch (error) {
@@ -159,6 +152,21 @@ async function removeUser(req, res) {
       .maybeSingle();
 
     if (userRecord) {
+      // A linked employee must retain this account and its history. Check before
+      // invalidating sessions or removing mappings in the delete path below.
+      const { count: linkedEmployeeCount, error: linkedEmployeeErr } = await supabase
+        .from('hr_employees')
+        .select('id', { count: 'exact', head: true })
+        .eq('erp_user_id', id);
+
+      if (linkedEmployeeErr) throw linkedEmployeeErr;
+      if (linkedEmployeeCount > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Cannot delete user: they are linked to an employee record. Deactivate the ERP account instead.'
+        });
+      }
+
       // Check for active estimates
       const { count: estimateCount, error: estErr } = await supabase
         .from('project_cost_estimates')

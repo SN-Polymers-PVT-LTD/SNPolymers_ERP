@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { docSections, findPageById, getAllPagesFlat } from './docsContent.jsx';
 import BackgroundShapes from '../../components/BackgroundShapes';
+import { useDocsUrlState } from '../../hooks/useDocsUrlState';
 
 // Subcomponents
 import DocNavSidebar from './components/DocNavSidebar';
@@ -9,15 +10,23 @@ import DocTOC from './components/DocTOC';
 import DocContent from './components/DocContent';
 
 const Docs = () => {
-  const { pageId } = useParams();
   const navigate = useNavigate();
-  
-  // Default to first page if pageId is missing
-  const activePageId = pageId || 'what-is-idbp';
-  const pageData = findPageById(activePageId);
+  const {
+    pageId: activePageId,
+    searchQuery,
+    setSearchQuery,
+    clearSearch,
+  } = useDocsUrlState();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Sync local search when URL changes
+  useEffect(() => {
+    setLocalSearch(searchQuery);
+  }, [searchQuery]);
+
+  const pageData = findPageById(activePageId);
 
   // Auto-collapse console sidebar when docs page opens
   useEffect(() => {
@@ -32,6 +41,19 @@ const Docs = () => {
     }
   }, [pageData, navigate]);
 
+  // Auto-scroll to anchor heading if present in hash
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashId = window.location.hash.replace('#', '');
+      const el = document.getElementById(hashId);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+      }
+    }
+  }, [activePageId]);
+
   if (!pageData) return null;
 
   const { page, section } = pageData;
@@ -42,6 +64,17 @@ const Docs = () => {
 
   // Extract headings from page or fallback to default
   const headings = page.headings || [];
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setLocalSearch(val);
+    setSearchQuery(val, { debounce: true });
+  };
+
+  const handleClearSearch = () => {
+    setLocalSearch('');
+    clearSearch();
+  };
 
   return (
     <div className="h-screen flex flex-col font-sans relative overflow-hidden">
@@ -67,18 +100,30 @@ const Docs = () => {
 
           {/* Search Input */}
           <div className="hidden sm:block relative max-w-xs w-full mx-4">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </span>
             <input
               type="text"
               placeholder="Search docs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl glass-input outline-none focus:ring-1 focus:ring-amber-500"
+              value={localSearch}
+              onChange={handleSearchChange}
+              className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl glass-input outline-none focus:ring-1 focus:ring-amber-500"
             />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-200"
+                title="Clear search"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
@@ -97,18 +142,29 @@ const Docs = () => {
         {/* Mobile Search - under header */}
         <div className="sm:hidden px-6 py-3 border-b border-white/5 bg-white/2">
           <div className="relative w-full">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </span>
             <input
               type="text"
               placeholder="Search docs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-xs rounded-xl glass-input outline-none"
+              value={localSearch}
+              onChange={handleSearchChange}
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl glass-input outline-none"
             />
+            {localSearch && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-200"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -119,7 +175,7 @@ const Docs = () => {
             <DocNavSidebar
               sections={docSections}
               activePageId={activePageId}
-              searchQuery={searchQuery}
+              searchQuery={localSearch || searchQuery}
             />
           </aside>
 
@@ -150,7 +206,7 @@ const Docs = () => {
                   <DocNavSidebar
                     sections={docSections}
                     activePageId={activePageId}
-                    searchQuery={searchQuery}
+                    searchQuery={localSearch || searchQuery}
                     onItemClick={() => setIsMobileMenuOpen(false)}
                   />
                 </div>
@@ -173,6 +229,7 @@ const Docs = () => {
               page={page}
               prevPage={prevPage}
               nextPage={nextPage}
+              searchQuery={localSearch || searchQuery}
             />
           </main>
 

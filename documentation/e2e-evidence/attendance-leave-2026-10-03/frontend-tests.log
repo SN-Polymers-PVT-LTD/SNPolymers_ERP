@@ -1,0 +1,9 @@
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ drop: [] }`
+
+ RUN  v4.1.10 /home/zenoguy/Desktop/projects/SNPolymers/frontend
+
+
+ Test Files  5 passed (5)
+      Tests  49 passed (49)
+   Start at  13:25:22
+   Duration  5.06s (transform 2.93s, setup 713ms, import 3.77s, tests 7.72s, environment 5.63s)

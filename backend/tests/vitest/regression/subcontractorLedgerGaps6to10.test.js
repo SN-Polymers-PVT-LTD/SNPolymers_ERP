@@ -515,6 +515,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
 
     // Query getSubcontractorRequisitions for date_from = reqDateIST, date_to = reqDateIST
     const reqMock = {
+      user: { role: 'admin', mobile_number: adminMobile },
       query: {
         work_order_no: workOrder,
         date_from: reqDateIST,
@@ -574,6 +575,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
 
     // 1. Query by Creation Date during August
     const reqMockCreated = {
+      user: { role: 'admin', mobile_number: adminMobile },
       query: {
         work_order_no: workOrder,
         date_basis: 'created',
@@ -587,6 +589,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
 
     // 2. Query by Approval Date during August -> MUST NOT match
     const reqMockAppAug = {
+      user: { role: 'admin', mobile_number: adminMobile },
       query: {
         work_order_no: workOrder,
         date_basis: 'approved',
@@ -600,6 +603,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
 
     // 3. Query by Approval Date during September -> MUST match
     const reqMockAppSep = {
+      user: { role: 'admin', mobile_number: adminMobile },
       query: {
         work_order_no: workOrder,
         date_basis: 'approved',
@@ -617,7 +621,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
   // --------------------------------------------------------------------------
   test('10. GAP-10C: getSubcontractorRequisitions search matches work_order_no and requisition_no', async () => {
     // Search by work_order_no
-    const reqWo = { query: { search: workOrder.toLowerCase() } };
+    const reqWo = { user: { role: 'admin', mobile_number: adminMobile }, query: { search: workOrder.toLowerCase() } };
     const resWo = mockRes();
     await getSubcontractorRequisitions(reqWo, resWo);
     expect(resWo.statusCode).toBe(200);
@@ -626,7 +630,7 @@ describe('Subcontractor Ledger Hardening — GAPs 6 to 10 Comprehensive Regressi
 
     // Search by specific requisition_no
     const targetReqNo = `REQ_DUAL_${suffix}`;
-    const reqNoSearch = { query: { search: targetReqNo.toLowerCase() } };
+    const reqNoSearch = { user: { role: 'admin', mobile_number: adminMobile }, query: { search: targetReqNo.toLowerCase() } };
     const resNoSearch = mockRes();
     await getSubcontractorRequisitions(reqNoSearch, resNoSearch);
     expect(resNoSearch.statusCode).toBe(200);

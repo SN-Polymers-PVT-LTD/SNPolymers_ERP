@@ -25,3 +25,17 @@ export const formatDateDDMMYYYY = (dateStr) => {
   const yyyy = d.getUTCFullYear();
   return `${dd}/${mm}/${yyyy}`;
 };
+
+/**
+ * Derives the current YYYY-MM explicitly in Asia/Kolkata business time.
+ */
+export const getKolkataCurrentMonth = (date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  return `${year}-${month}`;
+};

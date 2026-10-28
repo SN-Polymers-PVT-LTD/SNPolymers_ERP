@@ -22,7 +22,7 @@ const PAYMENT_STATUS_LABELS = {
   RETURNED_FOR_CORRECTION: 'Returned for Correction',
   PARTIALLY_PAID: 'Partially Paid',
   PAID: 'Paid',
-  REJECTED: 'Released'
+  REJECTED: 'Rejected'
 };
 
 /** Project the current financial exposure from the authorization and payment lifecycle. */
@@ -38,7 +38,7 @@ export function getRequisitionFinancialState(requisition = {}) {
     return { status: 'Cancelled', effectiveLiability: 0, paidAmount: 0, reservedAmount: 0, financiallyActive: false };
   }
   if (requisition.requisition_status === 'Rejected' || paymentStatus === 'REJECTED') {
-    return { status: paymentStatus === 'REJECTED' ? 'Released' : 'Rejected', effectiveLiability: 0, paidAmount: 0, reservedAmount: 0, financiallyActive: false };
+    return { status: 'Rejected', effectiveLiability: 0, paidAmount: 0, reservedAmount: 0, financiallyActive: false };
   }
   if (paymentStatus === 'PARTIALLY_PAID') {
     return { status: 'Partially Paid', effectiveLiability: paidAmount, paidAmount, reservedAmount: 0, financiallyActive: paidAmount > 0 };

@@ -1,0 +1,116 @@
+import React from 'react';
+import {it,expect,beforeEach,vi} from 'vitest';
+import {render,screen,fireEvent,waitFor} from '@testing-library/react';
+import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
+import EmployeeStatutorySetup from './EmployeeStatutorySetup';
+import * as api from '../../api/payrollProfilesApi';
+vi.mock('../../api/payrollProfilesApi');let user={id:'accounts',role:'accounts',display_name:'Accounts User'};vi.mock('../AuthContext',()=>({useAuth:()=>({user})}));
+const employee='employee-1',scope='scope-1';
+const interval={effective_from:'2026-08-01',effective_to:null,verification_status:'ADVISOR_VERIFIED',advisor_name:'Earlier advisor',verification_reference:'Earlier proof',verified_on:'2020-01-01',schemes:Object.fromEntries(['EPF','ESI','PT'].map(s=>[s,{statutory_scope_id:scope,applicability:'APPLICABLE',enrolled:s==='PT'?null:true,basis_reference:'Earlier proof'}]))};
+const mount=()=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><EmployeeStatutorySetup initialEmployeeId={employee}/></QueryClientProvider>);
+beforeEach(()=>{vi.resetAllMocks();user={id:'accounts',role:'accounts',display_name:'Accounts User'};api.getStatutorySetupCandidates.mockResolvedValue({data:{result:{employees:[],total:0,eligible_total:0}}});api.getStatutoryEmployees.mockResolvedValue({data:{result:{employees:[{id:employee,employee_name:'Test employee',employee_code:'EMP-1'}],total:1}}});api.getCompanyDeductionSetups.mockResolvedValue({data:{result:{setups:[{id:'setup-1',epf_revision_id:'epf',esi_revision_id:'esi',pt_revision_id:'pt',statutory_scope_id:scope,establishment_name:'SNP Factory',state_name:'Assam',effective_from:'2026-08-01',effective_to:null}],total:1}}});api.getEmployeeStatutoryProfiles.mockResolvedValue({data:{result:{version:1,employee_category:'HO Staff',enrolment_managed_by_pay_structure:true,revisions:[{version:1,intervals:[interval]}]}}});api.recordEmployeeStatutoryProfiles.mockResolvedValue({data:{result:{version:2}}});});
+it.each(['admin','ho','factory_manager','je','zo'])('denies %s without protected reads',role=>{user={id:role,role};mount();expect(screen.getByRole('alert')).toHaveTextContent('Accounts only');expect(api.getStatutoryEmployees).not.toHaveBeenCalled();expect(api.getCompanyDeductionSetups).not.toHaveBeenCalled();});
+it('keeps historical entries unchanged while saving a new named dated assignment',async()=>{mount();fireEvent.click(await screen.findByRole('button',{name:'Change employee setup'}));fireEvent.click(screen.getByRole('button',{name:'Add dated change'}));fireEvent.change(screen.getByLabelText('Entry 1 applies until (optional)'),{target:{value:'2026-08-31'}});fireEvent.change(screen.getByLabelText('Entry 2 deduction setup'),{target:{value:'setup-1'}});fireEvent.change(screen.getByLabelText('Entry 2 applies from', {exact:false}),{target:{value:'2026-09-01'}});fireEvent.click(screen.getByLabelText(/I confirm these dated/));fireEvent.click(screen.getByRole('button',{name:'Save employee setup'}));await waitFor(()=>expect(api.recordEmployeeStatutoryProfiles).toHaveBeenCalled());const body=api.recordEmployeeStatutoryProfiles.mock.calls[0][1];expect(body.expected_version).toBe(1);expect(body.intervals).toHaveLength(2);expect(body.intervals[1]).toMatchObject({effective_from:'2026-09-01',verification_status:'ACCOUNTS_CONFIRMED',advisor_name:'Accounts User',schemes:{PT:{statutory_scope_id:scope,enrolled:null}}});expect(body.intervals[1]).not.toHaveProperty('setupId');expect(await screen.findByText(/Recalculate affected draft salaries/)).toBeInTheDocument();});
+it('preserves earlier verification on an unchanged historical entry',async()=>{mount();fireEvent.click(await screen.findByRole('button',{name:'Change employee setup'}));fireEvent.click(screen.getByLabelText(/I confirm these dated/));fireEvent.click(screen.getByRole('button',{name:'Save employee setup'}));await waitFor(()=>expect(api.recordEmployeeStatutoryProfiles).toHaveBeenCalled());expect(api.recordEmployeeStatutoryProfiles.mock.calls[0][1].intervals).toEqual([interval]);});
+it('retains edits on a stale save and clears confirmation on changes',async()=>{api.recordEmployeeStatutoryProfiles.mockRejectedValue(new Error('Profile changed; reload'));mount();fireEvent.click(await screen.findByRole('button',{name:'Change employee setup'}));fireEvent.change(screen.getByLabelText('Entry 1 applies from', {exact:false}),{target:{value:'2026-09-01'}});fireEvent.click(screen.getByLabelText(/I confirm these dated/));fireEvent.click(screen.getByRole('button',{name:'Save employee setup'}));expect(await screen.findByRole('alert')).toHaveTextContent('Profile changed');expect(screen.getByLabelText('Entry 1 applies from', {exact:false})).toHaveValue('2026-09-01');fireEvent.change(screen.getByLabelText('Entry 1 applies from', {exact:false}),{target:{value:'2026-10-01'}});expect(screen.getByLabelText(/I confirm these dated/)).not.toBeChecked();});
+it('shows no setup requirement for local workers',async()=>{api.getEmployeeStatutoryProfiles.mockResolvedValue({data:{result:{version:0,employee_category:'Local Daily-Wage Workers',revisions:[]}}});mount();expect(await screen.findByText('No deduction setup required for Local Daily-Wage Workers.')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Change employee setup'})).toBeDisabled();});
+
+it.each([
+  ['PT-only', null, null],
+  ['EPF and PT', 'epf', null],
+])('submits a %s setup without declaring omitted schemes applicable',async(_label,epf,esi)=>{
+ api.getCompanyDeductionSetups.mockResolvedValue({data:{result:{setups:[{id:'setup-1',epf_revision_id:epf,esi_revision_id:esi,pt_revision_id:'pt',statutory_scope_id:scope,establishment_name:'SNP Factory',state_name:'Assam',effective_from:'2026-08-01',effective_to:null}],total:1}}});
+ mount();fireEvent.click(await screen.findByRole('button',{name:'Change employee setup'}));
+ await screen.findAllByRole('option',{name:/SNP Factory · Assam/});
+ fireEvent.change(screen.getByLabelText('Entry 1 deduction setup'),{target:{value:'setup-1'}});
+ fireEvent.click(screen.getByLabelText(/I confirm these dated/));fireEvent.click(screen.getByRole('button',{name:'Save employee setup'}));
+ await waitFor(()=>expect(api.recordEmployeeStatutoryProfiles).toHaveBeenCalled());
+ const s=api.recordEmployeeStatutoryProfiles.mock.calls[0][1].intervals[0].schemes;
+ expect(s.PT).toMatchObject({applicability:'APPLICABLE',statutory_scope_id:scope,enrolled:null});
+ expect(s.ESI).toMatchObject({applicability:'NOT_APPLICABLE',statutory_scope_id:null,enrolled:null});
+ expect(s.EPF).toMatchObject({applicability:epf?'APPLICABLE':'NOT_APPLICABLE',statutory_scope_id:epf?scope:null,enrolled:null});
+});
+
+it('renders unified employee list, accurate server totals in KPI cards, and filters by clicking KPI', async () => {
+  api.getStatutorySetupCandidates.mockResolvedValue({
+    data: {
+      result: {
+        employees: [
+          { id: 'emp-1', employee_name: 'Alice', employee_code: 'EMP-01', department: 'SNP Factory', employee_category: 'SNP Casual Factory Labour', joining_date: '2026-08-01', profile_version: 0 },
+          { id: 'emp-2', employee_name: 'Bob', employee_code: 'EMP-02', department: 'Fabric Factory', employee_category: 'Fabric Factory Permanent Employees', joining_date: '2026-08-01', profile_version: 1 },
+          { id: 'emp-3', employee_name: 'Charlie', employee_code: 'EMP-03', department: 'SNP Factory', employee_category: 'Local Daily-Wage Workers', joining_date: '2026-08-01', profile_version: 0 }
+        ],
+        total: 3,
+        all_total: 3,
+        needs_setup_total: 1,
+        has_setup_total: 2
+      }
+    }
+  });
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <EmployeeStatutorySetup />
+    </QueryClientProvider>
+  );
+
+  // Check employees in table
+  expect(await screen.findByText('Alice')).toBeInTheDocument();
+  expect(screen.getAllByText('Needs initial setup').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('Has setup (v1)')).toBeInTheDocument();
+  expect(screen.getByText('Local Worker (Exempt)')).toBeInTheDocument();
+
+  // Row actions
+  expect(screen.getByRole('button', { name: 'Assign setup' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'View / change setup' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'View history' })).toBeInTheDocument();
+
+  // Click on "Has setup" KPI card to filter
+  fireEvent.click(screen.getByTitle('Filter view to configured employees'));
+  await waitFor(() => {
+    expect(api.getStatutorySetupCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'has_setup' })
+    );
+  });
+});
+
+it('enables batch selection, reveals sticky dock, and opens assignment modal', async () => {
+  api.getStatutorySetupCandidates.mockResolvedValue({
+    data: {
+      result: {
+        employees: [
+          { id: 'emp-1', employee_name: 'Alice', employee_code: 'EMP-01', department: 'SNP Factory', employee_category: 'SNP Casual Factory Labour', joining_date: '2026-08-01', profile_version: 0 }
+        ],
+        total: 1,
+        all_total: 1,
+        needs_setup_total: 1,
+        has_setup_total: 0
+      }
+    }
+  });
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <EmployeeStatutorySetup />
+    </QueryClientProvider>
+  );
+
+  await screen.findByText('Alice');
+
+  // Select employee checkbox
+  const checkbox = screen.getByLabelText('Select EMP-01');
+  fireEvent.click(checkbox);
+  expect(checkbox).toBeChecked();
+
+  // Sticky selection dock appears
+  expect(screen.getByText('employee selected')).toBeInTheDocument();
+
+  // Click "Assign setup" in the sticky dock
+  const assignButtons = screen.getAllByRole('button', { name: 'Assign setup' });
+  fireEvent.click(assignButtons[0]);
+
+  // Modal opens
+  expect(await screen.findByRole('dialog', { name: 'Assign deduction setup' })).toBeInTheDocument();
+  expect(screen.getByText('Assign Company Deduction Setup')).toBeInTheDocument();
+});
+

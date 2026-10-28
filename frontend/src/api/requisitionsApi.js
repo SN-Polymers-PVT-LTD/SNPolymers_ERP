@@ -21,6 +21,10 @@ export const getMainHeadCapacity = (work_order_no, material_main_head) =>
 export const getSubcontractorCapacity = (work_order_no, material_sub_head, material_details) =>
   authApi.get('/requisitions/subcontractor-capacity', { params: { work_order_no, material_sub_head, material_details } });
 
+/** Canonical Phase 6 contractor/work + pooled CE capacity. */
+export const getSubcontractFinanceCapacity = (work_order_no, subcontractor_id, subcontract_work_id) =>
+  authApi.get('/requisitions/subcontract-finance-capacity', { params: { work_order_no, subcontractor_id, subcontract_work_id } });
+
 /** Browse Subcontractor Ledger balances (optionally filtered by work order / search text) */
 export const getSubcontractorLedger = (params = {}) =>
   authApi.get('/requisitions/subcontractor-ledger', { params });

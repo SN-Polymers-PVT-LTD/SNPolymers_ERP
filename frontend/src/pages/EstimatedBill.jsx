@@ -7,6 +7,7 @@ import EstimatedBillFilters from '../components/estimatedBill/EstimatedBillFilte
 import EstimatedBillStats from '../components/estimatedBill/EstimatedBillStats';
 import EstimatedBillTable from '../components/estimatedBill/EstimatedBillTable';
 import EstimatedBillEntryModal from '../components/estimatedBill/EstimatedBillEntryModal';
+import { useEstimatedBillsUrlState } from '../hooks/useEstimatedBillsUrlState';
 import {
   getEstimatedBills,
   getWorkOrderOptions,
@@ -19,22 +20,15 @@ export const EstimatedBill = () => {
   const queryClient = useQueryClient();
 
   const isZo = user?.role === 'zo';
+  const defaultZone = isZo ? (user?.zone || '') : '';
 
-  // Filters state
-  const [filters, setFilters] = useState({
-    zone: isZo ? (user?.zone || '') : '',
-    work_order_no: '',
-    status: '',
-    min_surety: '',
-    payment_date_from: '',
-    payment_date_to: ''
-  });
-
-  // Modal states
-  const [modalState, setModalState] = useState({
-    isOpen: false,
-    initialWorkOrderNo: null
-  });
+  const {
+    filters,
+    setFilters,
+    modalState,
+    openNewModal,
+    closeModal
+  } = useEstimatedBillsUrlState(defaultZone);
 
   // Success popup state
   const [successPopup, setSuccessPopup] = useState({
@@ -42,6 +36,7 @@ export const EstimatedBill = () => {
     title: 'Estimate Saved',
     description: 'Your changes are live in reports and analytics right away — no approval needed.'
   });
+  const [saveError, setSaveError] = useState('');
 
   // Query: Estimated Bills List
   const {
@@ -68,19 +63,23 @@ export const EstimatedBill = () => {
   const saveMutation = useMutation({
     mutationFn: (payload) => createEstimatedBillEntry(payload),
     onSuccess: (res, variables) => {
-      queryClient.invalidateQueries(['estimated-bills']);
-      queryClient.invalidateQueries(['estimated-bill-work-orders']);
-      setModalState({ isOpen: false, initialWorkOrderNo: null });
+      queryClient.invalidateQueries({ queryKey: ['estimated-bills'] });
+      queryClient.invalidateQueries({ queryKey: ['estimated-bill-work-orders'] });
+      closeModal();
       setSuccessPopup({
         isOpen: true,
         title: 'Estimate Saved',
         description: `Estimate for ${variables.work_order_no} is live in cash-flow forecasts and analytics.`
       });
+    },
+    onError: (error) => {
+      setSaveError(error.response?.data?.message || 'Failed to save estimated bill. Please try again.');
     }
   });
 
   const handleOpenNewModal = () => {
-    setModalState({ isOpen: true, initialWorkOrderNo: null });
+    setSaveError('');
+    openNewModal();
   };
 
   const handleViewLedgerClick = (woNo) => {
@@ -88,10 +87,12 @@ export const EstimatedBill = () => {
   };
 
   const handleCloseModal = () => {
-    setModalState({ isOpen: false, initialWorkOrderNo: null });
+    setSaveError('');
+    closeModal();
   };
 
   const handleSaveSubmit = (payload) => {
+    setSaveError('');
     saveMutation.mutate(payload);
   };
 
@@ -153,6 +154,7 @@ export const EstimatedBill = () => {
         workOrderOptions={workOrdersData || []}
         onSave={handleSaveSubmit}
         isSaving={saveMutation.isPending}
+        saveError={saveError}
       />
 
       {/* Success Feedback Popup */}

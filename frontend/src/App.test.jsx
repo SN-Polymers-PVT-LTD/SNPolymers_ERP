@@ -1,12 +1,94 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { unauthenticatedMock } from './test/mocks/authApiMockFactory';
 import App from './App';
 
 vi.mock('./api/authApi', () => ({ default: unauthenticatedMock }));
 
+function setAuthenticatedRole(role) {
+  unauthenticatedMock.get.mockImplementation((url) => {
+    if (url === '/me') {
+      return Promise.resolve({
+        data: {
+          success: true,
+          user: { display_name: 'Test Operator', role, mobile_number: '+919876543210' }
+        }
+      });
+    }
+    if (url === '/hr/payroll/company-deduction-setups') return Promise.resolve({data:{result:{setups:[],total:0}}});
+    if (url === '/hr/payroll/statutory-states') return Promise.resolve({data:{result:[]}});
+    if (url === '/hr/payroll/runs') return Promise.resolve({ data: { success: true, selection: { runs: [], total: 0 } } });
+    if (url === '/hr/payroll/review/queue') return Promise.resolve({ data: { success: true, queue: { rows: [], sheets: [], total: 0 } } });
+    if (url === '/hr/payroll/reports/register') return Promise.resolve({ data: { success: true, register: { rows: [], summaries: [], total: 0, payment_status: 'NOT_ELIGIBLE' } } });
+    if(url==='/hr/payroll/statutory-profiles/setup-candidates')return Promise.resolve({data:{result:{employees:[],total:0,eligible_total:0}}});
+    if(url.endsWith('/statutory-profile'))return Promise.resolve({data:{result:{employee_id:url.split('/').at(-2),version:0,revisions:[],employee_category:'HO Staff',enrolment_managed_by_pay_structure:true}}});
+    if (url === '/hr/payroll/statutory-profiles/employees') return Promise.resolve({data:{success:true,result:{employees:[],total:0}}});
+    if (url === '/hr/payroll/statutory-profiles/context') return Promise.resolve({data:{success:true,result:{scopes:[],bindings:[],total:0}}});
+    if (url === '/hr/payroll/context') return Promise.resolve({ data: { success: true, context: { groups: [] } } });
+    if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
+    if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
+    if (url === '/admin/sessions') return Promise.resolve({ data: { success: true, sessions: [] } });
+    return Promise.resolve({ data: { success: true, data: [] } });
+  });
+}
+
+function setUnauthenticated() {
+  unauthenticatedMock.get.mockImplementation((url) => {
+    if (url === '/me') return Promise.resolve({ data: { success: false, user: null } });
+    return Promise.resolve({ data: { success: false } });
+  });
+}
+
+// Each row is a real BrowserRouter/App/AuthProvider mount.  It proves a URL-state
+// page has rendered its own DOM (rather than merely surviving route resolution).
+// Keep page-specific data assertions in the page tests; this is the reusable
+// route/auth/deep-link contract for every URL-state page.
+const urlStateRouteCases = [
+  ['profile', 'je', '/profile?tab=appearance', /User Profile/i],
+  ['fund reports', 'je', '/fund-reports?status=Submitted&q=WO-1&page=2', /Fund Reports/i],
+  ['material master', 'admin', '/materials?q=pipe&main_head=Civil&page=2&modal=create', /Material Master/i],
+  ['estimates', 'je', '/estimates?tab=history&status=Final%20Approved&q=WO-1&page=2', /Cost Estimate Sheets/i],
+  ['subcontract estimates', 'je', '/subcontract-estimates?tab=history&status=Final%20Approved&q=WO-1&page=2', /Subcontract Estimates/i],
+  ['requisitions', 'je', '/requisitions?tab=approved&q=REQ-1&page=2&req=req-1&action=review', /Requisition Management/i],
+  ['fund-request create flow', 'zo', '/fund-requests?q=FR-1&page=2&filter=pendingOnly&create=true&wo=WO-1', /Fund Request Management/i],
+  ['daily progress', 'je', '/daily-progress?tab=directory&wo=WO-1&search_wo=WO&dept=Projects&page=2&modal=create', /Daily Work Progress/i],
+  ['subcontractor ledger', 'je', '/subcontractor-ledger?tab=ledger&wo=WO-1&q=SC&page=2&modal=view&id=entry-1', /Subcontractor Ledger/i],
+  ['accounts requisitions', 'accounts', '/acct-requisitions?status=Open&q=SHEET-1&from=2026-09-01&to=2026-09-30&page=2', /Requisition Sheets/i],
+  ['accounts HO queue', 'ho', '/acct-requisitions/ho-queue?status=Submitted&q=SHEET-1&from=2026-09-01&to=2026-09-30&page=2', /HO Approval Queue/i],
+  ['estimated bills', 'zo', '/estimated-bills?zone=North&wo=WO-1&status=Pending&surety=10&from=2026-09-01&to=2026-09-30&modal=new', /Estimated Bill Module/i],
+  ['estimated-bill ledger', 'zo', '/estimated-bills/ledger/WO-1?from=2026-09-01&to=2026-09-30&sort=payment_date&dir=asc&modal=new', /Work Order Ledger Sheet/i],
+  ['RA/final bills', 'zo', '/ra-final-bills?tab=directory&wo=WO-1&search=WO&dir_dept=Projects&dir_zone=North&page=2&modal=create&create_wo=WO-1', /RA \/ Final Bill Entry/i],
+  ['user mappings', 'zo', '/user-mappings?zo=zo-1&q=JE&page=2', /JE-to-ZO User Mappings/i],
+  ['work-order mappings', 'zo', '/work-order-mappings?zo=zo-1&q=WO&page=2', /Work Order Mappings/i],
+  ['zonal balances', 'zo', '/zonal-balances?zo=zo-1&q=North&zo_page=2&page=2', /Zonal Office Credit Control/i],
+  ['excess fund returns', 'zo', '/excess-fund-returns?status=completed&q=RET-1&modal=action&id=return-1', /Excess Fund Returns/i],
+  ['admin panel', 'admin', '/admin?tab=users&q=operator&page=2', /Authorized Access Whitelist/i],
+  ['master data', 'admin', '/admin/master-data?tab=projects&q=WO-1&page=2', /Master Data Sheet/i],
+  ['purchase options', 'admin', '/admin/purchase-options?tab=categories&q=pipe&page=2', /Purchase Options/i],
+  ['HO dashboard', 'ho', '/analytics/ho?from=2026-09-01&to=2026-09-30&zone=North', /Portfolio Performance Analytics/i],
+  ['audit compliance', 'ho', '/analytics/audit?q=WO-1&status=open&page=2', /Audit Search Center/i],
+  ['ZO dashboard', 'zo', '/analytics/zo?zo=zo-1&from=2026-09-01&to=2026-09-30', /Zonal Control Room/i],
+  ['digital twin hub', 'je', '/analytics/digital-twin?q=WO-1&zone=North&page=2', /Project Digital Twin Hub/i],
+  ['project digital twin', 'je', '/projects/WO-1/digital-twin?tab=overview&from=2026-09-01&to=2026-09-30', /Digital Twin Monitor/i],
+  ['JE leaderboard', 'je', '/analytics/leaderboard?range=month&zone=North', /Junior Engineer Performance Leaderboards/i],
+  ['payroll salary register', 'admin', '/hr/payroll/register?q=John&department=Civil&status=CALCULATED&page=2', /Payroll salary register/i],
+  ['payroll previews', 'admin', '/hr/payroll/previews?page=2', /Payroll salary previews/i],
+  ['payroll review', 'admin', '/hr/payroll/review?status=PENDING_HO_APPROVAL&page=2', /Payroll employee review/i],
+  ['payroll policy master', 'admin', '/admin/payroll/policies?page=2', /Payroll Policy Master/i],
+  ['statutory deduction master', 'accounts', '/admin/payroll/statutory?page=2', /Statutory Deduction Master/i],
+];
+
 describe('App Smoke Tests', () => {
+  beforeEach(() => {
+    setUnauthenticated();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.history.replaceState({}, '', '/');
+  });
   it('renders Home page with expected content at /', () => {
     window.history.pushState({}, '', '/');
     render(<App />);
@@ -31,5 +113,160 @@ describe('App Smoke Tests', () => {
     window.history.pushState({}, '', '/this-does-not-exist-at-all');
     render(<App />);
     expect(screen.getAllByText(/SN Polymers Pvt LTD/i)[0]).toBeInTheDocument();
+  });
+
+  it('mounts the admin audit-session deep link through the full protected route tree', async () => {
+    setAuthenticatedRole('admin');
+    window.history.pushState({}, '', '/admin/sessions?status=active&page=2&modal=inspect&sessionId=missing');
+    render(<App />);
+
+    expect(await screen.findByText('Session Audit & Integrity Trails', {}, { timeout: 4000 })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/admin/sessions');
+    expect(window.location.search).toContain('status=active');
+    expect(window.location.search).toContain('sessionId=missing');
+  });
+
+  it('redirects an authenticated but unauthorized ZO away from the admin audit-session route', async () => {
+    setAuthenticatedRole('zo');
+    window.history.pushState({}, '', '/admin/sessions?status=active');
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+  });
+
+  it.each(['admin', 'ho', 'factory_manager'])('allows %s to open factory master deep links', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-masters?tab=rules');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Factory Attendance & Pay Rule Master' })).toBeInTheDocument();
+  });
+
+  it.each(['admin', 'ho', 'factory_manager'])('allows %s attendance deep links and Factory navigation', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-attendance?category=SNP%20Casual%20Factory%20Labour&date=2026-09-30');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Daily Attendance' }, { timeout: 4000 })).toBeInTheDocument();
+    expect(screen.getByLabelText('Attendance Date')).toHaveValue('2026-09-30');
+    expect(screen.getAllByRole('link', { name: /Daily Attendance/i }).length).toBeGreaterThan(0);
+    if (role === 'ho') expect(screen.queryByRole('button', { name: 'Create Attendance Sheet' })).not.toBeInTheDocument();
+  });
+
+  it.each(['ho','admin'])('opens HO review queue and Factory navigation for %s', async role => {
+    setAuthenticatedRole(role);
+    unauthenticatedMock.get.mockImplementation(url => Promise.resolve({data:url==='/me'?{success:true,user:{role,display_name:'HO reviewer'}}:{success:true,sheets:[],pagination:{totalItems:0,totalPages:1}}}));
+    window.history.pushState({}, '', '/factory-attendance/review?status=Submitted&page=2');
+    render(<App />);
+    expect(await screen.findByRole('heading',{name:'Attendance Review Queue'},{timeout:4000})).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /Attendance Review/i }).length).toBeGreaterThan(0);
+  });
+  it.each(['factory_manager','je','zo','accounts'].flatMap(role=>['/factory-attendance/review','/factory-attendance/review/sheet-id'].map(path=>[role,path])))('denies %s direct HO navigation to %s',async (role,path)=>{
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', path);render(<App />);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('heading',{name:'Attendance Review Detail'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Attendance Review/i })).not.toBeInTheDocument();
+  });
+
+  it.each(['je', 'zo', 'accounts'])('denies %s attendance direct navigation' , async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-attendance');
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('heading', { name: 'Daily Attendance' })).not.toBeInTheDocument();
+  });
+
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s read-only payroll preview navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/previews');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll salary previews'})).toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Payroll Previews'}).length).toBeGreaterThan(0);
+    expect(await screen.findByText('No accessible payroll draft runs.')).toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll preview navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/previews');render(<App/>);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByRole('link',{name:'Payroll Previews'})).not.toBeInTheDocument();
+  });
+
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s employee payroll review navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll employee review'})).toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Payroll Review'}).length).toBeGreaterThan(0);
+    expect(await screen.findByText('No employees in this review queue.')).toBeInTheDocument();
+  });
+  it.each(['admin','accounts','ho','factory_manager'])('opens %s payroll register navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/register');render(<App/>);
+    expect(await screen.findByRole('heading',{name:'Payroll salary register'})).toBeInTheDocument();expect(screen.getAllByRole('link',{name:'Payroll Register'}).length).toBeGreaterThan(0);expect(await screen.findByText('No employee rows match these filters.')).toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll reporting navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/register');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Register'})).not.toBeInTheDocument();
+  });
+  it.each(['je','zo'])('denies %s direct payroll review navigation',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Review'})).not.toBeInTheDocument();
+  });
+
+  it('opens Accounts statutory setup without enabling HR master edits',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/payroll/statutory');render(<App/>);expect(await screen.findByRole('heading',{name:'Statutory Deduction Master'})).toBeInTheDocument();});
+  it('opens Accounts employee payroll setup navigation while preserving accounts options', async () => {
+    setAuthenticatedRole('accounts');
+    window.history.pushState({}, '', '/admin/employee-management?tab=payroll-setup');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Employee Payroll Setup' })).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(window.location.pathname).toBe('/admin/employee-management');
+    expect(screen.getAllByRole('link', { name: 'Acct Requisitions' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Bank Balances' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('link', { name: 'Statutory Deduction Master' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: 'Employee Payroll Setup' })).not.toBeInTheDocument();
+  });
+  it('denies Admin employee payroll setup maintenance',async()=>{setAuthenticatedRole('admin');window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup');render(<App/>);expect(await screen.findByRole('alert')).toHaveTextContent('Accounts only');expect(screen.queryByRole('button',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();});
+  it.each(['admin','accounts','ho','factory_manager','je','zo'])('removes the old profiles route for %s',async role=>{setAuthenticatedRole(role);window.history.pushState({},'', '/admin/payroll/statutory-profiles?employeeId=employee-1');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/'));expect(screen.queryByRole('heading',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();});
+  it.each(['directory','pay-structure'])('Accounts cannot enter the Admin %s tab through Employee Management',async tab=>{setAuthenticatedRole('accounts');window.history.pushState({},'',`/admin/employee-management?tab=${tab}`);render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(new URLSearchParams(window.location.search).get('tab')).toBe('payroll-setup');expect(screen.queryByRole('button',{name:'Export Both Sheets'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Employee & Worker Master'})).not.toBeInTheDocument();});
+  it('opens employee payroll setup with the selected employee',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup&employeeId=employee-1');render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(new URLSearchParams(window.location.search).get('employeeId')).toBe('employee-1');expect(await screen.findByRole('dialog',{name:'Employee statutory setup details'})).toBeInTheDocument();});
+  it.each(['ho','factory_manager','je','zo'])('denies %s direct employee payroll setup administration',async role=>{
+    setAuthenticatedRole(role);window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();
+  });
+  it.each([['policies','Payroll Policy Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {
+    setAuthenticatedRole('admin');
+    window.history.pushState({}, '', `/admin/payroll/${kind}`);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Salary Calculation Policy' }).length).toBeGreaterThan(0);
+    for (const label of ['Access Whitelist','Employee Management','Purchase Options','Master Data','Audit Trail Logs']) {
+      expect(screen.getAllByRole('link', { name: label }).length).toBeGreaterThan(0);
+    }
+    expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();
+  });
+
+  it.each(['factory_manager','je','zo','ho','accounts','admin'].flatMap(role => (role==='admin'?['/admin/payroll/statutory']:role==='accounts'?['/admin/payroll/policies']:['/admin/payroll/policies','/admin/payroll/statutory']).map(path => [role,path])))('denies %s direct payroll master navigation to %s', async (role,path) => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', path);
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    if(role!=='admin')expect(screen.queryByRole('link', { name: 'Payroll Management' })).not.toBeInTheDocument();
+  });
+
+  it.each(['/admin', '/admin/employee-management', '/estimates', '/materials', '/acct-requisitions', '/analytics/ho'])('denies FM direct navigation to %s', async path => {
+    setAuthenticatedRole('factory_manager');
+    window.history.pushState({}, '', path);
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+    expect(screen.queryByText('Cost Estimates')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Factory Masters').length).toBeGreaterThan(0);
+  });
+
+  it.each(['je', 'zo', 'accounts'])('denies %s factory master direct navigation', async role => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', '/factory-masters');
+    render(<App />);
+    await waitFor(() => expect(window.location.pathname).toBe('/dashboard'));
+  });
+
+  it.each(urlStateRouteCases)('renders the %s URL-state page DOM through App for the %s role', async (_label, role, url, heading) => {
+    setAuthenticatedRole(role);
+    window.history.pushState({}, '', url);
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname + window.location.search).toBe(url));
+    expect((await screen.findAllByRole('heading', { name: heading }, { timeout: 4000 })).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Portal Authentication/i)).not.toBeInTheDocument();
   });
 });

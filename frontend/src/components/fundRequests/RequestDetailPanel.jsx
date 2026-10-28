@@ -156,6 +156,25 @@ const RequestDetailPanel = ({
     }
   }, [isEditable]);
 
+  const handleSelectBeneficiary = (b) => {
+    let bankId = b.beneficiary_bank_id || b.beneficiary_bank?.id || '';
+    let bankName = b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '';
+    if (!bankId && bankName && indianBanks.length > 0) {
+      const matched = indianBanks.find(
+        (ib) => ib.bank_name.trim().toLowerCase() === bankName.trim().toLowerCase()
+      );
+      if (matched) {
+        bankId = matched.id;
+        bankName = matched.bank_name;
+      }
+    }
+    setBeneficiaryAcNo(b.beneficiary_ac_no || '');
+    setBeneficiaryIfsc(b.beneficiary_ifsc || '');
+    setBeneficiaryName(b.beneficiary_name || '');
+    setBeneficiaryBankId(bankId);
+    setBeneficiaryBankName(bankName);
+  };
+
   // Recalculate remaining capacity when Work Order is selected in creation mode
   useEffect(() => {
     if (isEditable && selectedWorkOrder) {
@@ -471,10 +490,15 @@ const RequestDetailPanel = ({
                 request.request_status === 'Pending' && request.accounts_line_item_id ? 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400' :
                 request.request_status === 'Pending' ? 'bg-amber-500/10 border-amber-500/25 text-amber-400' :
                 request.request_status === 'Approved' ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400' :
-                request.request_status === 'Hold' ? 'bg-red-500/10 border-red-500/25 text-red-400' :
+                request.request_status === 'Hold' ? 'bg-amber-500/10 border-amber-500/25 text-amber-400' :
+                request.request_status === 'Returned' ? 'bg-purple-500/10 border-purple-500/25 text-purple-400' :
+                request.request_status === 'Rejected' ? 'bg-rose-500/10 border-rose-500/25 text-rose-400' :
                 'bg-slate-500/10 border-slate-500/25 text-slate-400'
               }`}>
-                {request.request_status === 'Pending' && request.accounts_line_item_id ? 'In Accounts Sheet' : request.request_status}
+                {request.request_status === 'Pending' && request.accounts_line_item_id ? 'In Accounts Sheet' :
+                 request.request_status === 'Hold' ? 'On Hold' :
+                 request.request_status === 'Returned' ? 'Returned' :
+                 request.request_status}
               </span>
             )}
           </div>
@@ -532,6 +556,62 @@ const RequestDetailPanel = ({
           <div className="flex items-center gap-2.5">
             <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
             <span>This Fund Request has been imported into an Accounts Requisition Sheet. Final approval, bank debit, and ZO balance credit will occur upon Head Office approval of that sheet.</span>
+          </div>
+        </div>
+      )}
+
+      {!isCreate && isHold && (
+        <div className="mb-5 p-4 bg-amber-950/20 border border-amber-500/30 rounded-2xl text-xs text-amber-300 flex items-start justify-between">
+          <div className="flex items-start gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1" />
+            <div>
+              <span className="font-bold block text-amber-200">Request Placed on Hold by Head Office</span>
+              <span className="text-amber-300/90 text-[11px] mt-0.5 block">
+                {request.ho_remarks ? `Reviewer note: "${request.ho_remarks}"` : 'This request is temporarily on hold awaiting Head Office review.'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isCreate && request.request_status === 'Returned' && (
+        <div className="mb-5 p-4 bg-purple-950/20 border border-purple-500/30 rounded-2xl text-xs text-purple-300 flex items-start justify-between">
+          <div className="flex items-start gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0 mt-1" />
+            <div>
+              <span className="font-bold block text-purple-200">Request Returned for Correction</span>
+              <span className="text-purple-300/90 text-[11px] mt-0.5 block">
+                {request.ho_remarks ? `Return instructions: "${request.ho_remarks}"` : 'This request was returned for correction by Head Office.'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isCreate && request.request_status === 'Rejected' && (
+        <div className="mb-5 p-4 bg-rose-950/20 border border-rose-500/30 rounded-2xl text-xs text-rose-300 flex items-start justify-between">
+          <div className="flex items-start gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-rose-400 shrink-0 mt-1" />
+            <div>
+              <span className="font-bold block text-rose-200">Request Rejected by Head Office</span>
+              <span className="text-rose-300/90 text-[11px] mt-0.5 block">
+                {request.ho_remarks ? `Rejection reason: "${request.ho_remarks}"` : 'This request was rejected.'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isCreate && request.accounts_import_dismissed && (
+        <div className="mb-5 p-4 bg-slate-900/40 border border-slate-700/50 rounded-2xl text-xs text-slate-300 flex items-start justify-between">
+          <div className="flex items-start gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-slate-400 shrink-0 mt-1" />
+            <div>
+              <span className="font-bold block text-slate-200">Dismissed from Accounts Import Queue</span>
+              <span className="text-slate-400 text-[11px] mt-0.5 block">
+                This fund request was dismissed from the Accounts processing queue and will not be included in a requisition sheet.
+              </span>
+            </div>
           </div>
         </div>
       )}
@@ -680,13 +760,7 @@ const RequestDetailPanel = ({
                     value={beneficiaryAcNo}
                     onChange={(e) => setBeneficiaryAcNo(e.target.value.replace(/\D/g, '').slice(0, 18))}
                     maxLength={18}
-                    onSelect={(b) => {
-                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
-                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
-                      setBeneficiaryName(b.beneficiary_name || '');
-                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
-                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
-                    }}
+                    onSelect={handleSelectBeneficiary}
                     placeholder="Enter bank account no…"
                     disabled={actionSubmitting}
                     required
@@ -727,13 +801,7 @@ const RequestDetailPanel = ({
                       setBeneficiaryBankId('');
                       setBeneficiaryBankName('');
                     }}
-                    onSelect={(b) => {
-                      setBeneficiaryAcNo(b.beneficiary_ac_no || '');
-                      setBeneficiaryIfsc(b.beneficiary_ifsc || '');
-                      setBeneficiaryName(b.beneficiary_name || '');
-                      setBeneficiaryBankId(b.beneficiary_bank_id || b.beneficiary_bank?.id || '');
-                      setBeneficiaryBankName(b.beneficiary_bank?.bank_name || b.beneficiary_bank_name || '');
-                    }}
+                    onSelect={handleSelectBeneficiary}
                     placeholder="Enter payee name…"
                     disabled={actionSubmitting}
                     required
@@ -884,17 +952,24 @@ const RequestDetailPanel = ({
           )}
 
           {/* Card D: Approval Timeline bar component */}
-          {!isCreate && <TimelineProgress status={request.request_status} />}
+          {!isCreate && <TimelineProgress status={request.request_status} request={request} />}
 
         </div>
 
         {/* Right column sidebar panels */}
         <div className="space-y-6 text-left">
           
-          {/* Panel 1: APPROVAL INFORMATION */}
+          {/* Panel 1: REVIEW & DECISION DETAILS */}
           {!isCreate && (
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Approval Information</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">
+                {request.request_status === 'Approved' ? 'Approval Information' :
+                 request.request_status === 'Hold' ? 'Hold Details' :
+                 request.request_status === 'Returned' ? 'Return Details' :
+                 request.request_status === 'Rejected' ? 'Rejection Details' :
+                 request.request_status === 'Cancelled' ? 'Cancellation Details' :
+                 'Review & Pipeline Details'}
+              </span>
               
               {isPendingOrHold && isApproverRole ? (
                 request.accounts_line_item_id ? (
@@ -1008,11 +1083,11 @@ const RequestDetailPanel = ({
                   </button>
                 </form>
                 )
-              ) : (
+              ) : request.request_status === 'Approved' ? (
                 <div className="space-y-3.5 text-xs">
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved By</span>
-                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'Accounts User' : '—')}</span>
+                    <span className="font-bold text-slate-300">{request.approve_ho_name || (request.approve_ho_user_id ? 'Accounts User' : 'Head Office')}</span>
                   </div>
                   <div className="flex justify-between items-center pb-2 border-b border-white/5">
                     <span className="text-slate-500 font-semibold">Approved Amount</span>
@@ -1024,9 +1099,111 @@ const RequestDetailPanel = ({
                       {request.transfer_from_account || '—'}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Approval Date</span>
+                    <span className="font-semibold text-slate-300">{formatDateTime(request.approve_ho_date)}</span>
+                  </div>
+                  {request.ho_remarks && (
+                    <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs">
+                      <span className="text-[9px] uppercase tracking-wider font-bold text-slate-400 block mb-1">HO Remarks</span>
+                      <p className="text-slate-300 text-[11px] leading-relaxed italic">"{request.ho_remarks}"</p>
+                    </div>
+                  )}
+                </div>
+              ) : request.request_status === 'Hold' ? (
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Current State</span>
+                    <span className="font-bold text-amber-400">On Hold</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Hold Action Date</span>
+                    <span className="font-semibold text-slate-300">{formatDateTime(request.updated_at)}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Accounts Pipeline</span>
+                    <span className="font-semibold text-indigo-300">
+                      {request.accounts_line_item_id ? 'In Accounts Requisition Sheet' : 'Pending Sheet Assignment'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                    <span className="text-[9px] uppercase tracking-wider font-bold text-amber-400 block mb-1">HO Hold Remarks</span>
+                    <p className="text-amber-200/90 text-xs font-medium leading-relaxed">
+                      {request.ho_remarks ? `"${request.ho_remarks}"` : 'No remarks specified by reviewer.'}
+                    </p>
+                  </div>
+                </div>
+              ) : request.request_status === 'Returned' ? (
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Current State</span>
+                    <span className="font-bold text-purple-400">Returned for Correction</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Return Date</span>
+                    <span className="font-semibold text-slate-300">{formatDateTime(request.updated_at)}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs">
+                    <span className="text-[9px] uppercase tracking-wider font-bold text-purple-400 block mb-1">Return Instructions</span>
+                    <p className="text-purple-200/90 text-xs font-medium leading-relaxed">
+                      {request.ho_remarks ? `"${request.ho_remarks}"` : 'No instructions provided.'}
+                    </p>
+                  </div>
+                </div>
+              ) : request.request_status === 'Rejected' ? (
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Current State</span>
+                    <span className="font-bold text-rose-400">Rejected</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Rejection Date</span>
+                    <span className="font-semibold text-slate-300">{formatDateTime(request.updated_at)}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-xs">
+                    <span className="text-[9px] uppercase tracking-wider font-bold text-rose-400 block mb-1">Rejection Reason</span>
+                    <p className="text-rose-200/90 text-xs font-medium leading-relaxed">
+                      {request.ho_remarks ? `"${request.ho_remarks}"` : 'No reason provided.'}
+                    </p>
+                  </div>
+                </div>
+              ) : request.request_status === 'Cancelled' ? (
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Current State</span>
+                    <span className="font-bold text-slate-400">Cancelled by ZO</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Cancelled By</span>
+                    <span className="font-semibold text-slate-300">{request.cancelled_by_name || request.cancelled_by || 'ZO User'}</span>
+                  </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-500 font-semibold">Action Date</span>
-                    <span className="font-semibold text-slate-300">{formatDate(request.approve_ho_date)}</span>
+                    <span className="text-slate-500 font-semibold">Cancellation Date</span>
+                    <span className="font-semibold text-slate-300">{formatDateTime(request.cancelled_at)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Status</span>
+                    <span className="font-bold text-amber-400">Pending Review</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                    <span className="text-slate-500 font-semibold">Accounts Queue</span>
+                    <span className={`font-semibold ${request.accounts_line_item_id ? 'text-indigo-400' : 'text-slate-300'}`}>
+                      {request.accounts_line_item_id ? 'In Requisition Sheet' : 'Awaiting Import'}
+                    </span>
+                  </div>
+                  {request.accounts_imported_at && (
+                    <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                      <span className="text-slate-500 font-semibold">Imported Date</span>
+                      <span className="font-semibold text-slate-300">{formatDateTime(request.accounts_imported_at)}</span>
+                    </div>
+                  )}
+                  <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-xs text-slate-400 text-[11px] leading-relaxed">
+                    {request.accounts_line_item_id
+                      ? 'This request is packaged inside an Accounts Requisition Sheet. Final approval and payment will be executed upon HO sign-off.'
+                      : 'Submitted to Accounts. It will appear in the next Accounts Requisition Sheet batch.'}
                   </div>
                 </div>
               )}
@@ -1038,29 +1215,124 @@ const RequestDetailPanel = ({
             <div className="glass-panel p-5 rounded-3xl border border-white/5">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block mb-4">Activity Log</span>
               <div className="space-y-4">
+                {/* 1. Created */}
                 <div className="flex gap-2.5 text-xs items-start">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                   <div className="flex flex-col text-[11px]">
-                    <span className="text-slate-300 font-bold">Created</span>
-                    <span className="text-[9px] text-slate-500 mt-0.5">{formatDateTime(request.created_at || request.zo_date)}</span>
+                    <span className="text-slate-300 font-bold">Created as Draft</span>
+                    <span className="text-[9px] text-slate-500 mt-0.5">
+                      {formatDateTime(request.created_at || request.zo_date)} {request.zo_name ? `by ${request.zo_name}` : ''}
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-2.5 text-xs items-start">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                  <div className="flex flex-col text-[11px]">
-                    <span className="text-slate-300 font-bold">Submitted</span>
-                    <span className="text-[9px] text-slate-500 mt-0.5">{formatDateTime(request.zo_date)}</span>
-                  </div>
-                </div>
-                {request.request_status !== 'Pending' && (
+
+                {/* 2. Submitted */}
+                {(request.submitted_at || request.request_status !== 'Draft') && (
                   <div className="flex gap-2.5 text-xs items-start">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
                     <div className="flex flex-col text-[11px]">
-                      <span className="text-slate-300 font-bold">Status Action: {request.request_status}</span>
+                      <span className="text-slate-300 font-bold">Submitted to Accounts</span>
                       <span className="text-[9px] text-slate-500 mt-0.5">
-                        {request.request_status === 'Cancelled'
-                          ? formatDateTime(request.cancelled_at)
-                          : formatDateTime(request.approve_ho_date)}
+                        {formatDateTime(request.submitted_at || request.zo_date)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 3. Accounts Import / Dismissal */}
+                {request.accounts_imported_at && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-indigo-300 font-bold">Imported into Accounts Sheet</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.accounts_imported_at)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+                {request.accounts_import_dismissed && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-rose-300 font-bold">Dismissed from Accounts Queue</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.updated_at)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Terminal / Action State */}
+                {request.request_status === 'Approved' && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-emerald-300 font-bold">
+                        Approved by Head Office ({formatCurrency(request.approve_ho_amount)})
+                      </span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.approve_ho_date || request.updated_at)} {request.approve_ho_name ? `by ${request.approve_ho_name}` : ''}
+                      </span>
+                      {request.ho_remarks && (
+                        <span className="text-[9px] text-slate-400 italic mt-0.5">"{request.ho_remarks}"</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {request.request_status === 'Hold' && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-amber-300 font-bold">Placed on Hold by Head Office</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.updated_at)}
+                      </span>
+                      {request.ho_remarks && (
+                        <span className="text-[9px] text-amber-400/90 italic mt-0.5">"{request.ho_remarks}"</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {request.request_status === 'Returned' && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-purple-300 font-bold">Returned for Correction</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.updated_at)}
+                      </span>
+                      {request.ho_remarks && (
+                        <span className="text-[9px] text-purple-400/90 italic mt-0.5">"{request.ho_remarks}"</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {request.request_status === 'Rejected' && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-rose-300 font-bold">Rejected by Head Office</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.updated_at)}
+                      </span>
+                      {request.ho_remarks && (
+                        <span className="text-[9px] text-rose-400/90 italic mt-0.5">"{request.ho_remarks}"</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {request.request_status === 'Cancelled' && (
+                  <div className="flex gap-2.5 text-xs items-start">
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-500 mt-1.5 shrink-0" />
+                    <div className="flex flex-col text-[11px]">
+                      <span className="text-slate-400 font-bold">Cancelled by ZO</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">
+                        {formatDateTime(request.cancelled_at || request.updated_at)} {request.cancelled_by_name ? `by ${request.cancelled_by_name}` : ''}
                       </span>
                     </div>
                   </div>

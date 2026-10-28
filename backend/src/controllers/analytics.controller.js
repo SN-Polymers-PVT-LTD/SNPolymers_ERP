@@ -11,16 +11,16 @@ async function enrichAuditsWithUserNames(logs) {
     return logs.map(log => ({ ...log, user_name: log.user_id || 'System' }));
   }
 
-  const { data: users, error } = await supabase
-    .from('authorised_users')
-    .select('mobile_number, display_name')
-    .in('mobile_number', userIds);
-
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const ids = userIds.filter(id => uuidPattern.test(id));
+  const mobiles = userIds.filter(id => !uuidPattern.test(id));
+  const results = await Promise.all([
+    ids.length ? supabase.from('authorised_users').select('id,display_name').in('id', ids) : Promise.resolve({ data: [] }),
+    mobiles.length ? supabase.from('authorised_users').select('mobile_number,display_name').in('mobile_number', mobiles) : Promise.resolve({ data: [] })
+  ]);
   const userMap = {};
-  if (!error && users) {
-    users.forEach(u => {
-      userMap[u.mobile_number] = u.display_name;
-    });
+  for (const { data, error } of results) {
+    if (!error) for (const user of data || []) userMap[user.id || user.mobile_number] = user.display_name;
   }
 
   return logs.map(log => ({
@@ -247,11 +247,19 @@ async function getRecentActivity(req, res) {
       return res.status(200).json({ success: true, activities: enrichedAudits });
     } else {
       // HO or Admin: fetch global recent activity
-      const { data: audits, error } = await supabase
+      let auditsQuery = supabase
         .from('audit_log')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(50);
+        .select('*');
+      if (req.user.role !== 'admin') {
+        auditsQuery = auditsQuery.neq('module_name', 'HR Employee Master')
+          .neq('module_name', 'HR Permanent Pay Structure')
+          .neq('module_name', 'HR Factory Wage Master')
+          .neq('module_name', 'HR Factory Pay Rule Master')
+          .neq('module_name', 'HR Attendance')
+          .neq('module_name', 'HR Leave');
+      }
+      const { data: audits, error } = await auditsQuery
+        .order('timestamp', { ascending: false }).limit(50);
 
       if (error) throw error;
 
@@ -286,6 +294,14 @@ async function getAuditLog(req, res) {
     }
     if (req.query.record_identifier) {
       query = query.eq('record_identifier', req.query.record_identifier);
+    }
+    if (req.user.role !== 'admin') {
+      query = query.neq('module_name', 'HR Employee Master')
+        .neq('module_name', 'HR Permanent Pay Structure')
+        .neq('module_name', 'HR Factory Wage Master')
+        .neq('module_name', 'HR Factory Pay Rule Master')
+        .neq('module_name', 'HR Attendance')
+        .neq('module_name', 'HR Leave');
     }
 
     const { data, error, count } = await query
@@ -472,22 +488,33 @@ async function getProjectsHealth(req, res) {
     let enrichedData = healthData || [];
     if (enrichedData.length > 0) {
       const woNumbers = enrichedData.map(p => p.work_order_no);
-      const [pmRes, woMapRes] = await Promise.all([
-        supabase.from('projects_master').select('work_order_no, department').in('work_order_no', woNumbers),
-        supabase.from('work_order_mappings').select('work_order_no, je_user_id').eq('is_active', true).in('work_order_no', woNumbers)
+      const CHUNK_SIZE = 50;
+      const fetchInChunks = async (table, selectStr, extraFilter = null) => {
+        let allData = [];
+        for (let i = 0; i < woNumbers.length; i += CHUNK_SIZE) {
+          const chunk = woNumbers.slice(i, i + CHUNK_SIZE);
+          let q = supabase.from(table).select(selectStr).in('work_order_no', chunk);
+          if (extraFilter) q = extraFilter(q);
+          const { data, error } = await q;
+          if (error) throw error;
+          if (data) allData = allData.concat(data);
+        }
+        return allData;
+      };
+
+      const [pmData, woMapData] = await Promise.all([
+        fetchInChunks('projects_master', 'work_order_no, department'),
+        fetchInChunks('work_order_mappings', 'work_order_no, je_user_id', q => q.eq('is_active', true))
       ]);
 
-      if (pmRes.error) throw pmRes.error;
-      if (woMapRes.error) throw woMapRes.error;
-
       const deptMap = {};
-      (pmRes.data || []).forEach(p => {
+      (pmData || []).forEach(p => {
         if (p.department) deptMap[p.work_order_no] = p.department;
       });
 
       const jeMobileMap = {};
       const jeMobiles = [];
-      (woMapRes.data || []).forEach(m => {
+      (woMapData || []).forEach(m => {
         if (!jeMobileMap[m.work_order_no]) {
           jeMobileMap[m.work_order_no] = [];
         }
@@ -496,14 +523,19 @@ async function getProjectsHealth(req, res) {
       });
 
       const userMap = {};
-      if (jeMobiles.length > 0) {
-        const { data: users } = await supabase
-          .from('authorised_users')
-          .select('mobile_number, display_name')
-          .in('mobile_number', Array.from(new Set(jeMobiles)));
-        (users || []).forEach(u => {
-          userMap[u.mobile_number] = u.display_name;
-        });
+      const uniqueJeMobiles = Array.from(new Set(jeMobiles));
+      if (uniqueJeMobiles.length > 0) {
+        for (let i = 0; i < uniqueJeMobiles.length; i += CHUNK_SIZE) {
+          const chunk = uniqueJeMobiles.slice(i, i + CHUNK_SIZE);
+          const { data: users, error: userErr } = await supabase
+            .from('authorised_users')
+            .select('mobile_number, display_name')
+            .in('mobile_number', chunk);
+          if (userErr) throw userErr;
+          (users || []).forEach(u => {
+            userMap[u.mobile_number] = u.display_name;
+          });
+        }
       }
 
       enrichedData = enrichedData.map(p => {
@@ -1494,4 +1526,3 @@ module.exports = {
   getHoChartData,
   getJeLeaderboard
 };
-
