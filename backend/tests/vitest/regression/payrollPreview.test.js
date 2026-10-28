@@ -36,8 +36,10 @@ describe('read-only preview database sources',()=>{
   const after=await source(row,actor);expect(after.statutory_profile).toBeNull();expect(after.statutory_rules).toEqual([]);expect(JSON.stringify(after)).not.toContain('UNRELATED_');expect(fingerprint(after)).toBe(fingerprint(before));
   const result=calculatePreview(after);expect(result.final_net_salary).toBeNull();expect(result.blockers).toContainEqual(expect.objectContaining({scheme:'PT',code:'STATUTORY_PROFILE_PERIOD_COVERAGE_REQUIRED'}));expect(result.statutory.every(s=>s.revision_id===null&&s.statutory_scope_id===null)).toBe(true);
  });
- test('one snapshot preserves exact strings, historical salary, source references, and no financial writes',async()=>{
-  const {e,row}=await office();await q("UPDATE hr_employees SET active_status='Exited',updated_by=$1 WHERE id=$2",[admin,e.id]);
+ test('one snapshot preserves exact strings and saved salary for an inactive employee without financial writes',async()=>{
+  // Future payroll fixtures cannot record a present-day exit before joining.
+  // Explicit exit dates and historical coverage are exercised in hrEmployeeExit.
+  const {e,row}=await office();await q("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=$2",[admin,e.id]);
   const counts=await q("SELECT (SELECT count(*) FROM payroll_row_versions) versions,(SELECT count(*) FROM payroll_action_history) actions,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT count(*) FROM payroll_employee_coverage) coverage");
   const s=await source(row),r=calculatePreview(s);expect(s.pay_structures[0].guaranteed_monthly_gross).toBe('30000.00');expect(r.gross_after_lop).toBe('30000.00');expect(r.source_references.pay_applicability.length).toBe(1);expect(r.final_net_salary).toBeNull();expect(s.statutory_profile).toBeNull();
   expect(await q("SELECT (SELECT count(*) FROM payroll_row_versions) versions,(SELECT count(*) FROM payroll_action_history) actions,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT count(*) FROM payroll_employee_coverage) coverage")).toEqual(counts);

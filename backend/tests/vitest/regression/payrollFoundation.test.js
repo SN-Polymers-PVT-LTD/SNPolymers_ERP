@@ -84,22 +84,27 @@ describe('payroll Phase 1 database foundation', () => {
     await q("UPDATE authorised_users SET is_active=true,role='je' WHERE id=$1",[fm]);
     await rejected('SELECT get_payroll_foundation_context($1)',[fm],'42501');
   });
-  test('historical employee UUID and dated transfers survive present-day exit; observations do not fabricate dates', async () => {
+  test('historical employee UUID and dated transfers survive an explicit exit; observations do not fabricate dates', async () => {
     const e = await employee('Local Daily-Wage Workers', 'SNP Factory');
     const a = await assign(e, [assignment({ group_code: 'SNP_LOCAL', employee_category: e.employee_category, department: 'SNP Factory', effective_to: '1600-10-15' }),
       assignment({ group_code: 'FABRIC_LOCAL', employee_category: e.employee_category, department: 'Fabric Factory', effective_from: '1600-10-16', employment_exited_on: '1600-10-31' })]);
-    await q("UPDATE hr_employees SET department='Fabric Factory',active_status='Exited',updated_by=$1 WHERE id=$2", [admin, e.id]);
+    // Classification and exit are separate audited actions.
+    await q("UPDATE hr_employees SET department='Fabric Factory',updated_by=$1 WHERE id=$2", [admin, e.id]);
     const r = await run('SNP_LOCAL', 'SNP Factory', admin, '1600-10-01', '1600-10-15');
     const row = await add(r, a[0], admin);
     expect(row.employee_id).toBe(e.id);
+    await q("UPDATE hr_employees SET active_status='Exited',last_working_date='1600-10-31',exit_reason='Synthetic evidenced exit',updated_by=$1 WHERE id=$2", [admin, e.id]);
+    const currentAssignments = await q("SELECT a.employment_exited_on::text FROM payroll_employee_assignments a JOIN payroll_source_history_revisions h ON h.id=a.revision_id WHERE a.employee_id=$1 AND h.version=(SELECT max(version) FROM payroll_source_history_revisions WHERE employee_id=$1 AND source_kind='ASSIGNMENT')", [e.id]);
+    expect(currentAssignments).toHaveLength(2);
+    expect(currentAssignments.every(a => a.employment_exited_on === '1600-10-31')).toBe(true);
     const observed = (await q('SELECT * FROM payroll_employee_observations WHERE employee_id=$1', [e.id]))[0];
     expect(observed.effective_date_known).toBe(false);
     expect(observed.old_values.department).toBe('SNP Factory');
     const candidates = (await q('SELECT get_payroll_draft_candidates($1,$2) AS data', [r.id, admin]))[0].data.candidates;
     expect(candidates[0].employee_id).toBe(e.id);
-    await assign(e, [assignment({ group_code: 'FABRIC_LOCAL', employee_category: e.employee_category, department: 'Fabric Factory' })]);
+    await assign(e, [assignment({ group_code: 'FABRIC_LOCAL', employee_category: e.employee_category, department: 'Fabric Factory', employment_exited_on: '1600-10-31' })]);
     expect((await q('SELECT assignment_id FROM payroll_run_employees WHERE id=$1', [row.id]))[0].assignment_id).toBe(a[0].id);
-    expect((await q('SELECT count(*) FROM payroll_employee_assignments WHERE employee_id=$1', [e.id]))[0].count).toBe('3');
+    expect((await q('SELECT count(*) FROM payroll_employee_assignments WHERE employee_id=$1', [e.id]))[0].count).toBe('5');
     await rejected('SELECT add_payroll_draft_employee($1,$2,$3,$4,$5)', [(await run('SNP_LOCAL', 'SNP Factory', admin)).id, a[0].id, a[0].effective_from, a[0].effective_to, admin], 'PY409');
   });
   test('retired Projects history survives specific-category reclassification without replacing identity or pay', async () => {

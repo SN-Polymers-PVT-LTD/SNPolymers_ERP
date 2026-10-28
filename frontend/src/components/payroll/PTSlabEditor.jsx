@@ -218,7 +218,7 @@ export default function PTSlabEditor({ slabs, onChange, effectiveFrom }) {
   );
 
   return (
-    <fieldset className="col-span-full rounded-2xl border border-white/10 bg-slate-900/30 p-4 space-y-4">
+    <fieldset className="col-span-full rounded-2xl border border-white/5 bg-white/[0.02] p-4 space-y-4">
       {/* Schedule Header */}
       <div className="space-y-1">
         <legend className="text-sm font-bold text-slate-100 flex items-center gap-2">
@@ -231,7 +231,7 @@ export default function PTSlabEditor({ slabs, onChange, effectiveFrom }) {
       </div>
 
       {/* No PT Levy Toggle Card */}
-      <div className="p-3 rounded-xl border border-white/10 bg-slate-950/30 hover:bg-slate-950/50 transition">
+      <div className="p-3.5 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition">
         <label className="flex items-center gap-2.5 text-sm font-medium text-slate-200 cursor-pointer">
           <input
             type="checkbox"
@@ -285,7 +285,7 @@ export default function PTSlabEditor({ slabs, onChange, effectiveFrom }) {
               </p>
 
               {exceptions.map(m => (
-                <fieldset key={m} className="border border-white/10 rounded-xl p-3.5 bg-slate-950/30 space-y-3">
+                <fieldset key={m} className="border border-white/5 rounded-2xl p-3.5 bg-white/[0.02] space-y-3">
                   <legend className="text-xs font-bold text-amber-400 uppercase tracking-wider px-2">
                     {months[m - 1]} exception
                   </legend>

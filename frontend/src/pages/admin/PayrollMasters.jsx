@@ -341,7 +341,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
     : null;
 
   return (
-    <div className="space-y-8 text-slate-200 p-4 sm:p-6 max-w-7xl mx-auto">
+    <div className="space-y-8 text-slate-200 w-full">
       {/* Header Section */}
       <header className="space-y-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pb-6 border-b border-white/5">
@@ -355,7 +355,8 @@ export default function PayrollMasters({ kind = 'policies' }) {
             </p>
           </div>
           <Button
-            variant="amber"
+            variant="yellow"
+            className="font-bold shadow-md shadow-yellow-500/20"
             onClick={() => {
               save.reset();
               setEditor({ id: null, expected_version: 0, data: defaults(kind) });
@@ -400,20 +401,20 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
       {/* Top Stats Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="glass-panel p-4.5 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.03] to-slate-900/50 flex items-center justify-between shadow-sm">
+        <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-br from-white/[0.02] to-slate-900/40 flex items-center justify-between shadow-sm">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">Total Revisions</span>
             <span className="text-2xl font-black text-slate-100 font-mono mt-0.5 block">{query.data?.total ?? '—'}</span>
             <span className="text-[10px] text-slate-500 font-medium">Recorded versions</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-slate-400">
+          <div className="w-10 h-10 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-slate-400">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
           </div>
         </div>
 
-        <div className="glass-panel p-4.5 rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-500/[0.04] to-slate-900/50 flex items-center justify-between shadow-sm">
+        <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-br from-amber-500/[0.03] to-slate-900/40 flex items-center justify-between shadow-sm">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 block">Draft Revisions</span>
             <span className="text-2xl font-black text-amber-400 font-mono mt-0.5 block">
@@ -421,14 +422,14 @@ export default function PayrollMasters({ kind = 'policies' }) {
             </span>
             <span className="text-[10px] text-amber-500/70 font-medium">Pending publication</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-white/5 flex items-center justify-center text-amber-400">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
           </div>
         </div>
 
-        <div className="glass-panel p-4.5 rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] to-slate-900/50 flex items-center justify-between shadow-sm">
+        <div className="glass-panel p-5 rounded-3xl border border-white/5 bg-gradient-to-br from-emerald-500/[0.03] to-slate-900/40 flex items-center justify-between shadow-sm">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-widest text-emerald-400 block">Published Revisions</span>
             <span className="text-2xl font-black text-emerald-300 font-mono mt-0.5 block">
@@ -436,7 +437,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
             </span>
             <span className="text-[10px] text-emerald-400/70 font-medium">Active in calculations</span>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-white/5 flex items-center justify-center text-emerald-400">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
@@ -446,7 +447,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
       {/* Active Production Policy Spotlight */}
       {activePolicy && (
-        <div className="glass-panel p-5 rounded-2xl border border-emerald-500/25 bg-gradient-to-r from-emerald-500/[0.06] via-emerald-500/[0.02] to-slate-950/60 shadow-lg relative overflow-hidden">
+        <div className="glass-panel p-6 rounded-3xl border border-white/5 bg-gradient-to-r from-emerald-500/[0.04] via-emerald-500/[0.01] to-slate-950/60 shadow-lg relative overflow-hidden">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2">
@@ -496,7 +497,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
       )}
 
       {/* Policy & Diagnostic Notice Card */}
-      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl text-xs space-y-1 flex items-start gap-3">
+      <div className="p-5 bg-amber-500/[0.04] border border-amber-500/15 rounded-3xl text-xs space-y-1 flex items-start gap-3.5">
         <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
@@ -561,7 +562,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
             <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-white/[0.02] border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <thead className="bg-white/[0.02] border-b border-white/5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Scope & Scheme</th>
                       <th className="px-4 py-3">Configured Rules & Rates</th>
@@ -665,7 +666,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
                             <div className="flex items-center justify-end gap-2">
                               <Button
                                 size="sm"
-                                variant="amber"
+                                variant="yellow"
                                 onClick={() => { setLocalSelected(r); openHistory(r.id); }}
                               >
                                 History / details
@@ -723,7 +724,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
             <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-white/[0.02] border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <thead className="bg-white/[0.02] border-b border-white/5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                     <tr>
                       <th className="px-4 py-3">Scope & Scheme</th>
                       <th className="px-4 py-3">Configured Rules & Rates</th>
@@ -845,7 +846,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
                             <div className="flex items-center justify-end gap-2">
                               <Button
                                 size="sm"
-                                variant="amber"
+                                variant="yellow"
                                 onClick={() => { setLocalSelected(r); openHistory(r.id); }}
                               >
                                 History / details
@@ -1142,7 +1143,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
               )}
             </div>
 
-            <section className="rounded-2xl border border-slate-200 dark:border-white/10 p-5 space-y-4" aria-label="Saved rule details">
+            <section className="rounded-2xl border border-white/5 p-5 space-y-4" aria-label="Saved rule details">
               <h3 className="text-base font-semibold">Rule details</h3>
               <PayrollRevisionDetails revision={selected} />
             </section>

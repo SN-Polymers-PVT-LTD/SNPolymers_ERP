@@ -15,7 +15,10 @@ afterAll(async()=>{if(server)await new Promise(resolve=>server.close(resolve));i
 test('group candidates filter safely, paginate and expose protected existing profiles and pay enrolment',async()=>{
  const f=await fixture({factory:true,count:21}),data=await template(f),tag='BULK_'+crypto.randomUUID();await q(db,'UPDATE hr_employees SET employee_name=$2,updated_by=$3 WHERE id=ANY($1::uuid[])',[f.employees.map(e=>e.id),tag,users.admin.id]);await save(db,f.employees[0].id,users.accounts.id,0,[data]);
  const url='/statutory-profiles/setup-candidates?search='+tag+'&department=SNP%20Factory&employee_category=SNP%20Casual%20Factory%20Labour';
- const first=await request('GET',url);expect(first.status).toBe(200);expect(first.body.result.total).toBe(20);expect(first.body.result.employees.every(e=>e.profile_version===0&&e.department==='SNP Factory')).toBe(true);
+ const first=await request('GET',url);expect(first.status).toBe(200);expect(first.body.result.total).toBe(20);expect(first.body.result.needs_setup_total).toBe(20);expect(first.body.result.has_setup_total).toBe(1);expect(first.body.result.all_total).toBe(21);expect(first.body.result.employees.every(e=>e.profile_version===0&&e.department==='SNP Factory')).toBe(true);
+ const hasSetup=await request('GET',url+'&status=has_setup');expect(hasSetup.status).toBe(200);expect(hasSetup.body.result.total).toBe(1);expect(hasSetup.body.result.employees[0].id).toBe(f.employees[0].id);
+ const needsSetup=await request('GET',url+'&status=needs_setup');expect(needsSetup.status).toBe(200);expect(needsSetup.body.result.total).toBe(20);
+ const allStatus=await request('GET',url+'&status=all');expect(allStatus.status).toBe(200);expect(allStatus.body.result.total).toBe(21);
  const all=await request('GET',url+'&unconfigured_only=false&limit=10&page=2');expect(all.body.result.total).toBe(21);expect(all.body.result.employees).toHaveLength(10);
  const other=await request('GET',url.replace('SNP%20Factory','Fabric%20Factory'));expect(other.body.result.total).toBe(0);
  const literal=await request('GET','/statutory-profiles/setup-candidates?search='+encodeURIComponent('%,(employee_name.ilike.*)'));expect(literal.status).toBe(200);expect(literal.body.result.total).toBe(0);

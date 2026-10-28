@@ -30,3 +30,87 @@ it.each([
  expect(s.ESI).toMatchObject({applicability:'NOT_APPLICABLE',statutory_scope_id:null,enrolled:null});
  expect(s.EPF).toMatchObject({applicability:epf?'APPLICABLE':'NOT_APPLICABLE',statutory_scope_id:epf?scope:null,enrolled:null});
 });
+
+it('renders unified employee list, accurate server totals in KPI cards, and filters by clicking KPI', async () => {
+  api.getStatutorySetupCandidates.mockResolvedValue({
+    data: {
+      result: {
+        employees: [
+          { id: 'emp-1', employee_name: 'Alice', employee_code: 'EMP-01', department: 'SNP Factory', employee_category: 'SNP Casual Factory Labour', joining_date: '2026-08-01', profile_version: 0 },
+          { id: 'emp-2', employee_name: 'Bob', employee_code: 'EMP-02', department: 'Fabric Factory', employee_category: 'Fabric Factory Permanent Employees', joining_date: '2026-08-01', profile_version: 1 },
+          { id: 'emp-3', employee_name: 'Charlie', employee_code: 'EMP-03', department: 'SNP Factory', employee_category: 'Local Daily-Wage Workers', joining_date: '2026-08-01', profile_version: 0 }
+        ],
+        total: 3,
+        all_total: 3,
+        needs_setup_total: 1,
+        has_setup_total: 2
+      }
+    }
+  });
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <EmployeeStatutorySetup />
+    </QueryClientProvider>
+  );
+
+  // Check employees in table
+  expect(await screen.findByText('Alice')).toBeInTheDocument();
+  expect(screen.getAllByText('Needs initial setup').length).toBeGreaterThanOrEqual(1);
+  expect(screen.getByText('Has setup (v1)')).toBeInTheDocument();
+  expect(screen.getByText('Local Worker (Exempt)')).toBeInTheDocument();
+
+  // Row actions
+  expect(screen.getByRole('button', { name: 'Assign setup' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'View / change setup' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'View history' })).toBeInTheDocument();
+
+  // Click on "Has setup" KPI card to filter
+  fireEvent.click(screen.getByTitle('Filter view to configured employees'));
+  await waitFor(() => {
+    expect(api.getStatutorySetupCandidates).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'has_setup' })
+    );
+  });
+});
+
+it('enables batch selection, reveals sticky dock, and opens assignment modal', async () => {
+  api.getStatutorySetupCandidates.mockResolvedValue({
+    data: {
+      result: {
+        employees: [
+          { id: 'emp-1', employee_name: 'Alice', employee_code: 'EMP-01', department: 'SNP Factory', employee_category: 'SNP Casual Factory Labour', joining_date: '2026-08-01', profile_version: 0 }
+        ],
+        total: 1,
+        all_total: 1,
+        needs_setup_total: 1,
+        has_setup_total: 0
+      }
+    }
+  });
+
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <EmployeeStatutorySetup />
+    </QueryClientProvider>
+  );
+
+  await screen.findByText('Alice');
+
+  // Select employee checkbox
+  const checkbox = screen.getByLabelText('Select EMP-01');
+  fireEvent.click(checkbox);
+  expect(checkbox).toBeChecked();
+
+  // Sticky selection dock appears
+  expect(screen.getByText('employee selected')).toBeInTheDocument();
+
+  // Click "Assign setup" in the sticky dock
+  const assignButtons = screen.getAllByRole('button', { name: 'Assign setup' });
+  fireEvent.click(assignButtons[0]);
+
+  // Modal opens
+  expect(await screen.findByRole('dialog', { name: 'Assign deduction setup' })).toBeInTheDocument();
+  expect(screen.getByText('Assign Company Deduction Setup')).toBeInTheDocument();
+});
+

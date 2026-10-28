@@ -34,7 +34,7 @@ export default function StatutoryScopeManager() {
   return (
     <div className="space-y-6">
       {/* Create / Configure Setup Card */}
-      <section aria-label="Company deduction setup" className="glass-panel p-6 rounded-2xl border border-white/10 space-y-6 shadow-xl backdrop-blur-md">
+      <section aria-label="Company deduction setup" className="glass-panel p-6 rounded-3xl border border-white/5 space-y-6 shadow-xl bg-white/[0.01]">
         <div className="flex items-center gap-3 pb-4 border-b border-white/5">
           <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -56,7 +56,7 @@ export default function StatutoryScopeManager() {
 
         <form className="space-y-5" onSubmit={e => { e.preventDefault(); save.mutate(); }}>
           {/* Base Scope Selection Grid */}
-          <div className="p-4 rounded-xl bg-slate-950/40 border border-white/5 space-y-3">
+          <div className="p-4.5 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">Scope Parameters</span>
             <div className="grid md:grid-cols-3 gap-4">
               <div>
@@ -143,7 +143,7 @@ export default function StatutoryScopeManager() {
                   const available = options.data.rules.filter(r => r.scheme === s);
                   if (rules[s] && !available.some(r => r.id === rules[s].id)) available.unshift(rules[s]);
                   return (
-                    <div key={s} className="rounded-2xl border border-white/10 bg-slate-950/40 p-4 space-y-3">
+                    <div key={s} className="rounded-2xl border border-white/5 bg-white/[0.02] p-4.5 space-y-3">
                       <div className="flex items-center justify-between border-b border-white/5 pb-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-amber-400 font-mono">{s} Scheme</span>
                         <span className="text-[10px] text-slate-500">{available.length} available</span>
@@ -200,7 +200,7 @@ export default function StatutoryScopeManager() {
             </div>
           )}
 
-          <details className="group rounded-xl border border-white/5 bg-slate-900/40 p-3">
+          <details className="group rounded-2xl border border-white/5 bg-white/[0.02] p-3.5">
             <summary className="cursor-pointer text-xs font-semibold text-slate-400 group-open:text-slate-200 flex items-center justify-between select-none">
               Supporting details (optional)
             </summary>
@@ -218,9 +218,9 @@ export default function StatutoryScopeManager() {
 
           <Button
             type="submit"
-            variant="amber"
+            variant="yellow"
             disabled={busy || !state || !from || !establishment.trim() || !Object.keys(rules).length || options.isError || options.isPending}
-            className="w-full sm:w-auto"
+            className="w-full sm:w-auto font-bold"
           >
             Save deduction setup
           </Button>
@@ -240,12 +240,12 @@ export default function StatutoryScopeManager() {
       </section>
 
       {/* Saved Setups Tabular Section */}
-      <section className="glass-panel p-6 rounded-2xl border border-white/10 space-y-4 shadow-xl backdrop-blur-md">
+      <section className="glass-panel p-6 rounded-3xl border border-white/5 space-y-4 shadow-xl bg-white/[0.01]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/5">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
             <h3 className="font-bold text-base text-slate-100">Saved company setups</h3>
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-xs font-mono font-semibold">
+            <span className="px-2.5 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/5 text-xs font-mono font-semibold">
               {setups.data?.total ?? 0} total
             </span>
           </div>
@@ -267,7 +267,7 @@ export default function StatutoryScopeManager() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="overflow-x-auto rounded-xl border border-white/5 bg-slate-950/40">
+            <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow>
