@@ -5970,9 +5970,9 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/admin/PayrollMasters.jsx": {
-    "mtime": 1793164403.8508282,
-    "seen": 1793164506.890389,
-    "ast_hash": "4ab58cb9b38caae75bf8a2c766bbfb35",
+    "mtime": 1793164679.4758763,
+    "seen": 1793164692.68038,
+    "ast_hash": "739a3dee4b6b910bd4a6563ddb9fb756",
     "semantic_hash": ""
   },
   "frontend/src/pages/admin/PayrollMasters.test.jsx": {
