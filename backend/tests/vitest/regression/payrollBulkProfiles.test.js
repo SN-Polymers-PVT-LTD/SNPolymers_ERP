@@ -68,11 +68,35 @@ test('permanent setup rejects a profile starting outside its dated pay source wi
 });
 test('dated enrolment changes require split profiles and preserve the historical pay flags',async()=>{
  const f=await fixture({factory:false}),id=f.employees[0].id,data=await template(f);
- const old=await one(db,"SELECT id FROM hr_permanent_pay_structures WHERE employee_id=$1 AND status='Active'",[id]);await q(db,'SELECT suspend_hr_pay_structure($1,$2)',[old.id,users.admin.id]);
+ const old=await one(db,"SELECT id FROM hr_permanent_pay_structures WHERE employee_id=$1 AND status='Active'",[id]);
  const next=await one(db,"SELECT (create_hr_pay_structure($1,'Monthly salary',30000,false,true,'Active',$2)).*",[id,users.admin.id]);
  const year=f.from.slice(0,4),middle=year+'-10-15',last=year+'-10-14';
  await q(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:old.id,effective_from:f.from,effective_to:last},{pay_structure_id:next.id,effective_from:middle,effective_to:f.to}]),'SYNTHETIC dated enrolment change',users.admin.id]);
  await expect(save(db,id,users.accounts.id,0,[data])).rejects.toThrow(/split the statutory interval/);
  await save(db,id,users.accounts.id,0,[{...data,effective_to:last},{...data,effective_from:middle}]);
  const rows=await q(db,"SELECT effective_from::text,enrolled FROM payroll_employee_statutory_profiles WHERE employee_id=$1 AND scheme='EPF' ORDER BY effective_from",[id]);expect(rows).toEqual([{effective_from:f.from,enrolled:true},{effective_from:middle,enrolled:false}]);
+});
+
+// Salary setup creates NULL end dates; both entry points must accept them.
+async function ongoingSalary(f) {
+ const id=f.employees[0].id;
+ const pay=await one(db,"SELECT id FROM hr_permanent_pay_structures WHERE employee_id=$1 AND status='Active'",[id]);
+ await q(db,"SELECT record_payroll_source_history($1,'PERMANENT_PAY',$2,'SYNTHETIC ongoing salary',$3)",[id,JSON.stringify([{pay_structure_id:pay.id,effective_from:f.from,effective_to:null}]),users.admin.id]);
+}
+test.each(['individual','bulk'])('ongoing salary supports %s statutory assignment with enrolment and audit retained',async path=>{
+ const f=await fixture({factory:false}),data=await template(f);await ongoingSalary(f);
+ const response=path==='bulk'?await bulk(body(f,data)):await request('POST',`/employees/${f.employees[0].id}/statutory-profile`,'accounts',{expected_version:0,intervals:[data],evidence_reference:'SYNTHETIC ongoing salary assignment'});
+ expect(response.status).toBe(path==='bulk'?200:201);if(path==='bulk')expect(response.body.result.results[0].success).toBe(true);
+ const records=await q(db,"SELECT p.scheme,p.enrolled,h.created_by FROM payroll_employee_statutory_profiles p JOIN payroll_source_history_revisions h ON h.id=p.revision_id WHERE p.employee_id=$1",[f.employees[0].id]);
+ expect(records).toHaveLength(3);expect(records.every(r=>r.created_by===users.accounts.id)).toBe(true);
+ expect(records.find(r=>r.scheme==='EPF').enrolled).toBe(true);expect(records.find(r=>r.scheme==='ESI').enrolled).toBe(false);
+});
+test.each(['start','end'])('finite salary includes its exact %s boundary',async boundary=>{
+ const f=await fixture({factory:false}),data=await template(f);if(boundary==='end')data.effective_from=f.to;
+ await expect(save(db,f.employees[0].id,users.accounts.id,0,[data])).resolves.toMatchObject({version:1});
+});
+test('profile after finite salary end is rejected without history writes',async()=>{
+ const f=await fixture({factory:false}),data=await template(f);const next=new Date(f.to+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);data.effective_from=next.toISOString().slice(0,10);data.effective_to=null;
+ await expect(save(db,f.employees[0].id,users.accounts.id,0,[data])).rejects.toThrow(/pay source does not cover/);
+ expect((await one(db,"SELECT count(*) count FROM payroll_source_history_revisions WHERE employee_id=$1 AND source_kind='STATUTORY_PROFILE'",[f.employees[0].id])).count).toBe('0');
 });

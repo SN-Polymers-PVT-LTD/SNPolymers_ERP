@@ -297,24 +297,46 @@ export default function BulkStatutorySetup({ user, onUpdated }) {
         </div>
       )}
 
-      {!!results.length && (
-        <div className="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-900/30 space-y-2">
-          <p role="status" className="text-xs font-bold text-emerald-300 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-            Assignment completed. Recalculate affected draft salaries to use the changes.
-          </p>
-          <ul aria-label="Employee setup results" className="text-xs space-y-1.5 pt-2 border-t border-emerald-900/30">
-            {results.map(r => (
-              <li key={r.employee_id} className="flex items-center gap-2 text-slate-300">
-                <span className={`w-1.5 h-1.5 rounded-full ${r.success ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
-                <span>
-                  {r.employee_name || r.employee_code || 'Selected employee'}: {r.success ? `Setup applied from ${r.effective_from}` : `Not applied (${r.status}) — ${r.message}`}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {!!results.length && (() => {
+        const succeededCount = results.filter(r => r.success).length;
+        const failedCount = results.filter(r => !r.success).length;
+        const allFailed = succeededCount === 0;
+        const isPartial = succeededCount > 0 && failedCount > 0;
+
+        const containerClasses = allFailed
+          ? 'bg-red-950/25 border-red-900/40 text-red-300'
+          : isPartial
+          ? 'bg-amber-950/25 border-amber-900/40 text-amber-300'
+          : 'bg-emerald-950/20 border-emerald-900/30 text-emerald-300';
+
+        const dotClass = allFailed ? 'bg-red-500' : isPartial ? 'bg-amber-400' : 'bg-emerald-400';
+        const dividerClass = allFailed ? 'border-red-900/40' : isPartial ? 'border-amber-900/40' : 'border-emerald-900/30';
+
+        const headingText = allFailed
+          ? (failedCount === 1 ? 'Assignment failed. Could not apply setup to the selected employee.' : `Assignment failed for all ${failedCount} selected employees.`)
+          : isPartial
+          ? `Partial assignment: ${succeededCount} applied successfully, ${failedCount} failed.`
+          : 'Assignment completed. Recalculate affected draft salaries to use the changes.';
+
+        return (
+          <div className={`p-4 rounded-2xl border space-y-2 ${containerClasses}`}>
+            <p role={allFailed ? 'alert' : 'status'} className="text-xs font-bold flex items-center gap-2">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`}></span>
+              <span>{headingText}</span>
+            </p>
+            <ul aria-label="Employee setup results" className={`text-xs space-y-1.5 pt-2 border-t ${dividerClass}`}>
+              {results.map(r => (
+                <li key={r.employee_id} className="flex items-center gap-2 text-slate-300">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${r.success ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                  <span className={!r.success ? 'text-red-200' : 'text-slate-300'}>
+                    {r.employee_name || r.employee_code || 'Selected employee'}: {r.success ? `Setup applied from ${r.effective_from}` : `Not applied (${r.status}) — ${r.message}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })()}
     </section>
   );
 }

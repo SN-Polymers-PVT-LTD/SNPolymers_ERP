@@ -1,3 +1,4 @@
+import PayrollRevisionDetails from '../../components/payroll/PayrollRevisionDetails';
 import StatutoryScopeManager from '../../components/payroll/StatutoryScopeManager';
 import { newStatutoryConfiguration, statutoryDraftInput, statutoryComponents } from '../../components/payroll/statutoryPresets';
 import React, { useState, useMemo, useEffect } from 'react';
@@ -116,7 +117,7 @@ function getRuleSummary(r, kind) {
   return { title: r.verification_status || 'Standard Setup', subtitle: '' };
 }
 
-function AuditEventTimeline({ events = [], formatTimestamp, json }) {
+function AuditEventTimeline({ events = [], formatTimestamp }) {
   const [openSnapshots, setOpenSnapshots] = useState({});
 
   const toggleSnapshot = (id) => {
@@ -160,9 +161,7 @@ function AuditEventTimeline({ events = [], formatTimestamp, json }) {
                   <Badge variant={badgeVariant} showDot={false}>
                     {action.replaceAll('_', ' ')}
                   </Badge>
-                  <span className="text-[11px] font-mono text-slate-400">
-                    Event #{event.id}
-                  </span>
+
                 </div>
                 <span className="text-[11px] text-slate-400 font-medium">
                   {formatTimestamp(event.occurred_at || event.timestamp)}
@@ -171,9 +170,9 @@ function AuditEventTimeline({ events = [], formatTimestamp, json }) {
 
               <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-300">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-500">Actor:</span>
+                  <span className="text-slate-500">Recorded by:</span>
                   <span className="font-mono bg-white/5 px-2 py-0.5 rounded text-slate-300">
-                    {event.actor_id ? `User …${event.actor_id.slice(-8)}` : 'System Actor'}
+                    {event.actor_name || event.actor_display_name || 'User name not available'}
                   </span>
                 </div>
                 {(event.after_snapshot || event.before_snapshot) && (
@@ -182,16 +181,14 @@ function AuditEventTimeline({ events = [], formatTimestamp, json }) {
                     onClick={() => toggleSnapshot(event.id)}
                     className="text-amber-400 hover:text-amber-300 transition text-[11px] font-medium underline underline-offset-2"
                   >
-                    {isOpen ? 'Hide snapshot data' : 'View snapshot data'}
+                    {isOpen ? 'Hide rule details' : 'View rule details'}
                   </button>
                 )}
               </div>
 
               {isOpen && (
                 <div className="mt-2 p-3 rounded-xl bg-slate-950/80 border border-white/5 overflow-x-auto">
-                  <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap">
-                    {json(event.after_snapshot || event.before_snapshot || event)}
-                  </pre>
+                  <PayrollRevisionDetails revision={event.after_snapshot || event.before_snapshot} before={event.after_snapshot ? event.before_snapshot : null} />
                 </div>
               )}
             </div>
@@ -208,7 +205,6 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
   const {
     page,
-    setPage,
     modal,
     revisionId,
     openHistory,
@@ -225,6 +221,9 @@ export default function PayrollMasters({ kind = 'policies' }) {
   const [ack, setAck] = useState(false);
   const [success, setSuccess] = useState('');
   const [lookup, setLookup] = useState({ date: '', group_code: 'HO_STAFF', scheme: 'EPF', jurisdiction: '', establishment: '' });
+  const [draftPage, setDraftPage] = useState(1);
+  const [publishedPage, setPublishedPage] = useState(1);
+  const PAGE_SIZE = 6;
 
   const canWrite = kind === 'statutory' ? user?.role === 'accounts' : user?.role === 'admin';
   const query = useQuery({
@@ -232,6 +231,23 @@ export default function PayrollMasters({ kind = 'policies' }) {
     enabled: canWrite,
     queryFn: async () => (await listPayrollMasters(kind, { page, limit: 20 })).data.result
   });
+
+  const allRevisions = useMemo(() => query.data?.revisions || [], [query.data?.revisions]);
+  const draftRevisions = useMemo(() => allRevisions.filter(r => r.status === 'DRAFT'), [allRevisions]);
+  const publishedRevisions = useMemo(() => allRevisions.filter(r => r.status === 'PUBLISHED'), [allRevisions]);
+
+  const draftTotalPages = Math.max(1, Math.ceil(draftRevisions.length / PAGE_SIZE));
+  const publishedTotalPages = Math.max(1, Math.ceil(publishedRevisions.length / PAGE_SIZE));
+
+  const pagedDrafts = useMemo(() => {
+    const start = (draftPage - 1) * PAGE_SIZE;
+    return draftRevisions.slice(start, start + PAGE_SIZE);
+  }, [draftRevisions, draftPage]);
+
+  const pagedPublished = useMemo(() => {
+    const start = (publishedPage - 1) * PAGE_SIZE;
+    return publishedRevisions.slice(start, start + PAGE_SIZE);
+  }, [publishedRevisions, publishedPage]);
 
   const selected = useMemo(() => {
     if (modal !== 'history') return null;
@@ -320,12 +336,9 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-  const activePolicy = useMemo(() => {
-    if (kind !== 'policies' || !query.data?.revisions) return null;
-    return query.data.revisions.find(r => r.status === 'PUBLISHED' && r.effective_from <= today && (!r.effective_to || r.effective_to >= today))
-      || query.data.revisions.find(r => r.status === 'PUBLISHED')
-      || null;
-  }, [kind, query.data?.revisions, today]);
+  const activePolicy = kind === 'policies'
+    ? query.data?.revisions?.find(r => r.status === 'PUBLISHED' && r.effective_from <= today && (!r.effective_to || r.effective_to >= today)) || null
+    : null;
 
   return (
     <div className="space-y-8 text-slate-200 p-4 sm:p-6 max-w-7xl mx-auto">
@@ -531,181 +544,331 @@ export default function PayrollMasters({ kind = 'policies' }) {
             </div>
           )}
 
-          {['DRAFT', 'PUBLISHED'].map(status => {
-            const revs = query.data.revisions.filter(r => r.status === status);
-            return (
-              <section key={status} className="glass-panel p-6 rounded-3xl border border-white/5 space-y-4 shadow-xl">
-                <div className="flex items-center gap-2 text-amber-500">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <h2 className="font-bold text-xs uppercase tracking-widest text-slate-200">
-                    {status === 'DRAFT' ? 'Draft revisions' : 'Published revision history'}
-                  </h2>
-                </div>
+          {/* Draft Revisions Section */}
+          <section className="glass-panel p-6 rounded-3xl border border-white/5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-500">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <h2 className="font-bold text-xs uppercase tracking-widest text-slate-200">
+                  Draft revisions
+                </h2>
+                <span className="text-[11px] font-mono text-slate-500 font-semibold">({draftRevisions.length})</span>
+              </div>
+            </div>
 
-                <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-white/[0.02] border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-                        <tr>
-                          <th className="px-4 py-3">Scope & Scheme</th>
-                          <th className="px-4 py-3">Configured Rules & Rates</th>
-                          <th className="px-4 py-3">Status & Version</th>
-                          <th className="px-4 py-3">Effective Period</th>
-                          <th className="px-4 py-3">Sign-off / Publication</th>
-                          <th className="px-4 py-3 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-white/5">
-                        {revs.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-6 text-center text-slate-500 italic">
-                              No {status.toLowerCase()} revisions recorded.
-                            </td>
-                          </tr>
-                        ) : (
-                          revs.map(r => (
-                            <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
-                              {/* Scope & Scheme */}
-                              <td className="px-4 py-3.5">
-                                {kind === 'policies' ? (
-                                  <div>
-                                    <div className="flex items-center gap-2 mb-0.5">
-                                      <Badge variant="indigo">{r.group_code || 'Global'}</Badge>
-                                      <span className="font-semibold text-slate-100 text-xs">
-                                        {r.group_code ? `Group ${r.group_code}` : 'Global Default Policy'}
-                                      </span>
-                                    </div>
-                                    <span className="text-[11px] text-slate-400">Monthly salaried policy</span>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <div className="flex items-center gap-1.5 mb-0.5">
-                                      <Badge variant={r.scheme === 'PT' ? 'amber' : r.scheme === 'EPF' ? 'indigo' : 'emerald'}>
-                                        {r.scheme}
-                                      </Badge>
-                                      <span className="font-semibold text-slate-100 text-xs">
-                                        {r.establishment || 'All Establishments'}
-                                      </span>
-                                    </div>
-                                    <div className="text-[11px] text-slate-400 font-medium">
-                                      {r.jurisdiction ? `${r.jurisdiction} State` : 'All Jurisdictions'}
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Configured Rules & Rates */}
-                              <td className="px-4 py-3.5">
-                                {(() => {
-                                  const summary = getRuleSummary(r, kind);
-                                  return (
-                                    <div>
-                                      <div className="text-xs font-semibold text-slate-100">
-                                        {summary.title}
-                                      </div>
-                                      <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                                        {summary.subtitle}
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-
-                              {/* Status & Version */}
-                              <td className="px-4 py-3.5">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={r.status === 'PUBLISHED' ? 'emerald' : 'amber'}>{r.status}</Badge>
-                                  <span className="text-xs font-semibold text-slate-300">
-                                    {r.revision_number ? `Rev #${r.revision_number}` : `Draft v${r.version}`}
+            <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/[0.02] border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Scope & Scheme</th>
+                      <th className="px-4 py-3">Configured Rules & Rates</th>
+                      <th className="px-4 py-3">Status & Version</th>
+                      <th className="px-4 py-3">Effective Period</th>
+                      <th className="px-4 py-3">Resolution date</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {draftRevisions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-6 text-center text-slate-500 italic">
+                          No draft revisions recorded.
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedDrafts.map(r => (
+                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                          {/* Scope & Scheme */}
+                          <td className="px-4 py-3.5">
+                            {kind === 'policies' ? (
+                              <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <Badge variant="indigo">{r.group_code || 'Global'}</Badge>
+                                  <span className="font-semibold text-slate-100 text-xs">
+                                    {r.group_code ? `Group ${r.group_code}` : 'Global Default Policy'}
                                   </span>
                                 </div>
-                                {r.status === 'PUBLISHED' && (
-                                  <div className="mt-1">
-                                    {r.effective_from > today ? (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                        Future Scheduled
-                                      </span>
-                                    ) : r.effective_to && r.effective_to < today ? (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
-                                        Historical
-                                      </span>
-                                    ) : (
-                                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                        Current Active
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* Effective Period */}
-                              <td className="px-4 py-3.5">
-                                <div className="text-xs font-medium text-slate-200">
-                                  {formatDisplayDate(r.effective_from)} <span className="text-slate-500 mx-1">→</span> {r.effective_to ? formatDisplayDate(r.effective_to) : 'Ongoing'}
+                                <span className="text-[11px] text-slate-400">Monthly salaried policy</span>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <Badge variant={r.scheme === 'PT' ? 'amber' : r.scheme === 'EPF' ? 'indigo' : 'emerald'}>
+                                    {r.scheme}
+                                  </Badge>
+                                  <span className="font-semibold text-slate-100 text-xs">
+                                    {r.establishment || 'All Establishments'}
+                                  </span>
                                 </div>
-                                <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
-                                  {r.effective_to ? 'Fixed-term revision' : 'Open-ended policy'}
+                                <div className="text-[11px] text-slate-400 font-medium">
+                                  {r.jurisdiction ? `${r.jurisdiction} State` : 'All Jurisdictions'}
                                 </div>
-                              </td>
+                              </div>
+                            )}
+                          </td>
 
-                              {/* Sign-off / Publication */}
-                              <td className="px-4 py-3.5">
-                                {r.status === 'PUBLISHED' ? (
-                                  <div>
-                                    <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                                      <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                      </svg>
-                                      Accounts Confirmed
-                                    </div>
-                                    {r.published_at && (
-                                      <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                                        {formatTimestamp(r.published_at)}
-                                      </div>
-                                    )}
+                          {/* Configured Rules & Rates */}
+                          <td className="px-4 py-3.5">
+                            {(() => {
+                              const summary = getRuleSummary(r, kind);
+                              return (
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-100">
+                                    {summary.title}
                                   </div>
-                                ) : (
-                                  <div>
-                                    <div className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                                      Unpublished Draft
-                                    </div>
-                                    <div className="text-[11px] text-slate-400 mt-0.5 truncate max-w-[180px]" title={r.reason}>
-                                      {r.reason ? `Reason: ${r.reason}` : 'Pending review & publish'}
-                                    </div>
+                                  <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                                    {summary.subtitle}
                                   </div>
-                                )}
-                              </td>
-
-                              {/* Actions */}
-                              <td className="px-4 py-3.5 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <Button size="sm" variant="secondary" onClick={() => { setLocalSelected(r); openHistory(r.id); }}>History / details</Button>
-                                  {r.status === 'DRAFT' && (
-                                    <>
-                                      <Button size="sm" onClick={() => { save.reset(); setEditor({ id: r.id, expected_version: r.version, data: structuredClone(r.data) }); openEdit(r.id); }}>Edit draft</Button>
-                                      <Button size="sm" variant="amber" loading={inspect.isPending} onClick={() => { publish.reset(); inspect.mutate(r.id); openPreview(r.id); }}>Review publication</Button>
-                                    </>
-                                  )}
                                 </div>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </section>
-            );
-          })}
+                              );
+                            })()}
+                          </td>
 
-          <Pagination currentPage={page} totalPages={Math.max(1, Math.ceil(query.data.total / 20))} onPageChange={setPage} />
+                          {/* Status & Version */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="amber">{r.status}</Badge>
+                              <span className="text-xs font-semibold text-slate-300">
+                                {r.revision_number ? `Rev #${r.revision_number}` : `Draft v${r.version}`}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Effective Period */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs font-medium text-slate-200">
+                              {formatDisplayDate(r.effective_from)} <span className="text-slate-500 mx-1">→</span> {r.effective_to ? formatDisplayDate(r.effective_to) : 'Ongoing'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                              {r.effective_to ? 'Fixed-term revision' : 'Open-ended policy'}
+                            </div>
+                          </td>
+
+                          {/* Resolution date */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{formatDisplayDate(r.effective_from)}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 pl-5 font-mono">
+                              {r.created_at ? formatTimestamp(r.created_at) : 'Draft'}
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="amber"
+                                onClick={() => { setLocalSelected(r); openHistory(r.id); }}
+                              >
+                                History / details
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="border border-slate-300 dark:border-white/15 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold px-3 py-1.5 rounded-xl shadow-sm transition-all"
+                                onClick={() => { save.reset(); setEditor({ id: r.id, expected_version: r.version, data: structuredClone(r.data) }); openEdit(r.id); }}
+                              >
+                                Edit draft
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="amber"
+                                className="px-3.5 py-1.5 rounded-xl shadow-sm font-semibold transition-all"
+                                loading={inspect.isPending}
+                                onClick={() => { publish.reset(); inspect.mutate(r.id); openPreview(r.id); }}
+                              >
+                                Review publication
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {draftTotalPages > 1 && (
+                <Pagination
+                  currentPage={draftPage}
+                  totalPages={draftTotalPages}
+                  onPageChange={setDraftPage}
+                  showLabel={true}
+                  totalRecords={draftRevisions.length}
+                />
+              )}
+            </div>
+          </section>
+
+          {/* Published Revisions Section */}
+          <section className="glass-panel p-6 rounded-3xl border border-white/5 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h2 className="font-bold text-xs uppercase tracking-widest text-slate-200">
+                  Published revision history
+                </h2>
+                <span className="text-[11px] font-mono text-slate-500 font-semibold">({publishedRevisions.length})</span>
+              </div>
+            </div>
+
+            <div className="glass-panel rounded-2xl border border-white/5 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-white/[0.02] border-b border-white/10 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <tr>
+                      <th className="px-4 py-3">Scope & Scheme</th>
+                      <th className="px-4 py-3">Configured Rules & Rates</th>
+                      <th className="px-4 py-3">Status & Version</th>
+                      <th className="px-4 py-3">Effective Period</th>
+                      <th className="px-4 py-3">Resolution date</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {publishedRevisions.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-6 text-center text-slate-500 italic">
+                          No published revisions recorded.
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedPublished.map(r => (
+                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors">
+                          {/* Scope & Scheme */}
+                          <td className="px-4 py-3.5">
+                            {kind === 'policies' ? (
+                              <div>
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <Badge variant="indigo">{r.group_code || 'Global'}</Badge>
+                                  <span className="font-semibold text-slate-100 text-xs">
+                                    {r.group_code ? `Group ${r.group_code}` : 'Global Default Policy'}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-slate-400">Monthly salaried policy</span>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="flex items-center gap-1.5 mb-0.5">
+                                  <Badge variant={r.scheme === 'PT' ? 'amber' : r.scheme === 'EPF' ? 'indigo' : 'emerald'}>
+                                    {r.scheme}
+                                  </Badge>
+                                  <span className="font-semibold text-slate-100 text-xs">
+                                    {r.establishment || 'All Establishments'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400 font-medium">
+                                  {r.jurisdiction ? `${r.jurisdiction} State` : 'All Jurisdictions'}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Configured Rules & Rates */}
+                          <td className="px-4 py-3.5">
+                            {(() => {
+                              const summary = getRuleSummary(r, kind);
+                              return (
+                                <div>
+                                  <div className="text-xs font-semibold text-slate-100">
+                                    {summary.title}
+                                  </div>
+                                  <div className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                                    {summary.subtitle}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </td>
+
+                          {/* Status & Version */}
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="emerald">{r.status}</Badge>
+                              <span className="text-xs font-semibold text-slate-300">
+                                {r.revision_number ? `Rev #${r.revision_number}` : `Draft v${r.version}`}
+                              </span>
+                            </div>
+                            <div className="mt-1">
+                              {r.effective_from > today ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  Future Scheduled
+                                </span>
+                              ) : r.effective_to && r.effective_to < today ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                                  Historical
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  Current Active
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Effective Period */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs font-medium text-slate-200">
+                              {formatDisplayDate(r.effective_from)} <span className="text-slate-500 mx-1">→</span> {r.effective_to ? formatDisplayDate(r.effective_to) : 'Ongoing'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 mt-0.5 font-medium">
+                              {r.effective_to ? 'Fixed-term revision' : 'Open-ended policy'}
+                            </div>
+                          </td>
+
+                          {/* Resolution date */}
+                          <td className="px-4 py-3.5">
+                            <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                              <span>{formatDisplayDate(r.published_at ? r.published_at.slice(0, 10) : (r.verified_on || r.effective_from))}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 pl-5 font-mono">
+                              {r.published_at ? formatTimestamp(r.published_at) : (r.created_at ? formatTimestamp(r.created_at) : 'Draft')}
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="px-4 py-3.5 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="amber"
+                                onClick={() => { setLocalSelected(r); openHistory(r.id); }}
+                              >
+                                History / details
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {publishedTotalPages > 1 && (
+                <Pagination
+                  currentPage={publishedPage}
+                  totalPages={publishedTotalPages}
+                  onPageChange={setPublishedPage}
+                  showLabel={true}
+                  totalRecords={publishedRevisions.length}
+                />
+              )}
+            </div>
+          </section>
         </div>
       )}
 
@@ -941,29 +1104,58 @@ export default function PayrollMasters({ kind = 'policies' }) {
       {/* Revision History & Details Modal */}
       {selected && (
         <Modal title="Revision history and audit" size="xl" onClose={() => { setLocalSelected(null); closeModal(); }}>
-          <div className="space-y-4 text-xs">
-            <div className="grid sm:grid-cols-2 gap-3 p-4 rounded-xl bg-slate-950/40 border border-white/5">
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Scope</span>
-                <span className="font-semibold text-slate-200">
-                  {selected.group_code || (kind === 'policies' ? 'All Staff (Global)' : `${selected.scheme} · ${selected.establishment} (${selected.jurisdiction})`)}
-                </span>
+          <div className="space-y-5 text-xs">
+            {/* Header Scope & Status Card */}
+            <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant={selected.status === 'PUBLISHED' ? 'emerald' : 'amber'}>
+                    {selected.status}
+                  </Badge>
+                  <span className="text-xs font-bold text-slate-100">
+                    {selected.revision_number ? `Revision #${selected.revision_number}` : `Draft Version ${selected.version}`}
+                  </span>
+                </div>
+                <div className="text-[11px] font-mono text-slate-400">
+                  {formatDisplayDate(selected.effective_from)} → {selected.effective_to ? formatDisplayDate(selected.effective_to) : 'Ongoing'}
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Status & Dates</span>
-                <span className="font-mono text-slate-200">{selected.status} · {selected.effective_from} to {selected.effective_to || 'Ongoing'}</span>
+
+              <div className="grid sm:grid-cols-2 gap-3 pt-2 border-t border-white/5">
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Scope</span>
+                  <span className="font-semibold text-slate-200">
+                    {selected.group_code || (kind === 'policies' ? 'All Staff (Global)' : `${selected.scheme} · ${selected.establishment} (${selected.jurisdiction})`)}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Status & Dates</span>
+                  <span className="font-mono text-slate-200">{selected.status} · {selected.effective_from} to {selected.effective_to || 'Ongoing'}</span>
+                </div>
               </div>
+
+              {selected.reason && (
+                <div className="pt-2 border-t border-white/5 text-[11px] text-slate-400">
+                  <span className="text-slate-500 font-semibold mr-1">Reason:</span>
+                  {selected.reason}
+                </div>
+              )}
             </div>
-            <details className="group rounded-xl border border-white/5 bg-slate-900/40 p-3">
-              <summary className="cursor-pointer text-xs font-semibold text-slate-400 group-open:text-slate-200">View complete revision payload</summary>
-              <pre className="mt-2 text-xs font-mono text-slate-300 whitespace-pre-wrap">{json(selected)}</pre>
-            </details>
-            <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200 pt-2">Audit events</h3>
-            <div className="p-4 rounded-xl border border-white/5 bg-slate-950/60 overflow-x-auto">
-              <pre className="text-xs font-mono text-slate-400 whitespace-pre-wrap">
-                {json((query.data?.events || []).filter(e => e.policy_revision_id === selected.id || e.statutory_revision_id === selected.id))}
-              </pre>
+
+            <section className="rounded-2xl border border-slate-200 dark:border-white/10 p-5 space-y-4" aria-label="Saved rule details">
+              <h3 className="text-base font-semibold">Rule details</h3>
+              <PayrollRevisionDetails revision={selected} />
+            </section>
+
+            {/* Audit Events Timeline */}
+            <div className="space-y-3 pt-2">
+              <h3 className="font-extrabold text-sm uppercase tracking-wider text-slate-200">Audit events</h3>
+              <AuditEventTimeline
+                events={(query.data?.events || []).filter(e => e.policy_revision_id === selected.id || e.statutory_revision_id === selected.id)}
+                formatTimestamp={formatTimestamp}
+              />
             </div>
+
           </div>
         </Modal>
       )}

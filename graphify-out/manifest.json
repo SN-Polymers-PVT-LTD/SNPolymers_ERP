@@ -3366,10 +3366,10 @@
     "semantic_hash": "6bce4dcfb7ce67311bbcc40e85632864"
   },
   "frontend/src/components/ui/Pagination.jsx": {
-    "mtime": 1786337104.5366967,
-    "seen": 1790921982.1304553,
-    "ast_hash": "66ba9a40b75f0b0753102f470aca34f4",
-    "semantic_hash": "66ba9a40b75f0b0753102f470aca34f4"
+    "mtime": 1793165391.0859852,
+    "seen": 1793165815.8964775,
+    "ast_hash": "666b0cfc7b533c47f1e5235d1c9b486e",
+    "semantic_hash": ""
   },
   "frontend/src/components/ui/PremiumSuccessModal.jsx": {
     "mtime": 1787722503.8873363,
@@ -4314,10 +4314,10 @@
     "semantic_hash": "c9fc6098bd80f4ce5d21aa75267b9197"
   },
   "frontend/src/pages/SubcontractEstimates.jsx": {
-    "mtime": 1790226698.223655,
-    "seen": 1790921982.130722,
-    "ast_hash": "1e9fe43263d9e201d77092974a7e94d3",
-    "semantic_hash": "1e9fe43263d9e201d77092974a7e94d3"
+    "mtime": 1793166748.129622,
+    "seen": 1793166829.838667,
+    "ast_hash": "831a400b482ccf19594d6bf01aed0825",
+    "semantic_hash": ""
   },
   "frontend/src/pages/SubcontractEstimates.test.jsx": {
     "mtime": 1790163704.0466468,
@@ -5970,15 +5970,15 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/admin/PayrollMasters.jsx": {
-    "mtime": 1793164679.4758763,
-    "seen": 1793164692.68038,
-    "ast_hash": "739a3dee4b6b910bd4a6563ddb9fb756",
+    "mtime": 1793165769.8681245,
+    "seen": 1793165815.896944,
+    "ast_hash": "bd0deb4e5980d8d140edd22ef893b39a",
     "semantic_hash": ""
   },
   "frontend/src/pages/admin/PayrollMasters.test.jsx": {
-    "mtime": 1793130853.1441057,
-    "seen": 1793130981.514075,
-    "ast_hash": "8be01442e1ee2da830435dd46095b8b8",
+    "mtime": 1793165805.0889413,
+    "seen": 1793165815.8969462,
+    "ast_hash": "dd01a563678f40c0fe0223cb56e62738",
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Payroll_Phase2_Implementation.md": {
@@ -6672,21 +6672,21 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollBulkProfiles.test.js": {
-    "mtime": 1793004421.430966,
-    "seen": 1793005333.1672559,
-    "ast_hash": "1371990a5402d9511713745a71b3db51",
+    "mtime": 1793167061.8293135,
+    "seen": 1793167123.4244866,
+    "ast_hash": "b8b14ca025b7efbbda418667b487985a",
     "semantic_hash": ""
   },
   "frontend/src/components/payroll/BulkStatutorySetup.jsx": {
-    "mtime": 1793006398.488469,
-    "seen": 1793007201.553438,
-    "ast_hash": "96b1e7b3c30093e70a14278af7f8e6fc",
+    "mtime": 1793166945.0981238,
+    "seen": 1793167002.4732518,
+    "ast_hash": "38b028ee28fbde309955bcbc9398a322",
     "semantic_hash": ""
   },
   "frontend/src/components/payroll/BulkStatutorySetup.test.jsx": {
-    "mtime": 1793004796.195643,
-    "seen": 1793005333.1675327,
-    "ast_hash": "5cef327dff5eb40b3c2fa1044a716439",
+    "mtime": 1793166961.0973845,
+    "seen": 1793167002.473255,
+    "ast_hash": "002e6b6c7b3e4817f50f8a676207d6f4",
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Payroll_Bulk_Statutory_Setup.md": {
@@ -6738,9 +6738,9 @@
     "semantic_hash": ""
   },
   "frontend/src/components/payroll/PTSlabEditor.jsx": {
-    "mtime": 1793029824.8970423,
-    "seen": 1793029914.8575003,
-    "ast_hash": "e2d1c8df6d65c8b1b98e8dbc367beeda",
+    "mtime": 1793166732.562318,
+    "seen": 1793166829.8383806,
+    "ast_hash": "2a1b1f38ea26a818aa9fa41f4d718105",
     "semantic_hash": ""
   },
   "frontend/src/components/payroll/PTSlabEditor.test.jsx": {
@@ -7047,6 +7047,24 @@
     "mtime": 1793163154.71467,
     "seen": 1793163923.0267367,
     "ast_hash": "dfede7fcd7caeccec3001813aa0c4867",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/payroll/PayrollRevisionDetails.jsx": {
+    "mtime": 1793165792.0384324,
+    "seen": 1793165815.896391,
+    "ast_hash": "df504a678d26983d39f8317ff482388a",
+    "semantic_hash": ""
+  },
+  "frontend/src/components/payroll/PayrollRevisionDetails.test.jsx": {
+    "mtime": 1793165739.2702584,
+    "seen": 1793165815.8963969,
+    "ast_hash": "b5278af30ca4c50240f82d610782dbd9",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/150_payroll_ongoing_salary_profile_coverage.sql": {
+    "mtime": 1793167028.507533,
+    "seen": 1793167123.4229255,
+    "ast_hash": "8eab6bff4de524df329ef51f45bd33f2",
     "semantic_hash": ""
   }
 }

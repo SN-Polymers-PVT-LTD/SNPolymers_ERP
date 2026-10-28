@@ -7,7 +7,7 @@ const amountKey = v => v === null ? null : String(v).replace(/^0+(?=\d)/, '').re
 const same = (a, b) => JSON.stringify(a.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, amountKey(v)])))) === JSON.stringify(b.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, amountKey(v)]))));
 const blank = () => ({ lower_bound: '', upper_bound: null, deduction_amount: '' });
 
-export function formatIndianCurrency(val) {
+function formatIndianCurrency(val) {
   if (val === null || val === undefined || val === '') return '';
   const str = String(val);
   const clean = str.replace(/,/g, '');

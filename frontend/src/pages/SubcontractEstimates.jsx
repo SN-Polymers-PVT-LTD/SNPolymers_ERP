@@ -122,10 +122,13 @@ const SubcontractEstimates = () => {
   ).length;
 
   // Filtered estimates based on the selected sheet, search, and status filters.
-  const activeFilters = { selectedFilter, statusFilter, searchQuery };
+  const activeFilters = useMemo(
+    () => ({ selectedFilter, statusFilter, searchQuery }),
+    [selectedFilter, statusFilter, searchQuery]
+  );
   const filteredEstimates = useMemo(
     () => filterSubcontractEstimates(estimates, activeFilters),
-    [estimates, selectedFilter, statusFilter, searchQuery]
+    [estimates, activeFilters]
   );
 
   const exportList = async () => {
