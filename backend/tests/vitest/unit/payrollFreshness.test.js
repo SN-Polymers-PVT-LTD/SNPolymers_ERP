@@ -1,0 +1,7 @@
+import {test,expect,vi} from 'vitest';
+const {sourceCheck}=require('../../../src/domain/payroll/freshness');
+const review={row:{id:'row',status:'CALCULATED',current_version:3,review_revision:2,review_version:4},source:{},revisions:[{calculation_snapshot:{source_fingerprint:'old',source_references:{policies:[{id:'old'}]}}}]};
+test('locked salaries do not read or recalculate mutable sources',()=>{const calculate=vi.fn();expect(sourceCheck({...review,row:{...review.row,status:'LOCKED'},source:null},calculate).status).toBe('CURRENT');expect(calculate).not.toHaveBeenCalled();});
+test('missing sources and absent calculations stay distinct from current results',()=>{expect(sourceCheck({...review,source:null}).status).toBe('UNAVAILABLE');expect(sourceCheck({...review,revisions:[]}).status).toBe('UNCALCULATED');});
+test('changed salary policy has a friendly reason and carries exact saved evidence identity',()=>{const check=sourceCheck(review,()=>({source_fingerprint:'new',source_references:{policies:[{id:'new'}]}}));expect(check).toMatchObject({row_id:'row',current_version:3,review_revision:2,review_version:4,source_fingerprint:'old',status:'CHANGED',reasons:['Salary calculation policy changed.']});expect(review.revisions[0].calculation_snapshot.source_fingerprint).toBe('old');});
+test('matching source fingerprint is current regardless of how values are displayed',()=>{expect(sourceCheck(review,()=>({source_fingerprint:'old'})).status).toBe('CURRENT');});

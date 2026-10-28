@@ -9,6 +9,54 @@ async function queue(req,res){
   return res.json({success:true,queue:{...data,rows:data.rows.map(row=>({...row,available_actions:availableActions(row,req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(row.department))}))}});
  }catch(error){return sendError(res,error);}
 }
+async function freshness(req,res){
+ try{
+  const {data,error}=await supabase.rpc('get_payroll_review_queue',{p_actor_id:req.user.id,p_run_id:req.query.run_id,p_status:null,p_page:req.query.page,p_limit:req.query.limit});
+  if(error)return sendError(res,error);
+  const checks=new Array(data.rows.length);let cursor=0;
+  // Page bounded to 20, at most four source snapshots in flight. Every RPC
+  // independently enforces current actor scope; no generation or writes occur.
+  await Promise.all(Array.from({length:Math.min(4,data.rows.length)},async()=>{
+   while(cursor<data.rows.length){const index=cursor++,row=data.rows[index];
+    try{const result=await supabase.rpc('get_payroll_employee_review',{p_row_id:row.id,p_actor_id:req.user.id});
+     if(result.error)throw result.error;
+     checks[index]=require('../domain/payroll/freshness').sourceCheck(result.data);
+    }catch{checks[index]={row_id:row.id,current_version:row.current_version,review_revision:row.review_revision,review_version:row.review_version,source_fingerprint:row.source_fingerprint,status:'UNAVAILABLE',reasons:['Current payroll sources could not be verified.']};}
+   }
+  }));
+  return res.set('Cache-Control','no-store').json({success:true,freshness:{checks,total:data.total}});
+ }catch(error){return sendError(res,error);}
+}
+async function autoRecalculate(req,res){
+ try{
+  const {run_id,page,limit}=req.body;
+  const scope=await supabase.rpc('get_payroll_draft_run',{p_run_id:run_id,p_actor_id:req.user.id,p_page:1,p_limit:1});
+  if(scope.error)return sendError(res,scope.error);
+  if(!scope.data?.run)return res.status(404).json({success:false,message:'Payroll run not found.'});
+  const role=['SNP Factory','Fabric Factory'].includes(scope.data.run.department)?'factory_manager':'accounts';
+  if(scope.data.run.created_by!==req.user.id||req.user.role!==role)return res.status(403).json({success:false,message:'Only the originating preparer may automatically recalculate this sheet.'});
+  const fetched=await supabase.rpc('get_payroll_review_queue',{p_actor_id:req.user.id,p_run_id:run_id,p_status:null,p_page:page,p_limit:limit});
+  if(fetched.error)return sendError(res,fetched.error);
+  const results=[];
+  for(const row of fetched.data.rows){
+   if(!['DRAFT','CALCULATED'].includes(row.status)){results.push({row_id:row.id,status:'PRESERVED'});continue;}
+   try{
+    const review=await supabase.rpc('get_payroll_employee_review',{p_row_id:row.id,p_actor_id:req.user.id});
+    if(review.error)throw review.error;
+    const current=review.data;
+    // Recheck after the queue read: another tab may have submitted the row.
+    if(!['DRAFT','CALCULATED'].includes(current.row.status)){results.push({row_id:row.id,status:'PRESERVED'});continue;}
+    const check=require('../domain/payroll/freshness').sourceCheck(current);
+    if(check.status==='CURRENT'){results.push({row_id:row.id,status:'CURRENT'});continue;}
+    if(check.status==='UNAVAILABLE'){results.push({row_id:row.id,status:'UNAVAILABLE',message:current.source_error?.message||'Current sources could not be calculated.'});continue;}
+    const result=await apply(row.id,{action:'calculate',expected_version:current.row.current_version,expected_review_version:current.row.review_version,reason:'Automatic recalculation using latest payroll setup'},req.user.id);
+    if(result.error)results.push({row_id:row.id,status:'FAILED',code:result.error.code,message:'Sources or review state changed; check current sources and retry.'});
+    else results.push({row_id:row.id,status:'UPDATED',calculation_status:result.data.calculation?.status||null});
+   }catch{results.push({row_id:row.id,status:'UNAVAILABLE',message:'Current sources could not be calculated.'});}
+  }
+  return res.set('Cache-Control','no-store').json({success:true,automatic:{results}});
+ }catch(error){return sendError(res,error);}
+}
 async function detail(req,res){
  try{
   const {data,error}=await supabase.rpc('get_payroll_employee_review',{p_row_id:req.params.rowId,p_actor_id:req.user.id});
@@ -106,4 +154,4 @@ async function cancelRun(req,res){
   return res.set('Cache-Control','no-store').json({success:true,result:data});
  }catch(error){return sendError(res,error);}
 }
-module.exports={queue,detail,act,bulk,generate,generateNew,cancelRun};
+module.exports={queue,freshness,autoRecalculate,detail,act,bulk,generate,generateNew,cancelRun};

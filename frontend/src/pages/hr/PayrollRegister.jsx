@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ import {
 } from '../../components/ui';
 import { getPayrollFoundationContext } from '../../api/payrollReviewApi';
 import { getSalaryRegister, exportSalaryReport, getDiagnosticPayslip } from '../../api/payrollReportsApi';
+import { usePayrollRegisterUrlState } from '../../hooks/usePayrollRegisterUrlState';
 import PayrollPayslip from '../../components/payroll/PayrollPayslip';
 
 const statuses = [
@@ -67,10 +68,18 @@ function download(response, filename) {
 export default function PayrollRegister() {
   const { user } = useAuth();
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
-  const [draft, setDraft] = useState({});
-  const [filters, setFilters] = useState({});
-  const [page, setPage] = useState(1);
-  const [employee, setEmployee] = useState('');
+
+  const {
+    filters,
+    draft,
+    setDraft,
+    page,
+    setPage,
+    applyFilters,
+    employee,
+    openPayslip,
+    closePayslip
+  } = usePayrollRegisterUrlState();
 
   const context = useQuery({
     queryKey: ['payroll-report-context', user?.id, user?.role],
@@ -297,9 +306,7 @@ export default function PayrollRegister() {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4 items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            setFilters(Object.fromEntries(Object.entries(draft).filter(([, v]) => v)));
-            setPage(1);
-            setEmployee('');
+            applyFilters(draft);
             exporter.reset();
           }}
         >
@@ -584,7 +591,7 @@ export default function PayrollRegister() {
                           variant="secondary"
                           size="xs"
                           disabled={r.evidence_status !== 'SAVED_DIAGNOSTIC'}
-                          onClick={() => setEmployee(r.id)}
+                          onClick={() => openPayslip(r.id)}
                         >
                           Diagnostic payslip
                         </Button>
@@ -637,7 +644,7 @@ export default function PayrollRegister() {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => setEmployee('')}
+                  onClick={closePayslip}
                 >
                   Close diagnostic payslip
                 </Button>

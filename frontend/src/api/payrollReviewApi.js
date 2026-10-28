@@ -12,3 +12,7 @@ export const getPayrollDraftCandidates=(id,params)=>authApi.get(`${base}/runs/${
 export const addPayrollDraftEmployee=(id,data)=>authApi.post(`${base}/runs/${id}/employees`,data);
 
 export const deletePayrollRun=(id,reason)=>authApi.delete(`${base}/runs/${id}`,{data:{reason}});
+
+export const getPayrollFreshness=params=>authApi.get(`${base}/review/freshness`,{params});
+
+export const autoRecalculatePayroll=data=>authApi.post(`${base}/review/auto-recalculate`,data);

@@ -151,6 +151,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     vi.clearAllMocks();
 
     authApi.get.mockImplementation((url, config) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:0,assignment_version:1,intervals:[],assignments:[]}}});
       if(url==='/acct-requisitions/beneficiary-master')return Promise.resolve({data:{beneficiaries:[{id:'beneficiary-uuid',beneficiary_name:'Synthetic beneficiary',account_number:'123456789012',ifsc:'TEST0000001'}],pagination:{totalPages:1}}});
       if(url==='/acct-requisitions/indian-banks')return Promise.resolve({data:{indianBanks:[{id:'bank-uuid',bank_name:'Synthetic bank',is_active:true}]}});
       if (url === '/hr/employees') {
@@ -394,11 +395,10 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(within(modal).queryByText(/Fixed Component Breakdown/i)).not.toBeInTheDocument();
     const gross=within(modal).getByPlaceholderText(/e\.g\. 45000/i);
     await user.clear(gross);await user.type(gross,'20000');
+    await user.type(within(modal).getByLabelText(/Salary applies from/),'2025-01-01');
+    await user.type(within(modal).getByLabelText(/Salary change reason/),'Confirmed salary start');
     await user.click(within(modal).getByRole('button',{name:/Save Pay Structure/i}));
-    await waitFor(()=>expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures',{
-      employee_id:'emp-1-uuid',pay_basis:'Monthly salary',guaranteed_monthly_gross:20000,
-      epf_enrolment:true,esi_enrolment:false,status:'Active'
-    }));
+    await waitFor(()=>expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures/payroll-salary',{employee_id:'emp-1-uuid',existing_id:null,effective_from:'2025-01-01',expected_version:0,reason:'Confirmed salary start',pay:{pay_basis:'Monthly salary',guaranteed_monthly_gross:20000,epf_enrolment:true,esi_enrolment:false}}));
   });
 
   it('handles employee deactivation and reactivation status updates', async () => {
@@ -440,10 +440,24 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     });
   });
 
-  it('creates a new pay structure revision immediately as Active', async () => {
+  it('requires explicit last working date and reason before recording exit', async()=>{
+    const user=userEvent.setup(); renderWithClient(<EmployeeManagement />);
+    await user.click(await screen.findByText('EMP-001'));
+    await user.click(await screen.findByRole('button',{name:/Change Status/i}));
+    const modal=screen.getByRole('heading',{name:/Change Status — EMP-001/i}).closest('.glass-panel');
+    await user.selectOptions(within(modal).getByRole('combobox'),'Exited');
+    const save=within(modal).getByRole('button',{name:/Update Status/i}); expect(save).toBeDisabled();
+    await user.type(within(modal).getByLabelText(/Last working date/),'2025-08-15');
+    await user.type(within(modal).getByLabelText(/Exit reason/),'UAT resignation');
+    await user.click(save);
+    await waitFor(()=>expect(authApi.patch).toHaveBeenCalledWith('/hr/employees/emp-1-uuid/status',{active_status:'Exited',last_working_date:'2025-08-15',exit_reason:'UAT resignation'}));
+  });
+
+  it('saves an Active salary revision together with its effective date', async () => {
     const user = userEvent.setup();
 
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -483,21 +497,20 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     await user.clear(grossInput);
     await user.type(grossInput, '60000');
 
+    await user.type(screen.getByLabelText(/Salary applies from/),'2025-01-01');
+    await user.type(screen.getByLabelText(/Salary change reason/),'New agreed salary');
     const saveBtn = screen.getByRole('button', { name: /Save Pay Structure/i });
     await user.click(saveBtn);
 
     await waitFor(() => {
-      expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures', expect.objectContaining({
-        employee_id: 'emp-1-uuid',
-        guaranteed_monthly_gross: 60000,
-        status: 'Active'
-      }));
+      expect(authApi.post).toHaveBeenCalledWith('/hr/pay-structures/payroll-salary', expect.objectContaining({employee_id:'emp-1-uuid',effective_from:'2025-01-01',pay:expect.objectContaining({guaranteed_monthly_gross:60000})}));
     });
   });
 
   it('displays clear warning when an ineligible employee category is encountered', async () => {
     // Return mockEmployees[1] (Local Daily-Wage Workers)
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url.startsWith('/hr/pay-structures/employees/')) {
         return Promise.resolve({
           data: {
@@ -533,6 +546,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
 
   it('does not expose Configure Pay Structure or Create New Revision when pay structure query fails', async () => {
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -555,7 +569,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
       expect(screen.getByText('Failed to load pay structure details')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Retry$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Configure Pay Structure/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Create New Revision/i })).not.toBeInTheDocument();
   });
@@ -564,6 +578,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     const user = userEvent.setup();
 
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -628,6 +643,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     };
 
     authApi.get.mockImplementation((url, config) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:0,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         const page = config?.params?.page || 1;
         if (page === 2) {
@@ -708,6 +724,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     };
 
     authApi.get.mockImplementation((url, config) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:0,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -775,6 +792,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
   it('provides Excel export for Employee Master, Permanent Pay Structure, and combined workbook', async () => {
     const user = userEvent.setup();
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -913,6 +931,7 @@ describe('Phase 1 Employee Management Component Contracts', () => {
 
   it('renders rich pagination footer with item counts and per-page selector in Permanent Pay Structure overview table', async () => {
     authApi.get.mockImplementation((url) => {
+      if(url.endsWith('/payroll-context'))return Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[],assignments:[]}}});
       if (url === '/hr/employees') {
         return Promise.resolve({
           data: {
@@ -952,4 +971,12 @@ describe('Phase 1 Employee Management Component Contracts', () => {
     expect(perPageSelect).toBeInTheDocument();
     expect(perPageSelect.value).toBe('15');
   });
+it('mapped salaries disable undated suspension and explain the missing end-date workflow',async()=>{
+ const original=authApi.get.getMockImplementation();authApi.get.mockImplementation((url,...args)=>url.endsWith('/payroll-context')?Promise.resolve({data:{result:{version:1,assignment_version:1,intervals:[{pay_structure_id:'ps-active-uuid',effective_from:'2025-01-01',effective_to:null}],assignments:[]}}}):original(url,...args));
+ renderWithClient(<EmployeeManagement/>,['/admin/employee-management?tab=pay-structure&employeeId=emp-1-uuid']);
+ expect(await screen.findByRole('button',{name:/Suspend Pay Structure/i})).toBeDisabled();
+ expect(await screen.findByText(/This salary has payroll dates. Suspension requires an explicit end date/)).toBeInTheDocument();
+ expect(authApi.post).not.toHaveBeenCalled();
+});
+
 });

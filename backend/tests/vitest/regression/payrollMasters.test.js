@@ -5,10 +5,10 @@ const {policy,statutory,pt}=require('../../helpers/payrollMasterFixtures');
 let db,admin,accounts;
 const q=async(sql,args=[]) => (await db.query(sql,args)).rows;
 const actor=async role => (await q('INSERT INTO authorised_users(mobile_number,role,display_name,is_active) VALUES($1,$2,$3,true) RETURNING id',[String(crypto.randomInt(7000000000,9999999999)),role,'Synthetic master fixture']))[0].id;
-const save=async(kind,data,id=null,version=0,who=admin)=>(await q('SELECT save_payroll_master_draft($1,$2,$3,$4,$5) r',[kind,id,version,JSON.stringify(data),who]))[0].r;
-const preview=async(kind,id)=>(await q('SELECT preview_payroll_master_publication($1,$2,$3) r',[kind,id,admin]))[0].r;
-const publish=async(kind,r)=>{const p=await preview(kind,r.id);return (await q('SELECT publish_payroll_master($1,$2,$3,$4,$5,$6) r',[kind,r.id,r.version,p.preview_token,'Synthetic approval only',admin]))[0].r;};
-const resolve=async(kind,scope,date)=>(await q('SELECT resolve_payroll_master($1,$2,$3,$4) r',[kind,JSON.stringify(scope),date,admin]))[0].r;
+const save=async(kind,data,id=null,version=0,who=(kind==='statutory'?accounts:admin))=>(await q('SELECT save_payroll_master_draft($1,$2,$3,$4,$5) r',[kind,id,version,JSON.stringify(data),who]))[0].r;
+const preview=async(kind,id)=>(await q('SELECT preview_payroll_master_publication($1,$2,$3) r',[kind,id,kind==='statutory'?accounts:admin]))[0].r;
+const publish=async(kind,r)=>{const p=await preview(kind,r.id);return (await q('SELECT publish_payroll_master($1,$2,$3,$4,$5,$6) r',[kind,r.id,r.version,p.preview_token,'Synthetic approval only',kind==='statutory'?accounts:admin]))[0].r;};
+const resolve=async(kind,scope,date)=>(await q('SELECT resolve_payroll_master($1,$2,$3,$4) r',[kind,JSON.stringify(scope),date,kind==='statutory'?accounts:admin]))[0].r;
 const rejected=async(sql,args,code)=>{await q('SAVEPOINT bad');await expect(q(sql,args)).rejects.toMatchObject({code});await q('ROLLBACK TO SAVEPOINT bad');};
 beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw new Error('Phase 2 DB fixtures require test:payroll:local or test-local.sh --isolated');await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();});
 afterAll(async()=>{await db?.end();});
@@ -59,26 +59,25 @@ describe('Phase 2 actual PostgreSQL master integrity',()=>{
   expect((await resolve('statutory',{...s,jurisdiction:'OTHER'},'2091-02-01')).error).toBe('MISSING_POLICY');
   await rejected("UPDATE payroll_statutory_rule_revisions SET configuration=jsonb_set(configuration,'{employee_rate}','\"10\"') WHERE id=$1",[first.id],'42501');
  });
- test('unverified, missing rates/ceilings and unsupported conditions cannot publish via RPC or owner SQL',async()=>{
-  for(const s of [statutory({verification_status:'UNVERIFIED',advisor_name:null,verification_reference:null,verified_on:null}),statutory({configuration:{...statutory().configuration,employee_rate:null}}),statutory({configuration:{...statutory().configuration,conditions:'PROFILE_EXEMPTIONS'}}),statutory({configuration:{...statutory().configuration,wage_ceiling:null}})]){
+ test('missing rates/ceilings and unsupported conditions cannot publish via RPC or owner SQL',async()=>{
+  for(const s of [statutory({configuration:{...statutory().configuration,employee_rate:null}}),statutory({configuration:{...statutory().configuration,conditions:'PROFILE_EXEMPTIONS'}}),statutory({configuration:{...statutory().configuration,wage_ceiling:null}})]){
    const r=await save('statutory',s),p=await preview('statutory',r.id);expect(p.publishable).toBe(false);
-   await rejected('SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)',['statutory',r.id,1,p.preview_token,'Test',admin],'22023');
-   await rejected("UPDATE payroll_statutory_rule_revisions SET status='PUBLISHED',published_by=$2,published_at=now(),revision_number=1,approval_reference='Test',published_effective_to=effective_to,version=version+1 WHERE id=$1",[r.id,admin],'22023');
+   await rejected('SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)',['statutory',r.id,1,p.preview_token,'Test',accounts],'22023');
+   await rejected("UPDATE payroll_statutory_rule_revisions SET status='PUBLISHED',published_by=$2,published_at=now(),revision_number=1,approval_reference='Test',published_effective_to=effective_to,version=version+1 WHERE id=$1",[r.id,accounts],'22023');
   }
  });
  test('PT monthly complete half-open slabs; overlaps/gaps/negative values rejected and published slabs immutable',async()=>{
   const data=pt(),r=await publish('statutory',await save('statutory',data));expect((await resolve('statutory',data,'2091-02-01')).data.slabs).toHaveLength(24);
   expect((await q('SELECT deduction_amount::text FROM payroll_professional_tax_slabs WHERE revision_id=$1 AND month=2 AND numrange(lower_bound,upper_bound,\'[)\') @> 10000::numeric',[r.id]))[0].deduction_amount).toBe('137.00');
   await rejected('UPDATE payroll_professional_tax_slabs SET deduction_amount=99 WHERE revision_id=$1',[r.id],'42501');
-  for(const mutate of [s=>s[0].upper_bound='10001',s=>s.splice(0,1),s=>s[0].deduction_amount='-1']){const bad=pt();mutate(bad.slabs);await rejected('SELECT save_payroll_master_draft($1,NULL,0,$2,$3)',['statutory',JSON.stringify(bad),admin],'22023');}
+  for(const mutate of [s=>s[0].upper_bound='10001',s=>s.splice(0,1),s=>s[0].deduction_amount='-1']){const bad=pt();mutate(bad.slabs);await rejected('SELECT save_payroll_master_draft($1,NULL,0,$2,$3)',['statutory',JSON.stringify(bad),accounts],'22023');}
   const empty=await save('statutory',pt({slabs:[]}));expect((await preview('statutory',empty.id)).publishable).toBe(false);
  });
- test('PT draft can change schemes atomically; verified rule edits require fresh evidence',async()=>{
+ test('PT draft changes schemes atomically and Accounts saves record fresh ownership',async()=>{
   const first=await save('statutory',pt({verification_status:'UNVERIFIED',advisor_name:null,verification_reference:null,verified_on:null}));
   const changed=await save('statutory',statutory(),first.id,1);expect(changed.scheme).toBe('EPF');expect((await q('SELECT count(*) FROM payroll_professional_tax_slabs WHERE revision_id=$1',[first.id]))[0].count).toBe('0');
   const newRules=statutory({configuration:{...statutory().configuration,employee_rate:'8.125'}});
-  await rejected('SELECT save_payroll_master_draft($1,$2,$3,$4,$5)',['statutory',first.id,2,JSON.stringify(newRules),admin],'22023');
-  const reverified=await save('statutory',{...newRules,verification_reference:'New synthetic advisor evidence'},first.id,2);expect(reverified.configuration.employee_rate).toBe('8.125');
+  const reverified=await save('statutory',newRules,first.id,2);expect(reverified.configuration.employee_rate).toBe('8.125');expect(reverified.verification_status).toBe('ACCOUNTS_CONFIRMED');expect(reverified.verification_reference).toBe(newRules.reason);
   expect((await resolve('statutory',{jurisdiction:'J',establishment:'E'},'2091-02-01')).error).toBe('STATUTORY_SCOPE_REQUIRED');
  });
  test('another current Admin can maintain a draft after its historical creator becomes inactive',async()=>{
@@ -107,7 +106,7 @@ describe('Phase 2 actual PostgreSQL master integrity',()=>{
   const year=Math.max(3000,Number((await q("SELECT coalesce(max(extract(year FROM effective_to)),2999) AS cycle_year FROM payroll_policy_master_revisions WHERE status='PUBLISHED'"))[0].cycle_year)+1);
   const s=kind==='statutory'?statutory({jurisdiction:`TEST_CONCURRENCY_${crypto.randomUUID()}`}):policy({effective_from:`${year}-01-01`,effective_to:`${year}-01-31`});const r=await save(kind,s);const p=await preview(kind,r.id);await q('COMMIT');
   const c1=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI}),c2=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await c1.connect();await c2.connect();
-  const sql='SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)';const args=[kind,r.id,1,p.preview_token,'Synthetic concurrency',admin];
+  const sql='SELECT publish_payroll_master($1,$2,$3,$4,$5,$6)';const args=[kind,r.id,1,p.preview_token,'Synthetic concurrency',kind==='statutory'?accounts:admin];
   try{await c1.query('BEGIN');await c1.query(sql,args);let completed=false;const contender=c2.query(sql,args).then(()=>({ok:true}),e=>({code:e.code})).finally(()=>{completed=true;});await new Promise(resolve=>setTimeout(resolve,80));expect(completed).toBe(false);await c1.query('COMMIT');expect((await contender).code).toBe('PY409');expect((await q("SELECT count(*) FROM payroll_master_events WHERE coalesce(statutory_revision_id,policy_revision_id)=$1 AND action='PUBLISHED'",[r.id]))[0].count).toBe('1');}
   finally{await c1.query('ROLLBACK');await c1.end();await c2.end();await q('BEGIN');}
  });
@@ -126,12 +125,12 @@ describe('Phase 2 review database protections',()=>{
  });
  test('explicit canonical mappings preserve labels/history, reject aliases with overlapping dates and deny unauthorized mapping',async()=>{
   const code='TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase();
-  const scope=(await q('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',[code,'ESTABLISHMENT','SYNTHETIC ONLY - explicitly registered',admin]))[0].id;
+  const scope=(await q('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',[code,'ESTABLISHMENT','SYNTHETIC ONLY - explicitly registered',accounts]))[0].id;
   const data=statutory({jurisdiction:crypto.randomUUID()}),first=await publish('statutory',await save('statutory',data));
-  await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[first.id,scope,'SYNTHETIC ONLY - approved mapping',admin]);
+  await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[first.id,scope,'SYNTHETIC ONLY - approved mapping',accounts]);
   const r=await resolve('statutory',{scheme:'EPF',statutory_scope_id:scope},'2091-02-01');expect(r.revision_id).toBe(first.id);expect(r.statutory_scope_id).toBe(scope);expect(r.data.jurisdiction).toBe(data.jurisdiction);
   const alias=await publish('statutory',await save('statutory',{...data,jurisdiction:crypto.randomUUID()}));
-  for(const [who,code] of [[await actor('ho'),'42501'],[accounts,'23P01'],[admin,'23P01']]){
+  for(const [who,code] of [[await actor('ho'),'42501'],[accounts,'23P01'],[admin,'42501']]){
    await q('SAVEPOINT binding_failure');await expect(q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[alias.id,scope,'Synthetic alias',who])).rejects.toMatchObject({code});await q('ROLLBACK TO SAVEPOINT binding_failure');
   }
   await q('SAVEPOINT mapping_immutable');await expect(q('DELETE FROM payroll_statutory_scope_bindings WHERE revision_id=$1',[first.id])).rejects.toMatchObject({code:'42501'});await q('ROLLBACK TO SAVEPOINT mapping_immutable');

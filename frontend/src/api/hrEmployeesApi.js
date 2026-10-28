@@ -14,5 +14,5 @@ export const createEmployee = (data) => authApi.post('/hr/employees', data);
 
 export const updateEmployee = (id, data) => authApi.patch(`/hr/employees/${id}`, data);
 
-export const updateEmployeeStatus = (id, active_status) =>
-  authApi.patch(`/hr/employees/${id}/status`, { active_status });
+export const updateEmployeeStatus = (id, active_status, exitDetails = {}) =>
+  authApi.patch(`/hr/employees/${id}/status`, { active_status, ...exitDetails });

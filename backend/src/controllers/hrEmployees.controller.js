@@ -1,7 +1,7 @@
 const { supabase } = require('../db/supabase');
 
-const employeeSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,created_at,updated_at,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
-const listSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,active_status,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
+const employeeSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,last_working_date,exit_reason,active_status,created_at,updated_at,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
+const listSelect = 'beneficiary_id,beneficiary:beneficiary_master!hr_employees_beneficiary_id_fkey(id,beneficiary_name,account_number,ifsc,beneficiary_bank_id,beneficiary_bank_name),id,employee_code,employee_name,employee_category,department,contact_number,erp_user_id,joining_date,last_working_date,exit_reason,active_status,erp_user:authorised_users!hr_employees_erp_user_id_fkey(id,display_name,role,is_active)';
 
 function sendError(res, error) {
   if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
@@ -93,7 +93,7 @@ async function updateEmployee(req, res) {
 }
 
 async function changeStatus(req, res) {
-  return updateEmployee({ ...req, body: { active_status: req.body.active_status } }, res);
+  return updateEmployee({ ...req, body: req.body }, res);
 }
 
 module.exports = { listErpUsers, listEmployees, getEmployee, createEmployee, updateEmployee, changeStatus };

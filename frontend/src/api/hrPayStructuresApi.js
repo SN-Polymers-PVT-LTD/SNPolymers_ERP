@@ -10,8 +10,9 @@ export const getAllPayStructures = () =>
 export const getEmployeePayStructures = (employeeId) =>
   authApi.get(`/hr/pay-structures/employees/${employeeId}`);
 
-export const createPayStructure = (data) =>
-  authApi.post('/hr/pay-structures', data);
-
 export const suspendPayStructure = (id) =>
   authApi.post(`/hr/pay-structures/${id}/suspend`);
+
+export const getPayrollSalaryContext = employeeId => authApi.get(`/hr/pay-structures/employees/${employeeId}/payroll-context`);
+export const savePayrollSalary = data => authApi.post('/hr/pay-structures/payroll-salary',data);
+export const initializePayrollAssignment = data => authApi.post('/hr/pay-structures/initial-assignment',data);

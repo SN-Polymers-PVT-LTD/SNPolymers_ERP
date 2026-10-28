@@ -273,6 +273,18 @@ module.exports = {
       "table": "payroll_work_calendar_days",
       "definition": "CREATE UNIQUE INDEX payroll_calendar_published_unique ON public.payroll_work_calendar_days USING btree (group_code, department, calendar_date) WHERE (status = 'PUBLISHED'::text)"
     },
+    "payroll_company_deduction_setups_pkey": {
+      "table": "payroll_company_deduction_setups",
+      "definition": "CREATE UNIQUE INDEX payroll_company_deduction_setups_pkey ON public.payroll_company_deduction_setups USING btree (id)"
+    },
+    "payroll_company_setups_scope_start_unique": {
+      "table": "payroll_company_deduction_setups",
+      "definition": "CREATE UNIQUE INDEX payroll_company_setups_scope_start_unique ON public.payroll_company_deduction_setups USING btree (statutory_scope_id, effective_from)"
+    },
+    "payroll_company_setups_selection_idx": {
+      "table": "payroll_company_deduction_setups",
+      "definition": "CREATE INDEX payroll_company_setups_selection_idx ON public.payroll_company_deduction_setups USING btree (state_id, lower(btrim(establishment_name)), effective_from)"
+    },
     "payroll_employee_finalized_nonoverlap": {
       "table": "payroll_employee_coverage",
       "definition": "CREATE INDEX payroll_employee_finalized_nonoverlap ON public.payroll_employee_coverage USING gist (employee_id, daterange(period_from, period_to, '[]'::text))"

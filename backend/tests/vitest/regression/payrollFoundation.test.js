@@ -33,7 +33,7 @@ async function rejected(sql, args, code) {
   await q('ROLLBACK TO SAVEPOINT invalid');
 }
 async function pay(e, gross = 1000) {
-  return (await q("SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',$2,NULL,NULL,NULL,true,false,'Active',$3)", [e.id, gross, admin]))[0];
+  return (await q("SELECT * FROM create_hr_pay_structure($1,'Monthly salary',$2,true,false,'Active',$3)", [e.id, gross, admin]))[0];
 }
 beforeAll(async () => {
   await requireLocalSupabase();

@@ -9,7 +9,7 @@ async function runRow(e,group,from='2500-02-01',to='2500-02-28'){
  const a=await assignment(e,group,from,to),r=await one("SELECT * FROM create_payroll_draft_run($1,$2,$3,$4,'Custom',$5)",[group,e.department,from,to,admin]);
  return one('SELECT * FROM add_payroll_draft_employee($1,$2,$3,$4,$5)',[r.id,a,from,to,admin]);
 }
-async function office(){const e=await employee(),p=await one("SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',30000,10000,2000,NULL,true,false,'Active',$2)",[e.id,admin]);
+async function office(){const e=await employee(),p=await one("SELECT * FROM create_hr_pay_structure($1,'Monthly salary',30000,true,false,'Active',$2)",[e.id,admin]);
  await q('SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[e.id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:p.id,effective_from:'2500-01-01',effective_to:null}]),'SYNTHETIC PAY APPLICABILITY',admin]);
  const data=policy({group_code:'HO_STAFF',effective_from:'2500-01-01',effective_to:'2500-12-31',rounding:{lop:{method:'HALF_UP',precision:2,stage:'MONTH'},proration:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'},allocation:{method:'UNRESOLVED',precision:null,stage:'UNRESOLVED'}}});
  const draft=(await one("SELECT save_payroll_master_draft('policies',NULL,0,$1,$2) r",[JSON.stringify(data),admin])).r,preview=(await one("SELECT preview_payroll_master_publication('policies',$1,$2) r",[draft.id,admin])).r;
@@ -26,11 +26,12 @@ describe('read-only preview database sources',()=>{
   const actor={admin,accounts,ho,factory_manager:fm}[role],before=await source(row,actor);
   for(const scheme of ['EPF','ESI']){
    const data=statutory({scheme,jurisdiction:'UNRELATED_'+crypto.randomUUID(),establishment:'UNRELATED_ESTABLISHMENT',advisor_name:'UNRELATED_ADVISOR',verification_reference:'UNRELATED_VERIFICATION_METADATA',effective_from:'2500-01-01',effective_to:'2500-12-31'});
-   const draft=(await one("SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(data),admin])).r;
-   const preview=(await one("SELECT preview_payroll_master_publication('statutory',$1,$2) r",[draft.id,admin])).r;
-   await q("SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC ONLY',$3)",[draft.id,preview.preview_token,admin]);
-   const scope=(await one('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',['TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase(),'UNRELATED_SCOPE','SYNTHETIC ONLY',admin])).id;
-   await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[draft.id,scope,'SYNTHETIC ONLY',admin]);
+   const setupActor=accounts;
+   const draft=(await one("SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(data),setupActor])).r;
+   const preview=(await one("SELECT preview_payroll_master_publication('statutory',$1,$2) r",[draft.id,setupActor])).r;
+   await q("SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC ONLY',$3)",[draft.id,preview.preview_token,setupActor]);
+   const scope=(await one('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',['TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase(),'UNRELATED_SCOPE','SYNTHETIC ONLY',setupActor])).id;
+   await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[draft.id,scope,'SYNTHETIC ONLY',setupActor]);
   }
   const after=await source(row,actor);expect(after.statutory_profile).toBeNull();expect(after.statutory_rules).toEqual([]);expect(JSON.stringify(after)).not.toContain('UNRELATED_');expect(fingerprint(after)).toBe(fingerprint(before));
   const result=calculatePreview(after);expect(result.final_net_salary).toBeNull();expect(result.blockers).toContainEqual(expect.objectContaining({scheme:'PT',code:'STATUTORY_PROFILE_PERIOD_COVERAGE_REQUIRED'}));expect(result.statutory.every(s=>s.revision_id===null&&s.statutory_scope_id===null)).toBe(true);

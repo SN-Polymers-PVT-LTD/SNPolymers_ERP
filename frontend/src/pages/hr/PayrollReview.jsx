@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
 import { Button, Select, Pagination, Input, TextArea, Badge } from '../../components/ui';
@@ -15,6 +15,7 @@ import {
   actOnPayrollEmployee,
   actOnPayrollEmployees
 } from '../../api/payrollReviewApi';
+import { usePayrollReviewUrlState } from '../../hooks/usePayrollReviewUrlState';
 
 const labels = {
   calculate: 'Save calculation revision',
@@ -60,14 +61,21 @@ const errorMessage = (e) =>
   e?.response?.data?.message || e?.response?.data?.result?.code || e.message;
 
 export default function PayrollReview() {
-  const [searchParams,setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
   const client = useQueryClient();
 
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState('');
-  const [rowId, setRowId] = useState(searchParams.get('row') || '');
+  const {
+    page,
+    setPage,
+    status,
+    setStatus,
+    runId: runParam,
+    setRunId,
+    rowId,
+    setRowId
+  } = usePayrollReviewUrlState();
+
   const [selected, setSelected] = useState([]);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
@@ -76,13 +84,12 @@ export default function PayrollReview() {
   const [lockBlockers, setLockBlockers] = useState([]);
   const [deletedMessage,setDeletedMessage]=useState('');
   const [editingRun, setEditingRun] = useState(null);
-  const runParam=searchParams.get('run')||'';
   const restoredRun=useQuery({queryKey:['payroll-selected-run',user?.id,user?.role,runParam],enabled:allowed&&!!runParam&&editingRun?.id!==runParam,queryFn:async()=>(await getPayrollRun(runParam,{page:1,limit:1})).data.draft.run});
   const activeRun=runParam?(editingRun?.id===runParam?editingRun:restoredRun.data):null;
   const canPrepareRun=activeRun?.created_by===user?.id&&user?.role===(['SNP Factory','Fabric Factory'].includes(activeRun?.department)?'factory_manager':'accounts');
   const changeRun=run=>{
-    setEditingRun(run);setRowId('');setSelected([]);
-    setSearchParams(previous=>{const next=new URLSearchParams(previous);next.delete('row');if(run)next.set('run',run.id);else next.delete('run');return next;});
+    setEditingRun(run);setSelected([]);
+    setRunId(run ? run.id : '');
   };
 
   const queue = useQuery({
@@ -347,7 +354,6 @@ export default function PayrollReview() {
             ]}
             onChange={(e) => {
               setStatus(e.target.value);
-              setPage(1);
               setSelected([]);
             }}
           />

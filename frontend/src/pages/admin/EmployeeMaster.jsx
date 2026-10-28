@@ -70,6 +70,8 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
   // Status Action Modal
   const [statusModalEmployee, setStatusModalEmployee] = useState(null);
   const [targetStatus, setTargetStatus] = useState('Inactive');
+  const [exitDate, setExitDate] = useState('');
+  const [exitReason, setExitReason] = useState('');
 
   // Popups
   const [successMsg, setSuccessMsg] = useState('');
@@ -253,8 +255,8 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
 
   // Status Change Mutation
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status }) => {
-      return updateEmployeeStatus(id, status);
+    mutationFn: async ({ id, status, exitDetails }) => {
+      return updateEmployeeStatus(id, status, exitDetails);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hr-employees'] });
@@ -845,7 +847,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
               value={form.active_status}
               onChange={(e) => setForm({ ...form, active_status: e.target.value })}
             >
-              {STATUS_OPTIONS.map((st) => (
+              {STATUS_OPTIONS.filter(st => st !== 'Exited' || form.active_status === 'Exited').map((st) => (
                 <option key={st} value={st}>
                   {st}
                 </option>
@@ -910,6 +912,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Joining Date</span>
                   <span className="font-mono text-slate-300">{inspectingEmployee.joining_date}</span>
+                  {inspectingEmployee.last_working_date && <p className="text-xs">Last working date: {inspectingEmployee.last_working_date}. Reason: {inspectingEmployee.exit_reason}</p>}
                 </div>
               </div>
 
@@ -957,7 +960,8 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
                     const emp = inspectingEmployee;
                     setInspectingEmployee(null);
                     setStatusModalEmployee(emp);
-                    setTargetStatus(emp.active_status === 'Active' ? 'Inactive' : 'Active');
+                    setTargetStatus(emp.active_status === 'Exited' ? 'Exited' : emp.active_status === 'Active' ? 'Inactive' : 'Active');
+                    setExitDate(emp.last_working_date || ''); setExitReason(emp.exit_reason || '');
                   }}
                   className="text-xs"
                 >
@@ -995,6 +999,7 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
 
           <Select
             value={targetStatus}
+            disabled={Boolean(statusModalEmployee?.last_working_date)}
             onChange={(e) => setTargetStatus(e.target.value)}
           >
             {STATUS_OPTIONS.map((st) => (
@@ -1004,6 +1009,11 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
             ))}
           </Select>
 
+          {targetStatus === 'Exited' && <>
+            <Input label="Last working date" type="date" required min={statusModalEmployee?.joining_date} max={new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kolkata'})} disabled={Boolean(statusModalEmployee?.last_working_date)} value={exitDate} onChange={e=>setExitDate(e.target.value)} />
+            <Input label="Exit reason" required maxLength={2000} disabled={Boolean(statusModalEmployee?.last_working_date)} value={exitReason} onChange={e=>setExitReason(e.target.value)} />
+            <p className="text-xs text-slate-400">Employment includes the last working date. Saving closes dated payroll assignments and preserves prior history. Recorded exits require a separate correction or rehire workflow.</p>
+          </>}
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
             <Button
               variant="ghost"
@@ -1020,11 +1030,12 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
                 if (statusModalEmployee) {
                   statusMutation.mutate({
                     id: statusModalEmployee.id,
-                    status: targetStatus
+                    status: targetStatus,
+                    exitDetails: targetStatus === 'Exited' ? {last_working_date:exitDate,exit_reason:exitReason} : {}
                   });
                 }
               }}
-              disabled={statusMutation.isPending}
+              disabled={statusMutation.isPending || Boolean(statusModalEmployee?.last_working_date) || (targetStatus === 'Exited' && (!exitDate || !exitReason.trim()))}
             >
               {statusMutation.isPending ? 'Updating...' : 'Update Status'}
             </Button>

@@ -76,6 +76,31 @@ module.exports = {
       ],
       "returns": "payroll_run_employees"
     },
+    "apply_payroll_company_deduction_setup": {
+      "args": [
+        {
+          "name": "p_setup_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_employees",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "approve_requisition_transact": {
       "args": [
         {
@@ -155,39 +180,6 @@ module.exports = {
         }
       ],
       "returns": "jsonb"
-    },
-    "create_hr_pay_structure": {
-      "args": [
-        {
-          "name": "p_employee_id",
-          "type": "uuid"
-        },
-        {
-          "name": "p_pay_basis",
-          "type": "text"
-        },
-        {
-          "name": "p_guaranteed_monthly_gross",
-          "type": "numeric"
-        },
-        {
-          "name": "p_epf_enrolment",
-          "type": "boolean"
-        },
-        {
-          "name": "p_esi_enrolment",
-          "type": "boolean"
-        },
-        {
-          "name": "p_status",
-          "type": "text"
-        },
-        {
-          "name": "p_actor_id",
-          "type": "uuid"
-        }
-      ],
-      "returns": "hr_permanent_pay_structures"
     },
     "create_payroll_adjustment": {
       "args": [
@@ -688,6 +680,19 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_hr_payroll_salary_context": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_adjustments": {
       "args": [
         {
@@ -697,6 +702,52 @@ module.exports = {
         {
           "name": "p_actor_id",
           "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_company_deduction_options": {
+      "args": [
+        {
+          "name": "p_state_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_date",
+          "type": "date"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_company_deduction_setups": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_search",
+          "type": "text DEFAULT ''::text"
         },
         {
           "name": "p_page",
@@ -1044,6 +1095,27 @@ module.exports = {
       ],
       "returns": "integer"
     },
+    "initialize_hr_payroll_assignment": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "list_payroll_preview_runs": {
       "args": [
         {
@@ -1104,6 +1176,23 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "preview_payroll_initial_master": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "preview_payroll_master_publication": {
       "args": [
         {
@@ -1137,6 +1226,35 @@ module.exports = {
         },
         {
           "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "publish_payroll_initial_master": {
+      "args": [
+        {
+          "name": "p_kind",
+          "type": "text"
+        },
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_preview_token",
+          "type": "text"
+        },
+        {
+          "name": "p_approval_reference",
           "type": "text"
         },
         {
@@ -1470,6 +1588,68 @@ module.exports = {
         }
       ],
       "returns": "hr_leave_requests"
+    },
+    "save_hr_payroll_salary": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_existing_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_pay",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "save_payroll_company_deduction_setup": {
+      "args": [
+        {
+          "name": "p_state_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_establishment",
+          "type": "text"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_rules",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "save_payroll_master_draft": {
       "args": [

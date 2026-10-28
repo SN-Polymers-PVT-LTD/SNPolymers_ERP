@@ -3,9 +3,12 @@ const { supabase } = require('../db/supabase');
 const { permanentCategories } = require('../domain/hrEmployeeCategories');
 const PERMANENT_CATEGORIES = new Set(permanentCategories);
 
-const payStructureSelect = 'id,employee_id,revision_number,pay_basis,guaranteed_monthly_gross,basic_salary,staff_welfare,other_fixed_components,epf_enrolment,esi_enrolment,status,created_at,updated_at,created_by,updated_by';
+const payStructureSelect = 'id,employee_id,revision_number,pay_basis,guaranteed_monthly_gross,epf_enrolment,esi_enrolment,status,created_at,updated_at,created_by,updated_by';
+const publicPay = row => Object.fromEntries(payStructureSelect.split(',').filter(key => Object.hasOwn(row,key)).map(key => [key,row[key]]));
 
 function sendPayError(res, error) {
+  if(error?.code==='22023'||error?.code==='22P02')return res.status(400).json({success:false,message:error.message});
+  if(error?.code==='42501')return res.status(403).json({success:false,message:error.message});
   if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
   if (error?.message?.includes('Permanent pay structures can only be created') || error?.code === '23514') {
     return res.status(400).json({ success: false, message: error.message || 'Invalid pay structure values.' });
@@ -26,7 +29,7 @@ async function getEmployeePayStructures(req, res) {
 
     const { data: employee, error: empErr } = await supabase
       .from('hr_employees')
-      .select('id,employee_code,employee_name,employee_category,department,active_status')
+      .select('id,employee_code,employee_name,employee_category,department,active_status,joining_date')
       .eq('id', employeeId)
       .maybeSingle();
 
@@ -63,52 +66,6 @@ async function getEmployeePayStructures(req, res) {
   }
 }
 
-async function createPayStructure(req, res) {
-  try {
-    const {
-      employee_id,
-      pay_basis,
-      guaranteed_monthly_gross,
-      epf_enrolment = false,
-      esi_enrolment = false
-    } = req.body;
-
-    const { data: employee, error: empErr } = await supabase
-      .from('hr_employees')
-      .select('employee_category')
-      .eq('id', employee_id)
-      .maybeSingle();
-
-    if (empErr) throw empErr;
-    if (!employee) {
-      return res.status(404).json({ success: false, message: 'Employee not found.' });
-    }
-
-    if (!PERMANENT_CATEGORIES.has(employee.employee_category)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Permanent pay structures can only be created for permanent employee categories.'
-      });
-    }
-
-    const { data, error } = await supabase.rpc('create_hr_pay_structure', {
-      p_employee_id: employee_id,
-      p_pay_basis: pay_basis,
-      p_guaranteed_monthly_gross: guaranteed_monthly_gross,
-      p_epf_enrolment: epf_enrolment,
-      p_esi_enrolment: esi_enrolment,
-      p_status: 'Active',
-      p_actor_id: req.user.id
-    });
-
-    if (error) throw error;
-
-    return res.status(201).json({ success: true, pay_structure: data });
-  } catch (error) {
-    return sendPayError(res, error);
-  }
-}
-
 async function suspendPayStructure(req, res) {
   try {
     const { id } = req.params;
@@ -120,7 +77,7 @@ async function suspendPayStructure(req, res) {
 
     if (error) throw error;
 
-    return res.json({ success: true, pay_structure: data });
+    return res.json({ success: true, pay_structure: publicPay(data) });
   } catch (error) {
     return sendPayError(res, error);
   }
@@ -148,9 +105,6 @@ async function listPayStructures(req, res) {
             revision_number,
             pay_basis,
             guaranteed_monthly_gross,
-            basic_salary,
-            staff_welfare,
-            other_fixed_components,
             epf_enrolment,
             esi_enrolment,
             status,
@@ -177,6 +131,13 @@ async function listPayStructures(req, res) {
 module.exports = {
   listPayStructures,
   getEmployeePayStructures,
-  createPayStructure,
   suspendPayStructure
 };
+
+const payrollRpc = (name,params) => async(req,res) => {
+ try {const {data,error}=await supabase.rpc(name,{p_actor_id:req.user.id,...params(req)});if(error)return sendPayError(res,error);return res.json({success:true,result:data});}
+ catch(error){return sendPayError(res,error);}
+};
+module.exports.payrollContext=payrollRpc('get_hr_payroll_salary_context',r=>({p_employee_id:r.params.employeeId}));
+module.exports.savePayrollSalary=payrollRpc('save_hr_payroll_salary',r=>({p_employee_id:r.body.employee_id,p_existing_id:r.body.existing_id,p_from:r.body.effective_from,p_expected_version:r.body.expected_version,p_pay:r.body.pay,p_reason:r.body.reason}));
+module.exports.initialAssignment=payrollRpc('initialize_hr_payroll_assignment',r=>({p_employee_id:r.body.employee_id,p_from:r.body.effective_from,p_reason:r.body.reason}));

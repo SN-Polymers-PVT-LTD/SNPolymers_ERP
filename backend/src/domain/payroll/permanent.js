@@ -26,10 +26,7 @@ function permanentCalculation(source,days){
   // Evidence survives a blocked entitlement, including dated salary changes.
   // These components describe the agreed amount; they are never earnings lines.
   const contractDiagnostics=paySources.map(id=>{
-   const pay=source.pay_structures.find(p=>p.id===id),components={BASIC:pay.basic_salary,STAFF_WELFARE:pay.staff_welfare,OTHER_FIXED:pay.other_fixed_components};
-   const total=D.sum(Object.values(components).filter(v=>v!==null).map(D.decimal));
-   if(D.compare(total,D.decimal(pay.guaranteed_monthly_gross))>0n)block('PAY_COMPONENTS_EXCEED_PACKAGE',start,pay.id);
-   else components.PACKAGE_BALANCE=D.format(D.sub(D.decimal(pay.guaranteed_monthly_gross),total));
+   const pay=source.pay_structures.find(p=>p.id===id),components={PACKAGE_BALANCE:pay.guaranteed_monthly_gross};
    return {pay_structure_id:pay.id,pay_basis:pay.pay_basis,agreed_amount:pay.guaranteed_monthly_gross,components,diagnostic_only:true};
   });
   const components=salary?contractDiagnostics[0].components:{};

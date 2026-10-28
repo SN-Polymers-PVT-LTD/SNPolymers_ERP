@@ -43,7 +43,9 @@ const fields = {
   erp_user_id: link,
   beneficiary_id: link,
   joining_date: date,
-  active_status: z.enum(statuses)
+  active_status: z.enum(statuses),
+  last_working_date: date.nullable().optional(),
+  exit_reason: z.string().trim().min(1).max(2000).nullable().optional()
 };
 
 module.exports = {
@@ -63,5 +65,5 @@ module.exports = {
   }) },
   create: { body: z.object({ ...fields, active_status: fields.active_status.optional() }).strict().refine(v => v.employee_category !== legacyProjectCategory, 'Select a specific Projects employee category.').refine(v => departmentsFor(v.employee_category).includes(v.department), 'Department does not match employee category.') },
   update: { params: z.object({ id: uuid }), body: z.object(fields).partial().strict().refine(v => Object.keys(v).length > 0) },
-  status: { params: z.object({ id: uuid }), body: z.object({ active_status: z.enum(statuses) }).strict() }
+  status: { params: z.object({ id: uuid }), body: z.object({ active_status: z.enum(statuses), last_working_date: date.nullable().optional(), exit_reason: z.string().trim().min(1).max(2000).nullable().optional() }).strict() }
 };

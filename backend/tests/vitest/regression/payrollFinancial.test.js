@@ -11,7 +11,7 @@ async function prepared({gate=false,count=1,split=false,factory=false}={}){
  for(const employee of f.employees)await save(db,employee.id,users.accounts.id,0,[interval(scopeId,f.from,f.to,{verification_status:'ACCOUNTS_CONFIRMED',advisor_name:'SYNTHETIC Accounts setup'})]);
  const d=statutory({jurisdiction:'SYNTHETIC_'+scopeId,establishment:'SYNTHETIC',effective_from:f.from,effective_to:f.to,verification_status:'ACCOUNTS_CONFIRMED',advisor_name:'SYNTHETIC Accounts setup'});
  Object.assign(d.configuration,{collection_timing:'INCREMENTAL_MONTHLY',lop_wage_basis:'PROPORTIONAL_COMPONENTS',arrears_period:'CURRENT_RUN_MONTH',eligibility:'ENROLLED',rounding:{method:'HALF_UP',precision:2,stage:'MONTH'},adjustment_basis:{BONUS:'EXCLUDE',SALARY_ARREARS:'EXCLUDE',REIMBURSEMENT:'EXCLUDE',RECOVERY:'DEDUCTION_ONLY'}});
- if(factory){d.configuration.included_components=['DAILY_WAGE'];d.configuration.excluded_components=['BASIC','STAFF_WELFARE','OTHER_FIXED','PACKAGE_BALANCE','OVERTIME','HOLIDAY_PREMIUM','ADJUSTMENTS'];}
+ if(factory){d.configuration.included_components=['DAILY_WAGE'];d.configuration.excluded_components=['PACKAGE_BALANCE','OVERTIME','HOLIDAY_PREMIUM','ADJUSTMENTS'];}
  const draft=(await one(db,"SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(d),users.accounts.id])).r;
  const p=(await one(db,"SELECT preview_payroll_master_publication('statutory',$1,$2) r",[draft.id,users.accounts.id])).r;
  await q(db,"SELECT publish_payroll_master('statutory',$1,1,$2,'SYNTHETIC setup',$3)",[draft.id,p.preview_token,users.accounts.id]);await q(db,'SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[draft.id,scopeId,'SYNTHETIC explicit binding',users.accounts.id]);
@@ -33,6 +33,11 @@ describe('guarded payroll financial transactions',()=>{
  });
  test('lock atomically freezes snapshot, coverage, statutory month and entitlement; all remain immutable',async()=>{
   const f=await prepared({gate:true});await submit(f);const r=await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect(r.row.status).toBe('LOCKED');expect((await one(db,'SELECT net_salary::text FROM payroll_financial_snapshots WHERE row_id=$1',[r.row.id])).net_salary).toBe('29296.30');expect((await q(db,'SELECT * FROM payroll_statutory_entries WHERE salary_row_id=$1',[r.row.id]))).toHaveLength(2);
+  const initialData=statutory({jurisdiction:'INITIAL LOCK GUARD',establishment:f.scopeId,effective_from:'2025-01-01',effective_to:null});
+  const initialDraft=(await one(db,"SELECT save_payroll_master_draft('statutory',NULL,0,$1,$2) r",[JSON.stringify(initialData),users.accounts.id])).r;
+  const initialPreview=(await one(db,"SELECT preview_payroll_initial_master('statutory',$1,$2) r",[initialDraft.id,users.accounts.id])).r;
+  expect(initialPreview.conflicts).toContainEqual({code:'INITIAL_SETUP_LOCKED_PAYROLL'});
+  await reject(()=>q(db,"SELECT publish_payroll_initial_master('statutory',$1,1,$2,'Initial locked test',$3)",[initialDraft.id,initialPreview.preview_token,users.accounts.id]),'22023');
   await reject(()=>q(db,'SELECT cancel_payroll_draft_run($1,$2,$3)',[f.run.id,'Synthetic locked-sheet deletion',users.accounts.id]),'PY409');
   const refresh=(await one(db,'SELECT populate_payroll_draft_run($1,$2) r',[f.run.id,users.accounts.id])).r;
   expect(refresh.added).toBe(0);expect(refresh.rows).toEqual([]);expect(refresh.saved_rows).toEqual([]);

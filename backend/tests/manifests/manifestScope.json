@@ -19,6 +19,7 @@
     "payroll_adjustment_applications",
     "payroll_adjustment_events",
     "payroll_adjustments",
+    "payroll_company_deduction_setups",
     "payroll_employee_assignments",
     "payroll_employee_coverage",
     "payroll_employee_month_entitlements",

@@ -170,7 +170,7 @@ describe('employee and permanent pay structure export contracts', () => {
     expect(mockWriteFile).toHaveBeenCalledWith(expect.anything(), expect.stringMatching(/^Employee_Master_/));
   });
 
-  test('exportPermanentPayStructuresToExcel maps 11 approved fields to Permanent Pay Structure sheet', async () => {
+  test('exportPermanentPayStructuresToExcel exports gross-only pay fields to Permanent Pay Structure sheet', async () => {
     const { exportPermanentPayStructuresToExcel } = await import('./exportHelpers');
     await exportPermanentPayStructuresToExcel([
       {
@@ -198,9 +198,6 @@ describe('employee and permanent pay structure export contracts', () => {
         "Permanent Employee Category": 'HO Staff',
         "Pay Basis": 'Special package',
         "Guaranteed Monthly Gross (₹)": 50000,
-        "Basic Salary (₹/month)": 45000,
-        "Staff Welfare (₹/month)": 5000,
-        "Other Fixed Components (₹/month)": 0,
         "EPF Enrolment": 'Enrolled',
         "ESI Enrolment": 'Not enrolled',
         "Pay Structure Status": 'Active'

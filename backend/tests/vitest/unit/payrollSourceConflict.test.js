@@ -12,7 +12,7 @@ afterEach(()=>vi.restoreAllMocks());
 test.each([
  ['attendance save','hrAttendance','save',{params:{sheetId:user.id},body:{rows:[]}}],
  ['factory wage source','hrFactoryMasters','createWage',{body:{}}],
- ['permanent salary source','hrPayStructures','createPayStructure',{body:{employee_id:user.id,pay_basis:'Monthly salary',guaranteed_monthly_gross:30000}}],
+ ['permanent salary source','hrPayStructures','savePayrollSalary',{body:{employee_id:user.id,existing_id:null,effective_from:'2025-01-01',expected_version:0,pay:{pay_basis:'Monthly salary',guaranteed_monthly_gross:30000,epf_enrolment:false,esi_enrolment:false},reason:'Confirmed salary'}}],
  ['employee source','hrEmployees','updateEmployee',{params:{id:user.id},body:{employee_name:'Employee'}}],
  ['self-service leave','hrLeaves','create',{body:{from_date:'2091-10-01',to_date:'2091-10-01',leave_type:'Medical Leave',reason:'Evidence'}}],
  ['Accounts bank source','acctRequisition','upsertIndianBank',{body:{bank_name:'State Bank of India',is_active:true}}],

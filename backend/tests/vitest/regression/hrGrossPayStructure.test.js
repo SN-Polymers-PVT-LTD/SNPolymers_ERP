@@ -13,14 +13,21 @@ beforeEach(async()=>{
 });
 afterEach(async()=>{await q('ROLLBACK');});
 test('gross-only authoring preserves historical components and prevents public legacy authoring',async()=>{
- const old=await one("SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',30000,10000,2000,3000,true,false,'Active',$2)",[employee,admin]);
+ const old=await one("INSERT INTO hr_permanent_pay_structures(employee_id,revision_number,pay_basis,guaranteed_monthly_gross,basic_salary,staff_welfare,other_fixed_components,epf_enrolment,esi_enrolment,status,created_by,updated_by) VALUES($1,1,'Monthly salary',30000,10000,2000,3000,true,false,'Active',$2,$2) RETURNING *",[employee,admin]);
  await q('SET LOCAL ROLE service_role');
- const current=await one("SELECT * FROM create_hr_pay_structure($1,'Monthly salary',32000,true,false,'Active',$2)",[employee,admin]);
+ await q('SAVEPOINT denied_old');
+ await expect(q("SELECT create_hr_pay_structure($1,'Monthly salary',32000,true,false,'Active',$2)",[employee,admin])).rejects.toMatchObject({code:'42501'});
+ await q('ROLLBACK TO SAVEPOINT denied_old');
+ await q("SELECT save_hr_payroll_salary($1,$2,'2020-01-01',0,NULL,'Confirm existing terms',$3)",[employee,old.id,admin]);
+ const created=(await one("SELECT save_hr_payroll_salary($1,NULL,'2025-01-01',1,$2,'Changed gross',$3) r",[employee,JSON.stringify({pay_basis:'Monthly salary',guaranteed_monthly_gross:'32000',epf_enrolment:true,esi_enrolment:false}),admin])).r;
+ await q('RESET ROLE');
+ const current=await one('SELECT * FROM hr_permanent_pay_structures WHERE id=$1',[created.pay_structure_id]);
  expect(current).toMatchObject({revision_number:2,status:'Active',guaranteed_monthly_gross:'32000.00',basic_salary:null,staff_welfare:null,other_fixed_components:null});
- const permissions=await one("SELECT has_function_privilege('service_role','hr_create_legacy_pay_structure(uuid,text,numeric,numeric,numeric,numeric,boolean,boolean,text,uuid)','execute') legacy,has_function_privilege('authenticated','create_hr_pay_structure(uuid,text,numeric,boolean,boolean,text,uuid)','execute') browser");
+ await q('SET LOCAL ROLE service_role');
+ const permissions=await one("SELECT to_regprocedure('hr_create_legacy_pay_structure(uuid,text,numeric,numeric,numeric,numeric,boolean,boolean,text,uuid)') IS NOT NULL legacy,has_function_privilege('authenticated','create_hr_pay_structure(uuid,text,numeric,boolean,boolean,text,uuid)','execute') browser");
  expect(permissions).toEqual({legacy:false,browser:false});
  await q('SAVEPOINT forbidden');
- await expect(q("SELECT hr_create_legacy_pay_structure($1,'Monthly salary',32000,1,2,3,true,false,'Active',$2)",[employee,admin])).rejects.toMatchObject({code:'42501'});
+ await expect(q("SELECT hr_create_legacy_pay_structure($1,'Monthly salary',32000,1,2,3,true,false,'Active',$2)",[employee,admin])).rejects.toMatchObject({code:'42883'});
  await q('ROLLBACK TO SAVEPOINT forbidden');await q('RESET ROLE');
  expect(await one('SELECT basic_salary,staff_welfare,other_fixed_components,status FROM hr_permanent_pay_structures WHERE id=$1',[old.id])).toEqual({basic_salary:'10000.00',staff_welfare:'2000.00',other_fixed_components:'3000.00',status:'Superseded'});
 });

@@ -372,8 +372,7 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
     if (user?.role === 'admin') {
       payrollItems.push({ to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> });
     }
-    if (['admin', 'accounts'].includes(user?.role)) {
-      if(user.role==='accounts')payrollItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
+    if (user?.role === 'accounts') {
       payrollItems.push({ to: '/admin/payroll/statutory', label: 'Statutory Deduction Master', icon: <span aria-hidden="true">₹</span> });
     }
     payrollItems.push(
@@ -610,13 +609,14 @@ const Sidebar = () => {
   }, [isExpanded, isCollapsed]);
 
   // 1. Detect active module
-  const isPayrollModule = ['/hr/payroll', '/admin/payroll'].some(p => currentPath.startsWith(p));
+  const isAdminPolicyPage = user?.role === 'admin' && currentPath === '/admin/payroll/policies';
+  const isPayrollModule = !isAdminPolicyPage && ['/hr/payroll', '/admin/payroll'].some(p => currentPath.startsWith(p));
   const isFactoryModule = ['/factory-masters', '/factory-attendance', '/hr/self-service-leaves'].some(p => currentPath.startsWith(p));
   const isProjectModule = ['/subcontract-estimates', '/estimates', '/materials', '/daily-progress', '/subcontract-masters', '/subcontract-works', '/subcontractors'].some(p => currentPath.startsWith(p));
   const isFinanceModule = ['/requisitions', '/subcontractor-ledger', '/fund-requests', '/ra-final-bills', '/estimated-bills', '/zonal-balances', '/excess-fund-returns'].some(p => currentPath.startsWith(p));
   const isAccountsModule = currentPath.startsWith('/acct-requisitions');
   const isMappingModule = ['/work-order-mappings', '/user-mappings'].some(p => currentPath.startsWith(p));
-  const isAdminModule = currentPath.startsWith('/admin') && !currentPath.startsWith('/admin/payroll');
+  const isAdminModule = isAdminPolicyPage || (currentPath.startsWith('/admin') && !currentPath.startsWith('/admin/payroll'));
   const isAnalyticsModule = currentPath.startsWith('/analytics') || currentPath.includes('/digital-twin');
 
   // 2. Define sub-navigation items based on active module and role access
@@ -777,12 +777,11 @@ const Sidebar = () => {
         </svg>
       )
     });
-    navItems.push({
+    if(user?.role==='accounts')navItems.push({
       to: '/admin/payroll/statutory',
       label: 'Statutory Deduction Master',
       icon: <span aria-hidden="true">₹</span>
     });
-    if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
     navItems.push({
       to: '/hr/payroll/register',
       label: 'Payroll Register',
@@ -802,10 +801,10 @@ const Sidebar = () => {
     });
   } else if (isPayrollModule) {
     if (user?.role === 'admin') {
-      navItems.push({ to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> });
+      navItems.push({ to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> });
+      navItems.push({ to: '/admin/employee-management?tab=pay-structure', label: 'Employee Pay Structures', icon: <span aria-hidden="true">♙</span> });
     }
-    if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
-    if(['admin','accounts'].includes(user?.role))navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
+    if(user?.role==='accounts')navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
     navItems.push({to:'/hr/payroll/register',label:'Payroll Register',icon:<span aria-hidden="true">₹</span>});
     if (currentPath.startsWith('/hr/payroll/previews')) {
       navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
@@ -1082,12 +1081,11 @@ const Sidebar = () => {
           </svg>
         )
       });
-      navItems.push({
+      if(user?.role==='accounts')navItems.push({
         to: '/admin/payroll/statutory',
         label: 'Statutory Deduction Master',
         icon: <span aria-hidden="true">₹</span>
       });
-      if(user?.role==='accounts')navItems.push({to:'/admin/employee-management?tab=payroll-setup',label:'Employee Management',icon:<span aria-hidden="true">♙</span>});
       navItems.push({
         to: '/hr/payroll/register',
         label: 'Payroll Register',
@@ -1125,7 +1123,7 @@ const Sidebar = () => {
   } else if (isAdminModule) {
     if (user?.role === 'admin') {
       navItems.push(
-        { to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> },
+        { to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> },
         {
           to: '/admin',
           label: 'Access Whitelist',
@@ -1231,6 +1229,8 @@ const Sidebar = () => {
     >
       {/* Fixed 80px Rail in Flex Container (Maintains 100% constant layout width for dashboard) */}
       <aside
+        aria-hidden={isExpanded}
+        inert={isExpanded}
         className={`hidden md:flex flex-col glass-nav border-r border-white/5 sticky top-0 h-screen z-20 shrink-0 w-20 p-4 justify-between items-center transition-opacity duration-200 ${
           isExpanded ? 'opacity-0 pointer-events-none' : 'opacity-100'
         }`}
@@ -1331,6 +1331,8 @@ const Sidebar = () => {
 
       {/* Floating Overlay Drawer (Renders over layout without causing reflow) */}
       <aside
+        aria-hidden={!isExpanded}
+        inert={!isExpanded}
         className={`sidebar-drawer-panel hidden md:flex fixed top-0 left-0 h-screen w-72 border-r border-white/10 z-40 flex-col p-4 justify-between transition-transform duration-300 ease-in-out shadow-[10px_0_30px_rgba(0,0,0,0.5)] ${
           isExpanded
             ? 'translate-x-0 pointer-events-auto'

@@ -1,7 +1,7 @@
 import {describe,test,expect} from 'vitest';
 const {policy,statutory,pt}=require('../../helpers/payrollMasterFixtures');
 const {validateMaster,resolveMaster,selectProfessionalTaxSlab}=require('../../../src/domain/payrollMasters');
-const {create}=require('../../../src/validation/hrPayStructures.schema');
+const {salaryTerms}=require('../../../src/validation/hrPayStructures.schema');
 const published=(id,data)=>({id,status:'PUBLISHED',...data,data});
 describe('Phase 2 pure master validation and historical resolution',()=>{
  test('invalid date, missing group and unknown kind fail explicitly',()=>{
@@ -43,8 +43,8 @@ describe('Phase 2 pure master validation and historical resolution',()=>{
   expect(validateMaster('statutory',s).blockers.map(b=>b.code)).toEqual(expect.arrayContaining(['RATE_REQUIRED','ADVISOR_VERIFICATION_REQUIRED','UNSUPPORTED_OR_UNRESOLVED']));
  });
  test('enrolment flags preserved while forged EPF/ESI amounts or rates fail existing pay schema',()=>{
-  const pay={employee_id:'d8f353ed-1ac4-4543-a608-bb57e54ef792',pay_basis:'Monthly salary',guaranteed_monthly_gross:1000,epf_enrolment:true,esi_enrolment:true};
-  expect(create.body.parse(pay)).toMatchObject({epf_enrolment:true,esi_enrolment:true});for(const field of ['basic_salary','staff_welfare','other_fixed_components','epf_amount','esi_amount','epf_rate','esi_rate','employee_rate','employer_rate'])expect(create.body.safeParse({...pay,[field]:1}).success).toBe(false);
+  const pay={pay_basis:'Monthly salary',guaranteed_monthly_gross:1000,epf_enrolment:true,esi_enrolment:true};
+  expect(salaryTerms.parse(pay)).toMatchObject({epf_enrolment:true,esi_enrolment:true});for(const field of ['basic_salary','staff_welfare','other_fixed_components','epf_amount','esi_amount','epf_rate','esi_rate','employee_rate','employer_rate'])expect(salaryTerms.safeParse({...pay,[field]:1}).success).toBe(false);
  });
  test('synthetic reference arithmetic uses exact integer fractions; February and October stay distinct',()=>{
   // Test-only reference examples, not a salary calculator or production rounding default.

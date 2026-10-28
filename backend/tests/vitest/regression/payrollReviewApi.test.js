@@ -13,6 +13,39 @@ beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw
 afterEach(async()=>{if(employees.length)await q(db,"UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[users.admin.id,employees]);});
 afterAll(async()=>{if(server)await new Promise(resolve=>server.close(resolve));if(db){await q(db,'UPDATE authorised_users SET is_active=false WHERE id=ANY($1::uuid[])',[Object.values(users).map(u=>u.id)]);await db.end();}});
 describe('payroll per-employee review HTTP API',()=>{
+ test('automatic draft calculation is scoped, idempotent and preserves submitted revisions',async()=>{
+  const f=await fixture({factory:true}),id=f.rows[0].id;
+  const body={run_id:f.run.id,page:1,limit:20};
+  expect((await request('POST','/review/auto-recalculate','admin',body)).status).toBe(403);
+  expect((await request('POST','/review/auto-recalculate','otherFm',body)).status).toBe(403);
+  const concurrent=await Promise.all([request('POST','/review/auto-recalculate','fm',body),request('POST','/review/auto-recalculate','fm',body)]);expect(concurrent.every(result=>result.status===200)).toBe(true);expect(concurrent.flatMap(result=>result.body.automatic.results)).toContainEqual(expect.objectContaining({row_id:id,status:'UPDATED'}));
+  expect((await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n).toBe('1');
+  let before=(await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n;
+  const second=await request('POST','/review/auto-recalculate','fm',body);expect(second.body.automatic.results[0].status).toBe('CURRENT');
+  expect((await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n).toBe(before);
+  const previous=(await one(db,'SELECT calculation_snapshot FROM payroll_review_revisions WHERE row_id=$1 AND revision=1',[id])).calculation_snapshot;
+  await q(db,"SELECT record_payroll_source_history($1,'ASSIGNMENT',$2,'Updated assignment evidence',$3)",[f.employees[0].id,JSON.stringify([{group_code:f.group,employee_category:f.category,department:f.department,effective_from:f.from,effective_to:f.to,employment_joined_on:f.from}]),users.admin.id]);
+  const updated=await request('POST','/review/auto-recalculate','fm',body);expect(updated.body.automatic.results[0].status).toBe('UPDATED');
+  expect((await one(db,'SELECT calculation_snapshot FROM payroll_review_revisions WHERE row_id=$1 AND revision=1',[id])).calculation_snapshot).toEqual(previous);
+  const latest=(await one(db,'SELECT calculation_snapshot FROM payroll_review_revisions WHERE row_id=$1 ORDER BY revision DESC LIMIT 1',[id])).calculation_snapshot;
+  expect(latest.source_fingerprint).not.toBe(previous.source_fingerprint);expect(latest.blockers.length).toBeGreaterThan(0);
+  before=(await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n;
+  await act(id,'submit','fm');
+  const submitted=await request('POST','/review/auto-recalculate','fm',body);expect(submitted.body.automatic.results[0].status).toBe('PRESERVED');
+  expect((await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n).toBe(before);
+ });
+ test('freshness is read-only, page bounded and detects source changes',async()=>{
+  const f=await fixture({factory:true}),id=f.rows[0].id;
+  await act(id,'calculate','fm');
+  const before=await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id]);
+  const path=`/review/freshness?run_id=${f.run.id}&page=1&limit=20`;
+  const current=await request('GET',path,'fm');expect(current.status).toBe(200);expect(current.body.freshness.checks[0]).toMatchObject({row_id:id,status:'CURRENT'});
+  await q(db,"SELECT record_payroll_source_history($1,'ASSIGNMENT',$2,'Confirmed updated dates',$3)",[f.employees[0].id,JSON.stringify([{group_code:f.group,employee_category:f.category,department:f.department,effective_from:f.from,effective_to:f.to,employment_joined_on:f.from}]),users.admin.id]);
+  const changed=await request('GET',path,'admin');expect(changed.body.freshness.checks[0].status).toBe('CHANGED');expect(changed.body.freshness.checks[0].reasons.length).toBeGreaterThan(0);
+  expect(await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).toEqual(before);
+  expect((await request('GET',path.replace('limit=20','limit=21'),'fm')).status).toBe(400);
+  expect((await request('GET',path,'je')).status).toBe(403);
+ });
  test('authentication, current roles, scoped queues, pagination and strict server-derived calculation requests',async()=>{
   const f=await fixture({factory:true}),id=f.rows[0].id;
   expect((await request('GET','/review/queue','anonymous')).status).toBe(401);
@@ -54,7 +87,7 @@ describe('payroll per-employee review HTTP API',()=>{
   const f=await fixture({}),id=f.rows[0].id;await act(id,'calculate','accounts');const before=await inspect(id);expect(before.current_preview.gross_after_lop).toBe('30000.00');await act(id,'submit','accounts');
   expect((await act(id,'forward','reviewer')).status).toBe(409);expect((await inspect(id)).row.status).toBe('PENDING_HO_APPROVAL');
   // A finalized authoritative pay history correction invalidates the saved source.
-  const pay=await one(db,"SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',31000,11000,2000,NULL,true,false,'Active',$2)",[f.employees[0].id,users.admin.id]);
+  const pay=await one(db,"SELECT * FROM create_hr_pay_structure($1,'Monthly salary',31000,true,false,'Active',$2)",[f.employees[0].id,users.admin.id]);
   await q(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[f.employees[0].id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:pay.id,effective_from:f.from,effective_to:f.to}]),'SYNTHETIC dated correction',users.admin.id]);
   expect((await inspect(id)).source_stale).toBe(true);expect((await act(id,'approve_lock','ho')).status).toBe(409);expect((await act(id,'return','ho',{reason:'Refresh pay history'})).status).toBe(200);
   await act(id,'correct','accounts',{note:'Authoritative pay-history refresh'});await act(id,'calculate','accounts');const after=await inspect(id);expect(after.revisions[0].calculation_snapshot.gross_after_lop).toBe('30000.00');expect(after.current_preview.gross_after_lop).toBe('31000.00');expect(after.revisions[1].changes.map(c=>c.field)).toEqual(expect.arrayContaining(['earnings','correction_note']));

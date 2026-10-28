@@ -10,7 +10,7 @@ async function createReviewUsers(db){
   users[key]=await one(db,'INSERT INTO authorised_users(mobile_number,role,display_name,is_active) VALUES($1,$2,$3,true) RETURNING *',[String(crypto.randomInt(7000000000,9999999999)),role,'Synthetic Phase 4 '+key]);
  }return users;
 }
-async function createReviewFixture(db,users,{factory=false,department=factory?'SNP Factory':'Head Office',count=1,policyOverrides={},local=false}={}){
+async function createReviewFixture(db,users,{factory=false,department=factory?'SNP Factory':'Head Office',count=1,policyOverrides={},local=false,epfEnrolment=true,esiEnrolment=false}={}){
  const year=Math.max(2800,Number((await one(db,"SELECT coalesce(max(extract(year FROM effective_to)),2799) y FROM payroll_policy_master_revisions WHERE status='PUBLISHED'")).y)+2);
  const from=`${year}-10-01`,to=factory?from:`${year}-10-31`,creator=factory?users.fm:users.accounts;
  const group=factory?(department==='SNP Factory'?(local?'SNP_LOCAL':'SNP_CASUAL'):(local?'FABRIC_LOCAL':'FABRIC_CASUAL')):'HO_STAFF';
@@ -26,7 +26,7 @@ async function createReviewFixture(db,users,{factory=false,department=factory?'S
   const employee=await one(db,"INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$5) RETURNING *",['Synthetic review '+crypto.randomUUID().slice(0,8),category,department,from,users.admin.id]);employees.push(employee);
   const history=(await one(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5) id',[employee.id,'ASSIGNMENT',JSON.stringify([{group_code:group,employee_category:category,department,effective_from:from,effective_to:to,employment_joined_on:from}]),'SYNTHETIC ONLY',users.admin.id])).id;
   const assignment=await one(db,'SELECT id FROM payroll_employee_assignments WHERE revision_id=$1',[history]);
-  if(!factory){const pay=await one(db,"SELECT * FROM hr_create_legacy_pay_structure($1,'Monthly salary',30000,10000,2000,NULL,true,false,'Active',$2)",[employee.id,users.admin.id]);await q(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[employee.id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:pay.id,effective_from:from,effective_to:to}]),'SYNTHETIC ONLY',users.admin.id]);}
+  if(!factory){const pay=await one(db,"SELECT * FROM create_hr_pay_structure($1,'Monthly salary',30000,$3,$4,'Active',$2)",[employee.id,users.admin.id,epfEnrolment,esiEnrolment]);await q(db,'SELECT record_payroll_source_history($1,$2,$3,$4,$5)',[employee.id,'PERMANENT_PAY',JSON.stringify([{pay_structure_id:pay.id,effective_from:from,effective_to:to}]),'SYNTHETIC ONLY',users.admin.id]);}
   rows.push(await one(db,'SELECT * FROM add_payroll_draft_employee($1,$2,$3,$4,$5)',[run.id,assignment.id,from,to,creator.id]));
  }return {run,rows,employees,creator,from,to,group,category,department};
 }

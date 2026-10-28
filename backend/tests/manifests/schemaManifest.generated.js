@@ -844,6 +844,18 @@ module.exports = {
           "udtName": "uuid",
           "nullable": true,
           "default": null
+        },
+        "last_working_date": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
+        },
+        "exit_reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -1577,6 +1589,82 @@ module.exports = {
         }
       }
     },
+    "payroll_company_deduction_setups": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "statutory_scope_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "state_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "establishment_name": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "effective_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": true,
+          "default": null
+        },
+        "epf_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "esi_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "pt_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "evidence_reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
     "payroll_employee_assignments": {
       "columns": {
         "id": {
@@ -2218,7 +2306,7 @@ module.exports = {
         "effective_to": {
           "type": "date",
           "udtName": "date",
-          "nullable": false,
+          "nullable": true,
           "default": null
         },
         "status": {

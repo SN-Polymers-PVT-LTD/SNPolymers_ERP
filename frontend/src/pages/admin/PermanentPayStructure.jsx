@@ -23,7 +23,8 @@ import { getEmployees } from '../../api/hrEmployeesApi';
 import {
   getAllPayStructures,
   getEmployeePayStructures,
-  createPayStructure,
+  savePayrollSalary,
+  getPayrollSalaryContext,
   suspendPayStructure
 } from '../../api/hrPayStructuresApi';
 import {
@@ -31,6 +32,9 @@ import {
   exportEmployeeRevisionsToExcel
 } from '../../utils/exportHelpers';
 import { PERMANENT_CATEGORIES, PAY_BASES } from './employeeConstants';
+
+import PayrollSalaryDates from '../../components/payroll/PayrollSalaryDates';
+import {salaryContextKey} from '../../components/payroll/salaryContextKey';
 
 const formatINR = (val) => {
   if (val === null || val === undefined || val === '') return '—';
@@ -43,10 +47,14 @@ const formatINR = (val) => {
   }).format(num);
 };
 
-export default function PermanentPayStructure({ initialEmployeeId = '' }) {
+export default function PermanentPayStructure({ initialEmployeeId = '', onEmployeeChange }) {
   const queryClient = useQueryClient();
 
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState(initialEmployeeId);
+  const [selectedEmployeeId, setSelectedEmployeeIdState] = useState(initialEmployeeId);
+  const setSelectedEmployeeId = (id) => {
+    setSelectedEmployeeIdState(id);
+    onEmployeeChange?.(id);
+  };
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [employeePage, setEmployeePage] = useState(1);
   const [loadedEmployeesMap, setLoadedEmployeesMap] = useState({});
@@ -62,6 +70,10 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
     esi_enrolment: false,
     status: 'Active'
   });
+
+  const [salaryFrom,setSalaryFrom]=useState('');
+  const [salaryReason,setSalaryReason]=useState('');
+  const payrollDates=useQuery({queryKey:salaryContextKey(selectedEmployeeId),enabled:!!selectedEmployeeId,queryFn:async()=>(await getPayrollSalaryContext(selectedEmployeeId)).data.result});
 
   const [formErrors, setFormErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState('');
@@ -86,9 +98,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
 
   // Sync initialEmployeeId prop if passed
   useEffect(() => {
-    if (initialEmployeeId) {
-      setSelectedEmployeeId(initialEmployeeId);
-    }
+    setSelectedEmployeeIdState(initialEmployeeId || '');
   }, [initialEmployeeId]);
 
   // Reset page and loaded map when search changes
@@ -169,6 +179,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
 
   const activeStructure = payData?.active_structure || null;
   const revisions = payData?.revisions || [];
+  const datedSuspensionBlocked=payrollDates.isPending||payrollDates.isError||!payrollDates.data||payrollDates.data.intervals.some(i=>i.pay_structure_id===activeStructure?.id);
   const suspendedStructure = !activeStructure ? revisions.find((r) => r.status === 'Suspended') || null : null;
   const isEligibleCategory = selectedEmployee ? PERMANENT_CATEGORIES.has(selectedEmployee.employee_category) : false;
 
@@ -239,12 +250,13 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
 
   // Mutations
   const createMutation = useMutation({
-    mutationFn: (payload) => createPayStructure(payload),
+    mutationFn: (payload) => savePayrollSalary(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hr-pay-structures', selectedEmployeeId] });
       queryClient.invalidateQueries({ queryKey: ['hr-all-pay-structures'] });
       setIsFormModalOpen(false);
-      setSuccessMsg('Pay structure saved successfully.');
+      queryClient.invalidateQueries({queryKey:salaryContextKey(selectedEmployeeId)});
+      setSuccessMsg('Salary and payroll effective dates saved. Review Accounts setup if enrolment changed.');
     },
     onError: (err) => {
       setErrorMsg(err.response?.data?.message || err.message || 'Failed to save pay structure.');
@@ -277,6 +289,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       esi_enrolment: source ? Boolean(source.esi_enrolment) : false,
       status: 'Active'
     });
+    setSalaryFrom('');setSalaryReason('');
     setFormErrors({});
     setIsFormModalOpen(true);
   };
@@ -291,6 +304,8 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       errors.guaranteed_monthly_gross = 'Guaranteed monthly gross must be a valid non-negative number.';
     }
 
+    if(!salaryFrom)errors.effective_from='Salary applies-from date is required.';
+    if(!salaryReason.trim())errors.reason='Salary change reason is required.';
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors);
       return;
@@ -304,7 +319,8 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
       status: 'Active'
     };
 
-    createMutation.mutate({ ...basePayload, employee_id: selectedEmployeeId });
+    const pay={pay_basis:basePayload.pay_basis,guaranteed_monthly_gross:basePayload.guaranteed_monthly_gross,epf_enrolment:basePayload.epf_enrolment,esi_enrolment:basePayload.esi_enrolment};
+    createMutation.mutate({employee_id:selectedEmployeeId,existing_id:null,effective_from:salaryFrom,expected_version:payrollDates.data?.version??0,pay,reason:salaryReason.trim()});
   };
 
   return (
@@ -712,7 +728,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                     variant="danger"
                     size="sm"
                     onClick={() => setIsSuspendModalOpen(true)}
-                    disabled={suspendMutation.isPending}
+                    disabled={suspendMutation.isPending||datedSuspensionBlocked}
                     className="flex items-center gap-1.5"
                   >
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -720,6 +736,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                     </svg>
                     Suspend Pay Structure
                   </Button>
+                  {datedSuspensionBlocked&&<p className="max-w-sm text-xs text-amber-400">{payrollDates.data?.intervals.some(i=>i.pay_structure_id===activeStructure?.id)?'This salary has payroll dates. Suspension requires an explicit end date; the current suspension action is unavailable.':'Load payroll effective dates before suspending this salary.'}</p>}
                 </div>
               </div>
 
@@ -939,15 +956,6 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
                       <TableCell className="font-mono font-bold text-emerald-400">
                         {formatINR(rev.guaranteed_monthly_gross)}
                       </TableCell>
-                      <TableCell className="font-mono text-slate-300">
-                        {formatINR(rev.basic_salary)}
-                      </TableCell>
-                      <TableCell className="font-mono text-slate-300">
-                        {formatINR(rev.staff_welfare)}
-                      </TableCell>
-                      <TableCell className="font-mono text-slate-300">
-                        {formatINR(rev.other_fixed_components)}
-                      </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${rev.epf_enrolment ? 'bg-indigo-500/20 text-indigo-300' : 'bg-white/5 text-slate-500'}`}>
@@ -981,6 +989,8 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
         </div>
       )}
 
+      {selectedEmployee&&isEligibleCategory&&<PayrollSalaryDates key={selectedEmployee.id} employee={selectedEmployee} revisions={revisions}/>}
+
       {/* Pay Structure Form Modal */}
       <Modal
         isOpen={isFormModalOpen}
@@ -1010,6 +1020,9 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
             </div>
           )}
 
+          <Input label="Salary applies from" type="date" required value={salaryFrom} onChange={e=>setSalaryFrom(e.target.value)} error={formErrors.effective_from}/>
+          <Input label="Salary change reason" required value={salaryReason} onChange={e=>setSalaryReason(e.target.value)} error={formErrors.reason}/>
+          <p className="text-xs">Saving also records payroll salary dates. Subsequent revisions must start on the first of a month. Future scheduling is not yet available.</p>
           {/* Pay Basis & Gross */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -1095,7 +1108,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               variant="ghost"
               size="md"
               onClick={() => setIsFormModalOpen(false)}
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending||payrollDates.isPending||payrollDates.isError}
             >
               Cancel
             </Button>
@@ -1103,7 +1116,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               type="submit"
               variant="primary"
               size="md"
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending||payrollDates.isPending||payrollDates.isError}
             >
               {createMutation.isPending
                 ? 'Saving...'
@@ -1143,11 +1156,11 @@ export default function PermanentPayStructure({ initialEmployeeId = '' }) {
               variant="danger"
               size="sm"
               onClick={() => {
-                if (activeStructure) {
+                if (activeStructure && !datedSuspensionBlocked) {
                   suspendMutation.mutate(activeStructure.id);
                 }
               }}
-              disabled={suspendMutation.isPending}
+              disabled={suspendMutation.isPending||datedSuspensionBlocked}
             >
               {suspendMutation.isPending ? 'Suspending...' : 'Confirm Suspension'}
             </Button>

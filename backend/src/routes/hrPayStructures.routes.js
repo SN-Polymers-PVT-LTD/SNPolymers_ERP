@@ -10,7 +10,9 @@ router.use(verifyJwt, requireRole(['admin']), requireCurrentAdmin);
 
 router.get('/', controller.listPayStructures);
 router.get('/employees/:employeeId', validateRequest(schema.employeeParam), controller.getEmployeePayStructures);
-router.post('/', validateRequest(schema.create), controller.createPayStructure);
+router.get('/employees/:employeeId/payroll-context', validateRequest(schema.payrollContext), controller.payrollContext);
+router.post('/payroll-salary', validateRequest(schema.payrollSalary), controller.savePayrollSalary);
+router.post('/initial-assignment', validateRequest(schema.initialAssignment), controller.initialAssignment);
 router.post('/:id/suspend', validateRequest(schema.idParam), controller.suspendPayStructure);
 
 module.exports = router;

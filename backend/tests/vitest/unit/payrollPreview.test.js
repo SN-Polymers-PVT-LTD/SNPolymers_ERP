@@ -129,12 +129,17 @@ test('unsupported LINE LOP cannot become rounded allocations in split runs',()=>
 test('blocked Special Package retains agreed component evidence without payable or duplicate earnings',()=>{
  const source=office();source.pay_structures[0].pay_basis='Special package';const result=calculatePreview(source);
  expect(codes(result)).toContain('SPECIAL_PACKAGE_PERIOD_REQUIRED');expect(result.earnings).toEqual([]);expect(result.known_earnings_total).toBe('0.00');expect(result.gross_after_lop).toBeNull();
- expect(result.monthly_reconciliation[0].contract_diagnostics).toEqual([{pay_structure_id:'pay',pay_basis:'Special package',agreed_amount:'30000.00',components:{BASIC:'10000.00',STAFF_WELFARE:'2000.00',OTHER_FIXED:null,PACKAGE_BALANCE:'18000.00'},diagnostic_only:true}]);
+ expect(result.monthly_reconciliation[0].contract_diagnostics).toEqual([{pay_structure_id:'pay',pay_basis:'Special package',agreed_amount:'30000.00',components:{PACKAGE_BALANCE:'30000.00'},diagnostic_only:true}]);
  source.pay_structures[0].pay_basis='Monthly salary';const monthly=calculatePreview(source);expect(monthly.earnings).toHaveLength(1);expect(monthly.known_earnings_total).toBe('30000.00');expect(monthly.monthly_reconciliation[0].contract_diagnostics[0].agreed_amount).toBe('30000.00');
 });
 
 test('dated Special Package components remain diagnostic when several salary sources block entitlement',()=>{
  const source=office();source.pay_structures[0].pay_basis='Special package';source.pay_applicability[0].effective_to='2091-02-15';source.pay_applicability.push({...source.pay_applicability[0],id:'next-app',pay_structure_id:'next-pay',effective_from:'2091-02-16',effective_to:null});source.pay_structures.push({...source.pay_structures[0],id:'next-pay',guaranteed_monthly_gross:'36000.00',other_fixed_components:'1000.00'});
  const result=calculatePreview(source);expect(codes(result)).toContain('SALARY_CHANGE_PRORATION_REQUIRED');expect(result.earnings).toEqual([]);expect(result.gross_after_lop).toBeNull();
- expect(result.monthly_reconciliation[0].contract_diagnostics.map(d=>[d.pay_structure_id,d.agreed_amount,d.components.PACKAGE_BALANCE])).toEqual([['pay','30000.00','18000.00'],['next-pay','36000.00','23000.00']]);
+ expect(result.monthly_reconciliation[0].contract_diagnostics.map(d=>[d.pay_structure_id,d.agreed_amount,d.components.PACKAGE_BALANCE])).toEqual([['pay','30000.00','30000.00'],['next-pay','36000.00','36000.00']]);
+});
+
+test('a previously mapped suspended salary blocks current calculation instead of continuing as payable',()=>{
+ const s=office();s.pay_structures[0].status='Suspended';const result=calculatePreview(s);
+ expect(codes(result)).toContain('INVALID_PAY_SOURCE');expect(result.final_net_salary).toBeNull();expect(result.financial_readiness).not.toBe(true);
 });

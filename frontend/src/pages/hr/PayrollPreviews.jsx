@@ -1,9 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
 import { Button, Select, Pagination } from '../../components/ui';
 import SalaryPreview from '../../components/payroll/SalaryPreview';
 import { listPayrollRuns, getPayrollRun, previewPayrollRow } from '../../api/payrollPreviewApi';
+import { usePayrollPreviewsUrlState } from '../../hooks/usePayrollPreviewsUrlState';
 
 const message = (e) => e?.response?.data?.message || e.message;
 
@@ -12,10 +14,23 @@ export default function PayrollPreviews() {
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
   const activeRow = useRef(null);
 
-  const [page, setPage] = useState(1);
-  const [run, setRun] = useState('');
-  const [rowPage, setRowPage] = useState(1);
-  const [shown, setShown] = useState(null);
+  const {
+    page,
+    setPage,
+    run,
+    setRun,
+    rowPage,
+    setRowPage,
+    rowId,
+    isPreviewOpen,
+    openPreview,
+    closePreview
+  } = usePayrollPreviewsUrlState();
+
+  const [savedPreview, setShown] = useState(null);
+  const shown = isPreviewOpen && savedPreview?.row_id === rowId ? savedPreview : null;
+  const selection = isPreviewOpen ? `${run}:${rowId}` : '';
+  const activeSelection = useRef(selection);
 
   const runs = useQuery({
     queryKey: ['payroll-preview-runs', page],
@@ -30,14 +45,29 @@ export default function PayrollPreviews() {
   });
 
   const preview = useMutation({
-    mutationFn: ({ id, fingerprint }) => previewPayrollRow(id, fingerprint),
-    onSuccess: (r) => {
-      if (activeRow.current === r.data.preview.row_id) {
+    mutationFn: async ({ id, fingerprint }) => {
+      const requestedSelection = activeSelection.current;
+      return { response: await previewPayrollRow(id, fingerprint), selection: requestedSelection };
+    },
+    onSuccess: ({ response: r, selection: requestedSelection }) => {
+      if (activeSelection.current === requestedSelection && activeRow.current === r.data.preview.row_id) {
         setShown(r.data.preview);
       }
     },
-    onError: () => setShown(null)
+    onError: (_error, variables) => { if (activeRow.current === variables.id) setShown(null); }
   });
+
+  const { mutate: generatePreview, reset: resetPreview } = preview;
+  useEffect(() => {
+    activeSelection.current = selection;
+    activeRow.current = null;
+    setShown(null);
+    resetPreview();
+    if (allowed && selection) {
+      activeRow.current = rowId;
+      generatePreview({ id: rowId });
+    }
+  }, [allowed, selection, rowId, generatePreview, resetPreview]);
 
   if (!allowed) {
     return (
@@ -79,22 +109,22 @@ export default function PayrollPreviews() {
 
         {/* View Mode Tabs (Review Queue vs Calculation Previews) */}
         <div className="flex items-center p-1 rounded-2xl bg-white/5 border border-white/10 shrink-0 self-start md:self-auto">
-          <a
-            href="/hr/payroll/review"
+          <Link
+            to="/hr/payroll/review"
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
             Review Queue
-          </a>
-          <a
-            href="/hr/payroll/previews"
+          </Link>
+          <Link
+            to="/hr/payroll/previews"
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all bg-amber-500 text-slate-950 shadow-md shadow-amber-500/10"
           >
             <span aria-hidden="true" className="font-mono">₹</span>
             Payroll Previews
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -136,7 +166,6 @@ export default function PayrollPreviews() {
               onChange={(e) => {
                 activeRow.current = null;
                 setRun(e.target.value);
-                setRowPage(1);
                 setShown(null);
                 preview.reset();
               }}
@@ -212,7 +241,8 @@ export default function PayrollPreviews() {
                             onClick={() => {
                               activeRow.current = r.id;
                               setShown(null);
-                              preview.mutate({ id: r.id });
+                              openPreview(r.id);
+                              if (isPreviewOpen && rowId === r.id) preview.mutate({ id: r.id });
                             }}
                             className="text-xs"
                           >
@@ -274,7 +304,10 @@ export default function PayrollPreviews() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setShown(null)}
+              onClick={() => {
+                setShown(null);
+                closePreview();
+              }}
               className="text-xs text-slate-400 hover:text-white"
             >
               Clear

@@ -1,5 +1,7 @@
 # Bulk initial statutory profile setup
 
+Current workflow and Accounts-only ownership are described in [Company deduction setup](SN_Polymers_Payroll_Company_Deduction_Setup.md), approved 26 October 2026. The sections below record the earlier implementation and are superseded where they describe manual scope entry or Admin setup access.
+
 Accounts and Admin can apply one explicit statutory profile template to up to 100 selected active employees. Department, employee category and literal employee search identify a group; selection can include all matching employees independently of the current table page. No applicability or enrolment is assumed.
 
 The template contains effective dates, canonical scope IDs, EPF/ESI/PT applicability, EPF/ESI enrolment, evidence and verification. Rates, formulas and thresholds remain in published deduction masters. One common scope can be assigned to the three schemes, with per-scheme scope overrides available. Accounts must exclude individual exceptions and acknowledge the selected facts. Editing underlying facts clears confirmation.

@@ -12,3 +12,8 @@ export const bulkRecordStatutoryProfiles=body=>authApi.post(`${base}/statutory-p
 
 export const getStatutoryStates=()=>authApi.get(`${base}/statutory-states`);
 export const registerStatutoryState=body=>authApi.post(`${base}/statutory-states`,body);
+
+export const getCompanyDeductionSetups=params=>authApi.get(`${base}/company-deduction-setups`,{params});
+export const getCompanyDeductionOptions=params=>authApi.get(`${base}/company-deduction-setups/options`,{params});
+export const saveCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups`,body);
+export const applyCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups/apply`,body);

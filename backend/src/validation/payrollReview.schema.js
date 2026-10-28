@@ -9,6 +9,8 @@ const action=z.discriminatedUnion('action',[
  ...['return','cancel'].map(value=>z.object({...base,action:z.literal(value),reason}).strict())
 ]);
 module.exports={
+ autoRecalculate:{body:z.object({run_id:z.uuid(),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(20).default(20)}).strict()},
+ freshness:{query:z.object({run_id:z.uuid(),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(20).default(20)}).strict()},
  queue:{query:z.object({run_id:z.uuid().optional(),status:z.enum(statuses).optional(),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)}).strict()},
  detail:{params:z.object({rowId:z.uuid()}).strict()},
  cancelRun:{params:z.object({runId:z.uuid()}).strict(),body:z.object({reason}).strict()},

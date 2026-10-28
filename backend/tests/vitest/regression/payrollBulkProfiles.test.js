@@ -4,7 +4,7 @@ const {q,one,createReviewUsers,createReviewFixture}=require('../../helpers/payro
 const {generateTokens}=require('../../../src/services/session.service'),app=require('../../../src/app');let db,users,server,base;const tokens={},employees=[];
 async function request(method,path,role='accounts',body){const r=await fetch(base+'/api/v1/auth/hr/payroll'+path,{method,headers:{'Content-Type':'application/json',...(tokens[role]?{Cookie:`accessToken=${tokens[role]}`}:{})},...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};}
 async function fixture(options={factory:true}){const f=await createReviewFixture(db,users,options);employees.push(...f.employees.map(e=>e.id));return f;}
-async function template(f){return interval(await scope(db,users.admin.id),f.from,f.to,{verification_status:'ACCOUNTS_CONFIRMED'});}
+async function template(f){return interval(await scope(db,users.accounts.id),f.from,f.to,{verification_status:'ACCOUNTS_CONFIRMED'});}
 const body=(f,data)=>({employees:f.employees.map(e=>({employee_id:e.id,expected_version:0})),interval:data,evidence_reference:'SYNTHETIC common setup, exceptions excluded'});
 const bulk=(data,role='accounts')=>request('POST','/statutory-profiles/bulk',role,data);
 beforeAll(async()=>{await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();users=await createReviewUsers(db);
@@ -27,7 +27,7 @@ test('one confirmed template creates 21 audited profiles without copying deducti
  const rows=await q(db,'SELECT * FROM payroll_employee_statutory_profiles WHERE employee_id=ANY($1::uuid[])',[f.employees.map(e=>e.id)]);expect(rows).toHaveLength(63);expect(rows.every(p=>p.verification_status==='ACCOUNTS_CONFIRMED')).toBe(true);
 });
 test('existing timelines are preserved; new peer succeeds and rerun cannot create another version',async()=>{
- const f=await fixture({factory:true,count:2}),data=await template(f);await save(db,f.employees[0].id,users.admin.id,0,[data]);const before=await q(db,'SELECT * FROM payroll_employee_statutory_profiles WHERE employee_id=$1',[f.employees[0].id]);
+ const f=await fixture({factory:true,count:2}),data=await template(f);await save(db,f.employees[0].id,users.accounts.id,0,[data]);const before=await q(db,'SELECT * FROM payroll_employee_statutory_profiles WHERE employee_id=$1',[f.employees[0].id]);
  const result=(await bulk(body(f,data))).body.result;expect(result.success).toBe(false);expect(result.results.find(r=>r.employee_id===f.employees[0].id)).toMatchObject({success:false,status:409});expect(result.results.find(r=>r.employee_id===f.employees[1].id).success).toBe(true);
  expect(await q(db,'SELECT * FROM payroll_employee_statutory_profiles WHERE employee_id=$1',[f.employees[0].id])).toEqual(before);
  expect((await bulk(body(f,data))).body.result.results.every(r=>!r.success&&r.status===409)).toBe(true);

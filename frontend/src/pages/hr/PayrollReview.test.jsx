@@ -10,6 +10,11 @@ const preview={row_id:row.id,employee:{employee_name:'Synthetic A',employee_code
 const review={row,run:{id:'run',group_code:'HO_STAFF',department:'Head Office',status:'DRAFT'},available_actions:row.available_actions,current_preview:preview,revisions:[{revision:1,content_version:1,source_fingerprint:row.source_fingerprint,created_at:'2091-10-01',reason:'Synthetic calculation',calculation_snapshot:preview,changes:[]}],changes_since_saved:[],content_versions:[],actions:[],assignment_candidates:[],payment_status:'NOT_ELIGIBLE'};
 beforeEach(()=>{vi.resetAllMocks();editorStub.mockImplementation(()=>null);ledger.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[],total:0}}});user={id:'creator',role:'accounts'};api.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[row],sheets:[{id:'run',group_code:'HO_STAFF',period_from:row.period_from,period_to:row.period_to,progress:{status:'DRAFT',total:1,locked:0,accounts:0,ho:0,returned:0,draft:1,cancelled:0}}],total:1}}});api.getPayrollEmployeeReview.mockResolvedValue({data:{review}});api.actOnPayrollEmployee.mockResolvedValue({data:{result:{applied:true,row}}});});
 describe('employee payroll review',()=>{
+ it('applies the status filter and resets pagination in the same user action',async()=>{
+  mount('/hr/payroll/review?page=3');await screen.findByLabelText('Employee status');
+  fireEvent.change(screen.getByLabelText('Employee status'),{target:{value:'CALCULATED'}});
+  await waitFor(()=>expect(api.getPayrollReviewQueue).toHaveBeenLastCalledWith(expect.objectContaining({page:1,status:'CALCULATED'})));
+ });
  it('opens register drill-down directly in the existing employee review screen',async()=>{
   mount('/hr/payroll/review?row=row-a');expect(await screen.findByText('Employee review: CALCULATED')).toBeInTheDocument();expect(api.getPayrollEmployeeReview).toHaveBeenCalledWith('row-a');expect(screen.getByRole('button',{name:'Save correction'})).toBeInTheDocument();
  });

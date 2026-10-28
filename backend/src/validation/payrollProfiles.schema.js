@@ -15,7 +15,13 @@ const interval=z.object({effective_from:date,effective_to:date.nullable(),verifi
 });
 const employee={params:z.object({employeeId:z.uuid()}).strict()};
 const code=z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,79}$/);
+const employees=z.array(z.object({employee_id:z.uuid(),expected_version:z.literal(0)}).strict()).min(1).max(100).refine(items=>new Set(items.map(x=>x.employee_id)).size===items.length,'Select each employee once.');
+const paging={page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)};
 module.exports={interval,
+ companyList:{query:z.object({search:z.string().trim().max(120).default(''),...paging}).strict()},
+ companyOptions:{query:z.object({state_id:z.uuid(),date,...paging}).strict()},
+ companySave:{body:z.object({state_id:z.uuid(),establishment:z.string().trim().min(1).max(120),effective_from:date,rules:z.object({EPF:z.uuid().optional(),ESI:z.uuid().optional(),PT:z.uuid().optional()}).strict().refine(v=>Object.keys(v).length>0,'Choose at least one rule.'),evidence_reference:z.string().trim().max(2000).default('')}).strict()},
+ companyApply:{body:z.object({setup_id:z.uuid(),effective_from:date,employees,evidence_reference:z.string().trim().max(2000).default('')}).strict()},
  states:{query:z.object({}).strict()},registerState:{body:z.object({name:z.string().trim().min(1).max(120).regex(/^[\p{L}][\p{L} .-]*$/u)}).strict()},
  candidates:{query:z.object({search:z.string().trim().max(120).default(''),department:z.enum(['Head Office','Projects','SNP Factory','Fabric Factory']).optional(),employee_category:z.enum(categories).optional(),unconfigured_only:z.enum(['true','false']).default('true').transform(v=>v==='true'),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)}).strict()},
  bulk:{body:z.object({employees:z.array(z.object({employee_id:z.uuid(),expected_version:z.literal(0)}).strict()).min(1).max(100).refine(items=>new Set(items.map(x=>x.employee_id)).size===items.length,'Select each employee once.'),interval,evidence_reference:text}).strict()},
