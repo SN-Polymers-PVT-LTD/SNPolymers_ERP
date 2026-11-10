@@ -5,3 +5,5 @@ export const createEmployeeAdjustment=(employeeId,data)=>authApi.post(`${base}/e
 export const actOnAdjustment=(id,data)=>authApi.post(`${base}/adjustments/${id}/actions`,data);
 export const publishPayrollCalendar=data=>authApi.post(`${base}/calendar`,data);
 export const setPayrollCutoff=(runId,data)=>authApi.post(`${base}/runs/${runId}/cutoff`,data);
+export const getFactoryCalendar=params=>authApi.get(`${base}/factory-calendar`,{params});
+export const saveFactoryCalendar=data=>authApi.post(`${base}/factory-calendar`,data);

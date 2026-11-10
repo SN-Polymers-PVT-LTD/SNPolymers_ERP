@@ -22,6 +22,39 @@ module.exports = {
       ],
       "returns": "excess_fund_returns"
     },
+    "act_payroll_accounts_item": {
+      "args": [
+        {
+          "name": "p_delivery_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_source",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_calculation",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "act_payroll_adjustment": {
       "args": [
         {
@@ -177,6 +210,115 @@ module.exports = {
         {
           "name": "p_actor_id",
           "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "complete_factory_calculation": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_salary_days",
+          "type": "numeric"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "complete_factory_setup": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_salary_days",
+          "type": "numeric"
+        },
+        {
+          "name": "p_holiday_salary_days",
+          "type": "numeric"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "complete_factory_treatment": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_holiday_salary_days",
+          "type": "numeric"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "confirm_payroll_payment": {
+      "args": [
+        {
+          "name": "p_delivery_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_paid_on",
+          "type": "date"
+        },
+        {
+          "name": "p_reference",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "create_factory_rule": {
+      "args": [
+        {
+          "name": "p_rule",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_calculation",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_treatment",
+          "type": "jsonb DEFAULT NULL::jsonb"
         }
       ],
       "returns": "jsonb"
@@ -556,6 +698,83 @@ module.exports = {
       ],
       "returns": "hr_leave_requests"
     },
+    "deliver_payroll_to_accounts": {
+      "args": [
+        {
+          "name": "p_row_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_expected_review_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_fingerprint",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_migrate",
+          "type": "boolean DEFAULT false"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "factory_calculation_impact": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "factory_category_department": {
+      "args": [
+        {
+          "name": "p_category",
+          "type": "text"
+        }
+      ],
+      "returns": "text"
+    },
+    "factory_setup_impact": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "factory_treatment_impact": {
+      "args": [
+        {
+          "name": "p_rule_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_accounts_import_queue": {
       "args": [
         {
@@ -630,6 +849,27 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_factory_calendar": {
+      "args": [
+        {
+          "name": "p_department",
+          "type": "text"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_to",
+          "type": "date"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_hr_attendance_review_queue": {
       "args": [
         {
@@ -685,6 +925,57 @@ module.exports = {
         {
           "name": "p_employee_id",
           "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_accounts_cutover": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_accounts_sheet": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer DEFAULT 1"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer DEFAULT 20"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_accounts_summaries": {
+      "args": [
+        {
+          "name": "p_sheet_ids",
+          "type": "uuid[]"
         },
         {
           "name": "p_actor_id",
@@ -1027,6 +1318,10 @@ module.exports = {
         {
           "name": "p_limit",
           "type": "integer DEFAULT 20"
+        },
+        {
+          "name": "p_status",
+          "type": "text DEFAULT NULL::text"
         }
       ],
       "returns": "jsonb"
@@ -1444,6 +1739,23 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "resubmit_payroll_payment": {
+      "args": [
+        {
+          "name": "p_delivery_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "review_subcontract_estimate_rows": {
       "args": [
         {
@@ -1489,6 +1801,35 @@ module.exports = {
         }
       ],
       "returns": "payroll_run_employees"
+    },
+    "save_factory_calendar": {
+      "args": [
+        {
+          "name": "p_department",
+          "type": "text"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_action",
+          "type": "text"
+        },
+        {
+          "name": "p_date",
+          "type": "date"
+        },
+        {
+          "name": "p_label",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "save_hr_attendance_rows": {
       "args": [
@@ -1676,6 +2017,43 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "save_payroll_payment_details": {
+      "args": [
+        {
+          "name": "p_delivery_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_bank",
+          "type": "text"
+        },
+        {
+          "name": "p_mode",
+          "type": "text"
+        },
+        {
+          "name": "p_beneficiary_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_cheque_no",
+          "type": "text"
+        },
+        {
+          "name": "p_cheque_date",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "set_payroll_period_cutoff": {
       "args": [
         {
@@ -1717,6 +2095,19 @@ module.exports = {
         }
       ],
       "returns": "fund_requests"
+    },
+    "submit_payroll_accounts_sheet": {
+      "args": [
+        {
+          "name": "p_sheet_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "submit_reopened_subcontract_estimate": {
       "args": [

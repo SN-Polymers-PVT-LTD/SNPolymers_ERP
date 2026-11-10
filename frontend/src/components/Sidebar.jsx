@@ -378,7 +378,7 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
     payrollItems.push(
       { to: '/hr/payroll/register', label: 'Payroll Register', icon: <span aria-hidden="true">₹</span> },
       { to: '/hr/payroll/previews', label: 'Payroll Previews', icon: <span aria-hidden="true">₹</span> },
-      { to: '/hr/payroll/review', label: 'Payroll Review', icon: <span aria-hidden="true">✓</span> }
+      { to: '/hr/payroll/review', label: 'Payroll', icon: <span aria-hidden="true">✓</span> }
     );
     menuGroups.push({
       title: 'Payroll',
@@ -664,7 +664,7 @@ const Sidebar = () => {
       }] : []),
       {
         to: '/hr/payroll/review',
-        label: 'Payroll Review',
+        label: 'Payroll',
         icon: <span aria-hidden="true">✓</span>
       }
     );
@@ -719,7 +719,7 @@ const Sidebar = () => {
     }
     navItems.push({
       to: '/hr/payroll/review',
-      label: 'Payroll Review',
+      label: 'Payroll',
       icon: <span aria-hidden="true">✓</span>
     });
   } else if (user?.role === 'accounts' && (isAccountsModule || isPayrollModule || currentPath.startsWith('/admin/employee-management'))) {
@@ -796,96 +796,73 @@ const Sidebar = () => {
     }
     navItems.push({
       to: '/hr/payroll/review',
-      label: 'Payroll Review',
+      label: 'Payroll',
       icon: <span aria-hidden="true">✓</span>
     });
-  } else if (isPayrollModule) {
-    if (user?.role === 'admin') {
-      navItems.push({ to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> });
-      navItems.push({ to: '/admin/employee-management?tab=pay-structure', label: 'Employee Pay Structures', icon: <span aria-hidden="true">♙</span> });
-    }
-    if(user?.role==='accounts')navItems.push({to:'/admin/payroll/statutory',label:'Statutory Deduction Master',icon:<span aria-hidden="true">₹</span>});
-    navItems.push({to:'/hr/payroll/register',label:'Payroll Register',icon:<span aria-hidden="true">₹</span>});
+  } else if (user?.role === 'admin' && (isPayrollModule || isFactoryModule)) {
+    navItems.push({
+      to: '/factory-attendance/review',
+      label: 'Attendance Review',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/hr/self-service-leaves',
+      label: 'Staff Leave Queue',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/factory-attendance/calendar',
+      label: 'Monthly Calendar',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/factory-attendance',
+      label: 'Daily Attendance',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    });
+    navItems.push({
+      to: '/factory-masters',
+      label: 'Factory Masters',
+      icon: (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    });
+    navItems.push({ to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> });
+    navItems.push({ to: '/admin/employee-management?tab=pay-structure', label: 'Employee Pay Structures', icon: <span aria-hidden="true">♙</span> });
+    navItems.push({ to: '/hr/payroll/register', label: 'Payroll Register', icon: <span aria-hidden="true">₹</span> });
     if (currentPath.startsWith('/hr/payroll/previews')) {
-      navItems.push({to:'/hr/payroll/previews',label:'Payroll Previews',icon:<span aria-hidden="true">₹</span>});
+      navItems.push({ to: '/hr/payroll/previews', label: 'Payroll Previews', icon: <span aria-hidden="true">₹</span> });
     }
-    navItems.push({to:'/hr/payroll/review',label:'Payroll Review',icon:<span aria-hidden="true">✓</span>});
-  } else if (isFactoryModule) {
-    if (user?.role === 'admin') {
+    navItems.push({ to: '/hr/payroll/review', label: 'Payroll', icon: <span aria-hidden="true">✓</span> });
+    if (currentPath.startsWith('/hr/self-service-leaves')) {
       navItems.push({
-        to: '/factory-attendance/review',
-        label: 'Attendance Review',
+        to: '/admin/employee-management',
+        label: 'Employee Management',
         icon: (
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
         )
       });
-      navItems.push({
-        to: '/hr/self-service-leaves',
-        label: 'Staff Leave Queue',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/factory-attendance/calendar',
-        label: 'Monthly Calendar',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/factory-attendance',
-        label: 'Daily Attendance',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/factory-masters',
-        label: 'Factory Masters',
-        icon: (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        )
-      });
-      navItems.push({
-        to: '/hr/payroll/register',
-        label: 'Payroll Register',
-        icon: <span aria-hidden="true">₹</span>
-      });
-      if (currentPath.startsWith('/hr/payroll/previews')) {
-        navItems.push({
-          to: '/hr/payroll/previews',
-          label: 'Payroll Previews',
-          icon: <span aria-hidden="true">₹</span>
-        });
-      }
-      navItems.push({
-        to: '/hr/payroll/review',
-        label: 'Payroll Review',
-        icon: <span aria-hidden="true">✓</span>
-      });
-      if (currentPath.startsWith('/hr/self-service-leaves')) {
-        navItems.push({
-          to: '/admin/employee-management',
-          label: 'Employee Management',
-          icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-          )
-        });
-      }
     }
   } else if (isProjectModule) {
     navItems.push(
@@ -1093,7 +1070,7 @@ const Sidebar = () => {
       });
       navItems.push({
         to: '/hr/payroll/review',
-        label: 'Payroll Review',
+        label: 'Payroll',
         icon: <span aria-hidden="true">✓</span>
       });
     }
@@ -1256,7 +1233,7 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = ['/docs','/factory-attendance/review'].includes(to)
+            const isActive = to.startsWith('/factory-masters') ? currentPath==='/factory-masters' && (new URLSearchParams(location.search).get('tab')==='calendar')===to.includes('tab=calendar') : ['/docs','/factory-attendance/review'].includes(to)
               ? currentPath.startsWith(to)
               : to === '/acct-requisitions/sub-titles'
                 ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')
@@ -1364,7 +1341,7 @@ const Sidebar = () => {
             </button>
           )}
           {navItems.map(({ to, label, icon }) => {
-            const isActive = ['/docs','/factory-attendance/review'].includes(to)
+            const isActive = to.startsWith('/factory-masters') ? currentPath==='/factory-masters' && (new URLSearchParams(location.search).get('tab')==='calendar')===to.includes('tab=calendar') : ['/docs','/factory-attendance/review'].includes(to)
               ? currentPath.startsWith(to)
               : to === '/acct-requisitions/sub-titles'
                 ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')

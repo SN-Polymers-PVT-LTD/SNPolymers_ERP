@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const { Client } = require('pg');
+let calendarOtherActive=[];
 const crypto = require('crypto');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 const { generateTokens } = require('../../../src/services/session.service');
@@ -88,6 +89,9 @@ beforeAll(async () => {
   server = app.listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
 
+  const {rows:otherActive}=await db.query("SELECT id FROM hr_employees WHERE active_status='Active' AND NOT(id=ANY($1::uuid[]))",[Object.values(employees)]);
+  calendarOtherActive=otherActive.map(e=>e.id);
+  await db.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,calendarOtherActive]);
   // Day 1: Create, fill, submit, review and lock
   const s1Res = await request('POST', '/sheets', 'factory_manager', { date: date(1, 1), employee_category: casual });
   expect(s1Res.status).toBe(200);
@@ -187,8 +191,9 @@ afterAll(async () => {
   if (server) await new Promise(r => server.close(r));
   if (db) {
     await db.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,[...Object.values(employees),...extraEmployees]]);
+    if(calendarOtherActive?.length)await db.query("UPDATE hr_employees SET active_status='Active',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,calendarOtherActive]);
     await db.query('UPDATE authorised_users SET is_active=false WHERE id=ANY($1::uuid[])',[Object.values(actors)]);
-    await db.end();
+  await db.end();
   }
 });
 

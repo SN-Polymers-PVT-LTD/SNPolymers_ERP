@@ -42,7 +42,7 @@ test('unresolved deduction lines do not become a zero total', () => {
 test('known LOP with unresolved statutory deductions is labelled a subtotal', () => {
   render(<SalaryPreview preview={preview()} />);
   expect(screen.getByRole('heading', { name: 'deductions' }).parentElement)
-    .toHaveTextContent('Known deduction subtotal: ₹1,000.000000');
+    .toHaveTextContent('Known deduction subtotal: ₹1,000.00');
   expect(screen.getByText('Employer Statutory Total').parentElement).toHaveTextContent('unavailable');
   expect(screen.getByText('Employer Statutory Total').parentElement).not.toHaveTextContent('₹0');
   expect(screen.getByText(/Employer contributions:/)).toHaveTextContent('unavailable');
@@ -50,24 +50,65 @@ test('known LOP with unresolved statutory deductions is labelled a subtotal', ()
 
 test('a complete documented zero contribution can be displayed as zero', () => {
   render(<SalaryPreview preview={preview({ financial_readiness: true, blockers: [], status: 'READY_FOR_REVIEW', final_net_salary: '29000.00' })} />);
-  expect(screen.getByText('Employer Statutory Total').parentElement).toHaveTextContent('₹0.000000');
-  expect(screen.getByRole('heading', { name: 'deductions' }).parentElement).toHaveTextContent('Total: ₹1,000.000000');
+  expect(screen.getByText('Employer Statutory Total').parentElement).toHaveTextContent('₹0.00');
+  expect(screen.getByRole('heading', { name: 'deductions' }).parentElement).toHaveTextContent('Total: ₹1,000.00');
 });
 
 test('totals use backend decimal strings without float conversion or summation', () => {
   const exact = '9007199254740993.01';
   render(<SalaryPreview preview={preview({ gross_after_lop: exact, earnings_total: exact })} />);
   expect(screen.getByRole('heading', { name: 'earnings' }).parentElement).toHaveTextContent('Total: ₹9,00,71,99,25,47,40,993.01');
-  expect(screen.getByText(`Gross after LOP: ${exact} · Final net: unavailable`)).toBeInTheDocument();
+  expect(screen.getByText(`Gross after LOP: ₹9,00,71,99,25,47,40,993.01 · Final net: unavailable`)).toBeInTheDocument();
 });
 
-test('sub-paise intermediates retain the backend precision without new rounding', () => {
+test('sub-paise amounts are rounded for display without changing source data', () => {
   render(<SalaryPreview preview={preview({ gross_after_lop: '0.005000', earnings_total: '0.005000' })} />);
-  expect(screen.getByRole('heading', { name: 'earnings' }).parentElement).toHaveTextContent('Total: ₹0.005000');
+  expect(screen.getByRole('heading', { name: 'earnings' }).parentElement).toHaveTextContent('Total: ₹0.01');
 });
 
 test('legacy preview without a total does not calculate one from its lines', () => {
   render(<SalaryPreview preview={preview({ earnings_total: undefined, deductions_total: undefined })} />);
   expect(screen.getByRole('heading', { name: 'earnings' }).parentElement).toHaveTextContent('Total: unavailable');
   expect(screen.getByRole('heading', { name: 'deductions' }).parentElement).toHaveTextContent('Known deduction subtotal: unavailable');
+});
+
+
+test('overtime displays code and amount cleanly without inline formula clutter', () => {
+  render(
+    <SalaryPreview
+      preview={preview({
+        earnings: [
+          {
+            code: 'OVERTIME',
+            date: '2026-10-02',
+            amount: '96.16',
+            source_ids: ['attendance', 'pay'],
+            calculation: {
+              monthly_gross: '10000.00',
+              salary_days: '26.0000',
+              standard_duty_hours: '8.0000',
+              daily_rate: '384.62',
+              hourly_rate: '48.08',
+              hours: '2.0000',
+              multiplier: '1.0000',
+              rounding: 'Half up to two decimals at daily, hourly and amount stages'
+            }
+          }
+        ]
+      })}
+    />
+  );
+  expect(screen.getByText(/Overtime/)).toBeInTheDocument();
+  expect(screen.getByText('₹96.16')).toBeInTheDocument();
+  expect(screen.queryByText(/duty hours/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Source References')).not.toBeInTheDocument();
+});
+
+test('official payslip shows the recorded Accounts recipient over missing employee setup',()=>{
+ const calculation=preview({beneficiary:{status:'MISSING'},financial_readiness:true});
+ render(<PayrollPayslip payslip={{official:true,review_status:'LOCKED',payment_status:'PAID',calculation,payment_recipient:{status:'RECORDED',beneficiary_name:'Recorded salary recipient',masked_account_number:'****1234',ifsc:'TEST0000001',bank_name:'Test bank'}}}/>);
+ expect(screen.getByRole('heading',{name:'Payment recipient'})).toBeInTheDocument();
+ expect(screen.getAllByText(/Recorded salary recipient/).length).toBeGreaterThan(0);
+ expect(screen.queryByText(/Beneficiary details missing/)).not.toBeInTheDocument();
+ expect(calculation.beneficiary.status).toBe('MISSING');
 });

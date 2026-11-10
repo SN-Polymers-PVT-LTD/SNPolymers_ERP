@@ -251,12 +251,7 @@ async function getRecentActivity(req, res) {
         .from('audit_log')
         .select('*');
       if (req.user.role !== 'admin') {
-        auditsQuery = auditsQuery.neq('module_name', 'HR Employee Master')
-          .neq('module_name', 'HR Permanent Pay Structure')
-          .neq('module_name', 'HR Factory Wage Master')
-          .neq('module_name', 'HR Factory Pay Rule Master')
-          .neq('module_name', 'HR Attendance')
-          .neq('module_name', 'HR Leave');
+        auditsQuery = auditsQuery.not('module_name', 'like', 'HR %');
       }
       const { data: audits, error } = await auditsQuery
         .order('timestamp', { ascending: false }).limit(50);
@@ -296,12 +291,7 @@ async function getAuditLog(req, res) {
       query = query.eq('record_identifier', req.query.record_identifier);
     }
     if (req.user.role !== 'admin') {
-      query = query.neq('module_name', 'HR Employee Master')
-        .neq('module_name', 'HR Permanent Pay Structure')
-        .neq('module_name', 'HR Factory Wage Master')
-        .neq('module_name', 'HR Factory Pay Rule Master')
-        .neq('module_name', 'HR Attendance')
-        .neq('module_name', 'HR Leave');
+      query = query.not('module_name', 'like', 'HR %');
     }
 
     const { data, error, count } = await query

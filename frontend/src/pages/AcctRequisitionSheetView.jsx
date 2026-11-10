@@ -5,6 +5,7 @@ import { Button, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, T
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
+import PayrollAccountsSheet from '../components/payroll/PayrollAccountsSheet';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 import ImportEligibleItemsModal from '../components/acctRequisition/ImportEligibleItemsModal';
@@ -85,7 +86,7 @@ const AcctRequisitionSheetView = () => {
   useEffect(() => {
     emptySheetCleanupRef.current = {
       id,
-      status: sheetDetail?.sheet_status,
+      status: sheetDetail?.payroll_run_id ? null : sheetDetail?.sheet_status,
       itemCount: sheetDetail?.items?.length ?? 0
     };
   });
@@ -420,6 +421,7 @@ const AcctRequisitionSheetView = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  if(sheetDetail.payroll_run_id)return <PayrollAccountsSheet sheetId={id}/>;
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">

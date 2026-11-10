@@ -48,6 +48,8 @@ export function useRequisitionUrlState({ user, requisitions = [], projects = [] 
 
   // Debounced update of 'q' in URL using replace: true
   useEffect(() => {
+    // A no-op setSearchParams still navigates and can restore a closed modal.
+    if (search.trim() === urlQ) return;
     const timer = setTimeout(() => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
@@ -68,7 +70,7 @@ export function useRequisitionUrlState({ user, requisitions = [], projects = [] 
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [search, setSearchParams]);
+  }, [search, urlQ, setSearchParams]);
 
   // 3. Pagination State
   const pageParam = parseInt(searchParams.get('page'), 10);

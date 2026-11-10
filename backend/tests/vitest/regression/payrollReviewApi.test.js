@@ -6,6 +6,8 @@ async function request(method,path,role='admin',body){const response=await fetch
 const inspect=async(id,role='admin')=>(await request('GET',`/rows/${id}/review`,role)).body.review;
 async function fixture(options){const f=await createReviewFixture(db,users,options);employees.push(...f.employees.map(e=>e.id));return f;}
 async function act(id,action,role,extra={}){const d=await inspect(id),row=d.row;return request('POST',`/rows/${id}/review`,role,{action,expected_version:row.current_version,expected_review_version:row.review_version,...(['calculate','correct','return','cancel'].includes(action)?{reason:'SYNTHETIC '+action}:{}),...(['submit','forward','approve_lock'].includes(action)?{source_fingerprint:d.revisions.at(-1)?.source_fingerprint}:{}),...extra});}
+// Explicit compatibility fixtures: new HTTP submissions require full readiness.
+async function legacySubmit(id,role){const r=await require('../../helpers/payrollReviewFixtures').reviewAction(db,id,'submit',users[role].id);return {status:200,body:{result:r}};}
 beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw new Error('Isolated payroll profile required');await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();users=await createReviewUsers(db);
  for(const [key,u] of Object.entries(users)){const s=await one(db,'INSERT INTO sessions(user_id,is_active,jwt_jti) VALUES($1,true,$2) RETURNING id',[u.id,crypto.randomUUID()]);tokens[key]=generateTokens(u,s.id,crypto.randomUUID()).accessToken;}
  server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));base=`http://127.0.0.1:${server.address().port}`;
@@ -30,9 +32,26 @@ describe('payroll per-employee review HTTP API',()=>{
   const latest=(await one(db,'SELECT calculation_snapshot FROM payroll_review_revisions WHERE row_id=$1 ORDER BY revision DESC LIMIT 1',[id])).calculation_snapshot;
   expect(latest.source_fingerprint).not.toBe(previous.source_fingerprint);expect(latest.blockers.length).toBeGreaterThan(0);
   before=(await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n;
-  await act(id,'submit','fm');
+  expect((await act(id,'submit','fm')).status).toBe(409);await legacySubmit(id,'fm');
   const submitted=await request('POST','/review/auto-recalculate','fm',body);expect(submitted.body.automatic.results[0].status).toBe('PRESERVED');
   expect((await one(db,'SELECT count(*) n FROM payroll_review_revisions WHERE row_id=$1',[id])).n).toBe(before);
+ });
+ test('OT completion refreshes a draft once, keeps prior calculation history and preserves submission',async()=>{
+  const f=await fixture({factory:true}),id=f.rows[0].id,body={run_id:f.run.id,page:1,limit:20};
+  const rule={employee_category:f.category,effective_from:f.from,standard_duty_hours:8,ot_enabled:true,ot_method:'Fixed Hourly',ot_rate:50,ot_multiplier:null,holiday_pay_enabled:false,holiday_multiplier:null,management_stoppage_treatment:'Synthetic no deduction',short_hours_treatment:null,comp_off_rule:null,double_duty_multiplier:null};
+  const r=(await one(db,'SELECT create_factory_rule($1,NULL,$2) r',[JSON.stringify(rule),users.admin.id])).r;
+  await request('POST','/review/auto-recalculate','fm',body);
+  const before=await one(db,'SELECT * FROM payroll_review_revisions WHERE row_id=$1 ORDER BY revision DESC LIMIT 1',[id]);
+  await q(db,"SELECT complete_factory_calculation($1,NULL,'Synthetic approved OT rounding',$2)",[r.id,users.admin.id]);
+  const fresh=await request('GET',`/review/freshness?run_id=${f.run.id}&page=1&limit=20`,'fm');
+  expect(fresh.body.freshness.checks[0].reasons).toContain('Factory overtime calculation settings changed.');
+  expect((await request('POST','/review/auto-recalculate','fm',body)).body.automatic.results[0].status).toBe('UPDATED');
+  expect(await one(db,'SELECT * FROM payroll_review_revisions WHERE row_id=$1 AND revision=$2',[id,before.revision])).toEqual(before);
+  expect((await request('POST','/review/auto-recalculate','fm',body)).body.automatic.results[0].status).toBe('CURRENT');
+  expect((await act(id,'submit','fm')).status).toBe(409);await legacySubmit(id,'fm');
+  const count=await one(db,'SELECT count(*)::int n FROM payroll_review_revisions WHERE row_id=$1',[id]);
+  expect((await request('POST','/review/auto-recalculate','fm',body)).body.automatic.results[0].status).toBe('PRESERVED');
+  expect(await one(db,'SELECT count(*)::int n FROM payroll_review_revisions WHERE row_id=$1',[id])).toEqual(count);
  });
  test('freshness is read-only, page bounded and detects source changes',async()=>{
   const f=await fixture({factory:true}),id=f.rows[0].id;
@@ -75,16 +94,16 @@ describe('payroll per-employee review HTTP API',()=>{
   expect((await act(row.id,'cancel','fm')).body.result.row.status).toBe('CANCELLED_DRAFT');
   const withdrawn=await inspect(row.id,'fm');expect(withdrawn.available_actions).toEqual([]);expect(withdrawn.content_versions).toHaveLength(2);expect(withdrawn.actions.map(a=>a.action)).toContain('CANCELLED_DRAFT');expect(withdrawn.payment_status).toBe('NOT_ELIGIBLE');
  });
- test.each(['SNP Factory','Fabric Factory'])('same active FM completes %s review/return cycle and HO lock reports prerequisites',async department=>{
+ test.each(['SNP Factory','Fabric Factory'])('legacy unlinked %s history retains review/return compatibility',async department=>{
   const f=await fixture({factory:true,department}),id=f.rows[0].id;
-  expect((await act(id,'calculate','fm')).status).toBe(200);expect((await act(id,'submit','fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');
+  expect((await act(id,'calculate','fm')).status).toBe(200);expect((await legacySubmit(id,'fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');
   expect((await act(id,'forward','reviewer')).body.result.row.status).toBe('PENDING_HO_APPROVAL');
   const blocked=await act(id,'approve_lock','ho');expect(blocked.status).toBe(422);expect(blocked.body.success).toBe(false);expect(blocked.body.result.blockers.map(b=>b.code)).toContain('FINANCIAL_FINALIZATION_DISABLED');
   expect((await act(id,'return','ho',{reason:'Recheck dates'})).body.result.row.last_return_stage).toBe('HO');expect((await act(id,'correct','fm',{reason:'Confirmed source correction',note:'Corrected documented input'})).status).toBe(200);
-  await act(id,'calculate','fm');expect((await act(id,'submit','fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');const d=await inspect(id);expect(d.revisions).toHaveLength(2);expect(d.revisions[1].changes).toBeInstanceOf(Array);expect(d.payment_status).toBe('NOT_ELIGIBLE');expect(d).not.toHaveProperty('source');
+  await act(id,'calculate','fm');expect((await legacySubmit(id,'fm')).body.result.row.status).toBe('PENDING_ACCOUNTS_REVIEW');const d=await inspect(id);expect(d.revisions).toHaveLength(2);expect(d.revisions[1].changes).toBeInstanceOf(Array);expect(d.payment_status).toBe('NOT_ELIGIBLE');expect(d).not.toHaveProperty('source');
  });
- test('office direct submission, stale approvals, reasoned return and saved revision differences',async()=>{
-  const f=await fixture({}),id=f.rows[0].id;await act(id,'calculate','accounts');const before=await inspect(id);expect(before.current_preview.gross_after_lop).toBe('30000.00');await act(id,'submit','accounts');
+ test('legacy office pending row retains stale/return and revision history',async()=>{
+  const f=await fixture({}),id=f.rows[0].id;await act(id,'calculate','accounts');const before=await inspect(id);expect(before.current_preview.gross_after_lop).toBe('30000.00');await legacySubmit(id,'accounts');
   expect((await act(id,'forward','reviewer')).status).toBe(409);expect((await inspect(id)).row.status).toBe('PENDING_HO_APPROVAL');
   // A finalized authoritative pay history correction invalidates the saved source.
   const pay=await one(db,"SELECT * FROM create_hr_pay_structure($1,'Monthly salary',31000,true,false,'Active',$2)",[f.employees[0].id,users.admin.id]);
@@ -93,17 +112,17 @@ describe('payroll per-employee review HTTP API',()=>{
   await act(id,'correct','accounts',{note:'Authoritative pay-history refresh'});await act(id,'calculate','accounts');const after=await inspect(id);expect(after.revisions[0].calculation_snapshot.gross_after_lop).toBe('30000.00');expect(after.current_preview.gross_after_lop).toBe('31000.00');expect(after.revisions[1].changes.map(c=>c.field)).toEqual(expect.arrayContaining(['earnings','correction_note']));
  });
  test('bulk submissions report an independent stale failure without reverting the successful employee',async()=>{
-  const f=await fixture({count:2});for(const row of f.rows)await act(row.id,'calculate','accounts');const reviews=await Promise.all(f.rows.map(r=>inspect(r.id)));
+  const f=await require('../../helpers/payrollFinancialFixtures').prepareFinancialReview(db,users,{count:2});employees.push(...f.employees.map(e=>e.id));for(const row of f.rows)await act(row.id,'calculate','accounts');const reviews=await Promise.all(f.rows.map(r=>inspect(r.id)));
   const actions=reviews.map((d,i)=>({row_id:d.row.id,request:{action:'submit',expected_version:d.row.current_version,expected_review_version:d.row.review_version-(i===1?1:0),source_fingerprint:d.revisions.at(-1).source_fingerprint}}));
   const result=await request('POST','/review/bulk','accounts',{actions});expect(result.status).toBe(200);expect(result.body.success).toBe(false);expect(result.body.results.map(r=>[r.success,r.status])).toEqual([[true,200],[false,409]]);
-  expect((await inspect(f.rows[0].id)).row.status).toBe('PENDING_HO_APPROVAL');expect((await inspect(f.rows[1].id)).row.status).toBe('CALCULATED');
-  const queue=(await request('GET',`/review/queue?run_id=${f.run.id}`)).body.queue;expect(queue.sheets[0].progress.ho).toBe(1);expect(queue.sheets[0].progress.draft).toBe(1);expect(queue.sheets[0].progress.locked).toBe(0);
+  expect((await inspect(f.rows[0].id)).row.status).toBe('IN_ACCOUNTS_SHEET');expect((await inspect(f.rows[1].id)).row.status).toBe('CALCULATED');
+  const queue=(await request('GET',`/review/queue?run_id=${f.run.id}`)).body.queue;expect(queue.sheets[0].progress.accounts).toBe(1);expect(queue.sheets[0].progress.draft).toBe(1);expect(queue.sheets[0].progress.locked).toBe(0);
  });
  test('concurrent requests do not duplicate submissions and simultaneous final checks remain nonfinancial',async()=>{
-  const f=await fixture({}),id=f.rows[0].id;await act(id,'calculate','accounts');const d=await inspect(id),body={action:'submit',expected_version:d.row.current_version,expected_review_version:d.row.review_version,source_fingerprint:d.revisions.at(-1).source_fingerprint};
-  const submitted=await Promise.all([request('POST',`/rows/${id}/review`,'accounts',body),request('POST',`/rows/${id}/review`,'accounts',body)]);expect(submitted.map(r=>r.status).sort()).toEqual([200,409]);
+  const f=await require('../../helpers/payrollFinancialFixtures').prepareFinancialReview(db,users,{});employees.push(...f.employees.map(e=>e.id));const id=f.rows[0].id;await act(id,'calculate','accounts');const d=await inspect(id),body={action:'submit',expected_version:d.row.current_version,expected_review_version:d.row.review_version,source_fingerprint:d.revisions.at(-1).source_fingerprint};
+  const submitted=await Promise.all([request('POST',`/rows/${id}/review`,'accounts',body),request('POST',`/rows/${id}/review`,'accounts',body)]);expect(submitted.map(r=>r.status)).toContain(200);expect(submitted.every(r=>[200,409].includes(r.status))).toBe(true);expect((await act(id,'submit','accounts')).status).toBe(200);expect((await one(db,'SELECT count(*) n FROM payroll_accounts_deliveries WHERE row_id=$1 AND active',[id])).n).toBe('1');
   const before=await q(db,'SELECT (SELECT count(*) FROM payroll_employee_coverage) coverage,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT sum(available_balance)::text FROM bank_balance_master) bank');
-  const locks=await Promise.all([act(id,'approve_lock','ho'),act(id,'approve_lock','admin')]);expect(locks.map(r=>r.status)).toEqual([422,422]);expect((await inspect(id)).row.status).toBe('PENDING_HO_APPROVAL');expect(await q(db,'SELECT (SELECT count(*) FROM payroll_employee_coverage) coverage,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT sum(available_balance)::text FROM bank_balance_master) bank')).toEqual(before);
+  const locks=await Promise.all([act(id,'approve_lock','ho'),act(id,'approve_lock','admin')]);expect(locks.map(r=>r.status)).toEqual([409,409]);expect((await inspect(id)).row.status).toBe('IN_ACCOUNTS_SHEET');expect(await q(db,'SELECT (SELECT count(*) FROM payroll_employee_coverage) coverage,(SELECT count(*) FROM payroll_month_allocations) allocations,(SELECT sum(available_balance)::text FROM bank_balance_master) bank')).toEqual(before);
  });
  test('an existing token cannot preserve inactive access or allow creator self-approval after a role change',async()=>{
   const f=await fixture({factory:true}),id=f.rows[0].id;await act(id,'calculate','fm');await act(id,'submit','fm');await q(db,'UPDATE authorised_users SET is_active=false WHERE id=$1',[users.fm.id]);expect([401,403]).toContain((await request('GET',`/rows/${id}/review`,'fm')).status);await q(db,'UPDATE authorised_users SET is_active=true WHERE id=$1',[users.fm.id]);
@@ -112,4 +131,13 @@ describe('payroll per-employee review HTTP API',()=>{
   const session=await one(db,'INSERT INTO sessions(user_id,is_active,jwt_jti) VALUES($1,true,$2) RETURNING id',[changed.id,crypto.randomUUID()]);tokens.accounts=generateTokens(changed,session.id,crypto.randomUUID()).accessToken;
   expect((await act(officeId,'approve_lock','accounts')).status).toBe(403);
  });
+});
+
+test('shared factory calendar HTTP routes enforce read/write roles and validate scope and dates',async()=>{
+ const url='/factory-calendar?department=SNP%20Factory&from=2080-01-01&to=2080-01-31';
+ for(const role of ['admin','accounts','ho']){const response=await request('GET',url,role);expect(response.status).toBe(200);expect(response.body.result.days).toBeInstanceOf(Array);}
+ expect((await request('GET',url,'je')).status).toBe(403);
+ expect((await request('POST','/factory-calendar','reviewer',{department:'SNP Factory',expected_version:0,action:'SCHEDULE',date:'2080-01-01',label:'Denied'})).status).toBe(403);
+ expect((await request('POST','/factory-calendar','admin',{department:'Head Office',expected_version:0,action:'SCHEDULE',date:'2080-01-01',label:'Invalid'})).status).toBe(400);
+ expect((await request('GET','/factory-calendar?department=SNP%20Factory&from=2080-02-29&to=2080-01-01','admin')).status).toBe(400);
 });

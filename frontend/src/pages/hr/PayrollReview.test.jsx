@@ -16,36 +16,36 @@ describe('employee payroll review',()=>{
   await waitFor(()=>expect(api.getPayrollReviewQueue).toHaveBeenLastCalledWith(expect.objectContaining({page:1,status:'CALCULATED'})));
  });
  it('opens register drill-down directly in the existing employee review screen',async()=>{
-  mount('/hr/payroll/review?row=row-a');expect(await screen.findByText('Employee review: CALCULATED')).toBeInTheDocument();expect(api.getPayrollEmployeeReview).toHaveBeenCalledWith('row-a');expect(screen.getByRole('button',{name:'Save correction'})).toBeInTheDocument();
+  mount('/hr/payroll/review?row=row-a');expect(await screen.findByRole('dialog',{name:'Employee payroll details'})).toBeInTheDocument();expect(api.getPayrollEmployeeReview).toHaveBeenCalledWith('row-a');expect(await screen.findByRole('button',{name:'Save correction'})).toBeInTheDocument();
  });
  it('shows independent progress, source-backed preview/history and submits only the selected employee/version/fingerprint',async()=>{
-  mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect((await screen.findAllByText(/Gross after LOP: 30000.00/))[0]).toHaveTextContent('Final net: unavailable');expect(screen.getByText(/Locked 0\/1/)).toBeInTheDocument();expect(screen.getByText('Submission and calculation revisions')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Save correction'})).toBeDisabled();
-  fireEvent.click(screen.getByRole('button',{name:'Submit employee'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'submit',expected_version:1,expected_review_version:1,source_fingerprint:'a'.repeat(64)}));expect(screen.queryByRole('button',{name:/^(Pay|Disburse|Post statutory)/i})).not.toBeInTheDocument();
+  mount();fireEvent.click(await screen.findByRole('button',{name:'View details'}));expect((await screen.findAllByText(/Gross after LOP: ₹30,000.00/))[0]).toHaveTextContent('Final net: unavailable');expect(screen.getByText('Approved')).toBeInTheDocument();expect(screen.getByText('Submission and calculation revisions')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Save correction'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'Submit to Accounts'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'submit',expected_version:1,expected_review_version:1,source_fingerprint:'a'.repeat(64)}));expect(screen.queryByRole('button',{name:/^(Pay|Disburse|Post statutory)/i})).not.toBeInTheDocument();
  });
  it('requires a reason and records correction note; returned rows cannot bypass recalculation',async()=>{
-  const returned={...row,status:'RETURNED_TO_CREATOR',last_return_reason:'Verify LOP dates',last_return_stage:'HO',available_actions:['calculate','correct','cancel']};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,row:returned,available_actions:returned.available_actions}}});mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect(await screen.findByText(/Last return \(HO\): Verify LOP dates/)).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Submit employee'})).not.toBeInTheDocument();
+  const returned={...row,status:'RETURNED_TO_CREATOR',last_return_reason:'Verify LOP dates',last_return_stage:'HO',available_actions:['calculate','correct','cancel']};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,row:returned,available_actions:returned.available_actions}}});mount();fireEvent.click(await screen.findByRole('button',{name:'View details'}));expect(await screen.findByText(/Last return \(HO\): Verify LOP dates/)).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Submit to Accounts'})).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Action / correction reason'),{target:{value:'Refreshed authoritative history'}});fireEvent.change(screen.getByLabelText('Correction note'),{target:{value:'No attendance edits'}});fireEvent.click(screen.getByRole('button',{name:'Save correction'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'correct',expected_version:1,expected_review_version:1,reason:'Refreshed authoritative history',note:'No attendance edits'}));
  });
  it('keeps correction, withdrawal and saved evidence accessible when current salary sources fail',async()=>{
   api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,current_preview:null,source_stale:null,source_error:{code:'PAYROLL_SOURCE_UNAVAILABLE',sqlstate:'22023',message:'Preview at most 24 months at a time'},available_actions:['correct','cancel'],content_versions:[{version:1,note:'Legacy interval'}]}}});
-  mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));
+  mount();fireEvent.click(await screen.findByRole('button',{name:'View details'}));
   expect(await screen.findByRole('alert')).toHaveTextContent('Salary sources unavailable (PAYROLL_SOURCE_UNAVAILABLE)');expect(screen.getByText('Current salary preview unavailable.')).toBeInTheDocument();
-  expect(screen.getByText(/Revision 1 \/ content 1/)).toBeInTheDocument();expect(screen.getByText(/Gross after LOP: 30000.00/)).toBeInTheDocument();expect(screen.getByText(/Legacy interval/)).toBeInTheDocument();
-  expect(screen.queryByRole('button',{name:'Save calculation revision'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Submit employee'})).not.toBeInTheDocument();
+  expect(screen.getByText(/Revision 1 \/ content 1/)).toBeInTheDocument();expect(screen.getByText(/Gross after LOP: ₹30,000.00/)).toBeInTheDocument();expect(screen.getByText(/Legacy interval/)).toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'Save calculation revision'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Submit to Accounts'})).not.toBeInTheDocument();
   expect(screen.getByRole('button',{name:'Save correction'})).toBeDisabled();expect(screen.getByRole('button',{name:'Withdraw draft'})).toBeDisabled();
   fireEvent.change(screen.getByLabelText('Action / correction reason'),{target:{value:'Recover unsupported interval'}});fireEvent.change(screen.getByLabelText('Correction note'),{target:{value:'Recreate proper period'}});
   fireEvent.click(screen.getByRole('button',{name:'Save correction'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'correct',expected_version:1,expected_review_version:1,reason:'Recover unsupported interval',note:'Recreate proper period'}));
   await waitFor(()=>expect(screen.getByRole('button',{name:'Withdraw draft'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Withdraw draft'}));await waitFor(()=>expect(api.actOnPayrollEmployee).toHaveBeenCalledWith('row-a',{action:'cancel',expected_version:1,expected_review_version:1,reason:'Recover unsupported interval'}));
   const reads=api.getPayrollEmployeeReview.mock.calls.length;await waitFor(()=>expect(screen.getByRole('button',{name:'Retry salary sources'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Retry salary sources'}));await waitFor(()=>expect(api.getPayrollEmployeeReview.mock.calls.length).toBeGreaterThan(reads));
  });
- it('shows stale source differences and a blocked HO final check without claiming lock/payment',async()=>{
-  user={id:'ho',role:'ho'};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,row:{...row,status:'PENDING_HO_APPROVAL'},source_stale:true,available_actions:['approve_lock','return'],changes_since_saved:[{field:'earnings',before:'old',after:'new'}]}}});api.actOnPayrollEmployee.mockRejectedValueOnce({response:{data:{result:{code:'PAYROLL_LOCK_BLOCKED',blockers:[{code:'FINANCIAL_FINALIZATION_DISABLED'}]}}}});mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect(await screen.findByText(/Sources changed since/)).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Check final lock'}));expect(await screen.findByText(/Final lock blocked: FINANCIAL_FINALIZATION_DISABLED/)).toBeInTheDocument();expect(screen.getByText('Employee review: PENDING_HO_APPROVAL')).toBeInTheDocument();expect(screen.getByText(/Payment status: NOT_ELIGIBLE/)).toBeInTheDocument();
+ it('shows stale sources for legacy rows and directs approval to the Accounts sheet',async()=>{
+  user={id:'ho',role:'ho'};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,row:{...row,status:'PENDING_HO_APPROVAL'},source_stale:true,available_actions:['approve_lock','return'],changes_since_saved:[{field:'earnings',before:'old',after:'new'}]}}});api.actOnPayrollEmployee.mockRejectedValueOnce({response:{data:{result:{code:'PAYROLL_LOCK_BLOCKED',blockers:[{code:'FINANCIAL_FINALIZATION_DISABLED'}]}}}});mount();fireEvent.click(await screen.findByRole('button',{name:'View details'}));expect(await screen.findByText(/Sources changed since/)).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Check final lock'})).not.toBeInTheDocument();expect(screen.getByText(/This earlier submission needs to be moved/)).toBeInTheDocument();expect(screen.getAllByText('With HO').length).toBeGreaterThan(0);
  });
  it('bulk results retain the failed employee selected and never claim sheet approval',async()=>{
-  const b={...row,id:'row-b',employee_name:'Synthetic B',employee_code:'B'};api.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[row,b],sheets:[],total:2}}});api.actOnPayrollEmployees.mockResolvedValue({data:{success:false,results:[{row_id:'row-a',success:true,status:200},{row_id:'row-b',success:false,status:409,error:{message:'Review version conflict'}}]}});mount();fireEvent.click(await screen.findByLabelText('Select Synthetic A'));fireEvent.click(screen.getByLabelText('Select Synthetic B'));fireEvent.click(screen.getByRole('button',{name:'Submit employee for selected employees'}));const results=await screen.findByRole('list',{name:'Employee action results'});await waitFor(()=>expect(within(results).getByText(/row-a: Applied/)).toBeInTheDocument());expect(within(results).getByText(/row-b: Failed \(409\)/)).toBeInTheDocument();expect(screen.getByLabelText('Select Synthetic A')).not.toBeChecked();expect(screen.getByLabelText('Select Synthetic B')).toBeChecked();expect(api.actOnPayrollEmployees.mock.calls[0][0]).toHaveLength(2);
+  const b={...row,id:'row-b',employee_name:'Synthetic B',employee_code:'B'};api.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[row,b],sheets:[],total:2}}});api.actOnPayrollEmployees.mockResolvedValue({data:{success:false,results:[{row_id:'row-a',success:true,status:200},{row_id:'row-b',success:false,status:409,error:{message:'Review version conflict'}}]}});mount();fireEvent.click(await screen.findByLabelText('Select Synthetic A'));fireEvent.click(screen.getByLabelText('Select Synthetic B'));fireEvent.click(screen.getByRole('button',{name:'Submit to Accounts for selected employees'}));const results=await screen.findByRole('list',{name:'Employee action results'});await waitFor(()=>expect(within(results).getByText(/Synthetic A: Applied/)).toBeInTheDocument());expect(within(results).getByText(/Synthetic B: Failed \(409\)/)).toBeInTheDocument();expect(screen.getByLabelText('Select Synthetic A')).not.toBeChecked();expect(screen.getByLabelText('Select Synthetic B')).toBeChecked();expect(api.actOnPayrollEmployees.mock.calls[0][0]).toHaveLength(2);
  });
  it('requires an independent reviewer for a linked self salary and offers no review action',async()=>{
-  user={id:'ho',role:'ho'};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,employee_self:true,available_actions:[]}}});mount();fireEvent.click(await screen.findByRole('button',{name:'Review employee'}));expect(await screen.findByText('An independent reviewer is required for your employee salary.')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Check final lock'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Return for correction'})).not.toBeInTheDocument();
+  user={id:'ho',role:'ho'};api.getPayrollEmployeeReview.mockResolvedValue({data:{review:{...review,employee_self:true,available_actions:[]}}});mount();fireEvent.click(await screen.findByRole('button',{name:'View details'}));expect(await screen.findByText('An independent reviewer is required for your employee salary.')).toBeInTheDocument();expect(screen.queryByRole('button',{name:'Check final lock'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Return for correction'})).not.toBeInTheDocument();
  });
  it.each(['je','zo'])('denies %s without sensitive reads',role=>{user={id:'denied',role};mount();expect(screen.getByRole('alert')).toHaveTextContent('Payroll review access is required');expect(api.getPayrollReviewQueue).not.toHaveBeenCalled();});
  it('renders empty/loading/error and retry states',async()=>{
@@ -63,7 +63,7 @@ describe('employee payroll review',()=>{
   expect(screen.queryByRole('button',{name:'Refresh eligible employees'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'Submit selected employees'})).not.toBeInTheDocument();
   fireEvent.click(await screen.findByRole('button',{name:'View payroll details'}));
-  expect(await screen.findByText('Employee review: CALCULATED')).toBeInTheDocument();
+  expect(await screen.findByRole('dialog',{name:'Employee payroll details'})).toBeInTheDocument();
  });
 
 it('clears the selected sheet and row after successful deletion and returns to the payroll list',async()=>{
@@ -72,6 +72,18 @@ it('clears the selected sheet and row after successful deletion and returns to t
  mount('/hr/payroll/review?run=owned&row=row-a');
  fireEvent.click(await screen.findByRole('button',{name:'Simulate successful sheet deletion'}));
  expect(await screen.findByText('Payroll sheet deleted. Audit history is preserved.')).toBeInTheDocument();
- expect(screen.getByText('New payroll sheet form')).toBeInTheDocument();expect(screen.queryByText('Employee review: CALCULATED')).not.toBeInTheDocument();
- expect(screen.getByRole('button',{name:'Review employee'})).toBeInTheDocument();
+ expect(screen.getByText('New payroll sheet form')).toBeInTheDocument();expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'View details'})).toBeInTheDocument();
+});
+
+it('opens a compact modal from a direct link and closes it with Escape', async()=>{
+ mount('/hr/payroll/review?row=row-a');
+ const dialog = await screen.findByRole('dialog',{name:'Employee payroll details'});
+ await waitFor(()=>expect(dialog).toHaveFocus());
+ expect(await within(dialog).findByText('Not available yet')).toBeInTheDocument();
+ expect(within(dialog).getByText('Calculation, history and setup').closest('details')).not.toHaveAttribute('open');
+ fireEvent.keyDown(window,{key:'Escape'});
+ await waitFor(()=>expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+ fireEvent.click(screen.getByRole('button',{name:'View details'}));
+ expect(await screen.findByRole('dialog',{name:'Employee payroll details'})).toBeInTheDocument();
 });

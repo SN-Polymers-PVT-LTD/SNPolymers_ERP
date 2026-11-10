@@ -5,6 +5,7 @@ import { Button, SkeletonPage, Badge, Modal, Table, TableHeader, TableBody, Tabl
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
+import PayrollAccountsSheet from '../components/payroll/PayrollAccountsSheet';
 import HoDecisionPanel from '../components/acctRequisition/HoDecisionPanel';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
@@ -364,6 +365,7 @@ const AcctHoSheetView = () => {
     </div>
   );
 
+  if(sheetDetail.payroll_run_id)return <PayrollAccountsSheet sheetId={id} ho/>;
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">

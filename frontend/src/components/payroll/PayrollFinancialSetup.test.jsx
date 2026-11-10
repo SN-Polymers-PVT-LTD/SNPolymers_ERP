@@ -1,9 +1,10 @@
 import React from 'react';
+import {MemoryRouter} from 'react-router-dom';
 import {beforeEach,test,expect,vi} from 'vitest';
 import {render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {QueryClient,QueryClientProvider} from '@tanstack/react-query';
 import EmployeeAdjustments from './EmployeeAdjustments';import PayrollPeriodSetup from './PayrollPeriodSetup';import * as api from '../../api/payrollLedgerApi';vi.mock('../../api/payrollLedgerApi');
-const wrap=node=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}>{node}</QueryClientProvider>);
+const wrap=node=>render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}})}><MemoryRouter>{node}</MemoryRouter></QueryClientProvider>);
 const advance={id:'advance',kind:'ADVANCE',amount:'1000.00',status:'DRAFT',version:1,effective_date:'2026-10-01',created_by:'accounts',installment:'333.33',outstanding_balance:'1000.00',history:[]};
 beforeEach(()=>{vi.resetAllMocks();api.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[advance],total:1}}});api.actOnAdjustment.mockResolvedValue({data:{result:{}}});api.createEmployeeAdjustment.mockResolvedValue({data:{result:{}}});api.setPayrollCutoff.mockResolvedValue({data:{result:{}}});api.publishPayrollCalendar.mockResolvedValue({data:{result:{}}});});
 test('HO reviews an employee advance independently with a reason/version and no payment action',async()=>{
@@ -17,5 +18,11 @@ test('cutoff uses independent HO approval and retains the expected proposal vers
  wrap(<PayrollPeriodSetup run={{id:'run',group_code:'HO_STAFF',department:'Head Office'}} cutoff={{version:1,status:'PROPOSED',cutoff_at:'2026-11-01T00:00:00Z'}} user={{id:'ho',role:'ho'}}/>);fireEvent.change(screen.getByLabelText(/^Cutoff approval evidence/),{target:{value:'Approved cutoff record'}});fireEvent.click(screen.getByRole('button',{name:'Approve cutoff'}));await waitFor(()=>expect(api.setPayrollCutoff).toHaveBeenCalledWith('run',{action:'approve',expected_version:1,cutoff_at:null,evidence_reference:'Approved cutoff record'}));
 });
 test('calendar publication uses explicit paid rest-day classification, no inferred weekdays',async()=>{
- wrap(<PayrollPeriodSetup run={{id:'run',group_code:'SNP_PERMANENT',department:'SNP Factory'}} user={{id:'ho',role:'ho'}}/>);for(const name of ['Calendar from','Calendar to'])fireEvent.change(screen.getByLabelText(new RegExp('^'+name)),{target:{value:'2026-10-05'}});fireEvent.change(screen.getByLabelText('Calendar day classification'),{target:{value:'Weekly Off'}});fireEvent.change(screen.getByLabelText(/^Calendar evidence reference/),{target:{value:'Approved dated calendar'}});fireEvent.click(screen.getByRole('button',{name:'Publish calendar evidence'}));await waitFor(()=>expect(api.publishPayrollCalendar).toHaveBeenCalledWith({group_code:'SNP_PERMANENT',department:'SNP Factory',days:[{calendar_date:'2026-10-05',day_type:'Weekly Off',compensation_treatment:'PAID'}],evidence_reference:'Approved dated calendar'}));
+ wrap(<PayrollPeriodSetup run={{id:'run',group_code:'HO_STAFF',department:'Head Office'}} user={{id:'ho',role:'ho'}}/>);for(const name of ['Calendar from','Calendar to'])fireEvent.change(screen.getByLabelText(new RegExp('^'+name)),{target:{value:'2026-10-05'}});fireEvent.change(screen.getByLabelText('Calendar day classification'),{target:{value:'Weekly Off'}});fireEvent.change(screen.getByLabelText(/^Calendar evidence reference/),{target:{value:'Approved dated calendar'}});fireEvent.click(screen.getByRole('button',{name:'Publish calendar evidence'}));await waitFor(()=>expect(api.publishPayrollCalendar).toHaveBeenCalledWith({group_code:'HO_STAFF',department:'Head Office',days:[{calendar_date:'2026-10-05',day_type:'Weekly Off',compensation_treatment:'PAID'}],evidence_reference:'Approved dated calendar'}));
+});
+
+test('factory payroll links to the shared calendar instead of publishing per employee',()=>{
+ wrap(<PayrollPeriodSetup run={{id:'run',group_code:'SNP_PERMANENT',department:'SNP Factory'}} user={{id:'ho',role:'ho'}}/>);
+ expect(screen.getByRole('link',{name:'Open factory work calendar',hidden:true})).toHaveAttribute('href','/factory-masters?tab=calendar&department=SNP%20Factory');
+ expect(screen.queryByText('Calendar from')).not.toBeInTheDocument();
 });

@@ -6,7 +6,7 @@ async function queue(req,res){
  try{
   const {data,error}=await supabase.rpc('get_payroll_review_queue',{p_actor_id:req.user.id,p_run_id:req.query.run_id||null,p_status:req.query.status||null,p_page:req.query.page,p_limit:req.query.limit});
   if(error)return sendError(res,error);
-  return res.json({success:true,queue:{...data,rows:data.rows.map(row=>({...row,available_actions:availableActions(row,req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(row.department))}))}});
+  return res.json({success:true,queue:{...data,rows:data.rows.map(row=>({...row,available_actions:row.accounts_delivery&&['IN_ACCOUNTS_SHEET','PENDING_HO_APPROVAL','LOCKED'].includes(row.status)?[]:availableActions(row,req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(row.department))}))}});
  }catch(error){return sendError(res,error);}
 }
 async function freshness(req,res){
@@ -69,13 +69,16 @@ async function detail(req,res){
   });
   const {source,...review}=data;
   const assignmentCandidates=(source?.assignments||[]).filter(a=>a.group_code===data.run.group_code&&a.department===data.run.department&&a.effective_from<=data.row.period_from&&(!a.effective_to||data.row.period_to<=a.effective_to)).map(a=>({id:a.id,group_code:a.group_code,effective_from:a.effective_from,effective_to:a.effective_to}));
-  return res.json({success:true,review:{...review,revisions,assignment_candidates:assignmentCandidates,current_preview:current,source_stale:data.row.status==='LOCKED'?false:current?!!latest&&latest.source_fingerprint!==current.source_fingerprint:null,changes_since_saved:current?previewChanges(latest,current):[],available_actions:availableActions({...data.row,employee_self:data.employee_self},req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(data.run.department)).filter(action=>current||!['calculate','submit','forward','approve_lock'].includes(action))}});
+  const linked=data.accounts_delivery&&['IN_ACCOUNTS_SHEET','PENDING_HO_APPROVAL','LOCKED'].includes(data.row.status);
+  const stale=data.row.status==='LOCKED'?false:typeof data.delivery_source_current==='boolean'?!data.delivery_source_current:current?!!latest&&latest.source_fingerprint!==current.source_fingerprint:null;
+  return res.json({success:true,review:{...review,revisions,assignment_candidates:assignmentCandidates,current_preview:linked&&latest&&data.row.status!=='LOCKED'?latest:current,source_stale:stale,changes_since_saved:stale&&current?previewChanges(latest,current):[],available_actions:linked?[]:availableActions({...data.row,employee_self:data.employee_self},req.user.role,req.user.id,['SNP Factory','Fabric Factory'].includes(data.run.department)).filter(action=>current||!['calculate','submit','forward','approve_lock'].includes(action))}});
  }catch(error){return sendError(res,error);}
 }
 // Both single and bulk actions call the same single-employee transactional RPC.
 // No client amounts, calculation payloads or actor overrides reach this method.
 async function apply(rowId,request,actorId){
  const {action,expected_version,expected_review_version,...data}=request;
+ if(action==='submit')return supabase.rpc('deliver_payroll_to_accounts',{p_row_id:rowId,p_expected_version:expected_version,p_expected_review_version:expected_review_version,p_fingerprint:data.source_fingerprint,p_actor_id:actorId});
  if(['calculate','approve_lock'].includes(action)){
   const fetched=await supabase.rpc('get_payroll_review_sources',{p_row_id:rowId,p_actor_id:actorId});
   if(fetched.error)return {error:fetched.error};
@@ -118,9 +121,9 @@ async function generateSheet(runId,actorId){
  }
  for(const saved of saved_rows){
   try{
-   const current=await supabase.rpc('get_payroll_review_sources',{p_row_id:saved.row_id,p_actor_id:actorId});
+   const current=await supabase.rpc('get_payroll_employee_review',{p_row_id:saved.row_id,p_actor_id:actorId});
    if(current.error)source_checks.push({row_id:saved.row_id,status:'UNAVAILABLE',code:current.error.code,message:current.error.message});
-   else source_checks.push({row_id:saved.row_id,status:calculatePreview(current.data).source_fingerprint===saved.source_fingerprint?'CURRENT':'CHANGED'});
+   else source_checks.push({row_id:saved.row_id,status:require('../domain/payroll/freshness').sourceCheck(current.data).status});
   }catch{source_checks.push({row_id:saved.row_id,status:'UNAVAILABLE',message:'Unable to check current salary sources.'});}
  }
  return {data:{...generation,results,source_checks}};

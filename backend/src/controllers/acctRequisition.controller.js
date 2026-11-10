@@ -32,6 +32,7 @@ const LINE_ITEM_STATUSES = [
  */
 function mapAcctRpcError(rpcErr) {
   switch (rpcErr.code) {
+    case 'PY409':
     case 'STA01':
     case 'STA03':
     case 'STA05':
@@ -91,6 +92,7 @@ async function createSheet(req, res) {
 
     return res.status(201).json({ success: true, sheet: data, message: 'Requisition sheet created.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`createSheet failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to create requisition sheet.' });
   }
@@ -157,6 +159,7 @@ async function deleteSheetIfEmpty(req, res) {
 
     return res.status(200).json({ success: true, deleted: true, restoredImportCount: restoredCount || 0 });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`deleteSheetIfEmpty failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to clean up empty sheet.' });
   }
@@ -219,10 +222,18 @@ async function getSheets(req, res) {
       }, {});
     }
 
+    let salarySummaries = {};
+    const salarySheetIds = (sheets || []).filter(s => s.payroll_run_id).map(s => s.id);
+    if (salarySheetIds.length) {
+      const {data,error: salaryError} = await supabase.rpc('get_payroll_accounts_summaries', {p_sheet_ids:salarySheetIds,p_actor_id:req.user.id});
+      if (salaryError) throw salaryError;
+      salarySummaries = data || {};
+    }
     const enrichedSheets = (sheets || []).map(sheet => ({
       ...sheet,
       item_count: statsMap[sheet.id]?.item_count || 0,
-      total_req_amount: statsMap[sheet.id]?.total_req_amount || 0
+      total_req_amount: statsMap[sheet.id]?.total_req_amount || 0,
+      ...(salarySummaries[sheet.id] || {})
     }));
 
     const total = count || 0;
@@ -237,6 +248,7 @@ async function getSheets(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getSheets failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheets.' });
   }
@@ -354,6 +366,7 @@ async function getLineItems(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getLineItems failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition line items.' });
   }
@@ -416,6 +429,7 @@ async function getSheetById(req, res) {
 
     return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getSheetById failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheet.' });
   }
@@ -513,6 +527,7 @@ async function addLineItem(req, res) {
 
     return res.status(201).json({ success: true, item: enrichedItem, message: 'Line item added.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`addLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to add line item.' });
   }
@@ -598,6 +613,7 @@ async function updateLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: enrichedUpdated, message: 'Line item updated.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`updateLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update line item.' });
   }
@@ -641,6 +657,7 @@ async function deleteLineItem(req, res) {
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`deleteLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to delete line item.' });
   }
@@ -684,6 +701,7 @@ async function submitSheet(req, res) {
 
     return res.status(200).json({ success: true, sheet: data, message: 'Requisition sheet submitted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`submitSheet failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to submit requisition sheet.' });
   }
@@ -834,6 +852,7 @@ async function actOnLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: data, message: `Line item action '${action}' applied.` });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`actOnLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to act on line item.' });
   }
@@ -961,6 +980,7 @@ async function actOnLineItemsBatch(req, res) {
       message: `${results.length - failed.length} of ${results.length} action(s) applied.`
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`actOnLineItemsBatch failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to apply batch actions.' });
   }
@@ -994,6 +1014,7 @@ async function closeSheetReview(req, res) {
 
     return res.status(200).json({ success: true, sheet: data, message: 'Review closed. Remaining items moved to the pending queue.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`closeSheetReview failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to close sheet review.' });
   }
@@ -1056,6 +1077,7 @@ async function resubmitLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: enrichedItem, message: 'Line item resubmitted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`resubmitLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to resubmit line item.' });
   }
@@ -1334,6 +1356,7 @@ async function getImportEligibleItems(req, res) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getImportEligibleItems failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve importable line items.' });
   }
@@ -1430,6 +1453,7 @@ async function importLineItem(req, res) {
 
     return res.status(201).json({ success: true, item: data, message: 'Line item imported.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`importLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to import line item.' });
   }
@@ -1480,6 +1504,7 @@ async function dismissImportEligibleItem(req, res) {
 
     return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`dismissImportEligibleItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to dismiss line item.' });
   }
@@ -1503,6 +1528,7 @@ async function getBankBalances(req, res) {
 
     return res.status(200).json({ success: true, bankBalances: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBankBalances failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve bank balances.' });
   }
@@ -1575,6 +1601,7 @@ async function upsertBankBalance(req, res) {
 
     return res.status(200).json({ success: true, bankBalance: data, message: 'Bank balance saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertBankBalance failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save bank balance.' });
   }
@@ -1626,6 +1653,7 @@ async function getBankBalanceLedger(req, res) {
       totalPages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBankBalanceLedger failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve bank balance ledger.' });
   }
@@ -1683,6 +1711,7 @@ async function getBeneficiaries(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBeneficiaries failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve beneficiaries.' });
   }
@@ -1718,6 +1747,7 @@ async function lookupBeneficiary(req, res) {
 
     return res.status(200).json({ success: true, beneficiary: enriched });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`lookupBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to look up beneficiary.' });
   }
@@ -1759,6 +1789,7 @@ async function searchBeneficiariesByAcNo(req, res) {
 
     return res.status(200).json({ success: true, beneficiaries: enriched });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`searchBeneficiariesByAcNo failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to search beneficiaries.' });
   }
@@ -1838,6 +1869,7 @@ async function getAccountSubTitles(req, res) {
 
     return res.status(200).json({ success: true, accountSubTitles: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getAccountSubTitles failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve account sub-titles.' });
   }
@@ -1869,6 +1901,7 @@ async function upsertAccountSubTitle(req, res) {
 
     return res.status(200).json({ success: true, accountSubTitle: data, message: 'Account sub-title saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertAccountSubTitle failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save account sub-title.' });
   }
@@ -1895,6 +1928,7 @@ async function getParticulars(req, res) {
 
     return res.status(200).json({ success: true, particulars: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getParticulars failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve particulars.' });
   }
@@ -1926,6 +1960,7 @@ async function upsertParticular(req, res) {
 
     return res.status(200).json({ success: true, particular: data, message: 'Particular saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertParticular failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save particular.' });
   }
@@ -1954,6 +1989,7 @@ async function getIndianBanks(req, res) {
 
     return res.status(200).json({ success: true, indianBanks: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getIndianBanks failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Indian banks.' });
   }
@@ -2024,7 +2060,7 @@ async function exportBulkNeft(req, res) {
   try {
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, payment_mode, requisition_status, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, ho_pass_amount, debit_bank_ac_type')
+      .select('id, sheet_id, payment_mode, requisition_status, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, ho_pass_amount, debit_bank_ac_type, payroll_row_id')
       .in('id', item_ids);
 
     if (itemsErr) throw itemsErr;
@@ -2047,6 +2083,8 @@ async function exportBulkNeft(req, res) {
     if (notApproved.length > 0) {
       return res.status(400).json({ success: false, message: 'All items must be Approved or Partially Approved.' });
     }
+
+    if (items.some(i => i.payroll_row_id && /^0(?:\.0+)?$/.test(String(i.ho_pass_amount)))) return res.status(400).json({success:false,message:'Zero-net salaries do not require a bank transfer or NEFT export.'});
 
     const debitAccounts = new Set(items.map(i => i.debit_bank_ac_type));
     if (debitAccounts.size !== 1) {
@@ -2103,6 +2141,7 @@ async function exportBulkNeft(req, res) {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.end(Buffer.from(buffer));
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`exportBulkNeft failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to export Bulk NEFT.' });
   }
@@ -2200,6 +2239,7 @@ async function getRequisitionLogs(req, res) {
       totalPages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getRequisitionLogs failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition logs.' });
   }
@@ -2290,6 +2330,7 @@ async function getCreditLedger(req, res) {
       pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getCreditLedger failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve credit ledger.' });
   }
@@ -2326,6 +2367,7 @@ async function importCreditInstallment(req, res) {
 
     return res.status(201).json({ success: true, item: data, message: 'Installment line item created.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`importCreditInstallment failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to import credit installment.' });
   }
@@ -2361,6 +2403,7 @@ async function adjustCreditLedgerBalance(req, res) {
 
     return res.status(200).json({ success: true, entry: data, message: 'Credit ledger balance adjusted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`adjustCreditLedgerBalance failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to adjust credit ledger balance.' });
   }
@@ -2425,6 +2468,7 @@ async function getPaymentRequisitions(req, res) {
       pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getPaymentRequisitions failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Payment Requisitions.' });
   }

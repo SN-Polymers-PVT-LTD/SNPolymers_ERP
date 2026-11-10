@@ -26,9 +26,9 @@ test('shows exact authoritative amounts and blockers and opens employee details'
 test('submits selected rows explicitly with versions and fingerprint, without client amounts',async()=>{
  reports.getSalaryRegister.mockResolvedValue({data:{register:{rows:[{...row,blockers:[],net_salary:'100.00'}],total:1}}});
  open();fireEvent.click(await screen.findByLabelText('Select payroll Synthetic payroll employee'));
- await waitFor(()=>expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Submit selected employees'}));
+ await waitFor(()=>expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Submit to Accounts'}));
  await waitFor(()=>expect(review.actOnPayrollEmployees).toHaveBeenCalledWith([{row_id:'row',request:{action:'submit',expected_version:1,expected_review_version:2,source_fingerprint:row.source_fingerprint}}]));
- expect(await screen.findByText('row: Applied')).toBeInTheDocument();
+ expect(await screen.findByText('Synthetic payroll employee: Applied')).toBeInTheDocument();
 });
 test('recalculation requires a reason and sends an explicit calculate action',async()=>{
  open();fireEvent.click(await screen.findByLabelText('Select payroll Synthetic payroll employee'));
@@ -41,11 +41,11 @@ test('refresh flags changed sources without automatically recalculating saved sa
  review.refreshPayrollRun.mockResolvedValue({data:{generation:{added:0,retained:1,results:[],issues:[],source_checks:[{row_id:'row',status:'CHANGED'}]}}});
  open();await screen.findByText('Synthetic payroll employee');fireEvent.click(screen.getByRole('button',{name:'Refresh eligible employees'}));
  expect(await screen.findByText('CHANGED')).toBeInTheDocument();fireEvent.click(screen.getByLabelText('Select payroll Synthetic payroll employee'));
- expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();expect(review.actOnPayrollEmployees).not.toHaveBeenCalled();expect(screen.getByText(row.gross_after_lop)).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();expect(review.actOnPayrollEmployees).not.toHaveBeenCalled();expect(screen.getByText(row.gross_after_lop)).toBeInTheDocument();
 });
 test('mismatched report and review revisions cannot authorize another salary revision',async()=>{
  review.getPayrollReviewQueue.mockResolvedValue({data:{queue:{rows:[{...actionRow,review_revision:2,source_fingerprint:'b'.repeat(64)}],total:1}}});
- open();expect(await screen.findByLabelText('Select payroll Synthetic payroll employee')).toBeDisabled();expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();
+ open();expect(await screen.findByLabelText('Select payroll Synthetic payroll employee')).toBeDisabled();expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();
 });
 test('shows population issues and calculation failures alongside successful rows',async()=>{
  open({run:{...run,generation:{added:1,retained:0,issues:[{employee_id:'missing',employee_name:'Missing source employee',code:'ASSIGNMENT_HISTORY_REQUIRED',message:'Record history'}],results:[{row_id:'row',success:true},{row_id:'failed',success:false,code:'PAYROLL_CALCULATION_FAILED',message:'Retry'}]}}});
@@ -55,7 +55,7 @@ test('shows population issues and calculation failures alongside successful rows
 test('another factory manager can view the sheet but cannot populate, recalculate or submit it',async()=>{
  open({user:{id:'other-fm',role:'factory_manager'}});await screen.findByText('Synthetic payroll employee');
  expect(screen.queryByRole('button',{name:'Refresh eligible employees'})).not.toBeInTheDocument();
- expect(screen.queryByRole('button',{name:'Submit selected employees'})).not.toBeInTheDocument();
+ expect(screen.queryByRole('button',{name:'Submit to Accounts'})).not.toBeInTheDocument();
  expect(screen.getByLabelText('Select all actionable payroll rows on this page')).toBeDisabled();
  expect(screen.getByLabelText('Select payroll Synthetic payroll employee')).toBeDisabled();
 });
@@ -84,7 +84,7 @@ test('keeping a sheet closes confirmation without a deletion request',async()=>{
 test('blocked saved calculation attempts cannot be submitted despite CALCULATED review status',async()=>{
  open();fireEvent.click(await screen.findByLabelText('Select payroll Synthetic payroll employee'));
  expect(screen.getByText('Needs setup / calculation blocked')).toBeInTheDocument();
- expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();
+ expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();
 });
 
 test('automatic freshness checks exclude unknown results and never generate or recalculate',async()=>{
@@ -92,7 +92,7 @@ test('automatic freshness checks exclude unknown results and never generate or r
  reports.getSalaryRegister.mockResolvedValue({data:{register:{rows:[{...row,blockers:[],net_salary:'100.00'}],total:1}}});
  open();await screen.findByText('Synthetic payroll employee');
  expect(screen.getByText(/0 ready/)).toBeInTheDocument();expect(screen.getByText('Checking current sources…')).toBeInTheDocument();
- expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();expect(review.refreshPayrollRun).not.toHaveBeenCalled();expect(review.actOnPayrollEmployees).not.toHaveBeenCalled();
+ expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();expect(review.refreshPayrollRun).not.toHaveBeenCalled();expect(review.actOnPayrollEmployees).not.toHaveBeenCalled();
 });
 test('affected-row action recalculates changed preparer rows with an explicit reason',async()=>{
  review.getPayrollFreshness.mockResolvedValue({data:{freshness:{checks:[{row_id:'row',current_version:1,review_revision:1,source_fingerprint:row.source_fingerprint,status:'CHANGED',reasons:['Salary calculation policy changed.']}]}}});
@@ -103,12 +103,12 @@ test('affected-row action recalculates changed preparer rows with an explicit re
 });
 test('freshness failure keeps saved amounts labelled as previous and blocks submission',async()=>{
  review.getPayrollFreshness.mockRejectedValue(new Error('Unavailable'));
- open();await screen.findByText('Unable to verify current sources');expect(screen.getByText('Previous result — not verified current')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();
+ open();await screen.findByText('Unable to verify current sources');expect(screen.getByText('Previous result — not verified current')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();
 });
 test('an old freshness response cannot certify a newer saved calculation',async()=>{
  review.getPayrollFreshness.mockResolvedValue({data:{freshness:{checks:[{row_id:'row',current_version:1,review_revision:0,source_fingerprint:'old',status:'CURRENT'}]}}});
  reports.getSalaryRegister.mockResolvedValue({data:{register:{rows:[{...row,blockers:[],net_salary:'100.00'}],total:1}}});
- open();await screen.findByText('Unable to verify current sources');expect(screen.getByText(/0 ready/)).toBeInTheDocument();expect(screen.getByRole('button',{name:'Submit selected employees'})).toBeDisabled();
+ open();await screen.findByText('Unable to verify current sources');expect(screen.getByText(/0 ready/)).toBeInTheDocument();expect(screen.getByRole('button',{name:'Submit to Accounts'})).toBeDisabled();
 });
 test('reviewers see stale warnings but cannot recalculate employees',async()=>{
  review.getPayrollFreshness.mockResolvedValue({data:{freshness:{checks:[{row_id:'row',current_version:1,review_revision:1,source_fingerprint:row.source_fingerprint,status:'CHANGED',reasons:[]}]}}});

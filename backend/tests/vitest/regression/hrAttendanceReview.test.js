@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'vitest';
 const { Client } = require('pg');
 const crypto = require('crypto');
+let priorActive=[];
 const { supabase } = require('../../../src/db/supabase');
 const { requireLocalSupabase } = require('../../helpers/requireLocalSupabase');
 const { generateTokens } = require('../../../src/services/session.service');
@@ -32,22 +33,27 @@ beforeAll(async () => {
     const session = (await db.query('INSERT INTO sessions(user_id,is_active,jwt_jti) VALUES($1,true,$2) RETURNING id',[u.id,crypto.randomUUID()])).rows[0];
     tokens[role]=generateTokens(u,session.id,crypto.randomUUID());
   }
+  priorActive=(await db.query("SELECT id FROM hr_employees WHERE active_status='Active' AND employee_category IN ($1,$2)",[casual,local])).rows.map(e=>e.id);
+  await db.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,priorActive]);
   for (const [key,category,status,joining] of [['casual',casual,'Active',date(1)],['second',casual,'Active',date(1)],['inactive',casual,'Inactive',date(1)],['future',casual,'Active',`${year}-12-01`],['local',local,'Active',date(1)]]) {
     employees[key]=(await db.query(`INSERT INTO hr_employees(employee_name,employee_category,department,active_status,joining_date,created_by,updated_by)
       VALUES($1,$2,'SNP Factory',$3,$4,$5,$5) RETURNING id`,[`API ${key}`,category,status,joining,actors.admin])).rows[0].id;
   }
   for (const category of [casual,local]) {
     await db.query(`INSERT INTO hr_factory_pay_rule_revisions(employee_category,effective_from,standard_duty_hours,ot_enabled,ot_method,ot_rate,ot_multiplier,
-      holiday_pay_enabled,holiday_multiplier,management_stoppage_treatment,double_duty_multiplier,created_by)
-      VALUES($1,$2,$3,true,'Fixed Hourly',50,NULL,$4,$5,'Recorded policy',$6,$7)`,[category,date(1),category===local?12:8,category!==local,category===local?null:1.5,category===local?2:null,actors.factory_manager]);
-    await db.query('INSERT INTO hr_factory_wage_revisions(employee_category,effective_from,daily_wage,created_by) VALUES($1,$2,400,$3)',[category,date(1),actors.factory_manager]);
+      holiday_pay_enabled,holiday_multiplier,management_stoppage_treatment,double_duty_multiplier,created_by,department,setup_reason)
+      VALUES($1,$2,$3,true,'Fixed Hourly',50,NULL,$4,$5,'Recorded policy',$6,$7,'SNP Factory','Synthetic scope')`,[category,date(1),category===local?12:8,category!==local,category===local?null:1.5,category===local?2:null,actors.factory_manager]);
+    await db.query(`INSERT INTO hr_factory_wage_revisions(employee_category,effective_from,daily_wage,created_by,department,setup_reason) VALUES($1,$2,400,$3,'SNP Factory','Synthetic scope')`,[category,date(1),actors.factory_manager]);
   }
+  await db.query("INSERT INTO hr_factory_wage_revisions(employee_category,department,effective_from,daily_wage,setup_reason,created_by) VALUES($1,'Fabric Factory',$2,400,'Synthetic Fabric Local scope',$3)",[local,date(1),actors.factory_manager]);
+  await db.query("INSERT INTO hr_factory_pay_rule_revisions(employee_category,department,effective_from,standard_duty_hours,ot_enabled,ot_method,ot_rate,holiday_pay_enabled,management_stoppage_treatment,double_duty_multiplier,setup_reason,created_by) VALUES($1,'Fabric Factory',$2,12,true,'Fixed Hourly',50,false,'Retain normal pay',2,'Synthetic Fabric scope',$3)",[local,date(1),actors.factory_manager]);
   server=app.listen(0); await new Promise(resolve=>server.once('listening',resolve)); base=`http://127.0.0.1:${server.address().port}`;
 });
 afterAll(async () => {
   if (server) await new Promise(resolve=>server.close(resolve));
   if (db) {
     await db.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,Object.values(employees)]);
+    await db.query("UPDATE hr_employees SET active_status='Active',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,priorActive]);
     await db.query('UPDATE authorised_users SET is_active=false WHERE id=ANY($1::uuid[])',[Object.values(actors)]); await db.end();
   }
 });

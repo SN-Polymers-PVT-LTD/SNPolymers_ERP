@@ -37,6 +37,8 @@ router.get('/employees/:employeeId/adjustments',validateRequest(ledgerSchema.lis
 router.post('/employees/:employeeId/adjustments',validateRequest(ledgerSchema.create),ledger.create);
 router.post('/adjustments/:id/actions',validateRequest(ledgerSchema.action),ledger.action);
 router.post('/runs/:runId/cutoff',requireRole(['accounts','ho']),validateRequest(ledgerSchema.cutoff),ledger.cutoff);
+router.get('/factory-calendar',requireRole(['admin','ho','accounts','factory_manager']),validateRequest(ledgerSchema.factoryCalendar),ledger.factoryCalendar);
+router.post('/factory-calendar',requireRole(['admin','ho','factory_manager']),validateRequest(ledgerSchema.saveFactoryCalendar),ledger.saveFactoryCalendar);
 router.post('/calendar',requireRole(['ho','admin']),validateRequest(ledgerSchema.calendar),ledger.calendar);
 const reports = require('../controllers/payrollReports.controller');
 const reportSchema = require('../validation/payrollReports.schema');
@@ -46,6 +48,16 @@ router.get('/reports/export', validateRequest(reportSchema.export), reports.expo
 const previews = require('../controllers/payrollPreview.controller');
 const review = require('../controllers/payrollReview.controller');
 const reviewSchema = require('../validation/payrollReview.schema');
+const salaryAccounts=require('../controllers/payrollAccounts.controller');
+const salarySchema=require('../validation/payrollAccounts.schema');
+router.get('/accounts/cutover',requireRole(['accounts','admin']),validateRequest(salarySchema.cutover),salaryAccounts.cutover);
+router.post('/accounts/cutover',requireRole(['accounts','admin']),validateRequest(salarySchema.convert),salaryAccounts.convert);
+router.get('/accounts/sheets/:sheetId',requireRole(['accounts','ho','admin']),validateRequest(salarySchema.sheet),salaryAccounts.sheet);
+router.post('/accounts/sheets/:sheetId/submit',requireRole(['accounts','admin']),validateRequest(salarySchema.submit),salaryAccounts.submit);
+router.patch('/accounts/deliveries/:deliveryId/payment',requireRole(['accounts','admin']),validateRequest(salarySchema.payment),salaryAccounts.payment);
+router.post('/accounts/deliveries/:deliveryId/action',requireRole(['accounts','ho','admin']),validateRequest(salarySchema.action),salaryAccounts.action);
+router.post('/accounts/deliveries/:deliveryId/resubmit',requireRole(['accounts','admin']),validateRequest(salarySchema.resubmit),salaryAccounts.resubmit);
+router.post('/accounts/deliveries/:deliveryId/paid',requireRole(['accounts','admin']),validateRequest(salarySchema.confirm),salaryAccounts.confirm);
 router.post('/review/auto-recalculate', requireRole(['accounts','factory_manager']), validateRequest(reviewSchema.autoRecalculate), review.autoRecalculate);
 router.get('/review/freshness', validateRequest(reviewSchema.freshness), review.freshness);
 router.get('/review/queue', validateRequest(reviewSchema.queue), review.queue);

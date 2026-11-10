@@ -92,7 +92,7 @@ export default function PayrollPayslip({ payslip }) {
       )}
 
       {/* Core Calculation Breakdown */}
-      <SalaryPreview preview={payslip.calculation} />
+      <SalaryPreview preview={isOfficial && payslip.payment_recipient ? {...payslip.calculation, beneficiary:payslip.payment_recipient} : payslip.calculation} beneficiaryContext={isOfficial && payslip.payment_recipient ? 'payment' : 'employee'} isPayslip={true} />
 
       {/* Physical Signature Signoff (Printed Payslip Only) */}
       {isOfficial && <div className="hidden print:grid grid-cols-2 gap-12 pt-10 border-t border-slate-300 text-xs text-slate-800">

@@ -34,21 +34,31 @@ function permanentCalculation(source,days){
    const leave=day.leave[0],status=day.attendance?.attendance_status;
    return (day.factory&&status==='Absent')||!!(leave&&['Approved','Rejected'].includes(leave.approval_status)&&(leave.pay_treatment==='Unpaid'||leave.approval_status==='Rejected'));
   });
+  // A short worked day contributes only its missing-hours fraction to LOP.
+  // Use the published LOP divisor, never the OT/holiday conversion divisor.
+  for(const d of md){
+   const r=d.attendance,rule=d.rule;
+   if(r?.attendance_status==='Present'&&rule?.treatment?.short_hours_method==='MISSING_HOURS'&&!rawUnpaid.some(x=>x.date===d.date)){
+    const worked=D.decimal(r.actual_hours),normal=D.decimal(rule.standard_duty_hours);
+    if(D.compare(worked,normal)<0n)rawUnpaid.push({...d,short_hours_fraction:D.div(D.sub(normal,worked),normal)});
+   }
+  }
   let unpaid=rawUnpaid;
   if(policy?.leave_weekly_off_method==='EXCLUDE_PAID_CALENDAR_DAYS'){
    unpaid=rawUnpaid.filter(d=>{
-    const calendar=source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED');
+    const calendar=d.calendar||source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED');
     if(calendar.length!==1||!['PAID','UNPAID'].includes(calendar[0].compensation_treatment)){block('LEAVE_CALENDAR_ENTITLEMENT_REQUIRED',d.date);return false;}
     const c=calendar[0];
     if((c.day_type==='Paid Holiday'&&c.compensation_treatment!=='PAID')||(c.day_type==='Unpaid Closure'&&c.compensation_treatment!=='UNPAID')){block('CONFLICTING_CALENDAR_ENTITLEMENT',d.date,c.id);return false;}
+    if(d.short_hours_fraction)return true;
     return !(['Weekly Off','Paid Holiday'].includes(c.day_type)&&c.compensation_treatment==='PAID');
    });
   }
-  const noPayableEntitlement=md.length>0&&unpaid.length===md.length&&md.every(d=>{const c=source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED');return c.length===1&&c[0].compensation_treatment==='UNPAID';});
+  const noPayableEntitlement=md.length>0&&unpaid.length===md.length&&!unpaid.some(d=>d.short_hours_fraction)&&md.every(d=>{const c=(d.calendar||source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED'));return c.length===1&&c[0].compensation_treatment==='UNPAID';});
   const zeroMonth=noPayableEntitlement&&policy?.full_month_unpaid_treatment==='NO_PAYABLE_ENTITLEMENT_ZERO';
   const weekly=policy?.leave_weekly_off_method!=='EXCLUDE_PAID_CALENDAR_DAYS'&&unpaid.some(d=>new Date(d.date+'T00:00:00Z').getUTCDay()===0||source.calendar.some(c=>c.calendar_date===d.date&&c.day_type==='Weekly Off'));
   const recon=reconcileMonth(source,bounds,entitlement,policy,md.map(d=>d.date),resolved?.revision_id);blockers.push(...recon.blockers);
-  const scenario={has_lop:unpaid.length>0,partial_month:partial,split_run:recon.split,full_month_unpaid:unpaid.length===md.length&&md.length>0,weekly_off_leave:weekly};
+  const scenario={has_lop:unpaid.length>0,partial_month:partial,split_run:recon.split,full_month_unpaid:unpaid.length===md.length&&md.length>0&&!unpaid.some(d=>d.short_hours_fraction),weekly_off_leave:weekly};
   const ready=calculationReadiness(resolved,scenario);blockers.push(...ready.blockers.map(b=>({...b,kind:'policy',date:start})));warnings.push(...ready.configuration_warnings.map(w=>({...w,date:start})));
   if(weekly)block('LEAVE_WEEKLY_OFF_CLASSIFICATION_REQUIRED',start);
   const chosen=recon.allocations.find(a=>a.row_id===source.row.id);
@@ -56,9 +66,9 @@ function permanentCalculation(source,days){
   let literal=D.zero();const daily=[];
   for(const d of unpaid){if(!d.pay||!d.policy?.data)continue;
    const p=d.policy.data,divisor=p.lop_method==='FIXED_DIVISOR'?D.decimal(p.lop_fixed_divisor):D.fraction(BigInt(dates(bounds.from,bounds.to).length));
-   let value=D.div(D.decimal(d.pay.guaranteed_monthly_gross),divisor);literal=D.add(literal,value);
+   let value=D.div(D.decimal(d.pay.guaranteed_monthly_gross),divisor);if(d.short_hours_fraction)value=D.mul(value,d.short_hours_fraction);literal=D.add(literal,value);
    if(p.rounding.lop.stage==='DAILY'&&p.rounding.lop.method!=='UNRESOLVED')value=D.round(value,p.rounding.lop);
-   daily.push({date:d.date,value,source_ids:[d.pay.id,d.policy.revision_id,...d.leave.map(l=>l.id),...(d.attendance?[d.attendance.id]:[])]});
+   daily.push({date:d.date,value,source_ids:[d.pay.id,d.policy.revision_id,...(d.short_hours_fraction?[d.rule.id,d.rule.treatment.id]:[]),...d.leave.map(l=>l.id),...(d.attendance?[d.attendance.id]:[])]});
   }
   let monthlyLop=null,currentLop=null;const lopPlan=new Map();
   const rule=policy?.rounding.lop;

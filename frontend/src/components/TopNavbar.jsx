@@ -69,7 +69,7 @@ const TopNavbar = () => {
         </svg>
       ),
       to: ['ho','admin'].includes(role) ? '/factory-attendance/review' : '/factory-attendance',
-      isActive: currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance')
+      isActive: currentPath.startsWith('/factory-masters') || currentPath.startsWith('/factory-attendance') || currentPath.startsWith('/hr/payroll')
     }] : []),
     // 2. Project Management
     ...(isAuthorizedProjects

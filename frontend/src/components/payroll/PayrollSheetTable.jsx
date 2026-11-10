@@ -4,6 +4,8 @@ import { Button, Input, Pagination, Table, TableHeader, TableBody, TableRow, Tab
 import { getSalaryRegister } from '../../api/payrollReportsApi';
 import { autoRecalculatePayroll, getPayrollFreshness, getPayrollReviewQueue, actOnPayrollEmployees, refreshPayrollRun, deletePayrollRun } from '../../api/payrollReviewApi';
 import PayrollBlockers from './PayrollBlockers';
+import {payrollStatus,payrollGroupName} from '../../utils/payrollDisplay';
+import PayrollDeliveryReceipt from './PayrollDeliveryReceipt';
 const message=e=>e?.response?.data?.message||e.message;
 const amount=value=>value??'Unavailable';
 
@@ -44,7 +46,7 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
    return {kind,results:combined};
   },
   onSuccess:r=>{
-   setResults(r.results);
+   setResults(r.results.map(item=>({...item,name:(report.data?.rows||[]).find(row=>row.id===item.row_id)?.employee_name||'Employee'})));
    const succeeded=new Set(r.results.filter(item=>item.success).map(item=>item.row_id));
    setSelected(ids=>ids.filter(id=>!succeeded.has(id)));
    if(r.kind==='calculate')setGeneration(prev=>prev?{...prev,source_checks:(prev.source_checks||[]).filter(item=>!succeeded.has(item.row_id))}:prev);
@@ -91,7 +93,7 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
  return <section aria-label="Payroll sheet table" className="glass-panel rounded-2xl border border-white/10 overflow-hidden space-y-4">
   <div className="p-5 space-y-3 border-b border-white/10">
    <div className="flex flex-wrap justify-between items-center gap-3">
-    <div><h3 className="text-lg font-bold">Payroll calculation table</h3><p className="text-xs text-slate-400">{run.department} / {run.group_code} / {run.period_from} – {run.period_to}</p></div>
+    <div><h3 className="text-lg font-bold">Payroll calculation table</h3><p className="text-xs text-slate-400">{run.department} · {payrollGroupName(run.group_code)} · {run.period_from} – {run.period_to}</p></div>
     {canPrepare&&<div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={()=>populate.mutate()}>Refresh eligible employees</Button><Button variant="danger" disabled={busy||deleteBlocked} onClick={()=>{setDeleteReason('');deletion.reset();setDeleteOpen(true);}}>Delete draft sheet</Button></div>}
    </div>
    <p className="text-xs text-slate-400">Unsubmitted drafts update automatically when changed sources are detected on open or refocus. Submitted, returned and locked rows keep their saved calculations. Refresh also adds missing eligible employees. Submission and approval remain explicit decisions.</p>
@@ -119,8 +121,8 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
       <TableCell align="right" className="font-mono">{amount(row.gross_after_lop)}{row.status!=='LOCKED'&&sourceState(row)!=='CURRENT'&&<div className="text-xs text-amber-500">Previous result — not verified current</div>}</TableCell>
       <TableCell align="right" className="font-mono">{amount(row.epf)} / {amount(row.esi)} / {amount(row.pt)}</TableCell>
       <TableCell align="right" className="font-mono">{amount(row.net_salary)}</TableCell>
-      <TableCell><Badge variant={row.status==='LOCKED'?'emerald':'amber'}>{row.status==='CALCULATED'?(sourceState(row)==='CHECKING'?'Checking sources':sourceState(row)==='CHANGED'?'Needs recalculation':sourceState(row)==='UNAVAILABLE'?'Unable to verify':ready(row)?'Ready for review':'Calculation blocked'):row.status}</Badge></TableCell>
-      <TableCell><div>{sourceState(row)==='CHECKING'?'Checking current sources…':sourceState(row)==='CHANGED'?(['PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL'].includes(row.status)?'Inputs changed — return for recalculation':'Sources changed — recalculate'):sourceState(row)==='UNAVAILABLE'?'Unable to verify current sources':!ready(row)?'Needs setup / calculation blocked':row.calculation_status||row.evidence_status}</div><div className="text-xs text-slate-400">{row.status==='LOCKED'?'Immutable snapshot':sourceState(row)}</div>{sourceState(row)==='CHANGED'&&check?.reasons?.map(reason=><p key={reason} className="text-xs text-amber-500">{reason}</p>)}{sourceState(row)==='CHANGED'?<details className="text-xs"><summary>Previous calculation blockers</summary><PayrollBlockers blockers={row.blockers||[]}/></details>:<PayrollBlockers blockers={row.blockers||[]}/>}</TableCell>
+      <TableCell><Badge variant={row.status==='LOCKED'?'emerald':'amber'}>{row.status==='CALCULATED'?(sourceState(row)==='CHECKING'?'Checking sources':sourceState(row)==='CHANGED'?'Needs recalculation':sourceState(row)==='UNAVAILABLE'?'Unable to verify':ready(row)?'Ready for review':'Calculation blocked'):payrollStatus(row.status)}</Badge><PayrollDeliveryReceipt receipt={row.accounts_delivery} role={user.role}/></TableCell>
+      <TableCell><div>{sourceState(row)==='CHECKING'?'Checking current sources…':sourceState(row)==='CHANGED'?(['IN_ACCOUNTS_SHEET','PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL'].includes(row.status)?'Inputs changed — return for recalculation':'Sources changed — recalculate'):sourceState(row)==='UNAVAILABLE'?'Unable to verify current sources':!ready(row)?'Needs setup / calculation blocked':row.calculation_status||row.evidence_status}</div><div className="text-xs text-slate-400">{row.status==='LOCKED'?'Immutable snapshot':sourceState(row)}</div>{sourceState(row)==='CHANGED'&&check?.reasons?.map(reason=><p key={reason} className="text-xs text-amber-500">{reason}</p>)}{sourceState(row)==='CHANGED'?<details className="text-xs"><summary>Previous calculation blockers</summary><PayrollBlockers blockers={row.blockers||[]}/></details>:<PayrollBlockers blockers={row.blockers||[]}/>}</TableCell>
       <TableCell><Button size="sm" disabled={busy} onClick={()=>onReviewRow?.(row.id)}>View payroll details</Button></TableCell>
      </TableRow>;
     })}</TableBody>
@@ -130,13 +132,13 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
    {canPrepare&&<div className="p-5 border-t border-white/10 space-y-3">
     <p className="text-sm">{picked.length} employees selected on this page.</p>
     <Input label="Recalculation reason" value={reason} maxLength={2000} onChange={e=>setReason(e.target.value)} placeholder="Explain an explicit recalculation of selected drafts"/>
-    <div className="flex flex-wrap gap-3"><Button disabled={busy||!affected.length||!reason.trim()} onClick={()=>actions.mutate({kind:'calculate',rows:affected})}>Recalculate affected employees on this page</Button><Button disabled={busy||!canCalculate||!reason.trim()} onClick={()=>actions.mutate('calculate')}>Recalculate selected employees</Button><Button disabled={busy||!canSubmit} onClick={()=>actions.mutate('submit')}>Submit selected employees</Button></div>
-    {!!results.length&&<ul aria-label="Payroll sheet action results" className="text-xs space-y-1">{results.map(r=><li key={r.row_id}>{r.row_id}: {r.success?'Applied':`Failed (${r.status})`} {r.error?.message||r.result?.code||''}</li>)}</ul>}
+    <div className="flex flex-wrap gap-3"><Button disabled={busy||!affected.length||!reason.trim()} onClick={()=>actions.mutate({kind:'calculate',rows:affected})}>Recalculate affected employees on this page</Button><Button disabled={busy||!canCalculate||!reason.trim()} onClick={()=>actions.mutate('calculate')}>Recalculate selected employees</Button><Button disabled={busy||!canSubmit} onClick={()=>actions.mutate('submit')}>Submit to Accounts</Button></div>
+    {!!results.length&&<ul aria-label="Payroll sheet action results" className="text-xs space-y-1">{results.map(r=><li key={r.row_id}>{r.name}: {r.success?(r.result?.accounts_sheet_id?'Sent to Accounts':'Applied'):`Failed (${r.status})`} {r.error?.message||r.result?.code||''}{r.result?.accounts_sheet_id&&<PayrollDeliveryReceipt receipt={{sheet_id:r.result.accounts_sheet_id,sheet_number:r.result.accounts_sheet_number}} role={user.role}/>}</li>)}</ul>}
    </div>}
   </>}
   <Modal isOpen={deleteOpen} title="Delete draft payroll sheet" role="dialog" aria-modal="true" aria-label="Delete draft payroll sheet" size="md" closeDisabled={deletion.isPending} onClose={()=>{if(!deletion.isPending)setDeleteOpen(false);}}>
    <div className="space-y-4">
-    <p className="text-sm">Delete {run.group_code} / {run.department} / {run.period_from} – {run.period_to}? All unsubmitted employee rows will be cancelled and the sheet removed from active views. Audit history is retained.</p>
+    <p className="text-sm">Delete {payrollGroupName(run.group_code)} · {run.department} · {run.period_from} – {run.period_to}? All unsubmitted employee rows will be cancelled and the sheet removed from active views. Audit history is retained.</p>
     <p className="text-xs text-slate-500">Sheets with submitted, under-review or locked employees cannot be deleted.</p>
     <Input label="Sheet deletion reason" value={deleteReason} maxLength={2000} disabled={deletion.isPending} onChange={e=>setDeleteReason(e.target.value)}/>
     {deletion.error&&<p role="alert" className="text-red-600 dark:text-red-300">{message(deletion.error)}</p>}

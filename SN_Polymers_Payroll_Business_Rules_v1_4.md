@@ -36,7 +36,7 @@
 7. **Special package** is an agreed compensation amount for a person, payable either as one amount or broken into salary components; breaking it into components must not increase or reduce the agreed total. Component classification for statutory contribution bases must still be approved.
 8. **Admin** controls the new statutory master. EPF/ESI percentages, applicability, salary bases, caps, effective dates, and PT slabs are sourced from its published revisions; keep changes auditable. Admin authority is confirmed; any additional separate sign-off by another person is not confirmed.
 9. **Manual adjustments** use a separate auditable earning/recovery/advance ledger with reason, authorization and links; no direct manual edit to calculated net or statutory percentages.
-10. **Existing Accounts requisition UX is the workflow reference.** Inspected `accounts/HO_Approval_Business_Logic_v3.md`, `backend/src/routes/acctRequisition.routes.js`, `backend/src/controllers/acctRequisition.controller.js` and requisition migration `021`. In that module, Accounts creates an Open sheet, submits it, and **HO acts on individual line items** (approve/partially approve/hold/return/reject), not on the entire sheet. For payroll, the **confirmed actors** remain FM → Accounts → HO/Admin (factory) and Accounts → HO/Admin (office). **NOW CONFIRMED:** Payroll decisions are **per employee salary row**, not per whole sheet. Accounts may clear or return each factory salary row; HO/Admin may finally approve-and-lock or return each forwarded row. Other rows continue independently. Use a separate payroll schema and transactions, not requisition-bank-debit RPCs. Approval does **not** mean salary has been disbursed; employee payment status remains separate.
+10. **[CONFIRMED — 3 November 2026] Actual Accounts requisition integration.** Factory: FM prepares payroll → Submit to Accounts → automatically linked Accounts salary sheet → Accounts sends to HO → HO approves, returns or holds individual salaries. Head Office/Projects: Accounts prepares payroll → same Accounts salary sheet → HO. No extra payroll verify/forward stage or office peer review. HO approval atomically freezes payroll and makes the existing Accounts bank-balance posting exactly once. Approval is not proof of disbursement: Accounts records actual payment separately; export/payment confirmation never debits the bank twice. This supersedes the earlier instruction to keep payroll disconnected from requisition posting. Detailed contract: `documentation/SN_Polymers_Payroll_Accounts_Unified_Workflow_Plan.md`.
 
 11. **[CONFIRMED DESIGN CHOICE] Configurable payroll calculation policies**: use a separate **Admin → Payroll Management → Payroll Policy Master**, with versioned effective dates, configurable `FIXED_DIVISOR` and `ACTUAL_CALENDAR_DAYS` LOP methods, **Fixed 30** as the currently active client choice, an independent join/exit proration method, full-month exception controls and a monthly cross-run reconciliation strategy. This does **not** authorize switching the client's current calculation, nor resolve full-month-unpaid leave without sign-off. Details in §6.3.
 
@@ -44,8 +44,8 @@
 
 1. **Sheet/run = batch container:** tracks factory or department, pay group, inclusive period, creator, submission and aggregate progress. It has no all-or-nothing payroll approval decision.
 2. **Employee salary row = approval unit:** one employee's earnings/deductions/net are checked by Accounts (factory flow) and finally approved by HO/Admin. A returned row does not reset, amend or block another employee's already approved row.
-3. **Factory:** FM creates/submits the sheet; Accounts **clears/forwards** or **returns** each employee row; only cleared rows reach HO/Admin for final per-row approval and locking.
-4. **HO/Projects:** Accounts creates/submits employee rows directly to HO/Admin; an additional Accounts peer review is **not** assumed.
+3. **Factory:** FM submits ready employees directly into a real Accounts salary sheet. Accounts completes payment details and sends that sheet to HO. This is the verification event; there is no extra payroll forwarding action.
+4. **HO/Projects:** Accounts prepares salaries and continues to the same Accounts salary sheet, completes payment details and sends to HO. No additional Accounts peer review.
 5. **Locking, coverage and payment eligibility happen per employee row**, atomically. A parent sheet can be partially locked while other rows are awaiting review, returned, or pending. No direct edit of a locked row, even by Admin; corrections are traceable adjustments/arrears.
 6. **No partial salary approval as an uncalculated amount:** if the proposed net pay is wrong, return and recalculate the row. **Partial payment** is a separate downstream transaction against an already locked net amount.
 7. **Audit and resubmission:** keep immutable row revisions, reviewer decisions, return reasons, creator/Accounts/HO timestamps, and references to the reviewed calculation version. A resubmitted factory row must pass Accounts review again.
@@ -130,76 +130,24 @@ The category names below match the current HR directory. Employment categories a
 
 ## 3. Roles, ownership and separation of duties
 
-**[CONFIRMED — 14 October 2026: pay-setup simplification]** New Employee Management pay revisions record agreed gross and pay basis without editable Basic Salary, Staff Welfare or Other Fixed amounts. Historical component descriptions elsewhere in this document refer to legacy records only. EPF/ESI/PT calculation rules are configured in the statutory master; absent component evidence remains blocked rather than inferred as zero. Published rules and historical/locked financial snapshots are not silently rewritten. Employee enrolment/applicability and beneficiary linkage remain employee facts, separate from rates, ceilings and slabs.
+**Current workflow — confirmed 3 November 2026:**
 
-### 3.1 Factory payroll — approved workflow
+| Step | Factory | Head Office / Projects |
+|---|---|---|
+| Prepare, calculate, correct returned salary | Original FM | Original Accounts preparer |
+| Deliver ready salary | FM: Submit to Accounts | Accounts: continue to Accounts sheet |
+| Complete beneficiary, bank and payment mode | Accounts | Accounts |
+| Send salary sheet to HO | Independent Accounts user | Accounts preparer; no peer-review stage |
+| Approve full salary, return salary/payment details, hold | Independent HO/Admin | Independent HO/Admin |
+| Record actual bank payment after approval | Accounts/Admin | Accounts/Admin |
 
-**[CONFIRMED]** Factory Manager creates and submits a **payroll sheet** for either factory and its valid group/period. **Each employee salary row** independently follows FM → Accounts → HO/Admin, and HO/Admin alone can finally lock that row.
+Active Factory Managers may prepare/view both factories, with original-preparer ownership. They cannot view office payroll, general Accounts sheets, debit banks or unrelated requisitions. They receive a safe submission receipt and sheet number.
 
-```text
-Factory Manager creates/ calculates payroll sheet
-                       |
-           Submit employee salary rows
-                       v
-            Accounts review queue
-                       |
-         +-------------+------------------+
-         |                                |
-    Return row to FM                Clear / forward row
-  (reason mandatory)                        |
-         |                                  v
-   FM corrects/resubmits              HO/Admin review
-         |                                  |
-         +--> Accounts recheck     +--------+------------+
-                                  |                     |
-                           Return one row        Approve + LOCK
-                          (reason required)        that one row
-                                  |                     |
-                             Rework route          Payment-eligible
-                             via Accounts           (NOT yet Paid)
-```
+HO/Admin cannot approve salaries they prepared, submitted or verified, or their own linked employee salary. Factory Accounts submission requires independent verification. Returns retain who acted and the exact salary revision. Accounts can return an office salary to its own preparer without introducing a peer-review requirement.
 
-- Accounts **approval** means `ACCOUNTS_CLEARED` / *verified for HO*, **not** a final wage approval.
-- The Accounts and HO queues act on **specific employee rows** and may perform bulk UI operations as long as each row validates and records its own independent action/result.
-- HO/Admin should be able to view a sheet summary and individual calculations, return one employee, and finalize others.
-- A returned row cannot change, unblock, or regress a different employee's locked row. Only the returned employee's current revision becomes editable to the originating creator.
-- **[PROPOSED ROUTING DETAIL]** When HO returns an FM row, send it to the FM for correction with Accounts notified; after FM resubmission, Accounts must reverify the new version before it returns to HO. Confirm notification/assignment specifics before UX implementation.
+Salary sheets are created/routed automatically using existing Accounts numbering; no import or destination-user selection. A late submission after Accounts sent a sheet creates a successor sheet. All persistent financial/state checks are enforced transactionally in PostgreSQL.
 
-### 3.1a Relationship with existing Accounts requisition workflow
-
-**[CONFIRMED]** Reuse the *concepts* from Accounts requisitions: a numbered parent sheet; per-item review; individual return/correction; audited resubmission; reviewer remarks; batch review UI with independent row outcomes. Do **not** call the existing requisition approve RPCs or bank-balance debit logic: payroll calculations, accounting commitments, statutory totals, and payments are separate bounded workflows.
-
-**[CONFIRMED]** No arbitrary `Partially Approved` net salary action that skips earnings and statutory calculations. An incorrect payroll row is returned for correction. Accounts may later record partial **payment** against an already locked net salary as a separate payment event, subject to the approved payment policy.
-
-### 3.2 Non-factory payroll
-
-- **[CONFIRMED]** Accounts generates payroll for Head Office and Projects.
-- **[PROPOSED]** Accounts calculates/submits these runs straight to HO/Admin for **independent final approval and locking**; the Accounts review step used for FM submissions is not duplicated unnecessarily.
-- **[DECISION REQUIRED]** Confirm whether any extra Accounts peer-review is required before HO approval of Accounts-created payroll.
-
-### 3.3 Permission matrix
-
-| Action | Factory Manager | Accounts | HO/Admin |
-|---|---|---|---|
-| Create/calculate own authorized factory-group run | Yes | No (unless delegated) | Admin override, audited |
-| Create/calculate HO or Projects run | No | Yes | Admin override, audited |
-| Save own unsubmitted factory draft | Yes | No | Override only |
-| Submit factory run to Accounts | Yes | No | Override only |
-| Verify/forward or return an individual submitted factory employee row | No | Yes | Oversight/return |
-| Forward individual factory employee row to HO/Admin | No | Yes | N/A |
-| Final approve and lock an eligible **employee salary row** | No | No | Yes |
-| Return an individual employee row from final review | No | No | Yes |
-| Modify a Locked employee salary calculation | **Never** | **Never** | **Never** |
-| Maintain statutory deduction master | No | View only unless Admin delegates in future | Admin only; audited publish/revise **[CONFIRMED]** |
-| Maintain approved payroll adjustment | Draft request only **[PROPOSED]** | Review/create by policy | Approve final adjustments |
-| Execute/reconcile payments | No | Yes | View/oversight |
-| View workforce/pay data | Both factories for an active Factory Manager; no HO/Projects payroll | Payroll access by responsibility | Authorized company-wide oversight |
-
-**[PROPOSED]** Enforce maker-checker **per employee row**: the person who created or materially edited a salary calculation cannot be its final approver, even if their role changes. Accounts factory verification and HO final approval must use current permissions and store actor identities on each row.
-
-**[CONFIRMED — 14 October 2026]** Active Factory Managers may create and view payroll for both SNP Factory and Fabric Factory without separate user/factory grants, matching factory attendance access. They cannot prepare or view Head Office/Projects payroll. Original-preparer ownership, independent Accounts verification, HO/Admin locking, and official payslip restrictions remain enforced. Payroll calculation may read protected pay structures without granting unrestricted Employee Management access. This supersedes the earlier explicit factory-grant proposal.
-
----
+Earlier standalone payroll Accounts-clear/forward and HO-lock screens are superseded for linked salaries. Unlinked pending records retain compatibility until an explicit previewed conversion; deployment does not silently convert or pay them.
 
 ## 4. Payroll periods, grouping and cutoffs
 
@@ -639,59 +587,27 @@ Employer total payroll cost = Payable gross + Employer statutory cost + other em
 
 ---
 
-## 11. Payroll sheet, employee-row states and approvals
+## 11. Payroll sheets and employee approvals
 
-### 11.1 Two levels: parent sheet vs employee approval unit
+One employee is the approval unit; sheets are batch containers. A return or hold never changes another employee's approved salary.
 
-**[CONFIRMED]** A `payroll_run` / **payroll sheet** groups employee salary rows by pay group and date range. It is a *batch container* for printing, selection and reporting. It does **not** have a single all-or-nothing HO approval decision. **The employee row is the unit of review, final lock, financial snapshot and payment eligibility.**
+| State | Meaning / next step |
+|---|---|
+| `DRAFT`, `CALCULATED` | Original preparer checks inputs; only financially complete calculations can be sent |
+| `IN_ACCOUNTS_SHEET` | With Accounts; salary is frozen, payment details may be completed |
+| `PENDING_HO_APPROVAL` | Accounts sheet sent to HO; HO approves, returns or holds each salary |
+| `RETURNED_TO_CREATOR` | Salary correction requested; original preparer recalculates and explicitly resubmits |
+| `LOCKED` | Approved immutable salary; actual payment recorded separately |
+| `CANCELLED_DRAFT` | Withdrawn history; no new payment or coverage |
+| `PENDING_ACCOUNTS_REVIEW` | Legacy unlinked pending salary awaiting explicit conversion |
 
-Recommended parent-sheet states are **derived, not competing approval sources**: `DRAFT`, `SUBMITTED`, `IN_REVIEW`, `PARTIALLY_LOCKED`, `COMPLETE`, `CANCELLED_EMPTY` (the final two apply only if their respective conditions hold). Determine the status from row counts/allowed sheet operations. A sheet is `COMPLETE` only when all required employee rows have reached an approved terminal disposition; specifically, returned/pending rows must not be falsely marked complete.
+Payment-detail returns remain with Accounts and preserve salary arithmetic. Hold preserves the same payable claim and can resume in the same sheet. No arbitrary partial salary approval, Credit, reject, generic copy/import/delete/reopen is allowed for salary rows. Return an incorrect amount for recalculation instead. Zero-net salaries retain approval/coverage but require no bank details, bank debit or payment record. Negative net is blocked.
 
-| Employee-row state | Meaning | Who can act next |
-|---|---|---|
-| `DRAFT` | Calculation input/adjustments being prepared | FM for factory / Accounts for office |
-| `CALCULATED` | Versioned preview ready for submission, with source and blocker diagnostics | Originating creator |
-| `PENDING_ACCOUNTS_REVIEW` | FM submitted this factory row | Accounts: verify/forward or return |
-| `RETURNED_TO_CREATOR` | Accounts or HO requests correction, with mandatory reason | Originating creator: correct/recalculate/resubmit |
-| `PENDING_HO_APPROVAL` | Accounts cleared factory row; or Accounts submitted office row | HO/Admin: final approve-and-lock or return |
-| `LOCKED` | Final immutable approved employee payroll result | Accounts payment route only; no edits |
-| `CANCELLED_DRAFT` | Unapproved employee row withdrawn with audit | No payment or payroll coverage |
+The HO approval transaction revalidates the source and server-calculated saved net under employee/source/cutoff/month fences; validates statutory reconciliation, adjustment applications, reviewer independence, beneficiary, cutoff and activation gate; freezes salary, coverage and liabilities; and applies one existing Accounts bank posting. A failure at any point rolls back both payroll and Accounts changes. Retries return the prior approval without another posting.
 
-- The event log **must** identify who returned the row (`ACCOUNTS` vs `HO`) and preserve both the previous decision and the exact revision it concerned.
-- Factory `RETURNED_TO_CREATOR` resubmission returns to `PENDING_ACCOUNTS_REVIEW`, including when the return came from HO. Office resubmission returns to `PENDING_HO_APPROVAL`.
-- An Accounts `verify/forward` event is **not** HO approval. HO final approval and locking must be one atomic transition for the specific employee row.
-- **[PROPOSED]** `ON_HOLD` is optional: add only if client confirms a meaningful paused-review business process; it cannot be a synonym for paid or locked. Rejection/void semantics for an entire employee entitlement also require policy sign-off.
-- A batch action must report **per-employee success/failure**, not claim the entire parent sheet is locked because a subset passed.
+Accounts submission automatically proposes a cutoff no earlier than the end of the payroll period. Independent HO approval accepts it; the cutoff must have passed. This removes the separate cutoff form from the linked-salary journey. Cutoff/activation metadata does not stale an unchanged salary calculation. Payment routing is separately snapshotted and revalidated; attendance, policy, pay, calendar and statutory changes still block approval.
 
-### 11.2 Per-employee finalization transaction
-
-For an individual employee salary row, in **one serialized database transaction**:
-
-1. Verify current HO/Admin role, row state `PENDING_HO_APPROVAL`, correct actor separation, and factory Accounts-verification provenance where applicable.
-2. Lock row/version and any relevant monthly statutory accumulator; revalidate its source snapshot, input freshness, and final policy/readiness blockers.
-3. Reconcile that employee's saved earnings, deduction, employer-cost and net-pay lines, including statutory-month allocations and previously locked related rows.
-4. Check global employee/date coverage conflicts, including cross-factory, cross-category and other-sheet conflicts; fail only this employee's finalization when coverage overlaps.
-5. Persist immutable employee salary snapshot, calculation version, source/adjustment/statutory revision references and finalized coverage for the employee.
-6. Set **this employee row only** to `LOCKED`; write HO/Admin approver, final timestamp and append-only action event.
-7. Create or expose this employee's **payment eligibility** record, without marking it `PAID` or changing a bank balance. Recompute parent-sheet aggregate status.
-
-Idempotent retries must return the existing locked result. Approval of another employee in the same sheet must never overwrite, unlock or change this one.
-
-### 11.3 Independent returns and versioning
-
-- Accounts can **return one factory employee row** with a reason, leaving every other salary row untouched.
-- HO/Admin can **return one salary row** with a reason, leaving other Pending/Locked rows untouched.
-- The creator may only edit **the returned, non-locked employee row**. Recalculate into a **new version**, retaining the entire submitted/returned lineage. Factory row must pass Accounts verification again; office row goes back to HO.
-- An already `LOCKED` row **cannot** be returned, recalculated, deleted or altered—even by Admin. Errors discovered after locking use separate approved adjustments/arrears/reversals linked to the original.
-- Changing a draft/run-wide setting after any row is locked must not silently recalculate already locked rows. Prefer freezing group, period and policy scope after initial submission; scope changes require a new sheet or a controlled migration/exception path.
-- Accounts/HO bulk review can be provided as a UI convenience; **authorization, validation, audit and response status must remain per employee**.
-
-### 11.4 Partial completion, reporting and statutory consistency
-
-- The parent sheet may have, for example, `12 LOCKED`, `2 RETURNED`, `1 PENDING_HO_APPROVAL`; the locked 12 are payment-eligible without waiting for the remaining 3, subject to the separately approved payment schedule.
-- Totals must be labelled **Submitted**, **Locked**, **Pending** and **Returned**; never present unapproved gross/net as approved liability. Financial exports and payouts use each employee's stored **locked amounts**.
-- When employees are locked in different orders or multiple weekly/fortnightly sheets contribute to one statutory month, monthly EPF/ESI/PT accumulation must remain deterministic and avoid duplicate withholding. Lock/recalculate pending rows against the correct monthly state; do not retroactively mutate locked rows. A pending row with stale preview must be reverified before HO locking.
-- **[DECISION REQUIRED]** Exact statutory-month close/reconciliation rules and whether partial sheet payment eligibility creates any disbursement scheduling restrictions.
+Accounts/HO actions and bulk failures remain per employee. Parent progress shows counts, not a misleading lock-completion percentage. Approved snapshots and audit history are immutable. Subsequent corrections require traceable adjustments/arrears rather than rewriting approved salaries.
 
 ## 12. Suggested database entities and core constraints
 
@@ -857,18 +773,15 @@ No user should need to reverse-engineer a spreadsheet formula to understand the 
 
 ---
 
-## 15. Payment and reconciliation (distinct from payroll approval)
+## 15. Payment and reconciliation
 
-**[CONFIRMED DESIGN DIRECTION]** A payroll becoming `LOCKED` means salary amounts are finalized, **not** that employees have been paid.
+**Confirmed 3 November 2026:** HO salary approval makes the existing Accounts bank-balance debit atomically with payroll finalization. This is an accounting posting, not confirmation that a bank transfer occurred.
 
-**[PROPOSED]** Use separate states on payment records:
+Accounts records a full salary payment only after approval, with paid date and bank/reference evidence. Repeated identical confirmation is idempotent; conflicting repeats are rejected. A batch reference may be shared by different employees. Payment confirmation and NEFT export do not debit the bank again, change salary entitlement, or initiate a bank transfer. Partial disbursement and cash require a separately approved design; they are not introduced here.
 
-`NOT_SCHEDULED → SCHEDULED → PARTIALLY_PAID / PAID → RECONCILED`, with `FAILED` and controlled retry paths.
+Register and payslips distinguish approved salary from payment confirmed. Employer contributions remain statutory liabilities, separate from employee take-home and remittance execution.
 
-- Payment file/bank-reference numbers, actual payment date, paid amount and reconciliation evidence are separate from calculated net.
-- Partial payment never edits net salary; unpaid balance = locked amount less confirmed payments.
-- Prevent overpayment, double import and repeated bank-reference application through idempotency constraints.
-- **[DECISION REQUIRED]** Cash vs bank transfers, beneficiary/bank collection, authorized cash receipt proof, bank export template and accounting posting integration.
+Financial activation remains an environment-controlled rollout after acceptance. Structural migrations neither enable financial finalization nor automatically convert existing UAT submissions.
 
 ---
 
@@ -1399,3 +1312,25 @@ PT has one normal salary-band schedule per effective-dated master revision, with
 ### Employee payroll setup consolidation — 15 October 2026
 
 Employee state/establishment assignments, effective dates and setup evidence are maintained in Employee Management → Employee Payroll Setup. The standalone Statutory Profiles page is retired; the old URL and compatibility redirect are removed during development. Admin retains employee/worker and permanent-pay editing/export. Accounts can access only the payroll setup tab, using the existing protected statutory APIs; this does not grant employee-master or pay-structure administration. Local daily-wage workers require no statutory setup. Shared state/establishment registrations and published master bindings are maintained beside the Statutory Deduction Master. Profile revisions and canonical scope IDs remain internal authoritative records consumed by payroll, without rewriting historical profiles or locked salaries. This is a UI/workflow consolidation, not a change to category applicability, rates, statutory calculation or review authorization.
+
+
+### Factory calculation clarifications — 28 October 2026
+
+Confirmed directly by the client; these supersede conflicting examples in the older factory DOCX references.
+
+- Medical leave requires **no certificate, medical-document reference, or upload**. Use HO's final approval and Paid/Unpaid treatment. Paid permanent leave causes no LOP; approved Paid casual leave uses its effective daily wage; unpaid/rejected leave is not paid a second time. Pending decisions remain unresolved. Local leave remains Unpaid.
+- Permanent holiday multiplier is **total day entitlement**: when normal pay is already included in monthly salary, a 1.5x rule adds only the remaining 0.5x daily premium.
+- Unapproved short working days deduct **only missing hours**. Permanent shortfall uses the applicable published LOP divisor and standard duty hours; do not reuse the OT conversion divisor. Casual/Local pay only worked units, without a second LOP deduction.
+- Approved management stoppages retain normal pay under an explicitly recorded structured treatment.
+- Local Double Duty authoring is **2x**, without extra OT. The client expects duties normally not to exceed 24 hours but did not impose a hard duration cutoff; unusually long Local duties should be flagged for verification rather than automatically rejected solely for exceeding 24 hours. Existing overlap and evidence checks remain.
+- Existing immutable rule revisions and locked financial snapshots are preserved; these decisions do not authorize silently rewriting historical salary/attendance or example wages.
+
+Decision provenance: client chat clarifications on 28 October 2026. Applicability is controlled by explicitly saved factory treatment revisions; no historical treatment is seeded automatically.
+
+### Factory-specific Local setup — 3 November 2026
+
+SNP Local and Fabric Local use separate effective-dated wage and pay-rule settings while retaining shared calculation methods and the existing Local employee category. Factory and worker type identify new master revisions. Preserve existing shared revisions, locked attendance references and locked payroll. New Local attendance must not silently use another factory or shared legacy rates. Permanent employee salaries remain in Employee Pay Structures.
+
+### Approved factory calendar simplification (3 November 2026)
+
+Factory calendars use an explicitly enabled Sunday-off schedule from a chosen effective date, plus named day-off/working-day exceptions. Normal weekdays and future dates resolve automatically in the backend; no monthly publication or per-employee calendar setup. Admin/HO and active Factory Managers maintain the schedule; Accounts can read it. Existing published calendar evidence is preserved until explicitly overridden. Permanent paid rest days remain within monthly gross; Casual/Local days off do not automatically generate wages. Locked payroll and its complete source window are protected. See `documentation/SN_Polymers_Factory_Work_Calendar.md` for the implementation contract.

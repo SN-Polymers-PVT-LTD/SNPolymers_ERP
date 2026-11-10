@@ -1,3 +1,5 @@
+import {payrollStatus} from '../../utils/payrollDisplay';
+import PayrollDeliveryReceipt from '../../components/payroll/PayrollDeliveryReceipt';
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -23,6 +25,7 @@ import PayrollPayslip from '../../components/payroll/PayrollPayslip';
 const statuses = [
   'DRAFT',
   'CALCULATED',
+  'IN_ACCOUNTS_SHEET',
   'PENDING_ACCOUNTS_REVIEW',
   'PENDING_HO_APPROVAL',
   'RETURNED_TO_CREATOR',
@@ -185,7 +188,7 @@ export default function PayrollRegister() {
             </h2>
           </div>
           <p className="text-[11px] text-slate-400 font-mono">
-            Draft {counts.DRAFT} · Calculated {counts.CALCULATED} · Pending Accounts {counts.PENDING_ACCOUNTS_REVIEW} · Pending HO {counts.PENDING_HO_APPROVAL} · Returned {counts.RETURNED_TO_CREATOR} · Locked {counts.LOCKED} · Withdrawn {counts.CANCELLED_DRAFT}
+            Draft {counts.DRAFT} · Calculated {counts.CALCULATED} · Pending Accounts {(counts.PENDING_ACCOUNTS_REVIEW||0)+(counts.IN_ACCOUNTS_SHEET||0)} · Pending HO {counts.PENDING_HO_APPROVAL} · Returned {counts.RETURNED_TO_CREATOR} · Locked {counts.LOCKED} · Withdrawn {counts.CANCELLED_DRAFT}
           </p>
         </div>
 
@@ -210,7 +213,7 @@ export default function PayrollRegister() {
           <div className="glass-panel p-4 rounded-xl border border-white/5 bg-white/[0.01] hover:border-white/10 transition-all flex flex-col justify-between">
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400">Pending Accounts</span>
             <div className="mt-3">
-              <span className="text-2xl font-black text-blue-400 font-mono tabular-nums">{counts.PENDING_ACCOUNTS_REVIEW}</span>
+              <span className="text-2xl font-black text-blue-400 font-mono tabular-nums">{(counts.PENDING_ACCOUNTS_REVIEW||0)+(counts.IN_ACCOUNTS_SHEET||0)}</span>
             </div>
           </div>
 
@@ -488,12 +491,10 @@ export default function PayrollRegister() {
                   </h2>
                 </div>
                 <span className="text-xs text-slate-400 font-mono">
-                  {report.data.total} matching employee rows · Generated {report.data.generated_at} · Payment status: {report.data.payment_status}
+                  {report.data.total} matching employee rows · Generated {report.data.generated_at}
                 </span>
               </div>
-              <Badge variant={report.data.payment_status === 'SETTLED' ? 'emerald' : 'amber'}>
-                Payment: {report.data.payment_status}
-              </Badge>
+
             </div>
 
             <Table>
@@ -552,7 +553,7 @@ export default function PayrollRegister() {
                           {r.status}
                         </Badge>
                         <div className="text-[10px] text-slate-500 font-mono">
-                          {r.status} / {r.payment_status}
+                          {payrollStatus(r.status)} · {r.payment_status==='PAID'?'Paid':r.payment_status==='NOT_RECORDED'?'Payment not recorded':r.payment_status==='NOT_REQUIRED'?'No payout required':'Not yet approved'}<PayrollDeliveryReceipt receipt={r.accounts_delivery} role={user.role}/>
                         </div>
                         {r.last_return_reason && (
                           <div className="text-[11px] text-rose-300 font-medium bg-rose-500/10 p-1.5 rounded-lg border border-rose-500/20 max-w-xs mt-1">

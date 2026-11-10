@@ -1,5 +1,5 @@
 // Workflow presentation only. PostgreSQL is authoritative for all transitions.
-const statuses=['DRAFT','CALCULATED','PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL','RETURNED_TO_CREATOR','CANCELLED_DRAFT','LOCKED'];
+const statuses=['DRAFT','CALCULATED','IN_ACCOUNTS_SHEET','PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL','RETURNED_TO_CREATOR','CANCELLED_DRAFT','LOCKED'];
 function availableActions(row,role,actorId,isFactory){
  if(['LOCKED','CANCELLED_DRAFT'].includes(row.status))return [];
  const owner=row.created_by===actorId,preparer=owner&&role===(isFactory?'factory_manager':'accounts');

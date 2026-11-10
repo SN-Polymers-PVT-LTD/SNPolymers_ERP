@@ -7,6 +7,7 @@ const { getAuditLog } = require('../../../src/controllers/analytics.controller')
 const mockRes = require('../../helpers/mockRes');
 const categories = ['Fabric Factory Permanent Employees', 'SNP Permanent Factory Labour', 'SNP Casual Factory Labour', 'Local Daily-Wage Workers'];
 const casual = categories[2]; const local = categories[3];
+let priorActive=[];
 let year; let actors; let employees; let rules; let wages; let seed;
 const connect = async () => { const c = new Client({ connectionString: process.env.SUPABASE_TEST_DB_URI }); await c.connect(); return c; };
 const date = (month = 1, day = 2) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -40,11 +41,11 @@ async function decide(c, id, decision = 'Approved', pay = 'Paid', actor = actors
 async function addRule(c, category, effective, hours = 8, otEnabled = true) {
   return one(c, `INSERT INTO hr_factory_pay_rule_revisions(employee_category,effective_from,standard_duty_hours,ot_enabled,ot_method,
     ot_rate,ot_multiplier,holiday_pay_enabled,holiday_multiplier,management_stoppage_treatment,short_hours_treatment,comp_off_rule,
-    double_duty_multiplier,created_by) VALUES($1,$2,$3,$4,'Fixed Hourly',50,NULL,$5,$6,'Recorded policy',NULL,NULL,$7,$8) RETURNING *`,
+    double_duty_multiplier,created_by,department,setup_reason) VALUES($1,$2,$3,$4,'Fixed Hourly',50,NULL,$5,$6,'Recorded policy',NULL,NULL,$7,$8,coalesce(public.factory_category_department($1),'SNP Factory'),'Synthetic scope') RETURNING *`,
   [category, effective, hours, otEnabled, category !== local, category === local ? null : 1.5, category === local ? 2 : null, actors.factory_manager]);
 }
 async function addWage(c, category, effective, wage = 400) {
-  return one(c, 'INSERT INTO hr_factory_wage_revisions(employee_category,effective_from,daily_wage,created_by) VALUES($1,$2,$3,$4) RETURNING *', [category, effective, wage, actors.factory_manager]);
+  return one(c, `INSERT INTO hr_factory_wage_revisions(employee_category,effective_from,daily_wage,created_by,department,setup_reason) VALUES($1,$2,$3,$4,coalesce(public.factory_category_department($1),'SNP Factory'),'Synthetic scope') RETURNING *`, [category, effective, wage, actors.factory_manager]);
 }
 beforeAll(async () => {
   await requireLocalSupabase(); seed = await connect();
@@ -68,12 +69,15 @@ beforeAll(async () => {
       category === 'HO Staff' ? 'Head Office' : category === 'Junior Engineer' ? 'Projects' : category === 'Fabric Factory Permanent Employees' ? 'Fabric Factory' : 'SNP Factory',status,joining,user,actors.admin]);
     employees[key] = e.id;
   }
+  priorActive=(await seed.query("SELECT id FROM hr_employees WHERE active_status='Active' AND NOT(id=ANY($1::uuid[]))",[Object.values(employees)])).rows.map(e=>e.id);
+  await seed.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,priorActive]);
   for (const category of categories) rules[category] = (await addRule(seed,category,date(1,1),category === local ? 12 : 8)).id;
   for (const category of [casual,local]) wages[category] = (await addWage(seed,category,date(1,1))).id;
 });
 afterAll(async () => {
   if (seed && employees) {
     await seed.query("UPDATE hr_employees SET active_status='Inactive',updated_by=$1 WHERE id=ANY($2::uuid[])", [actors.admin,Object.values(employees)]);
+    await seed.query("UPDATE hr_employees SET active_status='Active',updated_by=$1 WHERE id=ANY($2::uuid[])",[actors.admin,priorActive]);
     await seed.query('UPDATE authorised_users SET is_active=false WHERE id=ANY($1::uuid[])', [Object.values(actors)]);
   }
   if (seed) await seed.end();
@@ -193,8 +197,7 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
     await sheet(db); await ready(db,s); await transition(db,s.id,'submit');
     await db.query(`INSERT INTO hr_employees(employee_name,employee_category,department,joining_date,created_by,updated_by)
       VALUES('Ancient worker',$1,'SNP Factory','0001-01-01',$2,$2)`,[local,actors.admin]);
-    const missing = await ready(db,await sheet(db,local,'0001-01-01'));
-    await fails(()=>transition(db,missing.id,'submit'),/incomplete/);
+    await fails(()=>sheet(db,local,'0001-01-01'),/Complete Local wage and pay-rule setup/,'23514');
   });
   test('submit/return/resubmit/review/lock preserve audit snapshots; submitted and locked sheets are immutable', async () => {
     const s = await ready(db,await sheet(db));

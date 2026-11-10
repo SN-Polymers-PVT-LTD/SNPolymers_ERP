@@ -1,6 +1,14 @@
 // AUTO-GENERATED — do not edit. Run: npm run generate:manifests
 module.exports = {
   "indexes": {
+    "acct_payroll_sheet_run": {
+      "table": "acct_requisition_sheets",
+      "definition": "CREATE INDEX acct_payroll_sheet_run ON public.acct_requisition_sheets USING btree (payroll_run_id) WHERE (payroll_run_id IS NOT NULL)"
+    },
+    "acct_payroll_source_row": {
+      "table": "acct_requisition_line_items",
+      "definition": "CREATE INDEX acct_payroll_source_row ON public.acct_requisition_line_items USING btree (payroll_row_id) WHERE (payroll_row_id IS NOT NULL)"
+    },
     "authorised_users_mobile_number_key": {
       "table": "authorised_users",
       "definition": "CREATE UNIQUE INDEX authorised_users_mobile_number_key ON public.authorised_users USING btree (mobile_number)"
@@ -8,6 +16,22 @@ module.exports = {
     "authorised_users_pkey": {
       "table": "authorised_users",
       "definition": "CREATE UNIQUE INDEX authorised_users_pkey ON public.authorised_users USING btree (id)"
+    },
+    "factory_calendar_date_revision": {
+      "table": "factory_calendar_revisions",
+      "definition": "CREATE INDEX factory_calendar_date_revision ON public.factory_calendar_revisions USING btree (department, applies_on, version DESC)"
+    },
+    "factory_calendar_initial_schedule": {
+      "table": "factory_calendar_revisions",
+      "definition": "CREATE UNIQUE INDEX factory_calendar_initial_schedule ON public.factory_calendar_revisions USING btree (department) WHERE (action = 'SCHEDULE'::text)"
+    },
+    "factory_calendar_revisions_department_version_key": {
+      "table": "factory_calendar_revisions",
+      "definition": "CREATE UNIQUE INDEX factory_calendar_revisions_department_version_key ON public.factory_calendar_revisions USING btree (department, version)"
+    },
+    "factory_calendar_revisions_pkey": {
+      "table": "factory_calendar_revisions",
+      "definition": "CREATE UNIQUE INDEX factory_calendar_revisions_pkey ON public.factory_calendar_revisions USING btree (id)"
     },
     "hr_attendance_rows_pkey": {
       "table": "hr_attendance_rows",
@@ -37,21 +61,53 @@ module.exports = {
       "table": "hr_employees",
       "definition": "CREATE INDEX hr_employees_status_category_idx ON public.hr_employees USING btree (active_status, employee_category)"
     },
-    "hr_factory_pay_rule_revisions_employee_category_effective_f_key": {
+    "hr_factory_pay_rule_calculations_pkey": {
+      "table": "hr_factory_pay_rule_calculations",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_calculations_pkey ON public.hr_factory_pay_rule_calculations USING btree (id)"
+    },
+    "hr_factory_pay_rule_calculations_rule_revision_id_key": {
+      "table": "hr_factory_pay_rule_calculations",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_calculations_rule_revision_id_key ON public.hr_factory_pay_rule_calculations USING btree (rule_revision_id)"
+    },
+    "hr_factory_pay_rule_revisions_legacy_date": {
       "table": "hr_factory_pay_rule_revisions",
-      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_effective_f_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, effective_from)"
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_legacy_date ON public.hr_factory_pay_rule_revisions USING btree (employee_category, effective_from) WHERE (department IS NULL)"
     },
-    "hr_factory_pay_rule_revisions_employee_category_revision_nu_key": {
+    "hr_factory_pay_rule_revisions_legacy_revision": {
       "table": "hr_factory_pay_rule_revisions",
-      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_employee_category_revision_nu_key ON public.hr_factory_pay_rule_revisions USING btree (employee_category, revision_number)"
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_legacy_revision ON public.hr_factory_pay_rule_revisions USING btree (employee_category, revision_number) WHERE (department IS NULL)"
     },
-    "hr_factory_wage_revisions_employee_category_effective_from_key": {
-      "table": "hr_factory_wage_revisions",
-      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_effective_from_key ON public.hr_factory_wage_revisions USING btree (employee_category, effective_from)"
+    "hr_factory_pay_rule_revisions_scope_date": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_scope_date ON public.hr_factory_pay_rule_revisions USING btree (employee_category, department, effective_from) WHERE (department IS NOT NULL)"
     },
-    "hr_factory_wage_revisions_employee_category_revision_number_key": {
+    "hr_factory_pay_rule_revisions_scope_revision": {
+      "table": "hr_factory_pay_rule_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_revisions_scope_revision ON public.hr_factory_pay_rule_revisions USING btree (employee_category, department, revision_number) WHERE (department IS NOT NULL)"
+    },
+    "hr_factory_pay_rule_treatments_pkey": {
+      "table": "hr_factory_pay_rule_treatments",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_treatments_pkey ON public.hr_factory_pay_rule_treatments USING btree (id)"
+    },
+    "hr_factory_pay_rule_treatments_rule_revision_id_key": {
+      "table": "hr_factory_pay_rule_treatments",
+      "definition": "CREATE UNIQUE INDEX hr_factory_pay_rule_treatments_rule_revision_id_key ON public.hr_factory_pay_rule_treatments USING btree (rule_revision_id)"
+    },
+    "hr_factory_wage_revisions_legacy_date": {
       "table": "hr_factory_wage_revisions",
-      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_employee_category_revision_number_key ON public.hr_factory_wage_revisions USING btree (employee_category, revision_number)"
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_legacy_date ON public.hr_factory_wage_revisions USING btree (employee_category, effective_from) WHERE (department IS NULL)"
+    },
+    "hr_factory_wage_revisions_legacy_revision": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_legacy_revision ON public.hr_factory_wage_revisions USING btree (employee_category, revision_number) WHERE (department IS NULL)"
+    },
+    "hr_factory_wage_revisions_scope_date": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_scope_date ON public.hr_factory_wage_revisions USING btree (employee_category, department, effective_from) WHERE (department IS NOT NULL)"
+    },
+    "hr_factory_wage_revisions_scope_revision": {
+      "table": "hr_factory_wage_revisions",
+      "definition": "CREATE UNIQUE INDEX hr_factory_wage_revisions_scope_revision ON public.hr_factory_wage_revisions USING btree (employee_category, department, revision_number) WHERE (department IS NOT NULL)"
     },
     "hr_leave_active_range_excl": {
       "table": "hr_leave_requests",
@@ -237,6 +293,30 @@ module.exports = {
       "table": "subcontract_work_master",
       "definition": "CREATE INDEX idx_swm_sub_head ON public.subcontract_work_master USING btree (sub_head)"
     },
+    "payroll_accounts_deliveries_employee_id_daterange_excl": {
+      "table": "payroll_accounts_deliveries",
+      "definition": "CREATE INDEX payroll_accounts_deliveries_employee_id_daterange_excl ON public.payroll_accounts_deliveries USING gist (employee_id, daterange(period_from, period_to, '[]'::text)) WHERE active"
+    },
+    "payroll_accounts_deliveries_item_id_key": {
+      "table": "payroll_accounts_deliveries",
+      "definition": "CREATE UNIQUE INDEX payroll_accounts_deliveries_item_id_key ON public.payroll_accounts_deliveries USING btree (item_id)"
+    },
+    "payroll_accounts_deliveries_pkey": {
+      "table": "payroll_accounts_deliveries",
+      "definition": "CREATE UNIQUE INDEX payroll_accounts_deliveries_pkey ON public.payroll_accounts_deliveries USING btree (id)"
+    },
+    "payroll_accounts_deliveries_row_id_review_revision_key": {
+      "table": "payroll_accounts_deliveries",
+      "definition": "CREATE UNIQUE INDEX payroll_accounts_deliveries_row_id_review_revision_key ON public.payroll_accounts_deliveries USING btree (row_id, review_revision)"
+    },
+    "payroll_accounts_events_pkey": {
+      "table": "payroll_accounts_events",
+      "definition": "CREATE UNIQUE INDEX payroll_accounts_events_pkey ON public.payroll_accounts_events USING btree (id)"
+    },
+    "payroll_accounts_one_active_row": {
+      "table": "payroll_accounts_deliveries",
+      "definition": "CREATE UNIQUE INDEX payroll_accounts_one_active_row ON public.payroll_accounts_deliveries USING btree (row_id) WHERE active"
+    },
     "payroll_adjustment_applications_pkey": {
       "table": "payroll_adjustment_applications",
       "definition": "CREATE UNIQUE INDEX payroll_adjustment_applications_pkey ON public.payroll_adjustment_applications USING btree (adjustment_id, salary_row_id, contribution_month)"
@@ -328,6 +408,14 @@ module.exports = {
     "payroll_pay_applicability_nonoverlap": {
       "table": "payroll_permanent_pay_applicability",
       "definition": "CREATE INDEX payroll_pay_applicability_nonoverlap ON public.payroll_permanent_pay_applicability USING gist (revision_id, daterange(effective_from, effective_to, '[]'::text))"
+    },
+    "payroll_payment_confirmations_delivery_id_key": {
+      "table": "payroll_payment_confirmations",
+      "definition": "CREATE UNIQUE INDEX payroll_payment_confirmations_delivery_id_key ON public.payroll_payment_confirmations USING btree (delivery_id)"
+    },
+    "payroll_payment_confirmations_pkey": {
+      "table": "payroll_payment_confirmations",
+      "definition": "CREATE UNIQUE INDEX payroll_payment_confirmations_pkey ON public.payroll_payment_confirmations USING btree (id)"
     },
     "payroll_period_cutoffs_pkey": {
       "table": "payroll_period_cutoffs",

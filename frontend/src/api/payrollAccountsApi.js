@@ -1,0 +1,10 @@
+import authApi from './authApi';
+const base='/hr/payroll/accounts';
+export const previewPayrollCutover=params=>authApi.get(`${base}/cutover`,{params});
+export const convertPendingPayroll=rows=>authApi.post(`${base}/cutover`,{rows});
+export const getPayrollAccountsSheet=(id,params)=>authApi.get(`${base}/sheets/${id}`,{params});
+export const submitPayrollAccountsSheet=id=>authApi.post(`${base}/sheets/${id}/submit`,{});
+export const saveSalaryPaymentDetails=(id,data)=>authApi.patch(`${base}/deliveries/${id}/payment`,data);
+export const actOnSalary=(id,data)=>authApi.post(`${base}/deliveries/${id}/action`,data);
+export const resubmitSalaryPayment=(id,version)=>authApi.post(`${base}/deliveries/${id}/resubmit`,{expected_version:version});
+export const recordSalaryPayment=(id,data)=>authApi.post(`${base}/deliveries/${id}/paid`,data);

@@ -25,6 +25,7 @@ function setAuthenticatedRole(role) {
     if(url.endsWith('/statutory-profile'))return Promise.resolve({data:{result:{employee_id:url.split('/').at(-2),version:0,revisions:[],employee_category:'HO Staff',enrolment_managed_by_pay_structure:true}}});
     if (url === '/hr/payroll/statutory-profiles/employees') return Promise.resolve({data:{success:true,result:{employees:[],total:0}}});
     if (url === '/hr/payroll/statutory-profiles/context') return Promise.resolve({data:{success:true,result:{scopes:[],bindings:[],total:0}}});
+    if(url==='/hr/payroll/factory-calendar')return Promise.resolve({data:{success:true,result:{version:0,days:[],policy:null}}});
     if (url === '/hr/payroll/context') return Promise.resolve({ data: { success: true, context: { groups: [] } } });
     if (url.startsWith('/hr/payroll/masters/')) return Promise.resolve({ data: { success: true, result: { revisions: [], events: [], groups: [{code:'HO_STAFF'}], total: 0 } } });
     if (url === '/admin/users') return Promise.resolve({ data: { success: true, users: [] } });
@@ -74,7 +75,7 @@ const urlStateRouteCases = [
   ['JE leaderboard', 'je', '/analytics/leaderboard?range=month&zone=North', /Junior Engineer Performance Leaderboards/i],
   ['payroll salary register', 'admin', '/hr/payroll/register?q=John&department=Civil&status=CALCULATED&page=2', /Payroll salary register/i],
   ['payroll previews', 'admin', '/hr/payroll/previews?page=2', /Payroll salary previews/i],
-  ['payroll review', 'admin', '/hr/payroll/review?status=PENDING_HO_APPROVAL&page=2', /Payroll employee review/i],
+  ['payroll review', 'admin', '/hr/payroll/review?status=PENDING_HO_APPROVAL&page=2', /^Payroll$/i],
   ['payroll policy master', 'admin', '/admin/payroll/policies?page=2', /Payroll Policy Master/i],
   ['statutory deduction master', 'accounts', '/admin/payroll/statutory?page=2', /Statutory Deduction Master/i],
 ];
@@ -189,8 +190,8 @@ describe('App Smoke Tests', () => {
 
   it.each(['admin','accounts','ho','factory_manager'])('opens %s employee payroll review navigation',async role=>{
     setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
-    expect(await screen.findByRole('heading',{name:'Payroll employee review'})).toBeInTheDocument();
-    expect(screen.getAllByRole('link',{name:'Payroll Review'}).length).toBeGreaterThan(0);
+    expect(await screen.findByRole('heading',{name:'Payroll',exact:true})).toBeInTheDocument();
+    expect(screen.getAllByRole('link',{name:'Payroll',exact:true}).length).toBeGreaterThan(0);
     expect(await screen.findByText('No employees in this review queue.')).toBeInTheDocument();
   });
   it.each(['admin','accounts','ho','factory_manager'])('opens %s payroll register navigation',async role=>{
@@ -202,7 +203,7 @@ describe('App Smoke Tests', () => {
   });
   it.each(['je','zo'])('denies %s direct payroll review navigation',async role=>{
     setAuthenticatedRole(role);window.history.pushState({},'', '/hr/payroll/review');render(<App/>);
-    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll Review'})).not.toBeInTheDocument();
+    await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll',exact:true})).not.toBeInTheDocument();
   });
 
   it('opens Accounts statutory setup without enabling HR master edits',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/payroll/statutory');render(<App/>);expect(await screen.findByRole('heading',{name:'Statutory Deduction Master'})).toBeInTheDocument();});
@@ -253,7 +254,9 @@ describe('App Smoke Tests', () => {
     expect(screen.getAllByText('Factory Masters').length).toBeGreaterThan(0);
   });
 
-  it.each(['je', 'zo', 'accounts'])('denies %s factory master direct navigation', async role => {
+  it('opens Accounts factory calendar as read-only',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/factory-masters');render(<App/>);expect(await screen.findByRole('heading',{name:'Factory Work Calendar'})).toBeInTheDocument();expect(screen.queryByRole('button',{name:'New revision'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Enable Sunday off'})).not.toBeInTheDocument();});
+
+  it.each(['je', 'zo'])('denies %s factory master direct navigation', async role => {
     setAuthenticatedRole(role);
     window.history.pushState({}, '', '/factory-masters');
     render(<App />);

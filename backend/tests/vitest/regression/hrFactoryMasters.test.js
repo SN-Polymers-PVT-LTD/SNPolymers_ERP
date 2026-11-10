@@ -14,6 +14,7 @@ const permanent = 'Fabric Factory Permanent Employees';
 let year;
 const prefix = '/api/v1/auth/hr/factory-masters';
 const rule = (employee_category = casual, effective_from = `${year}-01-01`) => ({
+  ...(employee_category===local?{department:'SNP Factory',setup_reason:'Synthetic Local scope'}:{}),
   employee_category, effective_from, standard_duty_hours: 8, ot_enabled: true,
   ot_method: 'Fixed Hourly', ot_rate: 50, ot_multiplier: null,
   holiday_pay_enabled: employee_category !== local, holiday_multiplier: employee_category === local ? null : 1.5,
@@ -74,11 +75,11 @@ describe('FM role and effective-dated factory masters — local HTTP/DB integrat
   });
   test('existing Admin API creates FM accounts and employee linking uses the same UUID', async () => {
     const number = `91${Date.now().toString().slice(-10)}`;
-    const created = await request('POST', '/api/v1/auth/admin/users', tokens.get('admin'), { mobileNumber: number, displayName: 'Created FM', role: 'factory_manager' });
+    const created = await request('POST', '/api/v1/auth/admin/users', tokens.get('admin'), { mobileNumber: number, displayName: `Created FM ${suffix}`, role: 'factory_manager' });
     expect(created.status).toBe(201);
     expect(created.body.user.role).toBe('factory_manager');
     const id = created.body.user.id;
-    const lookup = await request('GET', '/api/v1/auth/hr/employees/erp-users?role=factory_manager&limit=100', tokens.get('admin'));
+    const lookup = await request('GET', `/api/v1/auth/hr/employees/erp-users?role=factory_manager&search=${suffix}&limit=100`, tokens.get('admin'));
     expect(lookup.status).toBe(200);
     expect(lookup.body.users.some(user => user.id === id)).toBe(true);
     const employee = await request('POST', '/api/v1/auth/hr/employees', tokens.get('admin'), {
@@ -152,12 +153,12 @@ describe('FM role and effective-dated factory masters — local HTTP/DB integrat
     expect(boundary.body.rule_revision.id).toBe(second.body.revision.id);
     const list = await request('GET', `${prefix}/rules?employee_category=${encodeURIComponent(casual)}&as_of=${year}-07-01&limit=1`, tokens.get('factory_manager'));
     expect(list.body.revisions[0].display_status).toBe('Future');
-    const { count: laterRows } = await supabase.from('hr_factory_pay_rule_revisions').select('id', { count: 'exact', head: true }).eq('employee_category', casual).gt('effective_from', `${year}-01-01`);
+    const { count: laterRows } = await supabase.from('hr_factory_pay_rule_revisions').select('id', { count: 'exact', head: true }).eq('employee_category', casual).eq('department','SNP Factory').gt('effective_from', `${year}-01-01`);
     const page2 = await request('GET', `${prefix}/rules?employee_category=${encodeURIComponent(casual)}&as_of=${year}-07-01&limit=1&page=${laterRows + 1}`, tokens.get('factory_manager'));
     expect(page2.body.revisions[0].display_status).toBe('Current');
   });
   test('category/date uniqueness is race-safe and distinct concurrent dates get sequential revisions', async () => {
-    const body = { employee_category: local, effective_from: `${year + 1}-01-01`, daily_wage: 350 };
+    const body = { employee_category: local,department:'SNP Factory',setup_reason:'Synthetic local factory setup', effective_from: `${year + 1}-01-01`, daily_wage: 350 };
     const attempts = await Promise.all([1, 2].map(() => request('POST', `${prefix}/wages`, tokens.get('factory_manager'), body)));
     expect(attempts.map(result => result.status).sort()).toEqual([201, 409]);
     const revisions = await Promise.all([`${year + 1}-02-01`, `${year + 1}-03-01`].map(effective_from => request('POST', `${prefix}/wages`, tokens.get('factory_manager'), { ...body, effective_from })));
@@ -222,4 +223,53 @@ describe('FM role and effective-dated factory masters — local HTTP/DB integrat
     const guarded = await request('GET', `${prefix}/rules?as_of=${year}-01-01`, hoRead);
     expect(guarded.status).toBe(403);
   });
+  test('new OT rule API saves configuration atomically and existing rules can be completed only once', async () => {
+    const {data:reader,error:readerError}=await supabase.from('authorised_users').insert({mobile_number:`91${Date.now().toString().slice(-10)}`,role:'ho',is_active:true,display_name:'Synthetic OT reader'}).select('*').single();
+    expect(readerError).toBeNull();const readerToken=await tokenFor(reader);
+    const body={...rule(permanent,`${year+2}-10-20`),ot_method:'Salary-derived hourly',ot_rate:null,ot_multiplier:1.5,calculation:{salary_days:26,reason:'Synthetic document OT settings'},treatment:{holiday_salary_days:26,reason:'Synthetic attendance policy'}};
+    const created=await request('POST',`${prefix}/rules`,tokens.get('admin'),body);
+    expect(created.status).toBe(201);expect(created.body.revision.calculation.salary_days).toBe('26.0000');expect(created.body.revision.treatment.holiday_salary_days).toBe('26.0000');
+    const id=created.body.revision.id;
+    const read=await request('GET',`${prefix}/rules?employee_category=${encodeURIComponent(permanent)}&as_of=${year+2}-10-20`,readerToken);
+    expect(read.status).toBe(200);expect(read.body.revisions.find(r=>r.id===id).calculation.rule_revision_id).toBe(id);
+    expect((await request('POST',`${prefix}/rules/${id}/calculation`,tokens.get('accounts'),{salary_days:26,reason:'Denied'})).status).toBe(403);
+    expect((await request('POST',`${prefix}/rules/${id}/calculation`,tokens.get('admin'),{salary_days:26,reason:'Duplicate'})).status).toBe(409);
+    const old=await request('POST',`${prefix}/rules`,tokens.get('factory_manager'),rule(casual,`${year+2}-10-21`));
+    expect(old.status).toBe(201);
+    const impact=await request('GET',`${prefix}/rules/${old.body.revision.id}/calculation-impact`,readerToken);
+    expect(impact.status).toBe(200);expect(impact.body.impact.already_configured).toBe(false);
+    const completed=await request('POST',`${prefix}/rules/${old.body.revision.id}/calculation`,tokens.get('factory_manager'),{salary_days:null,reason:'Synthetic legacy rounding approval'});
+    expect(completed.status).toBe(201);expect(completed.body.calculation.wage_basis).toBe('FIXED_HOURLY');
+    const treated=await request('POST',`${prefix}/rules/${old.body.revision.id}/treatment`,tokens.get('factory_manager'),{holiday_salary_days:null,reason:'Missing hours, normal stoppage pay and HO leave decision'});
+    expect(treated.status).toBe(201);expect(treated.body.treatment.short_hours_method).toBe('MISSING_HOURS');
+    const invalid={...body,effective_from:`${year+2}-10-22`,calculation:{salary_days:0,reason:'Invalid'}};
+    expect((await request('POST',`${prefix}/rules`,tokens.get('admin'),invalid)).status).toBe(400);
+  });
+
+  test('unified setup endpoint validates input, restricts writes and preserves confirmed settings', async () => {
+    const old=await request('POST',`${prefix}/rules`,tokens.get('factory_manager'),rule(casual,`${year+3}-11-01`));
+    expect(old.status).toBe(201);const id=old.body.revision.id;
+    const body={salary_days:null,holiday_salary_days:null,reason:'Reviewed pay settings'};
+    const impact=await request('GET',`${prefix}/rules/${id}/setup-impact`,tokens.get('admin'));
+    expect(impact.status).toBe(200);expect(impact.body.impact.treatment_configured).toBe(false);
+    expect((await request('POST',`${prefix}/rules/${id}/setup`,tokens.get('accounts'),body)).status).toBe(403);
+    expect((await request('POST',`${prefix}/rules/${id}/setup`,tokens.get('admin'),{...body,reason:''})).status).toBe(400);
+    const saved=await request('POST',`${prefix}/rules/${id}/setup`,tokens.get('factory_manager'),body);
+    expect(saved.status).toBe(201);expect(saved.body.setup.calculation.wage_basis).toBe('FIXED_HOURLY');expect(saved.body.setup.treatment.short_hours_method).toBe('MISSING_HOURS');
+    expect((await request('POST',`${prefix}/rules/${id}/setup`,tokens.get('admin'),body)).status).toBe(409);
+  });
+
+  test('Local factory API isolates same-date wages and rejects ambiguous or mismatched scope',async()=>{
+    const body={employee_category:local,effective_from:`${year+4}-01-01`,daily_wage:400,setup_reason:'Synthetic per-factory wages'};
+    expect((await request('POST',`${prefix}/wages`,tokens.get('admin'),body)).status).toBe(400);
+    for(const [department,daily_wage] of [['SNP Factory',400],['Fabric Factory',500]]){
+      const created=await request('POST',`${prefix}/wages`,tokens.get('admin'),{...body,department,daily_wage});
+      expect(created.status).toBe(201);expect(created.body.revision.department).toBe(department);
+      const current=await request('GET',`${prefix}/effective?employee_category=${encodeURIComponent(local)}&department=${encodeURIComponent(department)}&date=${body.effective_from}`,tokens.get('admin'));
+      expect(current.status).toBe(200);expect(Number(current.body.wage_revision.daily_wage)).toBe(daily_wage);
+    }
+    expect((await request('GET',`${prefix}/effective?employee_category=${encodeURIComponent(local)}&date=${body.effective_from}`,tokens.get('admin'))).status).toBe(400);
+    expect((await request('POST',`${prefix}/wages`,tokens.get('admin'),{...body,employee_category:casual,department:'Fabric Factory'})).status).toBe(400);
+  });
+
 });

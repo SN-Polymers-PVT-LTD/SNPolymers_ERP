@@ -10,5 +10,11 @@ router.get('/effective', validateRequest(schema.effective), controller.effective
 router.get('/wages', validateRequest(schema.list), controller.listWages);
 router.get('/rules', validateRequest(schema.list), controller.listRules);
 router.post('/wages', requireRole(['admin', 'factory_manager']), validateRequest(schema.wageCreate), controller.createWage);
+router.get('/rules/:id/setup-impact', validateRequest(schema.calculationImpact), controller.setupImpact);
+router.post('/rules/:id/setup', requireRole(['admin', 'factory_manager']), validateRequest(schema.setupComplete), controller.completeSetup);
+router.get('/rules/:id/treatment-impact', validateRequest(schema.calculationImpact), controller.treatmentImpact);
+router.post('/rules/:id/treatment', requireRole(['admin', 'factory_manager']), validateRequest(schema.treatmentComplete), controller.completeTreatment);
+router.get('/rules/:id/calculation-impact', validateRequest(schema.calculationImpact), controller.calculationImpact);
+router.post('/rules/:id/calculation', requireRole(['admin', 'factory_manager']), validateRequest(schema.calculationComplete), controller.completeCalculation);
 router.post('/rules', requireRole(['admin', 'factory_manager']), validateRequest(schema.ruleCreate), controller.createRule);
 module.exports = router;

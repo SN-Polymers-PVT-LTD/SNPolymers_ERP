@@ -3,6 +3,8 @@ const uuid=z.uuid(),text=z.string().trim().min(1).max(2000),date=z.iso.date();
 const amount=z.string().regex(/^-?\d+(\.\d{1,2})?$/),positive=z.string().regex(/^\d+(\.\d{1,2})?$/).refine(v=>Number(v)>0);
 const data=z.object({kind:z.enum(['BONUS','SALARY_ARREARS','ADVANCE']),amount,effective_date:date,target_row_id:uuid.nullable(),original_period_from:date.nullable(),original_period_to:date.nullable(),installment:positive.nullable(),recovery_start_month:date.nullable(),evidence_reference:text}).strict();
 module.exports={
+ factoryCalendar:{query:z.object({department:z.enum(['SNP Factory','Fabric Factory']),from:date,to:date}).strict()},
+ saveFactoryCalendar:{body:z.object({department:z.enum(['SNP Factory','Fabric Factory']),expected_version:z.number().int().min(0),action:z.enum(['SCHEDULE','DAY_OFF','WORKING','RESET']),date,label:z.string().trim().min(1).max(120)}).strict()},
  employees:{query:z.object({search:z.string().trim().max(120).default(''),page:z.coerce.number().int().min(1).max(100000).default(1),limit:z.coerce.number().int().min(1).max(100).default(20)}).strict()},
  cutoff:{params:z.object({runId:uuid}),body:z.object({expected_version:z.number().int().min(0),action:z.enum(['propose','approve']),cutoff_at:z.iso.datetime({offset:true}).nullable(),evidence_reference:text}).strict()},
  create:{params:z.object({employeeId:uuid}),body:data},

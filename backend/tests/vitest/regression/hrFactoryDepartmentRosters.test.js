@@ -16,11 +16,15 @@ async function rejected(sql, args, code) {
   await expect(q(sql, args)).rejects.toMatchObject({ code });
   await q('ROLLBACK TO SAVEPOINT invalid');
 }
-async function rule(category, local = false) {
+async function rule(category, local = false, department = local ? 'SNP Factory' : null) {
   return (await q(`INSERT INTO hr_factory_pay_rule_revisions(employee_category,effective_from,standard_duty_hours,
-    ot_enabled,ot_method,ot_rate,holiday_pay_enabled,holiday_multiplier,double_duty_multiplier,management_stoppage_treatment,created_by)
-    VALUES ($1,'1899-01-01',$2,true,'Fixed Hourly',50,$3,$4,$5,'Recorded policy',$6) RETURNING *`,
-  [category,local ? 12 : 8,!local,local ? null : 1.5,local ? 2 : null,actor]))[0];
+    ot_enabled,ot_method,ot_rate,holiday_pay_enabled,holiday_multiplier,double_duty_multiplier,management_stoppage_treatment,created_by,department,setup_reason)
+    VALUES ($1,'1899-01-01',$2,true,'Fixed Hourly',50,$3,$4,$5,'Recorded policy',$6,$7,'Synthetic scope') RETURNING *`,
+  [category,local ? 12 : 8,!local,local ? null : 1.5,local ? 2 : null,actor,department]))[0];
+}
+async function localMasters(department) {
+ await rule('Local Daily-Wage Workers',true,department);
+ await q("INSERT INTO hr_factory_wage_revisions(employee_category,department,effective_from,daily_wage,setup_reason,created_by) VALUES('Local Daily-Wage Workers',$1,'1899-01-01',350,'Synthetic scope',$2)",[department,actor]);
 }
 async function save(sheetId, employeeId, patch) {
   return (await q('SELECT * FROM save_hr_attendance_rows($1,$2,$3)', [sheetId, JSON.stringify([{ employee_id: employeeId, ...patch }]), actor]))[0];
@@ -82,6 +86,7 @@ describe('category and department mapping with six factory rosters', () => {
     expect(updated.employee_category).toBe('Projects Department Employees');
   });
   test('creates six distinct rosters and refreshes only the selected factory', async () => {
+    await localMasters('SNP Factory');await localMasters('Fabric Factory');
     const groups = definitions.filter(item => item.type !== 'office').flatMap(item => item.departments.map(department => ({ category: item.category, department })));
     const ids = [];
     for (const group of groups) {
@@ -130,10 +135,9 @@ describe('category and department mapping with six factory rosters', () => {
       expect(row.holiday_pay_eligible).toBe(true);
     }
   });
-  test('both Local rosters share Local rules and can submit without requiring the other factory', async () => {
-    await rule('Local Daily-Wage Workers',true);
-    await q("INSERT INTO hr_factory_wage_revisions(employee_category,effective_from,daily_wage,created_by) VALUES('Local Daily-Wage Workers','1899-01-01',350,$1)", [actor]);
+  test('both Local rosters share calculation behavior with independent factory settings', async () => {
     for (const department of ['Fabric Factory','SNP Factory']) {
+      await localMasters(department);
       const e = await employee('Local Daily-Wage Workers',department);
       const s = await sheet('Local Daily-Wage Workers',department);
       const row = await save(s.id,e.id,{ attendance_status:'Present',entry_timestamp:`${day}T08:00:00+05:30`,exit_timestamp:'1899-10-11T08:00:00+05:30',duty_type:'Double Duty' });
@@ -150,6 +154,7 @@ describe('category and department mapping with six factory rosters', () => {
     }
   });
   test('retains a pre-migration combined Local sheet without splitting its identity or roster', async () => {
+    await localMasters('SNP Factory');
     const snp = await employee('Local Daily-Wage Workers','SNP Factory');
     const fabric = await employee('Local Daily-Wage Workers','Fabric Factory');
     const original = await sheet('Local Daily-Wage Workers','SNP Factory');
@@ -158,11 +163,9 @@ describe('category and department mapping with six factory rosters', () => {
     await q('ALTER TABLE hr_attendance_sheets DISABLE TRIGGER hr_attendance_sheet_guard');
     await q('UPDATE hr_attendance_sheets SET department=NULL WHERE id=$1',[original.id]);
     await q('ALTER TABLE hr_attendance_sheets ENABLE TRIGGER hr_attendance_sheet_guard');
-    const refreshed = await sheet('Local Daily-Wage Workers','Fabric Factory');
-    expect(refreshed.id).toBe(original.id);
-    expect(refreshed.department).toBeNull();
-    expect((await members(original.id)).sort()).toEqual([snp.id,fabric.id].sort());
-    expect((await sheet('Local Daily-Wage Workers','SNP Factory')).id).toBe(original.id);
+    await rejected('SELECT * FROM populate_hr_attendance_sheet($1,$2,$3,$4)',[day,'Local Daily-Wage Workers',actor,'Fabric Factory'],'23514');
+    expect((await q('SELECT id,department FROM hr_attendance_sheets WHERE id=$1',[original.id]))[0]).toEqual({id:original.id,department:null});
+    expect(await members(original.id)).toEqual([snp.id]);
     await rejected(`INSERT INTO hr_attendance_sheets(attendance_date,employee_category,department,created_by,updated_by)
       VALUES($1,'Local Daily-Wage Workers','Fabric Factory',$2,$2)`,[day,actor],'P0001');
   });

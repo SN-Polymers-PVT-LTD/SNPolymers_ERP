@@ -174,6 +174,10 @@ function App() {
                 <Route element={<ProtectedRoute allowedRoles={['factory_manager', 'ho', 'admin']} />}>
                   <Route path="/factory-attendance" element={<React.Suspense fallback={<AppChunkLoader />}><DailyAttendance /></React.Suspense>} />
                   <Route path="/factory-attendance/calendar" element={<React.Suspense fallback={<AppChunkLoader />}><MonthlyAttendanceCalendar /></React.Suspense>} />
+
+                </Route>
+
+                <Route element={<ProtectedRoute allowedRoles={['factory_manager','accounts','ho','admin']} />}>
                   <Route path="/factory-masters" element={<React.Suspense fallback={<AppChunkLoader />}><FactoryMasters /></React.Suspense>} />
                 </Route>
 

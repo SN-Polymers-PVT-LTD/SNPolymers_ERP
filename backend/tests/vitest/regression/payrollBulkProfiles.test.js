@@ -103,3 +103,25 @@ test('profile after finite salary end is rejected without history writes',async(
  await expect(save(db,f.employees[0].id,users.accounts.id,0,[data])).rejects.toThrow(/pay source does not cover/);
  expect((await one(db,"SELECT count(*) count FROM payroll_source_history_revisions WHERE employee_id=$1 AND source_kind='STATUTORY_PROFILE'",[f.employees[0].id])).count).toBe('0');
 });
+
+test('one candidate RPC supports legacy positional/defaulted and current named calls with service-only grants',async()=>{
+ const signatures=await q(db,"SELECT p.pronargs,has_function_privilege('anon',p.oid,'EXECUTE') anon,has_function_privilege('authenticated',p.oid,'EXECUTE') browser,has_function_privilege('service_role',p.oid,'EXECUTE') service FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname='get_payroll_statutory_setup_candidates'");
+ expect(signatures).toEqual([{pronargs:8,anon:false,browser:false,service:true}]);
+ const f=await fixture({factory:true}),employee=f.employees[0];
+ const historyBefore=await one(db,'SELECT count(*) n FROM payroll_source_history_revisions WHERE employee_id=$1',[employee.id]);
+ const args=[users.accounts.id,employee.employee_code];
+ const legacy=(await one(db,'SELECT get_payroll_statutory_setup_candidates($1,$2,NULL,NULL,true,1,20) r',args)).r;
+ const named=(await one(db,"SELECT get_payroll_statutory_setup_candidates(p_actor_id => $1,p_search => $2,p_status => 'needs_setup') r",args)).r;
+ const defaulted=(await one(db,'SELECT get_payroll_statutory_setup_candidates($1,$2) r',args)).r;
+ expect(legacy).toEqual(named);expect(defaulted).toEqual(named);
+ const {supabase}=require('../../../src/db/supabase');
+ const rpcArgs={p_actor_id:users.accounts.id,p_search:employee.employee_code,p_department:null,p_category:null,p_unconfigured_only:true,p_page:1,p_limit:20};
+ const legacyRest=await supabase.rpc('get_payroll_statutory_setup_candidates',rpcArgs);
+ expect(legacyRest.error).toBeNull();expect(legacyRest.data).toEqual(named);
+ const statusRest=await supabase.rpc('get_payroll_statutory_setup_candidates',{...rpcArgs,p_status:'has_setup'});
+ expect(statusRest.error).toBeNull();expect(statusRest.data.total).toBe(0);
+ expect(legacy.total).toBe(1);expect(legacy.employees[0].id).toBe(employee.id);
+ const configured=(await one(db,"SELECT get_payroll_statutory_setup_candidates($1,$2,NULL,NULL,true,1,20,'has_setup') r",args)).r;
+ expect(configured.total).toBe(0);expect(configured.all_total).toBe(1);
+ expect(await one(db,'SELECT count(*) n FROM payroll_source_history_revisions WHERE employee_id=$1',[employee.id])).toEqual(historyBefore);
+});

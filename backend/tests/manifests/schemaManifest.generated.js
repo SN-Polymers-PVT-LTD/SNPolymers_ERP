@@ -345,6 +345,58 @@ module.exports = {
         }
       }
     },
+    "factory_calendar_revisions": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "action": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "applies_on": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "label": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
     "fund_requests": {
       "columns": {
         "fund_request_id": {
@@ -638,6 +690,12 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "master_scope_version": {
+          "type": "smallint",
+          "udtName": "int2",
+          "nullable": false,
+          "default": "0"
         }
       }
     },
@@ -859,6 +917,58 @@ module.exports = {
         }
       }
     },
+    "hr_factory_pay_rule_calculations": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "rule_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "wage_basis": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "salary_days": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "rounding_convention": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
     "hr_factory_pay_rule_revisions": {
       "columns": {
         "id": {
@@ -962,6 +1072,76 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "setup_reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
+    "hr_factory_pay_rule_treatments": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "rule_revision_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "holiday_salary_days": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": true,
+          "default": null
+        },
+        "short_hours_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'MISSING_HOURS'::text"
+        },
+        "management_stoppage_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'RETAIN_NORMAL_PAY'::text"
+        },
+        "holiday_method": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'TOTAL_DAILY_ENTITLEMENT'::text"
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
         }
       }
     },
@@ -1008,6 +1188,18 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "department": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
+        },
+        "setup_reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": true,
+          "default": null
         }
       }
     },
@@ -1299,6 +1491,158 @@ module.exports = {
           "type": "timestamp with time zone",
           "udtName": "timestamptz",
           "nullable": true,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_accounts_deliveries": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "row_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "item_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "period_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "period_to": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "review_revision": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": null
+        },
+        "source_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "calculation_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "active": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "true"
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "disposition": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": "'WITH_ACCOUNTS'::text"
+        },
+        "beneficiary_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "recipient_snapshot": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        "submitted_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "verified_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        }
+      }
+    },
+    "payroll_accounts_events": {
+      "columns": {
+        "id": {
+          "type": "bigint",
+          "udtName": "int8",
+          "nullable": false,
+          "default": null
+        },
+        "delivery_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "action": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "actor_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "details": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": "'{}'::jsonb"
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
           "default": "now()"
         }
       }
@@ -2182,6 +2526,52 @@ module.exports = {
           "udtName": "numeric",
           "nullable": false,
           "default": "0"
+        }
+      }
+    },
+    "payroll_payment_confirmations": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "delivery_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "amount": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "paid_on": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "reference": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "recorded_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
         }
       }
     },

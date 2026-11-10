@@ -1,3 +1,4 @@
+import {formatINR as exactINR,payrollGroupName} from '../utils/payrollDisplay';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
@@ -334,6 +335,7 @@ const AcctRequisitions = () => {
                       <TableRow key={sheet.id} onClick={() => handleCardClick(sheet)} interactive>
                         <TableCell>
                           <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{sheet.sheet_number}</span>
+                          {sheet.payroll_run_id&&<><Badge variant="amber">Payroll</Badge><div className="text-xs mt-2">{sheet.department} · {payrollGroupName(sheet.group_code)} · {sheet.period_from} to {sheet.period_to}</div></>}
                         </TableCell>
                         <TableCell>
                           <Badge variant={getStatusBadgeVariant(sheet.sheet_status)} showDot={false}>{sheet.sheet_status}</Badge>
@@ -347,7 +349,7 @@ const AcctRequisitions = () => {
                           </span>
                         </TableCell>
                         <TableCell align="right">
-                          <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
+                          <span className="text-sm font-black text-slate-200 font-mono">{sheet.payroll_run_id?exactINR(sheet.total_req_amount):formatINR(sheet.total_req_amount)}</span>
                         </TableCell>
                         <TableCell align="right">
                           <div className="flex items-center justify-end gap-2">

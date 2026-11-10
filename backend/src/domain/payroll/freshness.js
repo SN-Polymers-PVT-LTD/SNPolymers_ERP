@@ -6,13 +6,16 @@ function sourceCheck(review,calculate=calculatePreview){
  if(row.status==='LOCKED')return {...base,status:'CURRENT',reasons:[]};
  if(!review.source)return {...base,status:'UNAVAILABLE',reasons:['Current payroll sources could not be verified.']};
  if(!latest)return {...base,status:'UNCALCULATED',reasons:['No saved calculation.']};
+ if(review.delivery_source_current===true)return {...base,status:'CURRENT',reasons:[]};
  const current=calculate(review.source);
  if(current.source_fingerprint===latest.source_fingerprint)return {...base,status:'CURRENT',current_source_fingerprint:current.source_fingerprint,reasons:[]};
  const before=latest.source_references||{},after=current.source_references||{},reasons=[];
  const changed=keys=>keys.some(key=>JSON.stringify(before[key])!==JSON.stringify(after[key]));
  if(changed(['history','assignments','pay_applicability']))reasons.push('Salary or employment dates changed.');
+ if(changed(['factory_rules']))reasons.push('Factory overtime calculation settings changed.');
  if(changed(['policies']))reasons.push('Salary calculation policy changed.');
  if(changed(['statutory_profile_history','statutory_profiles','statutory_rule_links'])||JSON.stringify(latest.enrolment)!==JSON.stringify(current.enrolment))reasons.push('Deduction rules or enrolment changed.');
+ if(changed(['calendar']))reasons.push('Factory work calendar changed.');
  if(changed(['attendance','leave']))reasons.push('Attendance or leave changed.');
  return {...base,status:'CHANGED',current_source_fingerprint:current.source_fingerprint,reasons:reasons.length?reasons:['Payroll inputs or calculation rules changed.']};
 }

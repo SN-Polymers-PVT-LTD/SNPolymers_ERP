@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../components/AuthContext';
-import { Button, Select, Pagination, Input, TextArea, Badge } from '../../components/ui';
+import { Button, Select, Pagination, Input, TextArea, Badge, Modal } from '../../components/ui';
+import {payrollStatus} from '../../utils/payrollDisplay';
+import PayrollDeliveryReceipt from '../../components/payroll/PayrollDeliveryReceipt';
+import PayrollPendingConversion from '../../components/payroll/PayrollPendingConversion';
+import PayrollBlockers from '../../components/payroll/PayrollBlockers';
 import SalaryPreview from '../../components/payroll/SalaryPreview';
 import EmployeeAdjustments from '../../components/payroll/EmployeeAdjustments';
 import PayrollPeriodSetup from '../../components/payroll/PayrollPeriodSetup';
@@ -20,7 +24,7 @@ import { usePayrollReviewUrlState } from '../../hooks/usePayrollReviewUrlState';
 const labels = {
   calculate: 'Save calculation revision',
   correct: 'Save correction',
-  submit: 'Submit employee',
+  submit: 'Submit to Accounts',
   forward: 'Verify and forward',
   return: 'Return for correction',
   approve_lock: 'Check final lock',
@@ -30,6 +34,7 @@ const labels = {
 const states = [
   'DRAFT',
   'CALCULATED',
+  'IN_ACCOUNTS_SHEET',
   'PENDING_ACCOUNTS_REVIEW',
   'PENDING_HO_APPROVAL',
   'RETURNED_TO_CREATOR',
@@ -98,6 +103,14 @@ export default function PayrollReview() {
     queryFn: async () => (await getPayrollReviewQueue({ page, limit: 20, ...(status ? { status } : {}) })).data.queue
   });
 
+  const reviewSectionRef = useRef(null);
+  const [reviewOpenRequest, setReviewOpenRequest] = useState(0);
+  useEffect(() => {
+    if (!rowId) return;
+    const section = reviewSectionRef.current;
+    section?.focus({ preventScroll: true });
+  }, [rowId, reviewOpenRequest]);
+
   const detail = useQuery({
     queryKey: ['payroll-employee-review', user?.id, user?.role, rowId],
     enabled: allowed && !!rowId,
@@ -129,7 +142,7 @@ export default function PayrollReview() {
       setLockBlockers([]);
     },
     onSuccess: (r) => {
-      setResults([{ row_id: r.data.result.row.id, success: true, status: 200 }]);
+      setResults([{ row_id: r.data.result.row.id, name:queue.data?.rows.find(row=>row.id===r.data.result.row.id)?.employee_name||'Employee', success: true, status: 200,result:r.data.result }]);
       setLockBlockers([]);
       refresh();
     },
@@ -151,7 +164,7 @@ export default function PayrollReview() {
       setLockBlockers([]);
     },
     onSuccess: (r) => {
-      setResults(r.data.results);
+      setResults(r.data.results.map(item=>({...item,name:queue.data.rows.find(row=>row.id===item.row_id)?.employee_name||'Employee'})));
       setSelected((prev) => prev.filter((id) => !r.data.results.some((res) => res.row_id === id && res.success)));
       refresh();
     }
@@ -160,7 +173,7 @@ export default function PayrollReview() {
   const busy = action.isPending || bulk.isPending;
   const needsReason = (kind) => ['calculate', 'correct', 'return', 'cancel'].includes(kind);
   const picked = queue.data?.rows.filter((r) => selected.includes(r.id)) || [];
-  const bulkActions = ['submit', 'forward', 'return', 'approve_lock', 'cancel'].filter(
+  const bulkActions = ['submit', 'return', 'cancel'].filter(
     (kind) => picked.length && picked.every((r) => (r.available_actions || []).includes(kind))
   );
 
@@ -180,6 +193,25 @@ export default function PayrollReview() {
     );
   }
 
+  const queueRow = rowId ? queue.data?.rows?.find((r) => r.id === rowId) : null;
+  const empName = queueRow?.employee_name
+    || detail.data?.source?.employee?.employee_name
+    || detail.data?.current_preview?.employee?.employee_name
+    || detail.data?.current_preview?.employee_name
+    || detail.data?.row?.employee_name;
+  const empCode = queueRow?.employee_code
+    || detail.data?.source?.employee?.employee_code
+    || detail.data?.current_preview?.employee?.employee_code
+    || detail.data?.current_preview?.employee_code
+    || detail.data?.row?.employee_code;
+  const modalSubtitle = (empName && empCode)
+    ? `${empName} · ${empCode}`
+    : (empName || empCode)
+      ? `${empName || empCode}`
+      : detail.data?.run
+        ? `${detail.data.run.group_code || 'Employee'}${detail.data.run.department ? ` · ${detail.data.run.department}` : ''}`
+        : 'Employee payroll';
+
   return (
     <div className="space-y-6 text-slate-100 max-w-7xl mx-auto pb-12">
       {/* Page Header */}
@@ -191,18 +223,18 @@ export default function PayrollReview() {
             </span>
             <span className="text-slate-600">/</span>
             <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 font-mono">
-              Review & Approvals
+              Payroll preparation
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-            Payroll employee review
+            Payroll
           </h1>
           <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
-            Employee decisions are independent. Review does not authorize payment. Financial finalization remains disabled until statutory and monthly reconciliation prerequisites are complete.
+            Generate payroll, check salary amounts and submit ready employees to Accounts. Accounts completes payment details and sends the sheet to HO.
           </p>
         </div>
 
-        {/* View Mode Tabs (Review Queue vs Calculation Previews) */}
+        {/* View Mode Tabs (Payroll sheets vs Calculation Previews) */}
         <div className="flex items-center p-1 rounded-2xl bg-white/5 border border-white/10 shrink-0 self-start md:self-auto">
           <Link
             to="/hr/payroll/review"
@@ -211,7 +243,7 @@ export default function PayrollReview() {
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
-            Review Queue
+            Payroll sheets
           </Link>
           <Link
             to="/hr/payroll/previews"
@@ -224,6 +256,7 @@ export default function PayrollReview() {
       </div>
 
       {deletedMessage&&<p role="status" className="text-emerald-700 dark:text-emerald-300">{deletedMessage}</p>}
+      {['admin','accounts'].includes(user.role)&&!activeRun&&<PayrollPendingConversion user={user}/>}
       {/* Sheet Draft Editor Modal/Panel */}
       {runParam&&!activeRun&&(restoredRun.isError?<div role="alert">{errorMessage(restoredRun.error)} <Button onClick={()=>restoredRun.refetch()}>Retry payroll sheet</Button><Button onClick={()=>changeRun(null)}>Prepare a new sheet</Button></div>:<p role="status">Loading payroll sheet…</p>)}
       {(!runParam||activeRun)&&(!activeRun||canPrepareRun)&&
@@ -234,29 +267,25 @@ export default function PayrollReview() {
         onRunChange={changeRun}
         onUpdated={refresh}
         onDeleted={()=>{changeRun(null);setDeletedMessage('Payroll sheet deleted. Audit history is preserved.');}}
-        onReviewRow={id=>{setRowId(id);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}
+        onReviewRow={id=>{setRowId(id);setReviewOpenRequest(value=>value+1);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}
       />
       }
-      {activeRun&&!canPrepareRun&&<PayrollSheetTable key={activeRun.id} run={activeRun} user={user} onUpdated={refresh} onReviewRow={id=>{setRowId(id);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}/>}
+      {activeRun&&!canPrepareRun&&<PayrollSheetTable key={activeRun.id} run={activeRun} user={user} onUpdated={refresh} onReviewRow={id=>{setRowId(id);setReviewOpenRequest(value=>value+1);setReason('');setNote('');setAssignment('');setLockBlockers([]);action.reset();}}/>}
 
       {/* Parent Sheet Progress Section */}
-      {queue.data?.sheets && queue.data.sheets.length > 0 && (
+      {!activeRun && queue.data?.sheets && queue.data.sheets.length > 0 && (
         <section aria-label="Parent Sheets Progress" className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
               <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              Parent sheet progress
+              Payroll sheets
             </h2>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {queue.data.sheets.map((s) => {
-              const total = s.progress?.total || 1;
-              const locked = s.progress?.locked || 0;
-              const percent = Math.min(100, Math.round((locked / total) * 100));
-
               return (
                 <div
                   key={s.id}
@@ -288,32 +317,18 @@ export default function PayrollReview() {
                     )}
                   </div>
 
-                  {/* Visual Progress Bar */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 font-mono">
-                      <span>Lock Completion</span>
-                      <span className="text-emerald-400">{percent}% ({locked}/{total})</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-slate-800/80 overflow-hidden border border-white/5">
-                      <div
-                        className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 rounded-full transition-all duration-500"
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-                  </div>
-
                   {/* Stat Metrics Chips */}
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1 text-center font-mono">
                     <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                      <span className="text-[9px] uppercase font-bold text-emerald-400 block">Locked</span>
+                      <span className="text-[9px] uppercase font-bold text-emerald-400 block">Approved</span>
                       <span className="text-xs font-black text-emerald-300">{s.progress?.locked}</span>
                     </div>
                     <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
-                      <span className="text-[9px] uppercase font-bold text-sky-400 block">Accounts</span>
+                      <span className="text-[9px] uppercase font-bold text-sky-400 block">With Accounts</span>
                       <span className="text-xs font-black text-sky-300">{s.progress?.accounts}</span>
                     </div>
                     <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                      <span className="text-[9px] uppercase font-bold text-indigo-400 block">HO</span>
+                      <span className="text-[9px] uppercase font-bold text-indigo-400 block">With HO</span>
                       <span className="text-xs font-black text-indigo-300">{s.progress?.ho}</span>
                     </div>
                     <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20">
@@ -330,10 +345,6 @@ export default function PayrollReview() {
                     </div>
                   </div>
 
-                  {/* Contract textual audit representation preserved for test assertions */}
-                  <p className="sr-only">
-                    {s.group_code} / {s.period_from} &ndash; {s.period_to}: {s.progress.status} · Locked {s.progress.locked}/{s.progress.total} · Accounts {s.progress.accounts} · HO {s.progress.ho} · Returned {s.progress.returned} · Draft {s.progress.draft} · Withdrawn {s.progress.cancelled}
-                  </p>
                 </div>
               );
             })}
@@ -380,12 +391,12 @@ export default function PayrollReview() {
         </div>
       </div>
 
-      {/* Review Queue Table Container */}
-      <section aria-label="Review Queue" className="glass-panel rounded-2xl border border-white/10 bg-slate-900/40 overflow-hidden shadow-xl">
+      {/* Payroll sheets Table Container */}
+      <section aria-label="Payroll sheets" className="glass-panel rounded-2xl border border-white/10 bg-slate-900/40 overflow-hidden shadow-xl">
         <div className="p-4 sm:p-5 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.01]">
           <div>
             <h2 className="text-base font-bold text-white flex items-center gap-2">
-              Review Queue Records
+              Payroll sheets Records
               {queue.data?.total !== undefined && (
                 <span className="text-xs font-mono font-normal text-slate-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/10">
                   {queue.data.total} employees
@@ -498,7 +509,7 @@ export default function PayrollReview() {
                         <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2 mb-1">
                             <Badge variant={getStatusBadgeVariant(r.status)}>
-                              {r.status}
+                              {payrollStatus(r.status)}
                             </Badge>
                           </div>
                           <div className="text-[11px] text-slate-400 font-mono">
@@ -519,6 +530,7 @@ export default function PayrollReview() {
                             disabled={busy}
                             onClick={() => {
                               setRowId(r.id);
+                              setReviewOpenRequest(value=>value+1);
                               setReason('');
                               setNote('');
                               setAssignment('');
@@ -527,7 +539,7 @@ export default function PayrollReview() {
                             }}
                             className="text-xs"
                           >
-                            Review employee
+                            View details
                           </Button>
                         </td>
                       </tr>
@@ -571,7 +583,7 @@ export default function PayrollReview() {
           </h3>
         </div>
 
-        <TextArea
+        {!rowId && <TextArea
           aria-label="Action / correction reason"
           label="Action / correction reason"
           placeholder="Required when calculating, correcting, returning or withdrawing draft rows..."
@@ -579,7 +591,7 @@ export default function PayrollReview() {
           onChange={(e) => setReason(e.target.value)}
           maxLength={2000}
           rows={3}
-        />
+        />}
 
         {!!picked.length && (
           <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-3">
@@ -641,11 +653,11 @@ export default function PayrollReview() {
                   }`}
                 >
                   <span>
-                    {r.row_id}: {r.success ? 'Applied' : `Failed (${r.status})`}
+                    {r.name}: {r.success ? 'Applied' : `Failed (${r.status})`}
                   </span>
                   <span>
                     {r.error?.message || r.result?.code || ''}
-                    {r.result?.blockers?.map((b) => ` / ${b.code}`).join('')}
+                    {r.result?.blockers?.map((b) => ` · ${b.code}`).join('')}{r.result?.accounts_sheet_id&&<PayrollDeliveryReceipt receipt={{sheet_id:r.result.accounts_sheet_id,sheet_number:r.result.accounts_sheet_number}} role={user.role}/>}
                   </span>
                 </li>
               ))}
@@ -653,7 +665,7 @@ export default function PayrollReview() {
           </div>
         )}
 
-        {!!lockBlockers.length && (
+        {!rowId && !!lockBlockers.length && (
           <div role="alert" className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1">
             <div className="font-bold uppercase tracking-wider flex items-center gap-2">
               <svg className="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -672,7 +684,8 @@ export default function PayrollReview() {
 
       {/* Selected Individual Employee Review Panel */}
       {rowId && (
-        <section aria-label="Individual Employee Audit" className="glass-panel p-6 rounded-3xl border border-amber-500/20 bg-slate-900/60 shadow-2xl space-y-6">
+        <Modal dialogRef={reviewSectionRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Employee payroll details" title="Payroll details" subtitle={modalSubtitle} size="lg" onClose={()=>{if(!busy)setRowId('');}} closeDisabled={busy} closeLabel="Close payroll details">
+          <div className="space-y-5">
           {detail.isPending ? (
             <div className="p-12 text-center text-slate-400 space-y-3">
               <div className="w-8 h-8 mx-auto border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
@@ -689,41 +702,49 @@ export default function PayrollReview() {
             </div>
           ) : (
             <>
-              {/* Header Card */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 font-mono">
-                      Target Audit
-                    </span>
-                    <span className="text-slate-600">/</span>
-                    <span className="text-xs font-mono text-amber-400 font-bold">
-                      {detail.data.row.employee_name} ({detail.data.row.employee_code})
-                    </span>
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-black text-white">
-                    Employee review: {detail.data.row.status}
-                  </h2>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Current authoritative salary diagnostic. Payment status: {detail.data.payment_status}.
-                  </p>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-100/70 dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                  <span className="font-semibold text-slate-500 dark:text-slate-400">Pay Period:</span>
+                  <span className="font-mono font-bold bg-white dark:bg-white/5 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                    {detail.data.row.period_from}
+                  </span>
+                  <span className="text-slate-400">to</span>
+                  <span className="font-mono font-bold bg-white dark:bg-white/5 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-white/10 text-slate-900 dark:text-white">
+                    {detail.data.row.period_to}
+                  </span>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Badge variant={getStatusBadgeVariant(detail.data.row.status)}>
-                    {detail.data.row.status}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setRowId('')}
-                    className="text-xs text-slate-400 hover:text-white"
-                  >
-                    Close audit
-                  </Button>
-                </div>
+                <Badge variant={getStatusBadgeVariant(detail.data.row.status)}>{payrollStatus(detail.data.row.status)}</Badge>
               </div>
-
+              <PayrollDeliveryReceipt receipt={detail.data.accounts_delivery} role={user.role}/>
+              {!detail.data.accounts_delivery&&['PENDING_ACCOUNTS_REVIEW','PENDING_HO_APPROVAL'].includes(detail.data.row.status)&&<p className="text-sm text-amber-700 dark:text-amber-300">This earlier submission needs to be moved to an Accounts salary sheet. Accounts or Admin can preview it under Earlier payroll submissions.</p>}
+              {detail.data.current_preview && <>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[['Earnings after unpaid leave', detail.data.current_preview.gross_after_lop], ['Take-home pay', detail.data.current_preview.financial_readiness === true ? detail.data.current_preview.final_net_salary : null]].map(([label,value])=>(
+                    <div key={label} className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] p-4 shadow-sm">
+                      <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+                      <dd className="mt-1 text-xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        {value == null ? <span className="text-sm font-normal text-slate-400 italic">Not available yet</span> : <span className="font-mono">₹{value}</span>}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {!!detail.data.current_preview.blockers?.length && (
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">What needs attention</h3>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 font-bold border border-amber-500/25">
+                        {detail.data.current_preview.blockers.length} {detail.data.current_preview.blockers.length === 1 ? 'check' : 'checks'}
+                      </span>
+                    </div>
+                    <PayrollBlockers blockers={detail.data.current_preview.blockers}/>
+                  </div>
+                )}
+              </>}
               {/* Status & Warning Banners */}
               {detail.data.row.last_return_reason && (
                 <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs">
@@ -735,7 +756,7 @@ export default function PayrollReview() {
               )}
 
               {detail.data.employee_self && !detail.data.available_actions.length && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs">
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
                   <p className="font-medium">
                     An independent reviewer is required for your employee salary.
                   </p>
@@ -753,21 +774,28 @@ export default function PayrollReview() {
                   <p className="text-[11px] text-rose-300/80">
                     Calculation and source-dependent approvals are unavailable. Authorized corrections, withdrawal and review history remain accessible.
                   </p>
-                  <Button onClick={() => detail.refetch()} disabled={busy} size="sm" variant="secondary">
+                  {detail.data.source_error.code!=='PAYROLL_SHEET_CANCELLED'&&<Button onClick={() => detail.refetch()} disabled={busy} size="sm" variant="secondary">
                     Retry salary sources
-                  </Button>
+                  </Button>}
                 </div>
               )}
 
               {detail.data.source_stale && (
-                <div role="alert" className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium">
-                  Sources changed since the saved calculation. Return and recalculate before forwarding or final locking.
+                <div role="alert" className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs font-medium flex items-center gap-2.5">
+                  <svg className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>Sources changed since the saved calculation. Return it to the preparer for recalculation before approval.</span>
                 </div>
               )}
 
+              {action.isSuccess && <p role="status" className="text-sm text-emerald-600 dark:text-emerald-300">Payroll updated.</p>}
+              {detail.data.available_actions.length>0&&<TextArea aria-label="Action / correction reason" label="Reason for changes" value={reason} onChange={e=>setReason(e.target.value)} maxLength={2000} rows={2}/>}
+              {action.isError && !lockBlockers.length && <p role="alert">{errorMessage(action.error)}</p>}
+              {!!lockBlockers.length && <p role="alert">Final lock blocked: {lockBlockers.map(b=>b.code).join(', ')}</p>}
               {/* Action Controls Toolbar */}
-              <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {detail.data.available_actions.length>0&&<div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                <details><summary className="cursor-pointer text-sm">Correct employee setup</summary><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                   <Input
                     aria-label="Correction note"
                     label="Correction note"
@@ -791,8 +819,9 @@ export default function PayrollReview() {
                   />
                 </div>
 
+                </details>
                 <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/5">
-                  {detail.data.available_actions.map((kind) => {
+                  {detail.data.available_actions.filter(kind=>!['forward','approve_lock'].includes(kind)).map((kind) => {
                     const isBlocked = busy || (needsReason(kind) && !reason.trim());
                     return (
                       <Button
@@ -822,101 +851,261 @@ export default function PayrollReview() {
                     );
                   })}
                 </div>
-              </div>
+              </div>}
 
-              {/* Salary Preview Visual Diagnostics */}
-              <div className="space-y-4">
-                {detail.data.current_preview ? (
-                  <SalaryPreview preview={detail.data.current_preview} />
-                ) : (
-                  <p className="text-xs text-slate-400 p-4 rounded-xl bg-white/5">
-                    Current salary preview unavailable.
-                  </p>
-                )}
-              </div>
+              <details className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] p-4 transition-colors duration-200 group">
+                <summary className="cursor-pointer text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between select-none">
+                  <span className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Calculation, history and setup
+                  </span>
+                  <span className="text-xs text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
 
-              {/* Changes Since Saved Accordion */}
-              {detail.data.changes_since_saved && (
-                <details className="rounded-xl border border-white/10 bg-white/[0.01] p-3 text-xs group">
-                  <summary className="font-bold text-slate-300 cursor-pointer hover:text-white flex items-center justify-between">
-                    <span>Changes since saved calculation</span>
-                    <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
-                  </summary>
-                  <pre className="text-xs whitespace-pre-wrap font-mono text-amber-300/90 pt-3 overflow-x-auto">
-                    {JSON.stringify(detail.data.changes_since_saved, null, 2)}
-                  </pre>
-                </details>
-              )}
+                <div className="space-y-4 mt-4">
+                  {/* Salary Preview Visual Diagnostics */}
+                  <div className="space-y-4">
+                    {detail.data.current_preview ? (
+                      <SalaryPreview preview={detail.data.current_preview} inModal={true} />
+                    ) : (
+                      <p className="text-xs text-slate-400 p-4 rounded-xl bg-white/5">
+                        Current salary preview unavailable.
+                      </p>
+                    )}
+                  </div>
 
-              {/* Period Setup & Adjustments Sub-sections */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <PayrollPeriodSetup
-                  key={detail.data.run.id}
-                  run={detail.data.run}
-                  cutoff={detail.data.period_cutoff}
-                  user={user}
-                />
-                <EmployeeAdjustments
-                  key={detail.data.row.employee_id}
-                  employeeId={detail.data.row.employee_id}
-                  rowId={detail.data.row.id}
-                  employeeSelf={detail.data.employee_self}
-                  user={user}
-                />
-              </div>
-
-              {/* Revisions History Accordion */}
-              <div className="space-y-3 pt-2">
-                <h3 className="font-bold text-sm uppercase tracking-wider text-slate-400">
-                  Submission and calculation revisions
-                </h3>
-
-                <div className="space-y-2">
-                  {detail.data.revisions.map((v) => (
-                    <details
-                      key={v.revision}
-                      className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-xs space-y-3 group"
-                    >
-                      <summary className="font-bold text-slate-200 cursor-pointer hover:text-white flex items-center justify-between">
-                        <span>
-                          Revision {v.revision} / content {v.content_version} &middot; {v.created_at} &middot; {v.reason}
+                  {/* Changes Since Saved Accordion */}
+                  {detail.data.changes_since_saved && (
+                    <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          Changes since saved calculation
                         </span>
-                        <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
-                      </summary>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold">
+                          {Array.isArray(detail.data.changes_since_saved) ? `${detail.data.changes_since_saved.length} fields modified` : 'Modified'}
+                        </span>
+                      </div>
 
-                      <div className="space-y-3 pt-2 border-t border-white/5">
-                        <p className="text-slate-400">
-                          Prepared by <strong className="text-slate-200">{v.created_by}</strong>. Correction note: <span className="text-amber-300">{v.content_note || '—'}</span>
-                        </p>
+                      {Array.isArray(detail.data.changes_since_saved) && detail.data.changes_since_saved.length > 0 && (
+                        <div className="overflow-x-auto rounded-xl border border-amber-500/15">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-amber-500/10 text-slate-700 dark:text-slate-300 font-bold uppercase text-[10px] tracking-wider">
+                              <tr>
+                                <th className="p-2.5">Field / Metric</th>
+                                <th className="p-2.5">Previous Snapshot</th>
+                                <th className="p-2.5">Current Source Value</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-amber-500/10 bg-white/50 dark:bg-black/20">
+                              {detail.data.changes_since_saved.map((change, idx) => (
+                                <tr key={idx} className="hover:bg-amber-500/5">
+                                  <td className="p-2.5 font-medium font-mono text-slate-800 dark:text-slate-200">
+                                    {change.field || change.key || `Item ${idx + 1}`}
+                                  </td>
+                                  <td className="p-2.5 text-slate-500 dark:text-slate-400 line-through font-mono">
+                                    {typeof change.before === 'object' ? JSON.stringify(change.before) : String(change.before ?? '—')}
+                                  </td>
+                                  <td className="p-2.5 text-amber-700 dark:text-amber-300 font-semibold font-mono">
+                                    {typeof change.after === 'object' ? JSON.stringify(change.after) : String(change.after ?? '—')}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
 
-                        {v.changes && (
-                          <pre className="text-xs whitespace-pre-wrap font-mono text-slate-400 bg-black/30 p-3 rounded-xl overflow-x-auto border border-white/5">
-                            {JSON.stringify(v.changes, null, 2)}
-                          </pre>
-                        )}
+                      <details className="text-[11px] text-slate-500 group">
+                        <summary className="cursor-pointer hover:text-slate-400 font-medium select-none">
+                          Technical JSON diff
+                        </summary>
+                        <pre className="text-xs whitespace-pre-wrap font-mono text-amber-300/90 pt-2 p-3 rounded-xl bg-black/40 border border-white/5 overflow-x-auto mt-1">
+                          {JSON.stringify(detail.data.changes_since_saved, null, 2)}
+                        </pre>
+                      </details>
+                    </div>
+                  )}
 
-                        {v.calculation_snapshot && (
-                          <SalaryPreview preview={v.calculation_snapshot} />
+                  {/* Period Setup & Adjustments Sub-sections */}
+                  <div className="space-y-4">
+                    {!detail.data.accounts_delivery&&<PayrollPeriodSetup
+                      key={detail.data.run.id}
+                      run={detail.data.run}
+                      cutoff={detail.data.period_cutoff}
+                      user={user}
+                    />}
+                    <EmployeeAdjustments
+                      key={detail.data.row.employee_id}
+                      employeeId={detail.data.row.employee_id}
+                      rowId={detail.data.row.id}
+                      employeeSelf={detail.data.employee_self}
+                      user={user}
+                    />
+                  </div>
+
+                  {/* Revisions History Accordion */}
+                  <div className="space-y-3 pt-2">
+                    <h3 className="font-bold text-sm uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Submission and calculation revisions
+                    </h3>
+
+                    <div className="space-y-2">
+                      {detail.data.revisions.map((v) => (
+                        <details
+                          key={v.revision}
+                          className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/70 dark:bg-white/[0.02] p-4 text-xs space-y-3 group"
+                        >
+                          <summary className="font-bold text-slate-800 dark:text-slate-200 cursor-pointer hover:text-indigo-600 dark:hover:text-white flex items-center justify-between select-none">
+                            <span>
+                              Revision {v.revision} / content {v.content_version} &middot; {v.created_at} &middot; {v.reason}
+                            </span>
+                            <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+                          </summary>
+
+                          <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-white/5">
+                            <p className="text-slate-600 dark:text-slate-400">
+                              Prepared by <strong className="text-slate-800 dark:text-slate-200">{v.created_by}</strong>. Correction note: <span className="text-amber-600 dark:text-amber-300 font-medium">{v.content_note || '—'}</span>
+                            </p>
+
+                            {v.changes && (
+                              <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-black/20 p-3 space-y-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                                  Revision Changes
+                                </span>
+                                {Array.isArray(v.changes) ? (
+                                  <div className="space-y-1.5">
+                                    {v.changes.map((c, i) => (
+                                      <div key={i} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-slate-300 font-semibold">{c.field || c.key || `Field ${i + 1}`}:</span>
+                                        <span className="text-slate-500 line-through">{String(c.before ?? '')}</span>
+                                        <span className="text-emerald-400 font-medium">&rarr; {String(c.after ?? '')}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : typeof v.changes === 'object' ? (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                    {Object.entries(v.changes).map(([k, val]) => (
+                                      <div key={k} className="p-2 rounded-lg bg-white/5 border border-white/5">
+                                        <span className="text-[10px] text-slate-400 block font-mono">{k}</span>
+                                        <span className="text-slate-200 font-medium font-mono">{typeof val === 'object' ? JSON.stringify(val) : String(val)}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : null}
+                                <details className="text-[10px] text-slate-500 group">
+                                  <summary className="cursor-pointer hover:text-slate-400 select-none">Technical schema</summary>
+                                  <pre className="text-xs whitespace-pre-wrap font-mono text-slate-400 bg-black/40 p-2.5 rounded-lg overflow-x-auto border border-white/5 mt-1">
+                                    {JSON.stringify(v.changes, null, 2)}
+                                  </pre>
+                                </details>
+                              </div>
+                            )}
+
+                            {v.calculation_snapshot && (
+                              <SalaryPreview preview={v.calculation_snapshot} inModal={true} isSnapshot={true} />
+                            )}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Correction Content & Action History */}
+                  <details className="rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.01] p-4 text-xs group">
+                    <summary className="font-bold text-slate-800 dark:text-slate-200 cursor-pointer hover:text-indigo-600 dark:hover:text-white flex items-center justify-between select-none">
+                      <span className="flex items-center gap-2">
+                        <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Correction content and reviewer action history
+                      </span>
+                      <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+
+                    <div className="mt-4 space-y-4 pt-3 border-t border-slate-200 dark:border-white/5">
+                      {/* Content Versions Timeline */}
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                          Content Versions & Correction Notes
+                        </span>
+                        {detail.data.content_versions && detail.data.content_versions.length > 0 ? (
+                          <div className="space-y-2">
+                            {detail.data.content_versions.map((cv, idx) => (
+                              <div key={idx} className="p-3 rounded-xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-mono font-bold text-xs border border-indigo-500/20">
+                                    v{cv.version}
+                                  </span>
+                                  <span className="text-slate-800 dark:text-slate-200 font-medium">
+                                    {cv.note || 'No note recorded'}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                                  {cv.created_by && <span>By: <strong className="text-slate-700 dark:text-slate-300">{cv.created_by}</strong></span>}
+                                  {cv.created_at && <span>{cv.created_at}</span>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 italic text-[11px]">No prior content revisions.</p>
                         )}
                       </div>
-                    </details>
-                  ))}
-                </div>
-              </div>
 
-              {/* Correction Content & Action History */}
-              <details className="rounded-xl border border-white/10 bg-white/[0.01] p-3 text-xs group">
-                <summary className="font-bold text-slate-300 cursor-pointer hover:text-white flex items-center justify-between">
-                  <span>Correction content and reviewer action history</span>
-                  <span className="text-[10px] text-slate-500 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <pre className="text-xs whitespace-pre-wrap font-mono text-slate-400 pt-3 overflow-x-auto">
-                  {JSON.stringify({ content: detail.data.content_versions, actions: detail.data.actions }, null, 2)}
-                </pre>
+                      {/* Reviewer Action History Timeline */}
+                      <div className="space-y-2 pt-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block">
+                          Reviewer Actions & Audit Decisions
+                        </span>
+                        {detail.data.actions && detail.data.actions.length > 0 ? (
+                          <div className="space-y-2">
+                            {detail.data.actions.map((act, idx) => (
+                              <div key={idx} className="p-3 rounded-xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                                      ['APPROVE', 'SUBMIT', 'LOCK', 'ACCEPT'].some(s => (act.action || '').toUpperCase().includes(s))
+                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+                                        : ['RETURN', 'REJECT', 'CANCEL'].some(s => (act.action || '').toUpperCase().includes(s))
+                                        ? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20'
+                                        : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20'
+                                    }`}>
+                                      {act.action}
+                                    </span>
+                                    {act.stage && (
+                                      <span className="text-[11px] text-slate-500 font-mono">Stage: {act.stage}</span>
+                                    )}
+                                  </div>
+                                  {act.reason && (
+                                    <p className="text-xs text-slate-700 dark:text-slate-300 italic pl-1 border-l-2 border-indigo-500/40">
+                                      &ldquo;{act.reason}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 text-right">
+                                  {act.performed_by && <div>By: <strong className="text-slate-700 dark:text-slate-300">{act.performed_by}</strong></div>}
+                                  {act.created_at && <div>{act.created_at}</div>}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-slate-500 italic text-[11px]">No reviewer actions recorded yet.</p>
+                        )}
+                      </div>
+                    </div>
+                  </details>
+                </div>
               </details>
             </>
           )}
-        </section>
+          </div>
+        </Modal>
       )}
     </div>
   );

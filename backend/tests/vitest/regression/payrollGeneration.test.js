@@ -28,7 +28,7 @@ test('populates beyond one page, calculates each employee without submission/pos
  const report=(await one(db,'SELECT get_payroll_salary_register($1,$2,1,20) r',[users.fm.id,JSON.stringify({run_id:id})])).r;expect(report.total).toBe(21);expect(report.rows).toHaveLength(20);expect(report.rows.every(r=>r.net_salary===null&&r.blockers.length>0)).toBe(true);
  const again=await post(`/runs/${id}/generate`);expect(again.status).toBe(200);expect(again.body.generation.added).toBe(0);expect(again.body.generation.results).toEqual([]);expect((await rows(id)).every(r=>r.review_revision===1)).toBe(true);
  const first=records[0],fp=(await one(db,'SELECT source_fingerprint FROM payroll_review_revisions WHERE row_id=$1 AND revision=$2',[first.id,first.review_revision])).source_fingerprint;
- const submitted=await post(`/rows/${first.id}/review`,'fm',{action:'submit',expected_version:first.current_version,expected_review_version:first.review_version,source_fingerprint:fp});expect(submitted.status).toBe(200);
+ const submitted=await post(`/rows/${first.id}/review`,'fm',{action:'submit',expected_version:first.current_version,expected_review_version:first.review_version,source_fingerprint:fp});expect(submitted.status).toBe(409);expect((await one(db,'SELECT count(*) n FROM payroll_accounts_deliveries WHERE row_id=$1',[first.id])).n).toBe('0');
  const before=(await rows(id)).find(r=>r.id===first.id);await post(`/runs/${id}/generate`);expect((await rows(id)).find(r=>r.id===first.id)).toEqual(before);
 });
 test('missing and ambiguous assignments are visible issues while valid employees calculate',async()=>{

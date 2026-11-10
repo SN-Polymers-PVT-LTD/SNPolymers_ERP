@@ -7,7 +7,7 @@ const monthBounds=date=>{const from=date.slice(0,7)+'-01';return {from,to:new Da
 function month(date){const {from,to}=monthBounds(date);return {from,to:new Date(Date.parse(to+'T00:00:00Z')-86400000).toISOString().slice(0,10)};}
 const covers=(r,d)=>r.effective_from<=d&&(!r.effective_to||d<=r.effective_to);
 function canonical(value){if(Array.isArray(value))return value.map(canonical);if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])]));return value;}
-function fingerprint(source){return crypto.createHash('sha256').update(JSON.stringify(canonical({engine_version:'PAYROLL_PREVIEW_V1',calculation_revision:'PHASE6_SALARY_STATUS_GUARD_V1',source}))).digest('hex');}
+function fingerprint(source){return crypto.createHash('sha256').update(JSON.stringify(canonical({engine_version:'PAYROLL_PREVIEW_V1',calculation_revision:'FACTORY_SCOPED_MASTERS_V1',source}))).digest('hex');}
 function resolveSources(source){
  const blockers=[],days=[];const block=(code,date,reference)=>blockers.push({code,date,reference,kind:'source'});
  const selected=source.assignments.find(a=>a.id===source.row.assignment_id);
@@ -31,16 +31,25 @@ function resolveSources(source){
   item.leave=leave;
   if(leave.length>1)block('OVERLAPPING_LEAVE',date,leave.map(l=>l.id));
   if(leave.some(l=>l.approval_status==='Pending'||!['Paid','Unpaid'].includes(l.pay_treatment)||!l.decided_at))block('UNFINALIZED_LEAVE',date,leave.map(l=>l.id));
+  item.calendar=source.calendar.filter(c=>c.calendar_date===date&&c.group_code===assignment.group_code&&c.department===assignment.department&&c.status==='PUBLISHED');
   if(factory){
    // Include legacy and other-factory facts when detecting duplicates; never attribute them.
    const rows=source.attendance.filter(a=>a.attendance_date===date);
+   const scheduledOff=rows.length===0&&!leave.length&&item.calendar.length===1&&item.calendar[0].managed===true&&item.calendar[0].is_off===true;
+   if(scheduledOff){days.push(item);continue;}
    if(rows.length!==1)block(rows.length?'DUPLICATE_ATTENDANCE':'MISSING_LOCKED_ATTENDANCE',date,rows.map(a=>a.id));
    else {
     const row=rows[0];item.attendance=row;
     if(row.sheet_status!=='Locked')block('ATTENDANCE_NOT_LOCKED',date,row.sheet_id);
     if(row.department!==assignment.department||row.employee_category!==assignment.employee_category)block('ATTENDANCE_ASSIGNMENT_MISMATCH',date,row.id);
-    item.rule=source.factory_rules.filter(r=>r.employee_category===assignment.employee_category&&r.effective_from<=date).at(-1);
-    item.wage=source.wages.filter(r=>r.employee_category===assignment.employee_category&&r.effective_from<=date).at(-1);
+    const master = (revisions,id) => {
+     const candidates=revisions.filter(r=>r.employee_category===assignment.employee_category&&r.effective_from<=date&&(!r.department||r.department===assignment.department));
+     if(row.master_scope_version===0) return candidates.find(r=>r.id===id);
+     const scoped=candidates.filter(r=>r.department===assignment.department);
+     return (scoped.length?scoped:candidates.filter(r=>!r.department&&assignment.employee_category!=='Local Daily-Wage Workers')).at(-1);
+    };
+    item.rule=master(source.factory_rules,row.pay_rule_revision_id);
+    item.wage=master(source.wages,row.wage_revision_id);
     if(!item.rule||item.rule.id!==row.pay_rule_revision_id)block('MISSING_OR_OUTDATED_FACTORY_RULE',date,row.pay_rule_revision_id);
     if(!source.is_permanent&&(!item.wage||item.wage.id!==row.wage_revision_id))block('MISSING_OR_OUTDATED_WAGE',date,row.wage_revision_id);
     if(leave.length&&row.leave_request_id!==leave[0].id)block('ATTENDANCE_LEAVE_CONFLICT',date,row.id);
