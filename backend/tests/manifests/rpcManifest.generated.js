@@ -698,6 +698,35 @@ module.exports = {
       ],
       "returns": "hr_leave_requests"
     },
+    "decide_office_leave_with_chargeable_dates": {
+      "args": [
+        {
+          "name": "p_leave_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_decision",
+          "type": "text"
+        },
+        {
+          "name": "p_pay_treatment",
+          "type": "text"
+        },
+        {
+          "name": "p_remarks",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_chargeable_dates",
+          "type": "date[]"
+        }
+      ],
+      "returns": "hr_leave_requests"
+    },
     "deliver_payroll_to_accounts": {
       "args": [
         {

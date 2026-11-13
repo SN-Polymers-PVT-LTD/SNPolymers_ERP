@@ -36,6 +36,7 @@ module.exports = {
     body: z.object({
       decision: z.enum(['Approved', 'Rejected']),
       pay_treatment: z.enum(['Paid', 'Unpaid']),
+      chargeable_dates: z.array(z.iso.date()).max(733).optional().nullable(),
       remarks: z.string().trim().max(2000).optional().nullable()
     }).strict()
       .refine(b => b.decision !== 'Rejected' || Boolean(b.remarks), 'Rejection remarks are required.')

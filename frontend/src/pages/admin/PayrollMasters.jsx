@@ -48,6 +48,24 @@ const defaults = kind => kind === 'policies' ? {
 const message = e => e?.response?.data?.issues?.map(i => `${i.path?.join('.') || 'Configuration'}: ${i.message}`).join(' • ') || e?.response?.data?.message || e.message;
 const json = value => JSON.stringify(value, null, 2);
 
+// PT is stored once per month, even when all twelve months share one schedule.
+function ptScheduleSummary(slabs) {
+  if (!Array.isArray(slabs)) return 'Tax schedule unavailable';
+  if (!slabs.length) return 'No tax ranges configured';
+  const schedules = new Map();
+  for (let month = 1; month <= 12; month++) {
+    const rows = slabs.filter(s => Number(s.month) === month)
+      .map(s => [s.lower_bound, s.upper_bound, s.deduction_amount]);
+    const key = JSON.stringify(rows);
+    const entry = schedules.get(key) || { count: 0, ranges: rows.length };
+    entry.count++;
+    schedules.set(key, entry);
+  }
+  const normal = [...schedules.values()].sort((a, b) => b.count - a.count)[0];
+  const exceptions = 12 - normal.count;
+  return `${normal.ranges} standard tax ${normal.ranges === 1 ? 'range' : 'ranges'}${exceptions ? ` · ${exceptions} ${exceptions === 1 ? 'month differs' : 'months differ'}` : ''}`;
+}
+
 function formatDisplayDate(dateStr) {
   if (!dateStr) return '';
   const parts = String(dateStr).split('-');
@@ -90,9 +108,9 @@ function getRuleSummary(r, kind) {
   const cfg = r.data?.configuration || r.configuration || {};
   const scheme = r.scheme;
   if (scheme === 'PT') {
-    const slabs = r.data?.slabs || r.slabs || [];
+    const slabs = r.data?.slabs ?? r.slabs;
     return {
-      title: `${slabs.length || 12} Tax Slabs`,
+      title: ptScheduleSummary(slabs),
       subtitle: 'Monthly Gross Salary Basis'
     };
   }
@@ -289,7 +307,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
       setPreview(null);
       closeModal();
       refresh();
-      setSuccess('Revision published. Historical rule values are preserved; financial workflows remain disabled.');
+      setSuccess('Revision published. Historical rule values are preserved.');
     }
   });
 
@@ -508,7 +526,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
               : 'Rates are not seeded. Accounts confirms configured rules with recorded setup evidence. Employer contributions remain separate from employee deductions.'}
           </p>
           <p className="text-slate-400 leading-relaxed">
-            Published masters feed salary diagnostics. Financial locking, withholding and payment remain disabled. Casual/Local wages continue to use their factory masters.
+            Published rules are used in payroll calculations. Approval and payment depend on payroll readiness. Casual and local wages use their factory masters.
           </p>
         </div>
       </div>
@@ -981,29 +999,31 @@ export default function PayrollMasters({ kind = 'policies' }) {
             {/* Executive Summary Card */}
             {(() => {
               const rev = preview.revision || {};
-              const cfg = rev.configuration || {};
+              const saved = query.data?.revisions?.find(r => r.id === rev.id);
+              const cfg = rev.configuration || saved?.data?.configuration || {};
+              const slabs = preview.diff?.find(change => change.field === 'slabs')?.after ?? rev.slabs ?? rev.data?.slabs ?? saved?.data?.slabs ?? saved?.slabs;
               return (
-                <div className="grid sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-950/40 border border-white/5">
+                <div className="grid gap-4 sm:grid-cols-3 p-4 rounded-xl bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10">
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Scheme & Scope</span>
-                    <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">Scheme & Scope</span>
+                    <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                       <Badge variant="amber">{rev.scheme || rev.group_code || 'Policy'}</Badge>
                       <span className="text-xs truncate">{rev.establishment || rev.jurisdiction || 'Global'}</span>
                     </div>
-                    {rev.jurisdiction && <div className="text-[11px] text-slate-400 mt-0.5">{rev.jurisdiction} State</div>}
+                    {rev.jurisdiction && <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{rev.jurisdiction} State</div>}
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Effective Period</span>
-                    <div className="font-mono text-xs text-slate-200">{rev.effective_from} to {rev.effective_to || 'Ongoing'}</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">{preview.affected_draft_rows || 0} draft rows affected</div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">Effective Period</span>
+                    <div className="text-sm text-slate-900 dark:text-slate-200">{formatDisplayDate(rev.effective_from)} to {rev.effective_to ? formatDisplayDate(rev.effective_to) : 'Ongoing'}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{preview.affected_draft_rows ?? 0} draft rows affected</div>
                   </div>
                   <div>
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block mb-0.5">Rates / Terms</span>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500 dark:text-slate-400 block mb-1">Rates / Terms</span>
                     {kind === 'statutory' ? (
                       rev.scheme === 'PT' ? (
-                        <div className="text-xs text-slate-200 font-medium">{rev.slabs?.length || 0} state tax slabs configured</div>
+                        <div className="text-sm text-slate-900 dark:text-slate-200 font-medium">{ptScheduleSummary(slabs)}</div>
                       ) : (
-                        <div className="text-xs font-mono text-slate-200 space-y-0.5">
+                        <div className="text-sm text-slate-900 dark:text-slate-200 space-y-1">
                           <div>
                             <span>Emp: <strong className="text-amber-400">{cfg.employee_rate ?? '—'}%</strong></span>
                             <span className="mx-1.5">·</span>
@@ -1014,7 +1034,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
                         </div>
                       )
                     ) : (
-                      <div className="text-xs text-slate-200 font-medium">
+                      <div className="text-sm text-slate-900 dark:text-slate-200 font-medium">
                         {rev.lop_method} (Divisor: {rev.lop_fixed_divisor || '30'})
                       </div>
                     )}

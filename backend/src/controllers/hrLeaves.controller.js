@@ -242,14 +242,22 @@ module.exports = {
 
     const b = req.body;
     const finalTreatment = b.decision === 'Rejected' ? 'Unpaid' : b.pay_treatment;
+    const office = ELIGIBLE_CATEGORIES.includes(existing.employee_category);
+    if (office && finalTreatment === 'Unpaid' && !Array.isArray(b.chargeable_dates)) {
+      return res.status(400).json({ success: false, code: 'CHARGEABLE_DATES_REQUIRED', message: 'Confirm which leave dates are unpaid.' });
+    }
+    if (office && finalTreatment === 'Paid' && b.chargeable_dates != null) {
+      return res.status(400).json({ success: false, code: 'INVALID_LEAVE', message: 'Paid leave cannot have chargeable dates.' });
+    }
 
     const { data } = await checked(
-      supabase.rpc('decide_hr_leave_request', {
+      supabase.rpc(office ? 'decide_office_leave_with_chargeable_dates' : 'decide_hr_leave_request', {
         p_leave_id: req.params.id,
         p_decision: b.decision,
         p_pay_treatment: finalTreatment,
         p_remarks: b.remarks || null,
-        p_actor_id: req.user.id
+        p_actor_id: req.user.id,
+        ...(office ? { p_chargeable_dates: b.chargeable_dates ?? null } : {})
       })
     );
 

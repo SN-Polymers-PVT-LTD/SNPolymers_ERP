@@ -32,6 +32,7 @@ function permanentCalculation(source,days){
   const components=salary?contractDiagnostics[0].components:{};
   const rawUnpaid=md.filter(day=>{
    const leave=day.leave[0],status=day.attendance?.attendance_status;
+   if(!day.factory&&leave?.request_source==='SELF_SERVICE'&&Array.isArray(leave.chargeable_dates)) return (leave.pay_treatment==='Unpaid'||leave.approval_status==='Rejected')&&leave.chargeable_dates.includes(day.date);
    return (day.factory&&status==='Absent')||!!(leave&&['Approved','Rejected'].includes(leave.approval_status)&&(leave.pay_treatment==='Unpaid'||leave.approval_status==='Rejected'));
   });
   // A short worked day contributes only its missing-hours fraction to LOP.
@@ -46,6 +47,7 @@ function permanentCalculation(source,days){
   let unpaid=rawUnpaid;
   if(policy?.leave_weekly_off_method==='EXCLUDE_PAID_CALENDAR_DAYS'){
    unpaid=rawUnpaid.filter(d=>{
+    if(!d.factory&&d.leave[0]?.request_source==='SELF_SERVICE'&&Array.isArray(d.leave[0].chargeable_dates))return true;
     const calendar=d.calendar||source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED');
     if(calendar.length!==1||!['PAID','UNPAID'].includes(calendar[0].compensation_treatment)){block('LEAVE_CALENDAR_ENTITLEMENT_REQUIRED',d.date);return false;}
     const c=calendar[0];
@@ -56,7 +58,7 @@ function permanentCalculation(source,days){
   }
   const noPayableEntitlement=md.length>0&&unpaid.length===md.length&&!unpaid.some(d=>d.short_hours_fraction)&&md.every(d=>{const c=(d.calendar||source.calendar.filter(c=>c.calendar_date===d.date&&c.status==='PUBLISHED'));return c.length===1&&c[0].compensation_treatment==='UNPAID';});
   const zeroMonth=noPayableEntitlement&&policy?.full_month_unpaid_treatment==='NO_PAYABLE_ENTITLEMENT_ZERO';
-  const weekly=policy?.leave_weekly_off_method!=='EXCLUDE_PAID_CALENDAR_DAYS'&&unpaid.some(d=>new Date(d.date+'T00:00:00Z').getUTCDay()===0||source.calendar.some(c=>c.calendar_date===d.date&&c.day_type==='Weekly Off'));
+  const weekly=policy?.leave_weekly_off_method!=='EXCLUDE_PAID_CALENDAR_DAYS'&&unpaid.some(d=>!(!d.factory&&d.leave[0]?.request_source==='SELF_SERVICE'&&Array.isArray(d.leave[0].chargeable_dates))&&(new Date(d.date+'T00:00:00Z').getUTCDay()===0||source.calendar.some(c=>c.calendar_date===d.date&&c.day_type==='Weekly Off')));
   const recon=reconcileMonth(source,bounds,entitlement,policy,md.map(d=>d.date),resolved?.revision_id);blockers.push(...recon.blockers);
   const scenario={has_lop:unpaid.length>0,partial_month:partial,split_run:recon.split,full_month_unpaid:unpaid.length===md.length&&md.length>0&&!unpaid.some(d=>d.short_hours_fraction),weekly_off_leave:weekly};
   const ready=calculationReadiness(resolved,scenario);blockers.push(...ready.blockers.map(b=>({...b,kind:'policy',date:start})));warnings.push(...ready.configuration_warnings.map(w=>({...w,date:start})));

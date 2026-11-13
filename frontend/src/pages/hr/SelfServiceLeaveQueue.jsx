@@ -4,9 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Input, Select, Button, Badge, Modal, TextArea, Pagination } from '../../components/ui';
 import { getSelfServiceLeaveQueue, decideSelfServiceLeave } from '../../api/hrLeavesApi';
 
-import { PERMANENT_CATEGORIES } from '../admin/employeeConstants';
+import { OFFICE_CATEGORIES, PERMANENT_CATEGORIES } from '../admin/employeeConstants';
 const categories = [...PERMANENT_CATEGORIES];
 const statuses = ['Pending', 'Approved', 'Rejected'];
+const datesInRequest = (from, to) => {
+  const days = [];
+  for (let time = Date.parse(`${from}T00:00:00Z`), end = Date.parse(`${to}T00:00:00Z`); time <= end && days.length < 734; time += 86400000) days.push(new Date(time).toISOString().slice(0, 10));
+  return days;
+};
 
 export default function SelfServiceLeaveQueue() {
   const [search, setSearch] = useSearchParams();
@@ -20,6 +25,7 @@ export default function SelfServiceLeaveQueue() {
   const [decisionModal, setDecisionModal] = useState(null); // active leave being decided
   const [decisionType, setDecisionType] = useState('Approved'); // 'Approved' | 'Rejected'
   const [payTreatment, setPayTreatment] = useState(''); // '' | 'Paid' | 'Unpaid'
+  const [chargeableDates, setChargeableDates] = useState([]);
   const [remarks, setRemarks] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -58,6 +64,7 @@ export default function SelfServiceLeaveQueue() {
     setDecisionModal(leave);
     setDecisionType(type);
     setPayTreatment(type === 'Rejected' ? 'Unpaid' : '');
+    setChargeableDates(datesInRequest(leave.from_date, leave.to_date));
     setRemarks('');
     setActionError('');
   };
@@ -82,12 +89,18 @@ export default function SelfServiceLeaveQueue() {
       setActionError('Rejection remarks are required.');
       return;
     }
+    const officeUnpaid = OFFICE_CATEGORIES.includes(decisionModal.employee_category) && (decisionType === 'Rejected' || payTreatment === 'Unpaid');
+    if (officeUnpaid && datesInRequest(decisionModal.from_date, decisionModal.to_date).length > 733) {
+      setActionError('This leave period is too long to confirm here.');
+      return;
+    }
 
     try {
       setSubmitting(true);
       const payload = {
         decision: decisionType,
         pay_treatment: decisionType === 'Rejected' ? 'Unpaid' : payTreatment,
+        ...(officeUnpaid ? { chargeable_dates: chargeableDates } : {}),
         remarks: remarks.trim() || undefined
       };
 
@@ -248,6 +261,7 @@ export default function SelfServiceLeaveQueue() {
                       <td className="py-3 px-3 max-w-xs">
                         {req.approval_status !== 'Pending' ? (
                           <div className="text-[11px]">
+                            {Array.isArray(req.chargeable_dates) && <div className="text-slate-700 dark:text-slate-200">{req.chargeable_dates.length} unpaid {req.chargeable_dates.length === 1 ? 'day' : 'days'}: {req.chargeable_dates.join(', ') || 'none'}</div>}
                             {req.decision_remarks && (
                               <div className="text-slate-300 font-medium">"{req.decision_remarks}"</div>
                             )}
@@ -314,7 +328,7 @@ export default function SelfServiceLeaveQueue() {
           isOpen={true}
           onClose={closeDecisionModal}
           title={`${decisionType === 'Approved' ? 'Approve' : 'Reject'} Leave Request`}
-          subtitle={`${decisionModal.employee?.employee_name} (${decisionModal.employee?.employee_code}) &bull; ${decisionModal.from_date} to ${decisionModal.to_date}`}
+          subtitle={`${decisionModal.employee?.employee_name} (${decisionModal.employee?.employee_code}) · ${decisionModal.from_date} to ${decisionModal.to_date}`}
         >
           <form onSubmit={handleDecisionSubmit} className="space-y-4 text-xs">
             {actionError && (
@@ -363,6 +377,22 @@ export default function SelfServiceLeaveQueue() {
                   Rejected self-service leaves are deterministically recorded as Unpaid.
                 </p>
               </div>
+            )}
+
+            {OFFICE_CATEGORIES.includes(decisionModal.employee_category) && (decisionType === 'Rejected' || payTreatment === 'Unpaid') && (
+              <fieldset className="rounded-xl border border-slate-200 dark:border-white/10 p-4 space-y-3">
+                <legend className="font-bold text-slate-900 dark:text-slate-100">Unpaid days to deduct</legend>
+                <p className="text-sm text-slate-600 dark:text-slate-300">Confirm the dates that should reduce salary. Uncheck any dates that should not be deducted.</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto">
+                  {datesInRequest(decisionModal.from_date, decisionModal.to_date).map(date => (
+                    <label key={date} className="flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-white/5 p-2 text-slate-900 dark:text-slate-100">
+                      <input type="checkbox" checked={chargeableDates.includes(date)} onChange={e => setChargeableDates(previous => e.target.checked ? [...previous, date].sort() : previous.filter(d => d !== date))} />
+                      {date}
+                    </label>
+                  ))}
+                </div>
+                <p className="font-semibold text-slate-900 dark:text-slate-100">{chargeableDates.length} unpaid {chargeableDates.length === 1 ? 'day' : 'days'}</p>
+              </fieldset>
             )}
 
             <div>

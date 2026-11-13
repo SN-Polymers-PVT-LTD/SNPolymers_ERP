@@ -38,19 +38,19 @@ export default function SalaryPreview({
                   {preview.employee.employee_name} / {preview.employee.employee_code}
                 </h2>
                 <p className="text-xs text-slate-400 print:text-slate-600 mt-0.5">
-                  {calculationStatus(preview.status)} · {preview.period_from} – {preview.period_to}
+                  {!isPayslip && <>{calculationStatus(preview.status)} · </>}{preview.period_from} – {preview.period_to}
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
+            {!isPayslip && <Badge
               variant={preview.status === 'READY_FOR_REVIEW' || preview.status === 'LOCKED' ? 'emerald' : 'amber'}
               showDot
             >
               {calculationStatus(preview.status)}
-            </Badge>
+            </Badge>}
             <span className="text-xs font-mono px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-slate-300 print:border-slate-300 print:text-slate-700">
               {preview.period_from} to {preview.period_to}
             </span>

@@ -20,6 +20,7 @@
   "create_subcontract_requisition_secure",
   "decide_hr_factory_sheet_leave",
   "decide_hr_leave_request",
+  "decide_office_leave_with_chargeable_dates",
   "deliver_payroll_to_accounts",
   "factory_calculation_impact",
   "factory_category_department",

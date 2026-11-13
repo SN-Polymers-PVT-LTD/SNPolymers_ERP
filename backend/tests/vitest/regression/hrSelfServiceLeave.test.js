@@ -331,11 +331,13 @@ describe('Phase 7 HO / Projects Self-Service Leave Workflow', () => {
     const validReject = await request('POST', `/${leaveId}/decision`, 'admin', {
       decision: 'Rejected',
       pay_treatment: 'Unpaid',
+      chargeable_dates: [date(4, 10), date(4, 12)],
       remarks: 'Critical project milestone underway; please reschedule.'
     });
     expect(validReject.status).toBe(200);
     expect(validReject.body.leave.approval_status).toBe('Rejected');
     expect(validReject.body.leave.pay_treatment).toBe('Unpaid');
+    expect(validReject.body.leave.chargeable_dates).toEqual([date(4, 10), date(4, 12)]);
     expect(validReject.body.leave.decision_remarks).toBe('Critical project milestone underway; please reschedule.');
   });
 
@@ -367,14 +369,22 @@ describe('Phase 7 HO / Projects Self-Service Leave Workflow', () => {
     });
     expect(l2.status).toBe(200);
 
+    const missing = await request('POST', `/${l2.body.leave.id}/decision`, 'ho', { decision:'Approved', pay_treatment:'Unpaid' });
+    expect(missing.status).toBe(400);
+    const outside = await request('POST', `/${l2.body.leave.id}/decision`, 'ho', { decision:'Approved', pay_treatment:'Unpaid', chargeable_dates:[date(5, 12)] });
+    expect(outside.status).toBe(400);
+    const duplicate = await request('POST', `/${l2.body.leave.id}/decision`, 'ho', { decision:'Approved', pay_treatment:'Unpaid', chargeable_dates:[date(5, 10),date(5, 10)] });
+    expect(duplicate.status).toBe(400);
     const appUnpaid = await request('POST', `/${l2.body.leave.id}/decision`, 'ho', {
       decision: 'Approved',
       pay_treatment: 'Unpaid',
+      chargeable_dates: [date(5, 10)],
       remarks: 'Approved as unpaid leave'
     });
     expect(appUnpaid.status).toBe(200);
     expect(appUnpaid.body.leave.approval_status).toBe('Approved');
     expect(appUnpaid.body.leave.pay_treatment).toBe('Unpaid');
+    expect(appUnpaid.body.leave.chargeable_dates).toEqual([date(5, 10)]);
   });
 
   test('decided leave is immutable for both employee edit and re-decision', async () => {

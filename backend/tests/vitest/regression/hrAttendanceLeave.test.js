@@ -302,7 +302,7 @@ describe('Phase 3 persistence and workflow — transactional local DB regression
       const l = await leave(db,emp,date(),date(1,4),{source:'SELF_SERVICE',type:'Other Leave',actor});
       expect(l.request_source).toBe('SELF_SERVICE'); expect(l.created_by).toBe(actor);
       await fails(()=>decide(db,l.id,'Approved','Pending'),null,'23514');
-      expect((await decide(db,l.id,'Approved','Unpaid')).pay_treatment).toBe('Unpaid');
+      expect((await one(db,'SELECT * FROM decide_office_leave_with_chargeable_dates($1,$2,$3,$4,$5,$6)',[l.id,'Approved','Unpaid','HO decision',actors.ho,[date(),date(1,4)]])).pay_treatment).toBe('Unpaid');
     }
     await fails(()=>leave(db,employees.ho,date(1,6),date(1,6),{source:'SELF_SERVICE',type:'Other Leave',actor:actors.je}),/own request/,'42501');
     await fails(()=>leave(db,employees.casual,date(1,6),date(1,6),{source:'SELF_SERVICE',actor:actors.je}),/own request/,'42501');

@@ -171,6 +171,18 @@ describe('SelfServiceLeaveQueue Component', () => {
       );
     });
   });
+
+  it('lets HO choose which unpaid dates are charged and sends those exact dates', async () => {
+    renderQueue();
+    await screen.findByText('Ananya Sharma');
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.change(screen.getByLabelText(/Select Pay Treatment/i), { target: { value: 'Unpaid' } });
+    expect(screen.getByText('3 unpaid days')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('checkbox', { name: '2026-09-11' }));
+    expect(screen.getByText('2 unpaid days')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Approved' }));
+    await waitFor(() => expect(authApi.post).toHaveBeenCalledWith('/hr/leaves/leave-pending-1/decision', expect.objectContaining({chargeable_dates:['2026-09-10','2026-09-12']})));
+  });
 });
 
  it('keeps All Statuses selected and omits the API status filter', async () => {

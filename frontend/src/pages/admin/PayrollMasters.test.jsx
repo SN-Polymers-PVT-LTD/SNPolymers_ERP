@@ -15,6 +15,18 @@ function mount(kind='policies',statutoryRole='accounts'){if(kind==='statutory')r
 const empty={revisions:[],events:[],total:0,groups:[{code:'HO_STAFF'}]};
 beforeEach(()=>{vi.resetAllMocks();profiles.getCompanyDeductionSetups.mockResolvedValue({data:{result:{setups:[],total:0}}});profiles.getStatutoryProfileContext.mockResolvedValue({data:{result:{scopes:[],bindings:[],total:0}}});profiles.getStatutoryStates.mockResolvedValue({data:{result:[{id:'assam',name:'Assam'},{id:'bihar',name:'Bihar'},{id:'wb',name:'West Bengal'},{id:'odisha',name:'Odisha'}]}});role='admin';api.listPayrollMasters.mockResolvedValue({data:{result:empty}});api.savePayrollMaster.mockResolvedValue({data:{result:{id:'draft'}}});});
 describe('Admin payroll master screens',()=>{
+ it('summarizes the standard PT schedule consistently in the list and publication preview',async()=>{
+  const slabs=Array.from({length:12},(_,i)=>({month:i+1,lower_bound:'0',upper_bound:null,deduction_amount:'100'}));
+  const revision={id:'pt-draft',scheme:'PT',jurisdiction:'West Bengal',establishment:'Test',status:'DRAFT',version:1,effective_from:'2027-01-01',effective_to:null,data:{slabs}};
+  api.listPayrollMasters.mockResolvedValue({data:{result:{...empty,revisions:[revision],total:1}}});
+  api.previewPayrollPublication.mockResolvedValue({data:{result:{revision:{...revision,data:undefined},diff:[{field:'slabs',after:slabs}],conflicts:[],blockers:[],publishable:true}}});
+  mount('statutory');
+  expect(await screen.findByText('1 standard tax range')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Review publication'}));
+  await screen.findByRole('heading',{name:'Confirm master publication'});
+  expect(screen.getAllByText('1 standard tax range')).toHaveLength(2);
+  expect(screen.queryByText(/12 Tax Slabs|0 state tax slabs/)).not.toBeInTheDocument();
+ });
  it('renders history and audit snapshots as readable business details',async()=>{
   const revision={id:'history-rule',scheme:'EPF',jurisdiction:'West Bengal',establishment:'Fabric Factory',status:'PUBLISHED',version:2,revision_number:1,effective_from:'2026-08-01',effective_to:null,configuration:{employee_rate:'12',employer_rate:'12',wage_ceiling:'15000'},data:{configuration:{employee_rate:'12',employer_rate:'12',wage_ceiling:'15000'}}};
   api.listPayrollMasters.mockResolvedValue({data:{result:{...empty,total:1,revisions:[revision],events:[{id:1,statutory_revision_id:revision.id,action:'DRAFT_CREATED',occurred_at:'2026-08-01T12:00:00Z',actor_id:'internal-user-id',after_snapshot:revision}]}}});

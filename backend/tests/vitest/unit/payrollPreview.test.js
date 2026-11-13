@@ -11,6 +11,28 @@ describe('exact monetary arithmetic',()=>{
  });
 });
 describe('permanent salary previews / POL cases',()=>{
+ test('office unpaid leave uses HO-confirmed dates without calendar evidence',()=>{
+  const s=office();policyEdit(s,{leave_weekly_off_method:'EXCLUDE_PAID_CALENDAR_DAYS'});
+  s.leave=[leave('2091-02-03','2091-02-05',{request_source:'SELF_SERVICE',chargeable_dates:['2091-02-03','2091-02-05']})];
+  const r=calculatePreview(s);expect(codes(r)).not.toContain('LEAVE_CALENDAR_ENTITLEMENT_REQUIRED');
+  expect(r.deductions[0].chargeable_dates).toEqual(['2091-02-03','2091-02-05']);expect(r.deductions[0].amount).toBe('2000.00');
+  s.leave[0].chargeable_dates=[];expect(calculatePreview(s).deductions).toEqual([]);
+ });
+ test('office chargeable dates spanning months are deducted only in their own month',()=>{
+  const s=office('2091-10-01');s.source_to='2091-11-30';s.row.period_to=s.source_to;s.month_rows[0].period_to=s.source_to;
+  policyEdit(s,{leave_weekly_off_method:'EXCLUDE_PAID_CALENDAR_DAYS'});
+  s.leave=[leave('2091-10-30','2091-11-02',{request_source:'SELF_SERVICE',chargeable_dates:['2091-10-31','2091-11-02']})];
+  const r=calculatePreview(s);expect(codes(r)).not.toContain('LEAVE_CALENDAR_ENTITLEMENT_REQUIRED');
+  expect(r.deductions.map(d=>[d.salary_month,d.amount,d.chargeable_dates])).toEqual([['2091-10-01','1000.00',['2091-10-31']],['2091-11-01','1000.00',['2091-11-02']]]);
+ });
+ test('confirmed office leave is allocated once across split payroll runs',()=>{
+  const s=office('2091-10-01');policyEdit(s,{leave_weekly_off_method:'EXCLUDE_PAID_CALENDAR_DAYS',split_period_allocation_method:'CALENDAR_WEIGHTED_WITH_RESIDUAL'});
+  s.row.period_to='2091-10-15';s.month_rows[0].period_to=s.row.period_to;s.month_rows.push({...s.month_rows[0],id:'second',period_from:'2091-10-16',period_to:'2091-10-31'});
+  s.leave=[leave('2091-10-14','2091-10-17',{request_source:'SELF_SERVICE',chargeable_dates:['2091-10-14','2091-10-17']})];
+  const first=calculatePreview(s);Object.assign(s.row,{id:'second',period_from:'2091-10-16',period_to:'2091-10-31'});const second=calculatePreview(s);
+  expect(first.deductions[0].chargeable_dates).toEqual(['2091-10-14']);expect(second.deductions[0].chargeable_dates).toEqual(['2091-10-17']);
+  expect([first.deductions[0].amount,second.deductions[0].amount]).toEqual(['1000.00','1000.00']);
+ });
  test.each(['2091-02-01','2091-10-01','2092-02-01'])('POL-001/002 full %s pays one monthly gross, missing statute means no final net',start=>{
   const r=calculatePreview(office(start));expect(r.gross_after_lop).toBe('30000.00');expect(r.final_net_salary).toBeNull();expect(r.deductions).toEqual([]);expect(r.status).toBe('BLOCKED_STATUTORY');expect(r.financial_workflows_enabled).toBe(false);
  });

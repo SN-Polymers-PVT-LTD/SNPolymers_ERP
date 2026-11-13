@@ -31,6 +31,13 @@ test('official locked payslip remains separate from a payment voucher', () => {
   expect(screen.getByText('Prepared & Certified By:')).toBeInTheDocument();
 });
 
+test('official payslip does not show the saved calculation readiness as its review status', () => {
+  render(<PayrollPayslip payslip={{ official: true, review_status: 'LOCKED', payment_status: 'PAID', calculation: preview({status:'READY_FOR_REVIEW'}) }} />);
+  expect(screen.queryByText(/ready for review/i)).not.toBeInTheDocument();
+  expect(screen.getByText('LOCKED')).toBeInTheDocument();
+  expect(screen.getByText('PAID')).toBeInTheDocument();
+});
+
 test('unresolved deduction lines do not become a zero total', () => {
   render(<SalaryPreview preview={preview({ deductions: [{ code: 'LOP', amount: null, source_ids: [] }], deductions_total: '0.000000' })} />);
   const header = screen.getByRole('heading', { name: 'deductions' }).parentElement;

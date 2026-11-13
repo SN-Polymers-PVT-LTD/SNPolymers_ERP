@@ -1306,6 +1306,12 @@ module.exports = {
           "udtName": "timestamptz",
           "nullable": false,
           "default": "now()"
+        },
+        "chargeable_dates": {
+          "type": "ARRAY",
+          "udtName": "_date",
+          "nullable": true,
+          "default": null
         }
       }
     },
