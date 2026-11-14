@@ -6438,9 +6438,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollFinancial.test.js": {
-    "mtime": 1794636197.8125129,
-    "seen": 1794636312.9938602,
-    "ast_hash": "6c3a10f03a504198cbeb35cd7407e67c",
+    "mtime": 1794636320.8627384,
+    "seen": 1794662619.7073317,
+    "ast_hash": "aec3df66cd99e48c3e4ed36ca83d6762",
     "semantic_hash": ""
   },
   "backend/tests/vitest/regression/payrollLedgerApi.test.js": {
