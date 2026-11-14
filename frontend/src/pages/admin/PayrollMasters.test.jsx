@@ -50,7 +50,7 @@ describe('Admin payroll master screens',()=>{
 
 it('only bonus and arrears need adjustment choices; recovery is automatic',async()=>{
  mount('statutory');await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));
- fireEvent.click(screen.getByText(/Advanced settings —/));
+ fireEvent.click(screen.getByText(/^Advanced settings$/));
  expect(screen.getByLabelText('Bonus contribution treatment')).toHaveValue('UNRESOLVED');
  expect(screen.getByLabelText('Salary arrears contribution treatment')).toHaveValue('UNRESOLVED');
  for(const label of ['Eligibility','Calculation method','Jurisdiction conditions','LOP statutory component allocation','Included arrears contribution period','Statutory rounding method','Statutory decimal places','Statutory rounding stage','RECOVERY statutory basis','REIMBURSEMENT statutory basis'])expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
@@ -65,14 +65,14 @@ describe('simplified statutory authoring', () => {
  const change = (label, value) => fireEvent.change(within(screen.getByRole('button', { name: 'Save draft' }).closest('form')).getByLabelText(label), { target: { value } });
  it('keeps technical settings collapsed and requires a deliberate wage basis', async () => {
   await create();
-  expect(screen.getByText(/Advanced settings —/).closest('details')).not.toHaveAttribute('open');
+  expect(screen.getByText(/^Advanced settings$/).closest('details')).not.toHaveAttribute('open');
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   expect(screen.queryByLabelText(/Contribution minimum/i)).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/Eligibility ceiling \(₹\)/)).not.toBeInTheDocument();
   change(/Contribution wage basis/, 'GROSS_ONLY');
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
   change(/Contribution wage basis/, 'CUSTOM');
-  await waitFor(() => expect(screen.getByText(/Advanced settings —/).closest('details')).toHaveAttribute('open'));
+  await waitFor(() => expect(screen.getByText(/^Advanced settings$/).closest('details')).toHaveAttribute('open'));
  });
  it('saves exact preset strings with explicit wages and server-owned Accounts confirmation', async () => {
   await create();
@@ -151,7 +151,7 @@ it('opening and saving a legacy draft preserves exact amounts, evidence and adva
  expect(screen.getByText(/contribution wage cap ₹54321.12/)).toBeInTheDocument();
  expect(screen.getByText(/4 decimal places/)).toBeInTheDocument();
  expect(screen.queryByLabelText('Accounts setup confirmation')).not.toBeInTheDocument();
- expect(screen.getByText(/Advanced settings —/).closest('details')).not.toHaveAttribute('open');
+ expect(screen.getByText(/^Advanced settings$/).closest('details')).not.toHaveAttribute('open');
  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
  await waitFor(() => expect(api.savePayrollMaster).toHaveBeenCalledWith('statutory', { id: 'saved', expected_version: 4, data: statutoryDraftInput(original) }));
  expect(data).toEqual(original);
@@ -184,7 +184,7 @@ it('split-run collection is optional and saved with explicit bonus decisions', a
  change(/Jurisdiction \/ state/,'wb'); change(/Establishment/,'UAT Factory');
  change(/Contribution wage basis/,'GROSS_ONLY'); change(/Change reason/,'UAT collection override');
  fireEvent.click(screen.getByRole('button',{name:'Apply standard preset'}));
- fireEvent.click(screen.getByText(/Advanced settings —/));
+ fireEvent.click(screen.getByText(/^Advanced settings$/));
  expect(screen.queryByLabelText('Collection timing')).not.toBeInTheDocument();
  fireEvent.click(screen.getByLabelText('Change collection timing for split runs'));
  change('Collection timing','MONTH_CLOSE');

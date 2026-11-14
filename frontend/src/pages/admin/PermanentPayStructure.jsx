@@ -295,6 +295,7 @@ export default function PermanentPayStructure({ initialEmployeeId = '', onEmploy
   };
 
   // Form Submission
+  const showEpfBasis = form.epf_enrolment && salaryFrom >= '2025-12-01';
   const handleSubmitForm = (e) => {
     e.preventDefault();
     const errors = {};
@@ -304,6 +305,10 @@ export default function PermanentPayStructure({ initialEmployeeId = '', onEmploy
       errors.guaranteed_monthly_gross = 'Guaranteed monthly gross must be a valid non-negative number.';
     }
 
+    if (showEpfBasis && (!form.epf_basis_kind || (form.epf_basis_kind === 'REGULAR_WAGES' &&
+      (!/^\d{1,8}(\.\d{1,2})?$/.test(form.epf_regular_wages || '') || Number(form.epf_regular_wages) > grossNum)))) {
+      errors.epf_basis = 'Choose the wage basis and enter an amount within monthly gross if needed.';
+    }
     if(!salaryFrom)errors.effective_from='Salary applies-from date is required.';
     if(!salaryReason.trim())errors.reason='Salary change reason is required.';
     if (Object.keys(errors).length > 0) {
@@ -320,6 +325,8 @@ export default function PermanentPayStructure({ initialEmployeeId = '', onEmploy
     };
 
     const pay={pay_basis:basePayload.pay_basis,guaranteed_monthly_gross:basePayload.guaranteed_monthly_gross,epf_enrolment:basePayload.epf_enrolment,esi_enrolment:basePayload.esi_enrolment};
+    if (showEpfBasis) pay.epf_wage_basis = form.epf_basis_kind === 'FULL_GROSS'
+      ? { kind: 'FULL_GROSS' } : { kind: 'REGULAR_WAGES', amount: form.epf_regular_wages };
     createMutation.mutate({employee_id:selectedEmployeeId,existing_id:null,effective_from:salaryFrom,expected_version:payrollDates.data?.version??0,pay,reason:salaryReason.trim()});
   };
 
@@ -1063,6 +1070,18 @@ export default function PermanentPayStructure({ initialEmployeeId = '', onEmploy
           <p className="text-xs text-slate-400">
             Record the agreed gross here. EPF, ESI and PT rates, wage basis, ceilings and slabs are configured in the Statutory Deduction Master.
           </p>
+
+          {showEpfBasis && <div className="space-y-3">
+            <Select label="EPF regular wages" value={form.epf_basis_kind || ''} options={[
+              { value: '', label: 'Choose wage basis' },
+              { value: 'FULL_GROSS', label: 'Use the full monthly gross' },
+              { value: 'REGULAR_WAGES', label: 'Gross includes allowances' },
+            ]} onChange={e => setForm({ ...form, epf_basis_kind: e.target.value })} />
+            {form.epf_basis_kind === 'REGULAR_WAGES' && <Input label="EPF-qualifying amount (₹)" inputMode="decimal"
+              value={form.epf_regular_wages || ''} onChange={e => setForm({ ...form, epf_regular_wages: e.target.value })} />}
+            <p className="text-xs text-slate-400">Accounts confirms the wage basis in Payroll Setup using the amounts saved here.</p>
+            {formErrors.epf_basis && <p role="alert">{formErrors.epf_basis}</p>}
+          </div>}
 
           {/* Statutory Enrolments */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -118,6 +118,7 @@ export default function FactoryMasters() {
         <p className="text-xs text-slate-400 font-medium mt-1">
           {kind==='calendar' ? 'Sunday off by default. Add holidays and working-day exceptions when needed.' : 'Manage daily wage benchmarks, standard working hours, and duty pay rules for factory labour.'}
         </p>
+        {kind === 'rules' && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Factory Masters calculates overtime and holiday pay. Payroll automatically applies the EPF, ESI and Professional Tax rules in effect for that pay period.</p>}
       </div>
 
       {canWrite && kind !== 'calendar' && !isCreating && <Button variant="yellow" disabled={!department} onClick={() => setCreating(scopeKey)}>New revision</Button>}

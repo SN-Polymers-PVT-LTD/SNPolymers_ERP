@@ -36,6 +36,7 @@ test('office salary travels through a real Accounts sheet; approval posts once a
  await act(d);expect((await one(db,'SELECT available_balance::text FROM bank_balance_master WHERE bank_name=$1',[r.bank])).available_balance).toBe('70703.70');
  expect((await one(db,'SELECT count(*) n FROM payroll_payment_confirmations WHERE delivery_id=$1',[d.delivery_id])).n).toBe('0');
  const slip=(await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[f.rows[0].id,users.accounts.id])).r;
+ expect(slip.cycle).toBe(f.run.cycle);
  expect(slip.payment_recipient).toMatchObject({status:'RECORDED',beneficiary_name:'Synthetic employee',masked_account_number:'****'+r.b.account_number.slice(-4)});
  expect(slip.payment_recipient).not.toHaveProperty('account_number');
  const frozen=(await one(db,'SELECT calculation_snapshot FROM payroll_financial_snapshots WHERE row_id=$1',[f.rows[0].id])).calculation_snapshot;

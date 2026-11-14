@@ -96,6 +96,7 @@
   "payroll_employee_review_queue_idx",
   "payroll_employee_statutory_profiles_pkey",
   "payroll_entitlement_employee_unique",
+  "payroll_epf_wage_bases_pkey",
   "payroll_financial_snapshots_pkey",
   "payroll_history_run_idx",
   "payroll_master_policy_events_idx",

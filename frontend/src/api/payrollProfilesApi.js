@@ -17,3 +17,14 @@ export const getCompanyDeductionSetups=params=>authApi.get(`${base}/company-dedu
 export const getCompanyDeductionOptions=params=>authApi.get(`${base}/company-deduction-setups/options`,{params});
 export const saveCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups`,body);
 export const applyCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups/apply`,body);
+
+const guidedDrafts = `${base}/company-deduction-setups/guided-drafts`;
+export const listGuidedDeductionDrafts = params => authApi.get(guidedDrafts, { params });
+export const getGuidedDeductionDraft = id => authApi.get(`${guidedDrafts}/${id}`);
+export const saveGuidedDeductionDraft = body => authApi.post(guidedDrafts, body);
+export const reviewGuidedDeductionDraft = (id, body) => authApi.post(`${guidedDrafts}/${id}/review`, body);
+export const publishGuidedDeductionDraft = (id, body) => authApi.post(`${guidedDrafts}/${id}/publish`, body);
+
+export const getEpfWageBases = employeeId => authApi.get(`${base}/employees/${employeeId}/epf-wage-bases`);
+export const recordEpfWageBasis = (employeeId, body) => authApi.post(`${base}/employees/${employeeId}/epf-wage-bases`, body);
+export const confirmEpfWageBasis = (employeeId, body) => authApi.post(`${base}/employees/${employeeId}/epf-wage-bases/confirm`, body);

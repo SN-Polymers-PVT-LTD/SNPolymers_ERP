@@ -28,6 +28,10 @@ export const labels = {
   MISSING_OR_OUTDATED_FACTORY_RULE: 'Factory Masters: pay rule revision is missing or outdated',
   MISSING_OR_OUTDATED_WAGE: 'Factory Masters: wage revision is missing or outdated',
   PAY_HISTORY_OUTDATED: 'FM: correct draft sources, then recalculate',
+  EPF_WAGE_BASIS_CONFIRMATION_REQUIRED: 'Accounts: confirm the saved EPF wage basis in Payroll Setup',
+  EPF_REGULAR_WAGES_REQUIRED: 'Accounts: confirm EPF regular wages for this salary revision',
+  EPF_EXTRA_EARNINGS_CLASSIFICATION_REQUIRED: 'Accounts: confirm how additional earnings count toward EPF',
+  EPF_WAGE_BASIS_CHANGED_WITHIN_MONTH: 'Accounts: an earlier locked run used a different EPF wage basis',
   COMP_OFF_PAY_RULE_REQUIRED: 'Factory Masters: compensatory off pay rule required',
 
   // Attendance & Duty

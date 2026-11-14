@@ -77,7 +77,7 @@ const urlStateRouteCases = [
   ['payroll previews', 'admin', '/hr/payroll/previews?page=2', /Payroll salary previews/i],
   ['payroll review', 'admin', '/hr/payroll/review?status=PENDING_HO_APPROVAL&page=2', /^Payroll$/i],
   ['payroll policy master', 'admin', '/admin/payroll/policies?page=2', /Payroll Policy Master/i],
-  ['statutory deduction master', 'accounts', '/admin/payroll/statutory?page=2', /Statutory Deduction Master/i],
+  ['statutory deduction master', 'accounts', '/admin/payroll/statutory?page=2', /Company Deductions/i],
 ];
 
 describe('App Smoke Tests', () => {
@@ -206,7 +206,7 @@ describe('App Smoke Tests', () => {
     await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Payroll',exact:true})).not.toBeInTheDocument();
   });
 
-  it('opens Accounts statutory setup without enabling HR master edits',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/payroll/statutory');render(<App/>);expect(await screen.findByRole('heading',{name:'Statutory Deduction Master'})).toBeInTheDocument();});
+  it('opens Accounts statutory setup without enabling HR master edits',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/payroll/statutory');render(<App/>);expect(await screen.findByRole('heading',{name:'Company Deductions'})).toBeInTheDocument();});
   it('opens Accounts employee payroll setup navigation while preserving accounts options', async () => {
     setAuthenticatedRole('accounts');
     window.history.pushState({}, '', '/admin/employee-management?tab=payroll-setup');

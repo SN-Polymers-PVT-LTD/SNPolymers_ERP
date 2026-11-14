@@ -242,7 +242,9 @@ const statutoryLabels = {
 function StatutoryChoice({ label, value, values, onChange }) {
  return <Select label={label} value={value} options={values.map(value => ({ value, label: statutoryLabels[value] || value }))} onChange={e => onChange(e.target.value)} />;
 }
-export function StatutoryFields({ data, setData }) {
+const editableWageComponents = ['PACKAGE_BALANCE', 'DAILY_WAGE'];
+
+export function StatutoryFields({ data, setData, guided = false }) {
  const [advanced, setAdvanced] = useState(false);
  const [timingOverride, setTimingOverride] = useState(false);
  const [appliedDate, setAppliedDate] = useState(null);
@@ -251,7 +253,9 @@ export function StatutoryFields({ data, setData }) {
  const config = (key, value) => set('configuration', { ...c, [key]: value });
  const isPT = data.scheme === 'PT';
  const preset = statutoryPreset(data.scheme, data.effective_from);
- const basis = contributionBasis(c.included_components);
+ const savedFactoryEarnings = c.included_components.filter(name => name === 'OVERTIME' || name === 'HOLIDAY_PREMIUM');
+ const basis = contributionBasis(c.included_components.filter(name => !savedFactoryEarnings.includes(name)));
+ const setWageBasis = components => set('configuration', withContributionBasis(c, [...components, ...savedFactoryEarnings]));
  const hasRetiredComponents = c.included_components.some(name => !statutoryComponents.includes(name));
  const [customBasis, setCustomBasis] = useState(false);
  const changeScheme = scheme => {
@@ -262,10 +266,12 @@ export function StatutoryFields({ data, setData }) {
  const dateChanged = appliedDate && appliedDate !== data.effective_from;
  const needsAdvancedReview = c.lop_wage_basis !== 'PROPORTIONAL_COMPONENTS' || c.arrears_period !== 'CURRENT_RUN_MONTH' || !['INCREMENTAL_MONTHLY', 'MONTH_CLOSE'].includes(c.collection_timing) || c.conditions !== 'NONE' || c.eligibility === 'UNRESOLVED' || c.calculation_method === 'UNRESOLVED' || c.rounding.method === 'UNRESOLVED' || !['MONTH', 'AGGREGATE'].includes(c.rounding.stage);
  return <>
+  {!guided && <>
   <Choice label="Scheme" value={data.scheme} values={['EPF', 'ESI', 'PT']} onChange={changeScheme} />
   <StatutoryStateField data={data} onChange={setData} />
   <Input id="statutory-rule-establishment" label="Establishment" required maxLength={120} value={data.establishment} onChange={e => set('establishment', e.target.value)} />
   <p className="col-span-full text-xs text-slate-400">Use the factory or office name. Link the published rule to your company deduction setup after publication.</p>
+  </>}
   {!isPT && <section aria-label="Standard preset" className="col-span-full rounded-xl border border-sky-500/30 p-4 space-y-3">
    <h3 className="font-semibold">Start with a standard preset</h3>
    {preset ? <>
@@ -285,7 +291,7 @@ export function StatutoryFields({ data, setData }) {
   </>}
   {hasRetiredComponents && <p role="alert" className="col-span-full text-amber-400">This rule uses retired salary components. Select a supported wage basis before saving; no amounts have been converted automatically.</p>}
   <div className="col-span-full space-y-2">
-   <Select label="Contribution wage basis" required value={customBasis || (basis === 'DAILY_WAGE' && !isPT) ? 'CUSTOM' : basis} options={[
+   <Select label={guided ? "Which earnings count?" : "Contribution wage basis"} required value={customBasis || (basis === 'DAILY_WAGE' && !isPT) ? 'CUSTOM' : basis} options={[
     { value: '', label: 'Choose the approved wage basis' },
     { value: 'GROSS_ONLY', label: 'Monthly gross salary' },
     ...(isPT ? [{ value: 'DAILY_WAGE', label: 'Daily wage earnings' }] : []),
@@ -294,10 +300,10 @@ export function StatutoryFields({ data, setData }) {
     const value = e.target.value;
     setCustomBasis(value === 'CUSTOM');
     if (value === 'CUSTOM') setAdvanced(true);
-    else set('configuration', withContributionBasis(c, value === 'GROSS_ONLY' ? ['PACKAGE_BALANCE'] : value ? [value] : []));
+    else setWageBasis(value === 'GROSS_ONLY' ? ['PACKAGE_BALANCE'] : value ? [value] : []);
    }} />
    <p className="text-xs text-slate-400">Choose the approved wages for this scheme. Monthly gross uses the agreed salary amount. The calculation settings are summarized below.</p>
-   {(basis === 'CUSTOM' || customBasis) && <p className="text-xs">Included: {c.included_components.map(name => name.replaceAll('_', ' ')).join(', ') || 'none — select components below'}.</p>}
+   {savedFactoryEarnings.length > 0 && <p className="text-xs">This rule also includes previously configured factory earnings.</p>}
   </div>
   {isPT && <PTSlabEditor slabs={data.slabs} effectiveFrom={data.effective_from} onChange={slabs => set('slabs', slabs)} />}
   {legacyLimits && <div role="alert" className="col-span-full border border-amber-500/30 rounded-xl p-3 space-y-2">
@@ -316,13 +322,13 @@ export function StatutoryFields({ data, setData }) {
    <p className="text-slate-400">Existing custom values are preserved unless you use this action or apply a preset. Rates, selected wages and bonus/arrears decisions stay as entered.</p>
   </section>
   <details open={advanced} onToggle={e => setAdvanced(e.currentTarget.open)} className="col-span-full border border-white/10 rounded-xl p-4">
-   <summary className="cursor-pointer font-semibold">Advanced settings — wage extras and adjustments</summary>
+   <summary className="cursor-pointer font-semibold">Advanced settings</summary>
    <div className="grid sm:grid-cols-2 gap-4 pt-4">
-    <fieldset className="space-y-2"><legend>Contribution wage components</legend>{statutoryComponents.filter(name => name !== 'ADJUSTMENTS').map(name => <label key={name} className="block text-sm"><input type="checkbox" checked={c.included_components.includes(name)} onChange={e => {
-     const current = c.included_components.filter(x => statutoryComponents.includes(x));
+    <fieldset className="space-y-2"><legend>Contribution wage components</legend>{editableWageComponents.map(name => <label key={name} className="block text-sm"><input type="checkbox" checked={c.included_components.includes(name)} onChange={e => {
+     const current = c.included_components.filter(x => editableWageComponents.includes(x) || x === 'ADJUSTMENTS');
      const included = e.target.checked ? [...current, name] : current.filter(x => x !== name);
-     setCustomBasis(false); set('configuration', withContributionBasis(c, included));
-    }} /> {{ PACKAGE_BALANCE: 'Monthly gross salary', DAILY_WAGE: 'Daily wage earnings', OVERTIME: 'Overtime', HOLIDAY_PREMIUM: 'Holiday premium' }[name]}</label>)}</fieldset>
+     setCustomBasis(false); setWageBasis(included);
+    }} /> {{ PACKAGE_BALANCE: 'Monthly gross salary', DAILY_WAGE: 'Daily wage earnings' }[name]}</label>)}</fieldset>
     <fieldset className="space-y-3"><legend>Bonus and arrears treatment</legend>
      {!c.adjustment_basis && <><p>This saved rule uses the old adjustment setup. Choose bonus and arrears treatment before processing affected payroll.</p><Button onClick={() => set('configuration', { ...withContributionBasis(c, c.included_components.filter(x => x !== 'ADJUSTMENTS')), adjustment_basis: newStatutoryConfiguration().adjustment_basis })}>Set bonus and arrears treatment</Button></>}
      {c.adjustment_basis && ['BONUS', 'SALARY_ARREARS'].map(type => <StatutoryChoice key={type} label={`${type === 'BONUS' ? 'Bonus' : 'Salary arrears'} contribution treatment`} value={c.adjustment_basis[type]} values={['UNRESOLVED', 'INCLUDE', 'EXCLUDE']} onChange={treatment => config('adjustment_basis', { ...c.adjustment_basis, [type]: treatment })} />)}

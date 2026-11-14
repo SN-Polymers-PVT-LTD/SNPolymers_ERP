@@ -25,6 +25,7 @@ import {
 } from '../../api/hrEmployeesApi';
 import {
   CATEGORIES,
+  WAGE_CATEGORIES,
   PERMANENT_CATEGORIES,
   DEPARTMENTS,
   STATUS_OPTIONS,
@@ -32,6 +33,7 @@ import {
   LEGACY_PROJECT_CATEGORY,
   getDepartmentsForCategory
 } from './employeeConstants';
+import PayrollSalaryDates from '../../components/payroll/PayrollSalaryDates';
 import EmployeeBeneficiary from '../../components/hr/EmployeeBeneficiary';
 import { exportEmployeesToExcel } from '../../utils/exportHelpers';
 
@@ -932,6 +934,8 @@ export default function EmployeeMaster({ onNavigateToPayStructure,onNavigateToPa
                 )}
               </div>
             </div>
+
+            {WAGE_CATEGORIES.includes(inspectingEmployee.employee_category) && <PayrollSalaryDates key={inspectingEmployee.id} employee={inspectingEmployee} assignmentOnly />}
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/10">
               <div>

@@ -20,3 +20,15 @@ test('existing dated history is displayed and cannot be initialized again',async
 test('initial assignment clearly displays the category and department being confirmed',async()=>{
  mount();await screen.findByText(/Assignment to confirm/);fireEvent.change(screen.getByLabelText(/Setup applies from/),{target:{value:'2025-01-01'}});fireEvent.change(screen.getByLabelText('Salary setup reason'),{target:{value:'Confirmed assignment'}});fireEvent.click(screen.getByRole('button',{name:'Confirm initial payroll assignment'}));await waitFor(()=>expect(api.initializePayrollAssignment).toHaveBeenCalledWith({employee_id:'employee',effective_from:'2025-01-01',reason:'Confirmed assignment'}));
 });
+
+test.each(['Local Daily-Wage Workers','SNP Casual Factory Labour'])('initializes payroll assignment for %s without salary setup',async category=>{
+ const worker={...employee,employee_category:category};
+ render(<QueryClientProvider client={new QueryClient()}><PayrollSalaryDates employee={worker} assignmentOnly /></QueryClientProvider>);
+ expect(await screen.findByText(/Assignment to confirm/)).toHaveTextContent(category);
+ expect(screen.queryByLabelText('Existing salary to link')).not.toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText(/Setup applies from/),{target:{value:'2025-01-01'}});
+ fireEvent.change(screen.getByLabelText('Assignment reason'),{target:{value:'Confirmed roster'}});
+ fireEvent.click(screen.getByRole('button',{name:'Confirm initial payroll assignment'}));
+ await waitFor(()=>expect(api.initializePayrollAssignment).toHaveBeenCalledWith({employee_id:'employee',effective_from:'2025-01-01',reason:'Confirmed roster'}));
+ expect(api.savePayrollSalary).not.toHaveBeenCalled();
+});

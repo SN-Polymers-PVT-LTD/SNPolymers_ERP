@@ -100,7 +100,7 @@ async function listPayStructures(req, res) {
           employee_category,
           department,
           active_status,
-          pay_structures:hr_permanent_pay_structures(
+          pay_structures:hr_permanent_pay_structures!hr_permanent_pay_structures_employee_id_fkey(
             id,
             revision_number,
             pay_basis,
@@ -114,7 +114,7 @@ async function listPayStructures(req, res) {
         `)
         .in('employee_category', Array.from(PERMANENT_CATEGORIES))
         .order('employee_code', { ascending: true })
-        .order('revision_number', { foreignTable: 'hr_permanent_pay_structures', ascending: false })
+        .order('revision_number', { foreignTable: 'pay_structures', ascending: false })
         .range(offset, offset + batchSize - 1);
 
       if (error) throw error;

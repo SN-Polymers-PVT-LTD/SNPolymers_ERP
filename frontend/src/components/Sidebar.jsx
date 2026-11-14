@@ -373,7 +373,7 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
       payrollItems.push({ to: '/admin/payroll/policies', label: 'Payroll Management', icon: <span aria-hidden="true">₹</span> });
     }
     if (user?.role === 'accounts') {
-      payrollItems.push({ to: '/admin/payroll/statutory', label: 'Statutory Deduction Master', icon: <span aria-hidden="true">₹</span> });
+      payrollItems.push({ to: '/admin/payroll/statutory', label: 'Company Deductions', icon: <span aria-hidden="true">₹</span> });
     }
     payrollItems.push(
       { to: '/hr/payroll/register', label: 'Payroll Register', icon: <span aria-hidden="true">₹</span> },
@@ -779,7 +779,7 @@ const Sidebar = () => {
     });
     if(user?.role==='accounts')navItems.push({
       to: '/admin/payroll/statutory',
-      label: 'Statutory Deduction Master',
+      label: 'Company Deductions',
       icon: <span aria-hidden="true">₹</span>
     });
     navItems.push({
@@ -1060,7 +1060,7 @@ const Sidebar = () => {
       });
       if(user?.role==='accounts')navItems.push({
         to: '/admin/payroll/statutory',
-        label: 'Statutory Deduction Master',
+        label: 'Company Deductions',
         icon: <span aria-hidden="true">₹</span>
       });
       navItems.push({

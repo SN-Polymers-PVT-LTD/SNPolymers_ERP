@@ -59,3 +59,52 @@ test('an unapproved revision cannot hide a current advance recovery by moving it
 test('single prorated entitlement retains configured six-decimal precision',()=>{const s=financial();Object.assign(s.assignments[0],{effective_from:'2091-02-16',employment_joined_on:'2091-02-16'});s.row.period_from='2091-02-16';s.month_rows[0].period_from=s.row.period_from;edit(s,{partial_month_proration_method:'ACTUAL_CALENDAR_DAYS',rounding:{...s.policies[0].data.rounding,proration:{...rounded,precision:6,stage:'MONTH'}}});const r=calculatePreview(s);expect(r.earnings[0].amount).toBe('13928.571429');expect(r.final_net_salary).not.toBeNull();});
 
 test('split sub-paise allocations cannot silently inflate final monthly net',()=>{const s=financial('2091-04-01');Object.assign(s.pay_structures[0],{guaranteed_monthly_gross:'100.01',basic_salary:'0',staff_welfare:'0'});s.statutory_profiles.forEach(p=>p.applicability='NOT_APPLICABLE');edit(s,{split_period_allocation_method:'CALENDAR_WEIGHTED_WITH_RESIDUAL',rounding:{...s.policies[0].data.rounding,allocation:{...rounded,precision:6,stage:'MONTH'}}});s.row.period_to='2091-04-15';s.month_rows[0].period_to=s.row.period_to;s.month_rows.push({...s.month_rows[0],id:'second',period_from:'2091-04-16',period_to:'2091-04-30'});const r=calculatePreview(s);expect(r.earnings[0].amount).toBe('50.005000');expect(codes(r)).toContain('SPLIT_NET_ROUNDING_RECONCILIATION_REQUIRED');expect(r.final_net_salary).toBeNull();});
+
+describe('dated EPF regular wages',()=>{
+ const {statutoryCalculation}=require('../../../src/domain/payroll/statutoryCalculation');
+ const base=(amount)=>({code:'CONTRACTUAL_BASE',salary_month:'2091-02-01',amount,source_ids:['pay'],contract_components:{PACKAGE_BALANCE:'24000.00'}});
+ const extra=(code,amount)=>({code,date:'2091-02-14',amount});
+ function withRegularWages(){
+  const source=financial();
+  source.pay_structures[0].guaranteed_monthly_gross='24000.00';
+  source.epf_wage_bases=[{pay_structure_id:'pay',effective_from:'2091-02-01',regular_wages:'12500.00'}];
+  source.statutory_calculation_rules[0].configuration.wage_ceiling='15000.00';
+  return source;
+ }
+ const epf=result=>result.entries.find(entry=>entry.scheme==='EPF');
+
+ test('takes up only the overtime-related excess over half and retains the exact inputs',()=>{
+  const result=statutoryCalculation(withRegularWages(),[base('24000.00'),extra('OVERTIME','2000.00')],[]);
+  expect(result.blockers).toEqual([]);
+  expect(epf(result).eligible_wage).toEqual(D.reference(D.decimal('13000')));
+  expect(epf(result).epf_wage_inputs).toEqual({regular:D.reference(D.decimal('12500')),excluded:D.reference(D.decimal('13500'))});
+  expect(result.rules.find(rule=>rule.scheme==='EPF').epf_wage_explanation.addback).toEqual(D.reference(D.decimal('500')));
+ });
+
+ test('recomputes the test after summing split-run inputs and deducts only the residual',()=>{
+  const source=withRegularWages();
+  source.row.period_to='2091-02-14';
+  const first=statutoryCalculation(source,[base('12000.00')],[]);
+  source.statutory_entries=[{...epf(first),contribution_month:'2091-02-01'}];
+  Object.assign(source.row,{period_from:'2091-02-15',period_to:'2091-02-28'});
+  const second=statutoryCalculation(source,[base('12000.00'),{...extra('OVERTIME','2000.00'),date:'2091-02-15'}],[]);
+  expect(second.blockers).toEqual([]);
+  expect(epf(second).eligible_wage).toEqual(D.reference(D.decimal('6750')));
+  const full=statutoryCalculation(withRegularWages(),[base('24000.00'),extra('OVERTIME','2000.00')],[]);
+  expect(D.add(D.decimal(epf(first).employee_amount),D.decimal(epf(second).employee_amount))).toEqual(D.decimal(epf(full).employee_amount));
+ });
+
+ test('holds an HR-proposed wage basis until Accounts confirms it',()=>{
+  const source=withRegularWages();
+  source.epf_wage_bases[0].pending_accounts_confirmation=true;
+  const result=statutoryCalculation(source,[base('24000.00')],[]);
+  expect(codes(result)).toContain('EPF_WAGE_BASIS_CONFIRMATION_REQUIRED');
+  expect(epf(result)).toBeUndefined();
+ });
+
+ test('requires classification for additional holiday duty pay when the new basis applies',()=>{
+  const result=statutoryCalculation(withRegularWages(),[base('24000.00'),extra('HOLIDAY_PREMIUM','1000.00')],[]);
+  expect(codes(result)).toContain('EPF_EXTRA_EARNINGS_CLASSIFICATION_REQUIRED');
+  expect(epf(result)).toBeUndefined();
+ });
+});

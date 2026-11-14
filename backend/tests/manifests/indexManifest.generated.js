@@ -389,6 +389,10 @@ module.exports = {
       "table": "payroll_employee_month_entitlements",
       "definition": "CREATE UNIQUE INDEX payroll_entitlement_employee_unique ON public.payroll_employee_month_entitlements USING btree (id, employee_id)"
     },
+    "payroll_epf_wage_bases_pkey": {
+      "table": "payroll_epf_wage_bases",
+      "definition": "CREATE UNIQUE INDEX payroll_epf_wage_bases_pkey ON public.payroll_epf_wage_bases USING btree (employee_id, pay_structure_id, effective_from)"
+    },
     "payroll_financial_snapshots_pkey": {
       "table": "payroll_financial_snapshots",
       "definition": "CREATE UNIQUE INDEX payroll_financial_snapshots_pkey ON public.payroll_financial_snapshots USING btree (row_id)"

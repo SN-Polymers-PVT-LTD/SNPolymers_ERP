@@ -2015,6 +2015,70 @@ module.exports = {
         }
       }
     },
+    "payroll_guided_deduction_drafts": {
+      "columns": {
+        "id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": "gen_random_uuid()"
+        },
+        "version": {
+          "type": "integer",
+          "udtName": "int4",
+          "nullable": false,
+          "default": "1"
+        },
+        "data": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": false,
+          "default": null
+        },
+        "created_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "updated_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "created_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "publication": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": true,
+          "default": null
+        },
+        "published_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        },
+        "publication_key": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": true,
+          "default": null
+        }
+      }
+    },
     "payroll_employee_assignments": {
       "columns": {
         "id": {
@@ -2326,6 +2390,58 @@ module.exports = {
           "udtName": "date",
           "nullable": true,
           "default": null
+        }
+      }
+    },
+    "payroll_epf_wage_bases": {
+      "columns": {
+        "employee_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "pay_structure_id": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "effective_from": {
+          "type": "date",
+          "udtName": "date",
+          "nullable": false,
+          "default": null
+        },
+        "regular_wages": {
+          "type": "numeric",
+          "udtName": "numeric",
+          "nullable": false,
+          "default": null
+        },
+        "reason": {
+          "type": "text",
+          "udtName": "text",
+          "nullable": false,
+          "default": null
+        },
+        "confirmed_by": {
+          "type": "uuid",
+          "udtName": "uuid",
+          "nullable": false,
+          "default": null
+        },
+        "confirmed_at": {
+          "type": "timestamp with time zone",
+          "udtName": "timestamptz",
+          "nullable": false,
+          "default": "now()"
+        },
+        "pending_accounts_confirmation": {
+          "type": "boolean",
+          "udtName": "bool",
+          "nullable": false,
+          "default": "false"
         }
       }
     },
@@ -3323,6 +3439,12 @@ module.exports = {
           "type": "uuid",
           "udtName": "uuid",
           "nullable": false,
+          "default": null
+        },
+        "epf_wage_inputs": {
+          "type": "jsonb",
+          "udtName": "jsonb",
+          "nullable": true,
           "default": null
         }
       }

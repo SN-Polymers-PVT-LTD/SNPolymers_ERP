@@ -6,6 +6,7 @@ import {
   recordEmployeeStatutoryProfiles,
   getCompanyDeductionSetups
 } from '../../api/payrollProfilesApi';
+import EpfWageBasis from './EpfWageBasis';
 import { setupLabel } from './setupLabels';
 
 const schemes = ['EPF', 'ESI', 'PT'];
@@ -121,6 +122,7 @@ export default function EmployeeSetupDrawer({
     >
         {/* Drawer Scrollable Body */}
         <div className="space-y-6">
+          {allowed && history.data?.enrolment_managed_by_pay_structure && <EpfWageBasis key={employeeId} employeeId={employeeId} />}
           {history.isPending ? (
             <div role="status" className="p-8 text-center text-xs text-slate-400 space-y-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>

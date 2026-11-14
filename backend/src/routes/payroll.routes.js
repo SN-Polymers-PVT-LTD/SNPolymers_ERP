@@ -16,7 +16,17 @@ router.get('/masters/:kind/resolve', masterAccess, validateRequest(masterSchema.
 router.get('/masters/:kind/:id/preview', masterAccess, validateRequest(masterSchema.preview), masters.preview);
 router.post('/masters/:kind/:id/publish', masterAccess, validateRequest(masterSchema.publish), masters.publish);
 const profiles = require('../controllers/payrollProfiles.controller');
+const epfWageBasis = require('../validation/payrollEpfWageBasis.schema');
+router.get('/employees/:employeeId/epf-wage-bases', requireRole(['accounts']), validateRequest(epfWageBasis.get), profiles.epfWageBases);
+router.post('/employees/:employeeId/epf-wage-bases', requireRole(['accounts']), validateRequest(epfWageBasis.save), profiles.recordEpfWageBasis);
+router.post('/employees/:employeeId/epf-wage-bases/confirm', requireRole(['accounts']), validateRequest(epfWageBasis.confirm), profiles.confirmEpfWageBasis);
 const profileSchema = require('../validation/payrollProfiles.schema');
+const guidedSetup = require('../validation/payrollGuidedSetup.schema');
+router.get('/company-deduction-setups/guided-drafts', requireRole(['accounts']), validateRequest(guidedSetup.list), profiles.guidedList);
+router.post('/company-deduction-setups/guided-drafts', requireRole(['accounts']), validateRequest(guidedSetup.save), profiles.guidedSave);
+router.get('/company-deduction-setups/guided-drafts/:id', requireRole(['accounts']), validateRequest(guidedSetup.get), profiles.guidedGet);
+router.post('/company-deduction-setups/guided-drafts/:id/review', requireRole(['accounts']), validateRequest(guidedSetup.review), profiles.guidedReview);
+router.post('/company-deduction-setups/guided-drafts/:id/publish', requireRole(['accounts']), validateRequest(guidedSetup.publish), profiles.guidedPublish);
 router.get('/statutory-states',requireRole(['admin','accounts']),validateRequest(profileSchema.states),profiles.states);
 router.post('/statutory-states',requireRole(['accounts']),validateRequest(profileSchema.registerState),profiles.registerState);
 router.get('/statutory-profiles/setup-candidates', requireRole(['admin','accounts']), validateRequest(profileSchema.candidates), profiles.candidates);

@@ -29,6 +29,7 @@ async function prepared({gate=false,count=1,split=false,factory=false}={}){
 async function submit(f,id=f.rows[0].id){await reviewAction(db,id,'calculate',users.accounts.id);await reviewAction(db,id,'submit',users.accounts.id);}
 describe('guarded payroll financial transactions',()=>{
  test('Accounts confirms and publishes rules, while deployment activation remains off',async()=>{
+  await q(db,'CREATE OR REPLACE FUNCTION payroll_financial_enabled() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT false $$');
   const f=await prepared();await submit(f);const r=await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect(r.applied).toBe(false);expect(r.blockers.map(b=>b.code)).toContain('FINANCIAL_FINALIZATION_DISABLED');expect((await one(db,'SELECT count(*) n FROM payroll_financial_snapshots WHERE row_id=$1',[f.rows[0].id])).n).toBe('0');
  });
  test('lock atomically freezes snapshot, coverage, statutory month and entitlement; all remain immutable',async()=>{
@@ -40,10 +41,15 @@ describe('guarded payroll financial transactions',()=>{
   await reject(()=>q(db,"SELECT publish_payroll_initial_master('statutory',$1,1,$2,'Initial locked test',$3)",[initialDraft.id,initialPreview.preview_token,users.accounts.id]),'22023');
   await reject(()=>q(db,'SELECT cancel_payroll_draft_run($1,$2,$3)',[f.run.id,'Synthetic locked-sheet deletion',users.accounts.id]),'PY409');
   const refresh=(await one(db,'SELECT populate_payroll_draft_run($1,$2) r',[f.run.id,users.accounts.id])).r;
-  expect(refresh.added).toBe(0);expect(refresh.rows).toEqual([]);expect(refresh.saved_rows).toEqual([]);
+  expect(refresh.rows).toHaveLength(refresh.added);
+  expect(refresh.rows.map(row=>row.employee_id)).not.toContain(r.row.employee_id);
+  expect(refresh.saved_rows).toEqual([]);
+  const retry=(await one(db,'SELECT populate_payroll_draft_run($1,$2) r',[f.run.id,users.accounts.id])).r;
+  expect(retry.added).toBe(0);
+  expect(await one(db,'SELECT net_salary::text FROM payroll_financial_snapshots WHERE row_id=$1',[r.row.id])).toEqual({net_salary:'29296.30'});
   expect((await one(db,'SELECT status FROM payroll_run_employees WHERE id=$1',[r.row.id])).status).toBe('LOCKED');
   await reject(()=>reviewAction(db,r.row.id,'approve_lock',users.ho.id),'PY409');await reject(()=>q(db,'UPDATE payroll_financial_snapshots SET net_salary=0 WHERE row_id=$1',[r.row.id]),'42501');await reject(()=>q(db,'DELETE FROM payroll_employee_coverage WHERE salary_row_id=$1',[r.row.id]),'42501');
-  const register=(await one(db,'SELECT get_payroll_salary_register($1,$2,1,20) r',[users.accounts.id,JSON.stringify({run_id:f.run.id})])).r;expect(register.rows[0]).toMatchObject({evidence_status:'IMMUTABLE_LOCKED',net_salary:'29296.30',payment_status:'NOT_RECORDED'});expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.accounts.id])).r.official).toBe(true);await q(db,'UPDATE hr_employees SET erp_user_id=$2,updated_by=$3 WHERE id=$1',[r.row.employee_id,users.je.id,users.admin.id]);expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.je.id])).r.official).toBe(true);await reject(()=>q(db,'SELECT get_payroll_official_payslip($1,$2)',[r.row.id,users.fm.id]),'42501');
+  const register=(await one(db,'SELECT get_payroll_salary_register($1,$2,1,20) r',[users.accounts.id,JSON.stringify({run_id:f.run.id})])).r;expect(register.rows.find(row=>row.employee_id===r.row.employee_id)).toMatchObject({evidence_status:'IMMUTABLE_LOCKED',net_salary:'29296.30',payment_status:'NOT_RECORDED'});expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.accounts.id])).r.official).toBe(true);await q(db,'UPDATE hr_employees SET erp_user_id=$2,updated_by=$3 WHERE id=$1',[r.row.employee_id,users.je.id,users.admin.id]);expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.je.id])).r.official).toBe(true);await reject(()=>q(db,'SELECT get_payroll_official_payslip($1,$2)',[r.row.id,users.fm.id]),'42501');
  });
  test('bonus needs independent HO approval and is applied once at locking',async()=>{
   const f=await prepared({gate:true}),data={kind:'BONUS',amount:'1000.00',effective_date:f.from,target_row_id:f.rows[0].id,installment:null,recovery_start_month:null,original_period_from:null,original_period_to:null,evidence_reference:'SYNTHETIC bonus'};

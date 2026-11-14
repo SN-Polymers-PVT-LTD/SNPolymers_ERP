@@ -23,6 +23,8 @@ export default function SalaryPreview({
   const employerTotal = financialComplete ? preview.employer_contributions_total : null;
   const formattedEmployer = formatINR(employerTotal);
 
+  const epfDetails = (preview.statutory || []).filter(rule => rule.epf_wage_explanation?.display);
+
   return (
     <section className="space-y-4 text-slate-100 print:text-slate-900">
       {/* Employee Header & Status Card (Hidden inside modal to eliminate redundant top cards) */}
@@ -98,6 +100,19 @@ export default function SalaryPreview({
           </div>
         )}
       </div>
+
+      {epfDetails.map(rule => {
+        const amounts = rule.epf_wage_explanation.display;
+        return <section key={rule.contribution_month} className="rounded-xl border border-white/10 p-4 print:border-slate-300">
+          <p className="font-semibold">EPF wage base · {formatINR(amounts.wage_after_cap)}</p>
+          <p className="text-xs">{rule.contribution_month.slice(0, 7)} · Month to date</p>
+          <details className="mt-2 text-sm">
+            <summary className="cursor-pointer">How EPF was calculated</summary>
+            <p className="mt-2">{formatINR(amounts.regular)} regular wages plus {formatINR(amounts.addback)} added back under the 50% test, before applying the wage cap.</p>
+            <p>{formatINR(amounts.excluded)} in excluded pay counted toward the 50% test.</p>
+          </details>
+        </section>;
+      })}
 
       {/* Contract text preserved for test assertions & statutory audit */}
       <div className="p-3 rounded-xl bg-slate-100/80 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 print:border-slate-200 text-xs text-slate-600 dark:text-slate-400 print:text-slate-700 flex flex-wrap items-center justify-between gap-2">

@@ -7,7 +7,10 @@ function mockPages(pages){
  let page=0;
  const ranges=[];
  vi.spyOn(supabase,'from').mockImplementation(()=>{
-  const b={};for(const method of ['select','in','order'])b[method]=()=>b;
+  const b={};
+  b.select=columns=>{expect(columns).toContain('pay_structures:hr_permanent_pay_structures!hr_permanent_pay_structures_employee_id_fkey(');return b;};
+  b.in=()=>b;
+  b.order=(column,options)=>{if(column==='revision_number') expect(options.foreignTable).toBe('pay_structures');return b;};
   b.range=(from,to)=>{ranges.push([from,to]);return Promise.resolve(pages[page++]);};return b;
  });return ranges;
 }

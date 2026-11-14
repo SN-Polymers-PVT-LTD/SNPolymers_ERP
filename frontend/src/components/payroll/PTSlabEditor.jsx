@@ -1,36 +1,9 @@
 import React, { useState } from 'react';
 import { Select, Button } from '../ui';
 
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const rowsFor = (slabs, m) => slabs.filter(s => s.month === m).map(({ lower_bound, upper_bound, deduction_amount }) => ({ lower_bound, upper_bound, deduction_amount }));
-const amountKey = v => v === null ? null : String(v).replace(/^0+(?=\d)/, '').replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
-const same = (a, b) => JSON.stringify(a.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, amountKey(v)])))) === JSON.stringify(b.map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, amountKey(v)]))));
+import { amountKey, formatIndianCurrency, months, rowsFor, same } from './professionalTaxSchedules';
+
 const blank = () => ({ lower_bound: '', upper_bound: null, deduction_amount: '' });
-
-function formatIndianCurrency(val) {
-  if (val === null || val === undefined || val === '') return '';
-  const str = String(val);
-  const clean = str.replace(/,/g, '');
-  if (!clean) return '';
-
-  const hasTrailingDot = clean.endsWith('.');
-  const [intPart, ...decParts] = clean.split('.');
-
-  let formattedInt = intPart;
-  if (intPart.length > 3) {
-    const lastThree = intPart.slice(-3);
-    const rest = intPart.slice(0, -3);
-    formattedInt = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + lastThree;
-  }
-
-  if (decParts.length > 0) {
-    return formattedInt + '.' + decParts.join('');
-  }
-  if (hasTrailingDot) {
-    return formattedInt + '.';
-  }
-  return formattedInt;
-}
 
 export default function PTSlabEditor({ slabs, onChange, effectiveFrom }) {
   const [noLevy, setNoLevy] = useState(() => slabs.length === 12 && slabs.every(s => amountKey(s.lower_bound) === '0' && s.upper_bound === null && amountKey(s.deduction_amount) === '0'));

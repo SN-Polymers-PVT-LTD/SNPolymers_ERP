@@ -23,7 +23,7 @@ export default function PayrollPayslip({ payslip }) {
               {isOfficial ? 'Official Locked Salary Payslip' : 'Diagnostic Salary Preview — Not an Official Payslip'} · Private & Confidential
             </p>
             <p className="text-xs text-slate-400 print:text-slate-600 font-mono mt-1">
-              {payslip.department} / {payslip.group_code} · {payslip.cycle} · Calculation revision {payslip.revision}
+              {[[payslip.department, payslip.group_code].filter(Boolean).join(' · '), payslip.cycle, `Calculation revision ${payslip.revision}`].filter(Boolean).join(' · ')}
             </p>
           </div>
         </div>

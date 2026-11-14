@@ -22,6 +22,7 @@ const PayrollRegister = React.lazy(() => import('./pages/hr/PayrollRegister'));
 const PayrollReview = React.lazy(() => import('./pages/hr/PayrollReview'));
 const PayrollOfficialPayslip = React.lazy(()=>import('./pages/hr/PayrollOfficialPayslip'));
 const PayrollMasters = React.lazy(() => import('./pages/admin/PayrollMasters'));
+const CompanyDeductions = React.lazy(() => import('./pages/admin/CompanyDeductions'));
 const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel'));
 const DailyAttendance = React.lazy(() => import('./pages/hr/DailyAttendance'));
 const AttendanceReviewQueue = React.lazy(() => import('./pages/hr/AttendanceReviewQueue'));
@@ -235,7 +236,7 @@ function App() {
                   <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={['accounts']} />}>
-                  <Route path="/admin/payroll/statutory" element={<React.Suspense fallback={<AppChunkLoader />}><PayrollMasters key="statutory" kind="statutory" /></React.Suspense>} />
+                  <Route path="/admin/payroll/statutory" element={<React.Suspense fallback={<AppChunkLoader />}><CompanyDeductions /></React.Suspense>} />
                 </Route>
 
                 <Route element={<ProtectedRoute allowedRoles={['admin','accounts','ho','factory_manager','je','zo']} />}>

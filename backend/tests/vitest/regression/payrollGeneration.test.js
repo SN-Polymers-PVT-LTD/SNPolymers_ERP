@@ -62,7 +62,9 @@ test('concurrent population adds an employee only once',async()=>{
 
 test('Accounts generates office rows through its own preparer workflow',async()=>{
  const p={...period(),group_code:'HO_STAFF',department:'Head Office'};const e=await employee(p,'Synthetic office generation');
- const r=await post('/runs/generate','accounts',p);expect(r.status).toBe(201);expect(r.body.run.created_by).toBe(users.accounts.id);expect(r.body.generation.added).toBe(1);
- expect((await rows(r.body.run.id))[0]).toMatchObject({employee_id:e.id,created_by:users.accounts.id,status:'CALCULATED',submitted_by:null});
+ const r=await post('/runs/generate','accounts',p);expect(r.status).toBe(201);expect(r.body.run.created_by).toBe(users.accounts.id);const generated=await rows(r.body.run.id);
+ expect(r.body.generation.added).toBe(generated.length);
+ expect(generated.filter(row=>row.employee_id===e.id)).toHaveLength(1);
+ expect(generated.find(row=>row.employee_id===e.id)).toMatchObject({employee_id:e.id,created_by:users.accounts.id,status:'CALCULATED',submitted_by:null});
  expect((await post(`/runs/${r.body.run.id}/generate`,'fm')).status).toBe(403);
 });

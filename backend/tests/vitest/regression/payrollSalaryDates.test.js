@@ -38,9 +38,19 @@ test('Admin confirms initial category assignment explicitly; repeat and non-Admi
  await reject(()=>q('SELECT initialize_hr_payroll_assignment($1,$2,$3,$4)',[employee,'2025-01-01','Repeat',admin]),'PY409');
  await q("UPDATE authorised_users SET role='accounts' WHERE id=$1",[admin]);await reject(()=>save(),'42501');
 });
-test('new salary source operations are service-only and installed bodies match migration 145',async()=>{
- const fs=require('fs'),path=require('path');const sql=fs.readFileSync(path.join(__dirname,'../../../src/db/migrations/145_payroll_salary_effective_dates.sql'),'utf8');const defs=[...sql.matchAll(/CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?AS \$\$([\s\S]*?)\$\$;/g)];expect(defs).toHaveLength(3);
- for(const [,name,body] of defs){const row=await one("SELECT p.prosrc,has_function_privilege('authenticated',p.oid,'EXECUTE') browser,has_function_privilege('service_role',p.oid,'EXECUTE') service FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname=$1",[name]);expect(row.prosrc.trim(),name).toBe(body.trim());expect(row).toMatchObject({browser:false,service:true});}
+test('salary setup stores a dated EPF wage basis pending Accounts confirmation',async()=>{
+ const from='2025-12-01';
+ const pay={...terms,epf_wage_basis:{kind:'REGULAR_WAGES',amount:'12500.00'}};
+ await reject(()=>save({from,pay:{...pay,epf_wage_basis:{kind:'REGULAR_WAGES',amount:'19000'}}}),'22023');
+ const result=await save({from,pay});
+ expect(result.context.intervals).toEqual([{pay_structure_id:result.pay_structure_id,effective_from:from,effective_to:null}]);
+ expect(await one("SELECT regular_wages::numeric(12,2)::text wages,effective_from::text,pending_accounts_confirmation FROM payroll_epf_wage_bases WHERE employee_id=$1 AND pay_structure_id=$2",[employee,result.pay_structure_id])).toEqual({wages:'12500.00',effective_from:from,pending_accounts_confirmation:true});
+});
+test('salary source operations are service-only',async()=>{
+ for(const signature of ['get_hr_payroll_salary_context(uuid,uuid)','save_hr_payroll_salary(uuid,uuid,date,integer,jsonb,text,uuid)','initialize_hr_payroll_assignment(uuid,date,text,uuid)']){
+  const access=await one("SELECT has_function_privilege('anon',$1,'EXECUTE') anonymous,has_function_privilege('authenticated',$1,'EXECUTE') browser,has_function_privilege('service_role',$1,'EXECUTE') service",[signature]);
+  expect(access,signature).toEqual({anonymous:false,browser:false,service:true});
+ }
 });
 test('a concurrent source reader prevents changing salary dates until its review transaction ends',async()=>{
  const other=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await other.connect();

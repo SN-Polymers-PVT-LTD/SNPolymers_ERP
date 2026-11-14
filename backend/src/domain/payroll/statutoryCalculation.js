@@ -1,3 +1,4 @@
+const {calculateEpfWageBasis}=require('./epfWageBasis');
 const {schemeApplies}=require('./statutoryPolicy');
 const D=require('./exact');const {month,dates}=require('./sources');const {configuration,slab}=require('../../validation/payrollMasters.schema');const {signed}=require('./adjustments');
 const schemes=['EPF','ESI','PT'],confirmed=p=>['ADVISOR_VERIFIED','ACCOUNTS_CONFIRMED'].includes(p?.verification_status);
@@ -36,18 +37,23 @@ function statutoryCalculation(source,earnings,deductions){
   if(c.collection_timing==='MONTH_CLOSE'&&to!==bounds.to){block('STATUTORY_MONTH_CLOSE_REQUIRED');continue;}
   const es=earnings.filter(l=>(l.salary_month||l.date?.slice(0,7)+'-01')===start),ds=deductions.filter(l=>l.salary_month===start);
   const base=es.find(l=>l.code==='CONTRACTUAL_BASE'),lop=sum(ds.filter(l=>l.code==='LOP'));let current=D.zero();
-  if(base){
-   const components=base.contract_components,monthInfo=source.pay_structures.find(pay=>base.source_ids.includes(pay.id));
+  const monthInfo=base&&source.pay_structures.find(pay=>base.source_ids.includes(pay.id));
+  const paidBase=base?.amount!=null?D.sub(signed(base.amount),lop):D.zero();
+  if(base&&lop.n&&c.lop_wage_basis!=='PROPORTIONAL_COMPONENTS'){block('STATUTORY_LOP_COMPONENT_RULE_REQUIRED');continue;}
+  const epf=scheme==='EPF'?calculateEpfWageBasis({source,month:start,prior,pay:monthInfo,paidBase,earnings:es}):null;
+  if(epf?.blocker){block(epf.blocker);continue;}
+  if(epf) current=D.sub(epf.monthlyWage,D.sum(prior.map(e=>ref(e.eligible_wage))));
+  if(!epf&&base){
+   const components=base.contract_components;
    if(!components||!monthInfo){block('STATUTORY_COMPONENT_EVIDENCE_REQUIRED');continue;}
-   if(lop.n&&c.lop_wage_basis!=='PROPORTIONAL_COMPONENTS'){block('STATUTORY_LOP_COMPONENT_RULE_REQUIRED');continue;}
-   const gross=D.decimal(monthInfo.guaranteed_monthly_gross),paidBase=D.sub(signed(base.amount),lop);
+   const gross=D.decimal(monthInfo.guaranteed_monthly_gross);
    if(paidBase.n<0n){block('NEGATIVE_STATUTORY_WAGE');continue;}
    for(const name of c.included_components.filter(name=>Object.hasOwn(components,name))){
     if(components[name]===null||components[name]===undefined){block('STATUTORY_COMPONENT_EVIDENCE_REQUIRED');continue;}
     if(gross.n!==0n)current=D.add(current,D.mul(D.decimal(components[name]),D.div(paidBase,gross)));
    }
   }
-  for(const l of es.filter(l=>l.code!=='CONTRACTUAL_BASE')){
+  if(!epf)for(const l of es.filter(l=>l.code!=='CONTRACTUAL_BASE')){
    const name=l.code==='DOUBLE_DUTY'?'DAILY_WAGE':l.code;
    if(l.adjustment_type){
     const treatment=c.adjustment_basis?.[l.adjustment_type];
@@ -78,13 +84,19 @@ function statutoryCalculation(source,earnings,deductions){
     if(c.wage_ceiling===null){block('STATUTORY_WAGE_CEILING_REQUIRED');continue;}
     if(D.compare(wage,D.decimal(c.wage_ceiling))>0n)wage=D.decimal(c.wage_ceiling);
    }
+   if(epf){
+    const display=value=>D.format(D.round(value,{method:'HALF_UP',precision:2}));
+    result.epf_wage_explanation={...epf.explanation,wage_after_cap:D.reference(wage),
+     display:{regular:display(ref(epf.explanation.regular)),excluded:display(ref(epf.explanation.excluded)),
+      addback:display(ref(epf.explanation.addback)),wage_after_cap:display(wage)}};
+   }
    employee=D.round(D.mul(wage,D.div(D.decimal(c.employee_rate),D.decimal('100'))),c.rounding);
    employer=D.round(D.mul(wage,D.div(D.decimal(c.employer_rate),D.decimal('100'))),c.rounding);
   }
   const employeeDelta=D.sub(employee,employeeCollected),employerDelta=D.sub(employer,employerAccrued);
   if(employeeDelta.n<0n||employerDelta.n<0n){block('NEGATIVE_STATUTORY_RESIDUAL_REQUIRES_APPROVED_ADJUSTMENT');continue;}
   Object.assign(result,{status:'CALCULATED',eligible,eligible_wage:D.format(current,6)||D.reference(current),monthly_eligible_wage:D.reference(combined),employee_deduction:D.format(employeeDelta,Math.max(2,c.rounding.precision)),employer_contribution:D.format(employerDelta,Math.max(2,c.rounding.precision)),monthly_employee_liability:D.format(employee,Math.max(2,c.rounding.precision)),monthly_employer_liability:D.format(employer,Math.max(2,c.rounding.precision)),previous_employee_collected:D.format(employeeCollected,6),previous_employer_accrued:D.format(employerAccrued,6)});
-  entries.push({salary_month:start,scheme,statutory_scope_id:p.statutory_scope_id,rule_revision_id:rule.id,source_profile_id:p.id,eligible_wage:D.reference(current),employee_amount:result.employee_deduction,employer_amount:result.employer_contribution,monthly_employee_liability:result.monthly_employee_liability,monthly_employer_liability:result.monthly_employer_liability,previous_employee_collected:result.previous_employee_collected,previous_employer_accrued:result.previous_employer_accrued});
+  entries.push({...(epf?{epf_wage_inputs:epf.inputs}:{}),salary_month:start,scheme,statutory_scope_id:p.statutory_scope_id,rule_revision_id:rule.id,source_profile_id:p.id,eligible_wage:D.reference(current),employee_amount:result.employee_deduction,employer_amount:result.employer_contribution,monthly_employee_liability:result.monthly_employee_liability,monthly_employer_liability:result.monthly_employer_liability,previous_employee_collected:result.previous_employee_collected,previous_employer_accrued:result.previous_employer_accrued});
  }
  return {rules,entries,blockers};
 }

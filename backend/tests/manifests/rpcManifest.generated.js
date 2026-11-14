@@ -281,6 +281,27 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "confirm_payroll_epf_wage_basis": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_pay_structure_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_effective_from",
+          "type": "date"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "confirm_payroll_payment": {
       "args": [
         {
@@ -1135,8 +1156,34 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "get_payroll_epf_wage_bases": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "get_payroll_foundation_context": {
       "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "get_payroll_guided_deduction_draft": {
+      "args": [
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
         {
           "name": "p_actor_id",
           "type": "uuid"
@@ -1440,6 +1487,23 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "list_payroll_guided_deduction_drafts": {
+      "args": [
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_page",
+          "type": "integer"
+        },
+        {
+          "name": "p_limit",
+          "type": "integer"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "list_payroll_preview_runs": {
       "args": [
         {
@@ -1559,6 +1623,39 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "publish_payroll_guided_deduction_draft": {
+      "args": [
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_initial",
+          "type": "boolean"
+        },
+        {
+          "name": "p_review_token",
+          "type": "text"
+        },
+        {
+          "name": "p_reference",
+          "type": "text"
+        },
+        {
+          "name": "p_key",
+          "type": "uuid"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "publish_payroll_initial_master": {
       "args": [
         {
@@ -1637,6 +1734,35 @@ module.exports = {
         }
       ],
       "returns": "void"
+    },
+    "record_payroll_epf_wage_basis": {
+      "args": [
+        {
+          "name": "p_employee_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_pay_structure_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_effective_from",
+          "type": "date"
+        },
+        {
+          "name": "p_regular_wages",
+          "type": "numeric"
+        },
+        {
+          "name": "p_reason",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
     },
     "record_payroll_source_history": {
       "args": [
@@ -1777,6 +1903,27 @@ module.exports = {
         {
           "name": "p_expected_version",
           "type": "integer"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "review_payroll_guided_deduction_draft": {
+      "args": [
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_initial",
+          "type": "boolean"
         },
         {
           "name": "p_actor_id",
@@ -2013,6 +2160,27 @@ module.exports = {
         {
           "name": "p_evidence",
           "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "save_payroll_guided_deduction_draft": {
+      "args": [
+        {
+          "name": "p_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_expected_version",
+          "type": "integer"
+        },
+        {
+          "name": "p_data",
+          "type": "jsonb"
         },
         {
           "name": "p_actor_id",
