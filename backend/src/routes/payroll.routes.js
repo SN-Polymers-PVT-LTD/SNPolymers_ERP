@@ -39,6 +39,7 @@ router.post('/statutory-scopes/bind', requireRole(['accounts']), validateRequest
 router.get('/company-deduction-setups', requireRole(['accounts']), validateRequest(profileSchema.companyList), profiles.companyList);
 router.get('/company-deduction-setups/options', requireRole(['accounts']), validateRequest(profileSchema.companyOptions), profiles.companyOptions);
 router.post('/company-deduction-setups', requireRole(['accounts']), validateRequest(profileSchema.companySave), profiles.companySave);
+router.post('/company-deduction-setups/preview', requireRole(['accounts']), validateRequest(profileSchema.companyPreview), profiles.companyPreview);
 router.post('/company-deduction-setups/apply', requireRole(['accounts']), validateRequest(profileSchema.companyApply), profiles.companyApply);
 const ledger=require('../controllers/payrollLedger.controller');
 const ledgerSchema=require('../validation/payrollLedger.schema');

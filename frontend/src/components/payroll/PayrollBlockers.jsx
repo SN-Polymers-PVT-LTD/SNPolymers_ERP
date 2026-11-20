@@ -12,6 +12,8 @@ export const labels = {
   HOLIDAY_FULL_DUTY_REQUIRED: 'Full duty required for holiday pay entitlement',
   LOCAL_HOLIDAY_FORBIDDEN: 'Holiday pay not applicable to local daily workers',
 
+  BONUS_AND_ARREARS_DISABLED: 'An existing payroll adjustment requires resolution before this salary can be processed',
+
   // Gross & Calculation
   COMPLETE_GROSS_REQUIRED: 'Complete gross calculation required before deductions',
   FINAL_NET_SALARY_REQUIRED: 'Complete statutory deductions for final take-home pay',

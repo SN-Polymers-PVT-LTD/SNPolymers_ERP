@@ -18,7 +18,12 @@ describe('payroll salary register',()=>{
  });
  it('applies scope/period/search filters and exports all matching rows without page parameters',async()=>{
   mount();await screen.findByText('Synthetic employee');fireEvent.change(screen.getByLabelText('Employee name / code'),{target:{value:'EMP-01'}});fireEvent.change(screen.getByLabelText('Department'),{target:{value:'Head Office'}});fireEvent.change(screen.getByLabelText('Period from'),{target:{value:'2091-10-01'}});fireEvent.click(screen.getByRole('button',{name:'Apply report filters'}));await waitFor(()=>expect(api.getSalaryRegister).toHaveBeenLastCalledWith({search:'EMP-01',department:'Head Office',from:'2091-10-01',page:1,limit:20}));
-  await waitFor(()=>expect(screen.getByRole('button',{name:'Export Excel salary register'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'Export Excel salary register'}));await waitFor(()=>expect(api.exportSalaryReport).toHaveBeenCalledWith({search:'EMP-01',department:'Head Office',from:'2091-10-01',format:'xlsx',report:'register'}));expect(URL.createObjectURL).toHaveBeenCalled();
+  const exportButton=screen.getByRole('button',{name:'Export Excel salary register'});
+  await waitFor(()=>expect(exportButton).toBeEnabled());
+  fireEvent.click(exportButton);
+  await waitFor(()=>expect(api.exportSalaryReport).toHaveBeenCalledWith({search:'EMP-01',department:'Head Office',from:'2091-10-01',format:'xlsx',report:'register'}));
+  expect(await screen.findByText('Excel salary register downloaded.')).toBeInTheDocument();
+  expect(HTMLAnchorElement.prototype.click.mock.instances.at(-1).download).toBe('payroll-salary-register.xlsx');
  });
  it('paginates employee rows while retaining summaries for the entire selection',async()=>{
   api.getSalaryRegister.mockResolvedValue({data:{register:{...register,total:42,summaries:[{...register.summaries[0],row_count:42,known_gross_total:'1260000.00'}]}}});mount();expect(await screen.findByText(/Returned 42/)).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Next ›'}));await waitFor(()=>expect(api.getSalaryRegister).toHaveBeenLastCalledWith({page:2,limit:20}));expect(await screen.findByText('1260000.00')).toBeInTheDocument();

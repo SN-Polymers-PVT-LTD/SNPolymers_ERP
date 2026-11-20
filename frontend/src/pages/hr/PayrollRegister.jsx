@@ -1,3 +1,4 @@
+import { downloadPayrollReport, payrollExportError } from '../../utils/downloadPayrollReport';
 import {payrollStatus} from '../../utils/payrollDisplay';
 import PayrollDeliveryReceipt from '../../components/payroll/PayrollDeliveryReceipt';
 import React from 'react';
@@ -57,17 +58,6 @@ const getStatusBadgeVariant = (status) => {
 const message = (e) => e?.response?.data?.message || e.message;
 const amount = (v) => v ?? 'Unavailable';
 
-function download(response, filename) {
-  const url = URL.createObjectURL(response.data);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 export default function PayrollRegister() {
   const { user } = useAuth();
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
@@ -106,16 +96,10 @@ export default function PayrollRegister() {
     mutationFn: async ({ format, kind }) => {
       try {
         const response = await exportSalaryReport({ ...filters, format, report: kind });
-        download(response, `payroll-${kind}-diagnostic.${format}`);
+        const filename = kind === 'register' ? 'payroll-salary-register.xlsx' : `payroll-${kind}-diagnostic.${format}`;
+        downloadPayrollReport(response, filename);
       } catch (error) {
-        if (error.response?.data instanceof Blob) {
-          try {
-            error.message = JSON.parse(await error.response.data.text()).message;
-          } catch {
-            /* retain transport message */
-          }
-        }
-        throw error;
+        throw await payrollExportError(error);
       }
     },
   });
@@ -264,8 +248,8 @@ export default function PayrollRegister() {
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Button
-              variant="secondary"
-              size="sm"
+              variant="success"
+              size="xs"
               disabled={exporter.isPending || report.isPending || report.isError}
               onClick={() => exporter.mutate({ format: 'xlsx', kind: 'register' })}
               icon={
@@ -277,8 +261,8 @@ export default function PayrollRegister() {
               Export Excel salary register
             </Button>
             <Button
-              variant="secondary"
-              size="sm"
+              variant="success"
+              size="xs"
               disabled={exporter.isPending || report.isPending || report.isError}
               onClick={() => exporter.mutate({ format: 'xlsx', kind: 'departments' })}
               icon={
@@ -290,8 +274,8 @@ export default function PayrollRegister() {
               Export department report
             </Button>
             <Button
-              variant="secondary"
-              size="sm"
+              variant="success"
+              size="xs"
               disabled={exporter.isPending || report.isPending || report.isError}
               onClick={() => exporter.mutate({ format: 'html', kind: 'departments' })}
               icon={
@@ -393,7 +377,7 @@ export default function PayrollRegister() {
         {exporter.isSuccess && (
           <div role="status" className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-300 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            Diagnostic export downloaded.
+            {exporter.variables?.kind === 'register' ? 'Excel salary register downloaded.' : 'Report downloaded.'}
           </div>
         )}
         {exporter.isError && (

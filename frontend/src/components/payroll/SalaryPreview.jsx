@@ -11,6 +11,7 @@ export default function SalaryPreview({
   inModal = false,
   isSnapshot = false,
   isPayslip = false,
+  showTechnicalDetails = true,
   beneficiaryContext = 'employee'
 }) {
   const contracts = (preview.monthly_reconciliation || []).flatMap((m) =>
@@ -334,7 +335,7 @@ export default function SalaryPreview({
       )}
 
       {/* Diagnostic & Technical Collapsible Drawers (Hidden on payslips) */}
-      {!isPayslip && (
+      {!isPayslip && showTechnicalDetails && (
         <div className="pt-1 print:hidden">
           <details className="group rounded-2xl bg-slate-100/60 dark:bg-white/[0.02] border border-slate-200 dark:border-white/10 p-3.5 transition-colors">
             <summary className="cursor-pointer font-bold text-xs uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center justify-between select-none">

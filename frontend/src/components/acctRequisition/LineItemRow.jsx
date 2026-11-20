@@ -1,3 +1,4 @@
+import BeneficiaryDetails from './BeneficiaryDetails';
 import React, { useState, useRef, useEffect } from 'react';
 import { Button, Input, FormattedCurrencyInput, Select, SearchableSelect, Badge, TableRow, TableCell } from '../ui';
 import BeneficiaryAutofill from './BeneficiaryAutofill';
@@ -300,27 +301,8 @@ const LineItemRow = ({
           <span className="text-xs text-slate-300 font-mono">{item.work_order_no || '—'}</span>
         </TableCell>
         <TableCell className="min-w-[200px]">
-          <div className="flex flex-col gap-1">
-            <p className="text-xs font-semibold text-slate-300">{item.beneficiary_name || '—'}</p>
-            {item.beneficiary_ac_no && (
-              <p className="text-[10px] text-slate-500">
-                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">A/C</span>
-                {item.beneficiary_ac_no}
-              </p>
-            )}
-            {item.beneficiary_ifsc && (
-              <p className="text-[10px] text-slate-500">
-                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">IFSC</span>
-                {item.beneficiary_ifsc}
-              </p>
-            )}
-            {(item.beneficiary_bank?.bank_name || item.beneficiary_bank_name) && (
-              <p className="text-[10px] text-slate-500">
-                <span className="text-slate-600 font-bold uppercase tracking-wider mr-1">Bank</span>
-                {item.beneficiary_bank?.bank_name || item.beneficiary_bank_name}
-              </p>
-            )}
-          </div>
+          <BeneficiaryDetails name={item.beneficiary_name} account={item.beneficiary_ac_no}
+            ifsc={item.beneficiary_ifsc} bank={item.beneficiary_bank?.bank_name || item.beneficiary_bank_name} />
         </TableCell>
         <TableCell>{item.debit_bank_ac_type || '—'}</TableCell>
         <TableCell align="right">

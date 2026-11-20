@@ -5,7 +5,8 @@ const unresolvedAdjustments = () => ({ SALARY_ARREARS: 'UNRESOLVED', BONUS: 'UNR
 export function newStatutoryConfiguration(scheme = 'EPF') {
   return {
     employee_rate: null, employer_rate: null,
-    included_components: [], excluded_components: [...statutoryComponents],
+    included_components: scheme === 'ESI' ? ['PACKAGE_BALANCE'] : [],
+    excluded_components: statutoryComponents.filter(component => scheme !== 'ESI' || component !== 'PACKAGE_BALANCE'),
     adjustment_basis: unresolvedAdjustments(),
     eligibility: scheme === 'PT' ? 'JURISDICTION_PROFILE' : scheme === 'ESI' ? 'ENROLLED_AND_WAGE_CEILING' : 'ENROLLED',
     calculation_method: scheme === 'PT' ? 'SLABS' : scheme === 'ESI' ? 'QUALIFYING_WAGE_PERCENTAGE' : 'CAPPED_WAGE_PERCENTAGE',
@@ -16,6 +17,7 @@ export function newStatutoryConfiguration(scheme = 'EPF') {
   };
 }
 const epfSource = 'https://www.pib.gov.in/PressReleasePage.aspx?PRID=2314111&lang=1&reg=3';
+const historicalEpfSource = 'https://www.epfindia.gov.in/site_docs/PDFs/PQ_PDFs/PQ_BudgetSession2015_RS_English.pdf';
 const esiSource = 'https://www.pib.gov.in/PressReleaseIframePage.aspx?PRID=1574520&lang=2&reg=48';
 export function statutoryPreset(scheme, date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || Number.isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) return null;
@@ -33,8 +35,8 @@ export function statutoryPreset(scheme, date) {
   return {
     id: historical ? 'EPF-15000' : 'EPF-25000',
     title: historical ? 'EPF standard rates · ₹15,000 ceiling' : 'EPF standard rates · ₹25,000 ceiling',
-    source: epfSource, reviewAfter: historical ? (date < '2020-05-01' ? '2020-04-30' : '2026-08-31') : null,
-    note: 'Standard 12% rate; notified 10% establishments, higher-wage agreements and other exceptions require Accounts review. September 2026 needs separate transition review.',
+    source: historical ? historicalEpfSource : epfSource, reviewAfter: historical ? (date < '2020-05-01' ? '2020-04-30' : '2026-08-31') : null,
+    note: 'Review separately if a different rate or higher-wage agreement applies.',
     values: { employee_rate: '12', employer_rate: '12', wage_ceiling: historical ? '15000' : '25000', eligibility_ceiling: null, eligibility: 'ENROLLED', calculation_method: 'CAPPED_WAGE_PERCENTAGE' },
     rounding: { method: 'HALF_UP', precision: 0, stage: 'MONTH' }
   };
@@ -66,7 +68,9 @@ export function standardStatutorySettings(data) {
   const defaults = newStatutoryConfiguration(data.scheme);
   const c = data.configuration;
   return { ...data, configuration: { ...c,
-    eligibility: defaults.eligibility, calculation_method: defaults.calculation_method,
+    eligibility: defaults.eligibility,
+    calculation_method: data.scheme === 'EPF' && c.calculation_method === 'QUALIFYING_WAGE_PERCENTAGE'
+      ? c.calculation_method : defaults.calculation_method,
     conditions: defaults.conditions, rounding: { ...defaults.rounding },
     aggregation: defaults.aggregation, effective_rule: defaults.effective_rule,
     lop_wage_basis: defaults.lop_wage_basis, arrears_period: defaults.arrears_period,

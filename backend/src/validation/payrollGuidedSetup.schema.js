@@ -1,12 +1,13 @@
 const { z } = require('zod');
-const { statutory, draftConfiguration } = require('./payrollMasters.schema');
+const { statutory, draftConfiguration, defaultEsiWageBasis } = require('./payrollMasters.schema');
 
 // Confirmation metadata belongs to the server, never to the request.
 const { verification_status, advisor_name, verification_reference, verified_on, ...ruleShape } = statutory.shape;
-const ruleInput = z.object({ ...ruleShape, configuration: draftConfiguration, reason: z.string().trim().max(2000) }).strict().superRefine((value, ctx) => {
-  const configuration = value.configuration;
+const ruleInput = z.object({ ...ruleShape, shared: z.literal(true).optional(), configuration: draftConfiguration, reason: z.string().trim().max(2000) }).strict().overwrite(defaultEsiWageBasis).superRefine((value, ctx) => {
+  const { shared, ...rule } = value;
+  const configuration = rule.configuration;
   const result = statutory.safeParse({
-    ...value,
+    ...rule,
     reason: value.reason || 'Draft',
     configuration: configuration.included_components.length ? configuration : {
       ...configuration, included_components: ['PACKAGE_BALANCE'],
@@ -18,18 +19,28 @@ const ruleInput = z.object({ ...ruleShape, configuration: draftConfiguration, re
     ctx.addIssue({ code: 'custom', path: issue.path, message: issue.message });
   }
 });
+const selectedRule = z.union([
+  ruleInput,
+  z.object({ revision_id: z.uuid() }).strict(),
+]);
 const schemeNames = ['EPF', 'ESI', 'PT'];
 const draft = z.object({
-  state_id: z.uuid(),
+  state_id: z.uuid().nullable(),
+  pan_india: z.literal(true).optional(),
+  all_factories: z.literal(true).optional(),
   establishment: z.string().trim().min(1).max(120),
   effective_from: z.iso.date(),
   initial_setup: z.boolean().optional(),
   jurisdiction: z.string().trim().min(1).max(120).optional(),
-  rules: z.object({ EPF: ruleInput.optional(), ESI: ruleInput.optional(), PT: ruleInput.optional() }).strict(),
+  rules: z.object({ EPF: selectedRule.optional(), ESI: selectedRule.optional(), PT: selectedRule.optional() }).strict(),
 }).strict().superRefine((value, ctx) => {
   const rules = schemeNames.filter(name => value.rules[name]);
+  if (!value.state_id && (!value.pan_india || value.rules.PT)) {
+    ctx.addIssue({ code: 'custom', path: ['state_id'], message: 'Select a state for this setup.' });
+  }
   for (const name of rules) {
     const rule = value.rules[name];
+    if (rule.revision_id) continue;
     if (rule.effective_to && rule.effective_to < rule.effective_from) ctx.addIssue({ code: 'custom', path: ['rules', name, 'effective_to'], message: 'Invalid rule effective range.' });
     if (rule.scheme !== name) ctx.addIssue({ code: 'custom', path: ['rules', name, 'scheme'], message: 'Rule scheme does not match its selection.' });
     if (rule.state_id !== value.state_id) ctx.addIssue({ code: 'custom', path: ['rules', name, 'state_id'], message: 'Rule must use the selected state.' });
@@ -47,7 +58,7 @@ const reviewBody = z.object({
 const review = { ...get, body: reviewBody };
 const publish = { ...get, body: reviewBody.extend({
   review_token: z.string().regex(/^[a-f0-9]{64}$/),
-  approval_reference: z.string().trim().min(1).max(2000),
+  approval_reference: z.string().trim().max(2000).nullish().transform(value => value || null),
   idempotency_key: z.uuid(),
 }) };
 const list = { query: z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).strict() };

@@ -37,13 +37,13 @@ describe('frontend statutory presets with the actual backend contract and calcul
   expect(result.gross_after_lop).toBe(gross);
   expect(result.statutory.find(entry => entry.scheme === scheme)).toMatchObject({ employee_deduction: employee, employer_contribution: employer });
  });
- it('preserves fail-closed treatment of unavailable components and unclassified adjustments', () => {
+ it('preserves fail-closed treatment of unavailable components and paused adjustments', () => {
   const s = source('EPF');
   s.statutory_calculation_rules[0].configuration = withContributionBasis(s.statutory_calculation_rules[0].configuration, ['BASIC']);
   expect(calculatePreview(s).blockers.map(b => b.code)).toContain('INVALID_STATUTORY_CONFIGURATION');
   s.statutory_calculation_rules[0].configuration = withContributionBasis(s.statutory_calculation_rules[0].configuration, ['PACKAGE_BALANCE']);
   s.adjustments = [{ id: 'bonus', kind: 'BONUS', amount: '1000.00', effective_date: '2091-11-05', status: 'APPROVED', version: 2, target_row_id: s.row.id }];
-  expect(calculatePreview(s).blockers.map(b => b.code)).toContain('ADJUSTMENT_CLASSIFICATION_REQUIRED');
+  expect(calculatePreview(s).blockers.map(b => b.code)).toContain('BONUS_AND_ARREARS_DISABLED');
  });
 });
 

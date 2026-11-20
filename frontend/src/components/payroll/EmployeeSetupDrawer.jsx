@@ -29,7 +29,8 @@ export default function EmployeeSetupDrawer({
   employeeSummary = null,
 }) {
   const client = useQueryClient();
-  const allowed = user?.role === 'accounts';
+  const canEdit = user?.role === 'accounts';
+  const allowed = canEdit || user?.role === 'admin';
 
   const [setupSearch, setSetupSearch] = useState('');
   const [setupPage, setSetupPage] = useState(1);
@@ -46,7 +47,7 @@ export default function EmployeeSetupDrawer({
 
   const setups = useQuery({
     queryKey: ['company-deduction-setups', user?.id, setupSearch, setupPage],
-    enabled: allowed,
+    enabled: canEdit,
     queryFn: async () => (await getCompanyDeductionSetups({ search: setupSearch, page: setupPage, limit: 20 })).data.result
   });
 
@@ -122,7 +123,7 @@ export default function EmployeeSetupDrawer({
     >
         {/* Drawer Scrollable Body */}
         <div className="space-y-6">
-          {allowed && history.data?.enrolment_managed_by_pay_structure && <EpfWageBasis key={employeeId} employeeId={employeeId} />}
+          {canEdit && history.data?.enrolment_managed_by_pay_structure && <EpfWageBasis key={employeeId} employeeId={employeeId} />}
           {history.isPending ? (
             <div role="status" className="p-8 text-center text-xs text-slate-400 space-y-2">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse inline-block"></span>
@@ -177,7 +178,7 @@ export default function EmployeeSetupDrawer({
               </div>
 
               {/* Action: Open Editor if not editing */}
-              {!editor && (
+              {canEdit && !editor && (
                 <div className="flex justify-end">
                   <Button
                     disabled={local || save.isPending}
@@ -245,7 +246,7 @@ export default function EmployeeSetupDrawer({
               </div>
 
               {/* Form / Interval Editor */}
-              {editor && (
+              {canEdit && editor && (
                 <form
                   className="rounded-2xl border border-amber-500/25 bg-slate-950/60 p-5 space-y-4 shadow-xl"
                   onSubmit={e => { e.preventDefault(); save.mutate(); }}

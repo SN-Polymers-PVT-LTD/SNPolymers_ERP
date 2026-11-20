@@ -4,6 +4,8 @@ Migrations 177–180 support guided drafts, combined review, atomic publication 
 
 Accounts creates one draft containing establishment, state, effective dates and selected EPF, ESI and PT rule configurations. Employee enrolment remains a separate employee-level decision. No preset silently decides a wage basis or changes a saved custom configuration.
 
+When assigning a setup that has EPF or ESI but no PT, Accounts can pair it with a published PT setup for the same establishment. A state-specific primary setup requires a PT setup for that state. For a Pan India primary setup, Accounts selects the state that applies to the employees. The employee profile uses each scheme’s scope and the overlapping effective dates of the selected setups.
+
 Review validates all selected rules and the company binding together, presents scheme-specific conflicts and impacts, and returns a single token covering the complete draft and relevant database state. Publication rechecks the token and authorization under the same transaction locks as existing payroll master publication and locked payroll protection. Stale reviews must be repeated.
 
 One PostgreSQL transaction publishes all selected revisions, binds them to the company scope, creates the company setup and records audit events. Any failure rolls back all changes. A retry after a lost response must not create duplicates; design and test an idempotency key bound to the exact request and actor. Reuse existing validation and publication logic only after verifying its lock ordering and transaction semantics. Historical locked-payroll checks remain conservative; do not change them as part of this feature.

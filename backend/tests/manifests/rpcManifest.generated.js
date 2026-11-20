@@ -134,6 +134,35 @@ module.exports = {
       ],
       "returns": "jsonb"
     },
+    "apply_payroll_company_deduction_setups": {
+      "args": [
+        {
+          "name": "p_setup_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_pt_setup_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_employees",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
     "approve_requisition_transact": {
       "args": [
         {
@@ -1903,6 +1932,39 @@ module.exports = {
         {
           "name": "p_expected_version",
           "type": "integer"
+        },
+        {
+          "name": "p_actor_id",
+          "type": "uuid"
+        }
+      ],
+      "returns": "jsonb"
+    },
+    "review_company_deduction_assignment_dates": {
+      "args": [
+        {
+          "name": "p_setup_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_pt_setup_id",
+          "type": "uuid"
+        },
+        {
+          "name": "p_from",
+          "type": "date"
+        },
+        {
+          "name": "p_employees",
+          "type": "jsonb"
+        },
+        {
+          "name": "p_evidence",
+          "type": "text"
+        },
+        {
+          "name": "p_confirmed_dates",
+          "type": "jsonb"
         },
         {
           "name": "p_actor_id",

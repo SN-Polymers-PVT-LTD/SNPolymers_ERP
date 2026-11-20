@@ -17,7 +17,8 @@ async function exportReport(req,res){
   const {data,error}=await fetchRegister(req.user.id,filters,1,MAX_EXPORT_ROWS);if(error)return sendError(res,error);
   if(data.total>MAX_EXPORT_ROWS)return res.status(413).json({success:false,code:'PAYROLL_EXPORT_TOO_LARGE',message:'More than 10,000 employee rows match. Narrow the period or department; no partial export was generated.'});
   const buffer=format==='html'?printableSummary(data,report):await excelReport(data,report);
-  res.set('Cache-Control','no-store');res.set('Content-Disposition',`attachment; filename="payroll-${report}-diagnostic.${format}"`);
+  const filename=format==='xlsx'&&report==='register'?'payroll-salary-register.xlsx':`payroll-${report}-diagnostic.${format}`;
+  res.set('Cache-Control','no-store');res.set('Content-Disposition',`attachment; filename="${filename}"`);
   res.type(format==='html'?'text/html':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return res.send(buffer);
  }catch(error){if(error.code==='PAYROLL_EXPORT_DETAILS_TOO_LARGE')return res.status(413).json({success:false,code:error.code,message:error.message});return sendError(res,error);}
 }

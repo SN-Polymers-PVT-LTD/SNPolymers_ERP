@@ -18,7 +18,8 @@ const message = e => e?.response?.data?.message || e?.message || 'Failed to load
 
 export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmployeeChange }) {
   const { user } = useAuth();
-  const allowed = user?.role === 'accounts';
+  const canAssign = user?.role === 'accounts';
+  const allowed = canAssign || user?.role === 'admin';
 
   const {
     status,
@@ -89,10 +90,11 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
   const allTotal = candidatesData?.all_total ?? total;
   const needsSetupTotal = candidatesData?.needs_setup_total ?? candidatesData?.eligible_total ?? 0;
   const hasSetupTotal = candidatesData?.has_setup_total ?? 0;
+  const exemptTotal = candidatesData?.exempt_total ?? 0;
 
   // Check eligibility for selection: unconfigured non-local employees
-  const eligible = (e) => e.profile_version === 0 && e.employee_category !== 'Local Daily-Wage Workers';
-  const pageEligible = useMemo(() => employees.filter(eligible), [employees]);
+  const eligible = (e) => canAssign && e.profile_version === 0 && e.employee_category !== 'Local Daily-Wage Workers';
+  const pageEligible = useMemo(() => employees.filter(eligible), [employees, canAssign]);
 
   // Open assignment modal for single employee or selected batch
   const handleOpenAssignModal = (targetList) => {
@@ -118,13 +120,15 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
             Employee Statutory Setup
           </h1>
           <p className="text-xs text-slate-400 font-medium mt-1">
-            Assign company deduction setups to employees and inspect dated statutory history. Individual pay structures and EPF/ESI enrolment remain in Employee Management.
+            {canAssign
+              ? 'Assign company deduction setups to employees and inspect dated statutory history. Individual pay structures and EPF/ESI enrolment remain in Employee Management.'
+              : 'View employee deduction assignments and dated statutory history.'}
           </p>
         </div>
       </div>
 
       {/* 2. Top Interactive KPI Stats Strip (Clickable to switch Quick View) */}
-      <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-white/5 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02] grid grid-cols-1 sm:grid-cols-3 gap-4 sm:divide-x sm:divide-white/5 text-center">
+      <div className="glass-panel p-4 sm:p-5 rounded-3xl border border-white/5 bg-gradient-to-r from-white/[0.02] to-amber-500/[0.02] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-center">
         {/* KPI: All Active Employees */}
         <button
           type="button"
@@ -187,8 +191,20 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
             {candidatesQuery.isPending ? '…' : hasSetupTotal}
           </span>
           <span className="text-[10px] text-emerald-400/80 block mt-1">
-            Active configured profiles
+            Employees with saved assignments
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatus('exempt')}
+          aria-pressed={status === 'exempt'}
+          className={`p-3 rounded-xl text-center ${status === 'exempt' ? 'bg-sky-500/10 ring-1 ring-sky-500/30' : 'hover:bg-white/[0.03]'}`}
+        >
+          <span className="text-[10px] uppercase font-bold tracking-widest text-sky-700 dark:text-sky-400 block mb-1">Exempt</span>
+          <span className="text-2xl sm:text-3xl font-black text-sky-800 dark:text-sky-300 font-mono">
+            {candidatesQuery.isPending ? '…' : exemptTotal}
+          </span>
+          <span className="text-[10px] text-slate-400 block mt-1">No statutory setup required</span>
         </button>
       </div>
 
@@ -253,6 +269,18 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                   <span>Has setup</span>
                   <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${status === 'has_setup' ? 'bg-black/20 text-slate-950 font-bold' : 'bg-black/30'}`}>
                     {hasSetupTotal}
+                  </span>
+                </Button>
+
+                <Button
+                  onClick={() => setStatus('exempt')}
+                  variant={status === 'exempt' ? 'yellow' : 'ghost'}
+                  size="sm"
+                  className="w-full justify-between"
+                >
+                  <span>Exempt</span>
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${status === 'exempt' ? 'bg-black/20 text-slate-950 font-bold' : 'bg-black/30'}`}>
+                    {exemptTotal}
                   </span>
                 </Button>
 
@@ -325,6 +353,8 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                     ? 'Employees Needing Initial Setup'
                     : status === 'has_setup'
                     ? 'Configured Employees'
+                    : status === 'exempt'
+                    ? 'Exempt Workers'
                     : 'All Active Employees'}
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/5">
@@ -332,7 +362,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Select eligible candidates to batch assign a deduction setup or inspect dated revision history.
+                {canAssign ? 'Select eligible candidates to batch assign a deduction setup or inspect dated revision history.' : 'Open an employee to view their setup history.'}
               </p>
             </div>
 
@@ -396,7 +426,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableCell isHeader className="w-10">
+                      {canAssign && <TableCell isHeader className="w-10">
                         <input
                           type="checkbox"
                           aria-label="Select eligible employees on current page"
@@ -412,7 +442,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                           }}
                           className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 bg-slate-900"
                         />
-                      </TableCell>
+                      </TableCell>}
                       <TableCell isHeader>Employee</TableCell>
                       <TableCell isHeader>Department & Category</TableCell>
                       <TableCell isHeader>Joined</TableCell>
@@ -431,7 +461,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                       return (
                         <TableRow key={emp.id} className="hover:bg-white/[0.02] transition-colors">
                           {/* Checkbox Column */}
-                          <TableCell>
+                          {canAssign && <TableCell>
                             <input
                               type="checkbox"
                               aria-label={`Select ${emp.employee_code}`}
@@ -450,7 +480,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
                               }}
                               className="rounded border-slate-700 text-amber-500 focus:ring-amber-500 focus:ring-offset-0 bg-slate-900"
                             />
-                          </TableCell>
+                          </TableCell>}
 
                           {/* Employee Name & Code */}
                           <TableCell>
@@ -500,7 +530,7 @@ export default function EmployeeStatutorySetup({ initialEmployeeId = '', onEmplo
 
                           {/* Row Actions */}
                           <TableCell className="text-right whitespace-nowrap">
-                            {!isConfigured && !isLocal ? (
+                            {canAssign && !isConfigured && !isLocal ? (
                               <Button
                                 size="sm"
                                 variant="yellow"

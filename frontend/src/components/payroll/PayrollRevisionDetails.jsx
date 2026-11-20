@@ -5,14 +5,26 @@ const words = {
   CONTRACTUAL_MONTHLY_GROSS: 'Agreed monthly gross', UNRESOLVED: 'Not configured',
   GROSS: 'Monthly gross salary', CONTRACTUAL_BASE: 'Agreed monthly gross', DAILY_WAGES: 'Daily wage earnings', BASIC: 'Basic pay',
   HALF_UP: 'Nearest amount (half rounds up)', FLOOR: 'Round down', CEIL: 'Round up',
+  WORK_CALENDAR: 'Use approved work calendar',
+  EXCLUDE_PAID_CALENDAR_DAYS: 'Use approved work calendar and preserve paid rest days',
+  CALENDAR_WEIGHTED_WITH_RESIDUAL: 'Reconcile split runs to the monthly salary',
+  NO_PAYABLE_ENTITLEMENT_ZERO: 'Zero only when the entire month has no payable entitlement',
+  MONTHLY_CONFIRMED: 'Confirmed monthly agreement',
+  HALF_EVEN: 'Nearest amount (half rounds to even)', DOWN: 'Round down', UP: 'Round up',
+  DAILY: 'Each day', LINE: 'Each line', AGGREGATE: 'Combined amount', MONTH: 'Monthly amount',
   APPLICABLE: 'Applies', NOT_APPLICABLE: 'Does not apply',
 };
 const label = value => words[value] || String(value).replaceAll('_', ' ').toLowerCase();
 const displayDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') ? new Date(`${value}T00:00:00+05:30`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }) : value;
 const money = value => value === null || value === undefined || value === '' ? 'Not configured' : `₹${value}`;
+const roundingSummary = rule => {
+  if (!rule || rule.method === 'UNRESOLVED') return 'Not configured';
+  return [label(rule.method), rule.precision == null ? null : `${rule.precision} decimal places`, rule.stage ? label(rule.stage) : null].filter(Boolean).join(' · ');
+};
 const fields = data => {
-  const config = data.data?.configuration || data.configuration || {};
-  const value = { ...data, ...data.data };
+  const snapshot = data.revision || data;
+  const value = { ...snapshot, ...snapshot.data };
+  const config = value.configuration || {};
   const entries = [
     ['Scheme', value.scheme], ['Establishment', value.establishment], ['State', value.jurisdiction],
     ['Applies to', value.group_code ? label(value.group_code) : !value.scheme ? 'All monthly-salaried employees' : null],
@@ -26,6 +38,17 @@ const fields = data => {
     ['Wage components', config.included_components?.map(label).join(', ')],
     ['Unpaid-leave calculation', value.lop_method ? `${label(value.lop_method)}${value.lop_method === 'FIXED_DIVISOR' ? ` (${value.lop_fixed_divisor ?? 'not configured'} days)` : ''}` : null],
     ['Joining / leaving calculation', value.partial_month_proration_method ? `${label(value.partial_month_proration_method)}${value.partial_month_proration_method === 'FIXED_DIVISOR' ? ` (${value.partial_month_fixed_divisor ?? 'not configured'} days)` : ''}` : null],
+    ...(!value.scheme ? [
+      ['Monthly salary basis', label(value.monthly_entitlement_method || 'UNRESOLVED')],
+      ['Split-run allocation', label(value.split_period_allocation_method || 'UNRESOLVED')],
+      ['Full-month unpaid treatment', label(value.full_month_unpaid_treatment || 'UNRESOLVED')],
+      ['Special package period', label(value.special_package_period || 'UNRESOLVED')],
+      ['Weekly offs inside explicit leave', label(value.leave_weekly_off_method || 'UNRESOLVED')],
+      ['Work calendar evidence reference', value.work_calendar_reference],
+      ['Unpaid-leave rounding', roundingSummary(value.rounding?.lop)],
+      ['Proration rounding', roundingSummary(value.rounding?.proration)],
+      ['Allocation rounding', roundingSummary(value.rounding?.allocation)],
+    ] : []),
     ['Sandwich deduction', typeof value.sandwich_enabled === 'boolean' ? value.sandwich_enabled ? 'Enabled' : 'Disabled' : null],
     ['Change reason', value.reason], ['Approval reference', value.approval_reference],
     ['Supporting reference', value.verification_reference], ['Reviewed by', value.advisor_name],

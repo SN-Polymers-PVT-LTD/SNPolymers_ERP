@@ -234,6 +234,7 @@ function App() {
 
                 <Route element={<ProtectedRoute allowedRoles={['admin','accounts']} />}>
                   <Route path="/admin/employee-management" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement /></React.Suspense>} />
+                  <Route path="/acct-requisitions/payroll-setup" element={<React.Suspense fallback={<AppChunkLoader />}><EmployeeManagement payrollSetup /></React.Suspense>} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={['accounts']} />}>
                   <Route path="/admin/payroll/statutory" element={<React.Suspense fallback={<AppChunkLoader />}><CompanyDeductions /></React.Suspense>} />

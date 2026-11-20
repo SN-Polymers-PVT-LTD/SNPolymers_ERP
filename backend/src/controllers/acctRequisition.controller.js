@@ -1768,7 +1768,7 @@ async function searchBeneficiariesByAcNo(req, res) {
   try {
     let query = supabase
       .from('beneficiary_master')
-      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
+      .select('id, account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
     query = searchBy === 'name'
       ? query.ilike('beneficiary_name', `%${prefix}%`)
       : query.like('account_number', `${prefix}%`);
@@ -1776,6 +1776,7 @@ async function searchBeneficiariesByAcNo(req, res) {
     if (error) throw error;
 
     const enriched = (data || []).map(b => ({
+      id: b.id,
       account_number: b.account_number,
       ifsc: b.ifsc,
       beneficiary_name: b.beneficiary_name,

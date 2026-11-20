@@ -17,6 +17,7 @@ const SearchableSelect = ({
   value = '',
   onChange,
   options = [],
+  filterLocally = true,
   onSelect,
   onCreate,
   createLabel = (q) => `+ Add "${q}" as new`,
@@ -86,10 +87,11 @@ const SearchableSelect = ({
   }, [open]);
 
   const filtered = useMemo(() => {
+    if (!filterLocally) return options;
     const q = (value || '').trim().toLowerCase();
     if (!q) return options;
     return options.filter(o => o.label.toLowerCase().includes(q));
-  }, [options, value]);
+  }, [options, value, filterLocally]);
 
   const exactMatch = options.some(o => (o.label || '').trim().toLowerCase() === (value || '').trim().toLowerCase());
 
@@ -128,6 +130,7 @@ const SearchableSelect = ({
         autoComplete="off"
         size={size}
         onFocus={() => { onFocus?.(); setOpen(true); }}
+        onClick={() => setOpen(true)}
         onBlur={(e) => { onBlur?.(e); }}
         onChange={(e) => { onChange?.(e.target.value); setOpen(true); }}
       />

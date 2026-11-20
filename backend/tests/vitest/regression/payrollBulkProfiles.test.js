@@ -23,6 +23,19 @@ test('group candidates filter safely, paginate and expose protected existing pro
  const other=await request('GET',url.replace('SNP%20Factory','Fabric%20Factory'));expect(other.body.result.total).toBe(0);
  const literal=await request('GET','/statutory-profiles/setup-candidates?search='+encodeURIComponent('%,(employee_name.ilike.*)'));expect(literal.status).toBe(200);expect(literal.body.result.total).toBe(0);
 });
+test('separates exempt Local workers from configured and unconfigured employees',async()=>{
+ const casual=await fixture({factory:true,count:2}), local=await fixture({factory:true,local:true});
+ const tag='EXEMPT_'+crypto.randomUUID();
+ await q(db,'UPDATE hr_employees SET employee_name=$2,updated_by=$3 WHERE id=ANY($1::uuid[])',[[...casual.employees,...local.employees].map(e=>e.id),tag,users.admin.id]);
+ await save(db,casual.employees[0].id,users.accounts.id,0,[await template(casual)]);
+ const url='/statutory-profiles/setup-candidates?search='+tag;
+ for(const [status, employee] of [['has_setup',casual.employees[0]],['needs_setup',casual.employees[1]],['exempt',local.employees[0]]]){
+  const response=await request('GET',url+'&status='+status);
+  expect(response.status).toBe(200);
+  expect(response.body.result).toMatchObject({total:1,has_setup_total:1,needs_setup_total:1,exempt_total:1,all_total:3});
+  expect(response.body.result.employees.map(e=>e.id)).toEqual([employee.id]);
+ }
+});
 test('one confirmed template creates 21 audited profiles without copying deduction rates',async()=>{
  const f=await fixture({factory:true,count:21}),data=await template(f),response=await bulk(body(f,data));expect(response.status).toBe(200);expect(response.body.result.success).toBe(true);expect(response.body.result.results).toHaveLength(21);
  expect((await one(db,"SELECT count(*) count FROM payroll_source_history_revisions WHERE employee_id=ANY($1::uuid[]) AND source_kind='STATUTORY_PROFILE'",[f.employees.map(e=>e.id)])).count).toBe('21');

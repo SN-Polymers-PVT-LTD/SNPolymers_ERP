@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useState } from 'react';
 import { useSearchParams, useInRouterContext } from 'react-router-dom';
 
-const VALID_STATUSES = ['needs_setup', 'has_setup', 'all'];
+const VALID_STATUSES = ['needs_setup', 'has_setup', 'exempt', 'all'];
 
 function useSafeSearchParams() {
   const inRouter = useInRouterContext();
@@ -25,7 +25,7 @@ function useSafeSearchParams() {
  * useEmployeePayrollSetupUrlState
  *
  * Bi-directionally synchronizes Employee Payroll Setup view state with URL parameters:
- * - status: 'needs_setup' (default) | 'has_setup' | 'all'
+ * - status: 'needs_setup' (default) | 'has_setup' | 'exempt' | 'all'
  * - search: text query (omitted when empty)
  * - department: selected department (omitted when empty)
  * - category: selected employee category (omitted when empty)

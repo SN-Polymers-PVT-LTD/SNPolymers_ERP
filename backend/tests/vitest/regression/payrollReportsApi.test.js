@@ -50,7 +50,16 @@ describe('scoped saved payroll reporting API and PostgreSQL',()=>{
  });
  test('Excel and printable exports match the same saved rows/totals and protect injected identity text',async()=>{
   const f=await fixture({}),id=f.rows[0].id;await q(db,'UPDATE hr_employees SET employee_name=$1,updated_by=$2 WHERE id=$3',['=HYPERLINK("evil")',users.admin.id,f.employees[0].id]);await reviewAction(db,id,'calculate',users.accounts.id);
-  const response=await request('/reports/export?'+query({run_id:f.run.id,format:'xlsx'}),'accounts',true);expect(response.status).toBe(200);expect(response.headers.get('cache-control')).toBe('no-store');const book=new ExcelJS.Workbook();await book.xlsx.load(response.body);expect(book.getWorksheet('Salary Register').getCell('C3').value).toBe("'=HYPERLINK(\"evil\")");expect(book.getWorksheet('Salary Register').getCell('L3').value).toBe('30000.00');
+  const response=await request('/reports/export?'+query({run_id:f.run.id,format:'xlsx'}),'accounts',true);
+  expect(response.status).toBe(200);
+  expect(response.headers.get('cache-control')).toBe('no-store');
+  expect(response.headers.get('content-disposition')).toBe('attachment; filename="payroll-salary-register.xlsx"');
+  const book=new ExcelJS.Workbook();
+  await book.xlsx.load(response.body);
+  const sheet=book.worksheets[0];
+  expect(sheet.name).toBe('Salary Register');
+  expect(sheet.getCell('C3').value).toBe("'=HYPERLINK(\"evil\")");
+  expect(sheet.getCell('L3').value).toBe(30000);
   const printable=await request('/reports/export?'+query({run_id:f.run.id,format:'html'}),'accounts',true);expect(printable.body.toString()).toContain('30000.00');expect(printable.body.toString()).toContain('not approved liabilities');
   const empty=await request('/reports/export?'+query({run_id:f.run.id,search:'does not exist',format:'xlsx'}),'accounts',true);const blank=new ExcelJS.Workbook();await blank.xlsx.load(empty.body);expect(blank.getWorksheet('Salary Register').rowCount).toBe(2);
  });

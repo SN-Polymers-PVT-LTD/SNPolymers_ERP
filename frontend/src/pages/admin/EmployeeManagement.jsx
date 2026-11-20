@@ -9,19 +9,19 @@ import { getEmployees } from '../../api/hrEmployeesApi';
 import { getAllPayStructures } from '../../api/hrPayStructuresApi';
 import { exportAllEmployeeSheetsToExcel } from '../../utils/exportHelpers';
 
-export default function EmployeeManagement() {
+export default function EmployeeManagement({ payrollSetup = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlTab = searchParams.get('tab');
   const {user}=useAuth();
   const isAdmin=user?.role==='admin',allowed=['admin','accounts'].includes(user?.role);
-  const activeTab = !isAdmin ? 'payroll-setup' : urlTab === 'pay-structure' ? urlTab : 'directory';
+  const activeTab = payrollSetup ? 'payroll-setup' : urlTab === 'pay-structure' ? urlTab : 'directory';
   const selectedEmployeeId = searchParams.get('employeeId') || '';
   const [isExportingWorkbook, setIsExportingWorkbook] = useState(false);
 
   const handleTabChange = (tab, employeeId = '') => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
-      if (['pay-structure','payroll-setup'].includes(tab)) {
+      if (tab === 'pay-structure') {
         next.set('tab', tab);
         if (employeeId) next.set('employeeId', employeeId); else next.delete('employeeId');
       } else {
@@ -56,8 +56,13 @@ export default function EmployeeManagement() {
   };
 
   if(!allowed)return <p role="alert">Accounts or Admin employee management access is required.</p>;
-  if(!isAdmin&&urlTab!=='payroll-setup'){const params=new URLSearchParams(searchParams);params.set('tab','payroll-setup');return <Navigate to={{pathname:'/admin/employee-management',search:'?'+params.toString()}} replace/>;}
-  if(isAdmin&&urlTab==='payroll-setup')return <p role="alert">Employee payroll setup is maintained by Accounts only.</p>;
+  if (!payrollSetup && (!isAdmin || urlTab === 'payroll-setup')) {
+    const params = new URLSearchParams(searchParams);
+    params.delete('tab');
+    if (selectedEmployeeId && !params.has('employee')) params.set('employee', selectedEmployeeId);
+    params.delete('employeeId');
+    return <Navigate to={{ pathname: '/acct-requisitions/payroll-setup', search: params.toString() }} replace />;
+  }
   return (
     <div className="space-y-6">
       {/* Module Title & Tab Navigation */}
@@ -66,7 +71,7 @@ export default function EmployeeManagement() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
-                Admin
+                Accounts
               </span>
               <span className="text-xs text-slate-500">/</span>
               <span className="text-xs text-slate-400 font-semibold">Payroll Management</span>
@@ -75,34 +80,22 @@ export default function EmployeeManagement() {
               Employee Payroll Setup
             </h1>
             <p className="text-xs text-slate-400 mt-1">
-              Assign company deduction setups to employees, manage dated deduction history, and maintain statutory coverage.
+              {isAdmin ? 'Review statutory coverage and employee deduction history.' : 'Assign company deduction setups and maintain dated statutory coverage.'}
             </p>
           </div>
 
           {/* Tab Navigation */}
-          <nav className="flex space-x-6 border-b border-white/10" aria-label="Tabs">
-            {user?.role === 'admin' && (
-              <Link
-                to="/admin/payroll/policies"
-                className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all duration-200"
-              >
-                Payroll Policy Master
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={() => handleTabChange('payroll-setup')}
-              className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-amber-500 text-slate-100 transition-all duration-200 cursor-pointer"
-            >
+          {!isAdmin && <nav className="flex space-x-6 border-b border-white/10" aria-label="Tabs">
+            <span className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-amber-500 text-slate-100" aria-current="page">
               Employee Payroll Setup
-            </button>
+            </span>
             <Link
               to="/admin/payroll/statutory"
-              className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all duration-200"
+              className="pb-3 text-xs font-extrabold uppercase tracking-wider text-slate-400 hover:text-slate-200"
             >
               Statutory Deduction Master
             </Link>
-          </nav>
+          </nav>}
         </header>
       ) : (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -157,18 +150,16 @@ export default function EmployeeManagement() {
                   </Button>
                 </>
               )}
-              {!isAdmin && (
-                <Button size="sm" variant="primary" onClick={() => handleTabChange('payroll-setup')}>
-                  Employee Payroll Setup
-                </Button>
-              )}
+              <Link to="/acct-requisitions/payroll-setup" className="px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white">
+                Employee Payroll Setup
+              </Link>
             </div>
           </div>
         </div>
       )}
 
       {/* Render Active View */}
-      {activeTab === 'payroll-setup' ? <EmployeeStatutorySetup key={selectedEmployeeId} initialEmployeeId={selectedEmployeeId} onEmployeeChange={id=>handleTabChange('payroll-setup',id)}/> : activeTab === 'directory' ? (
+      {activeTab === 'payroll-setup' ? <EmployeeStatutorySetup /> : activeTab === 'directory' ? (
         <EmployeeMaster
           onNavigateToPayStructure={(empId) => handleTabChange('pay-structure', empId)}
         />

@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Select, Pagination } from '../ui';
+import { Button, Input, Pagination } from '../ui';
 import { getEmployeeAdjustments, createEmployeeAdjustment, actOnAdjustment } from '../../api/payrollLedgerApi';
 
 const blank = () => ({
-  kind: 'BONUS',
+  kind: 'ADVANCE',
   amount: '',
   effective_date: '',
   evidence_reference: '',
   installment: '',
-  recovery_start_month: '',
-  original_period_from: '',
-  original_period_to: ''
+  recovery_start_month: ''
 });
 
 const message = (e) => e?.response?.data?.message || e.message;
 
-export default function EmployeeAdjustments({ employeeId, rowId, user, employeeSelf = false }) {
+export default function EmployeeAdjustments({ employeeId, user, employeeSelf = false }) {
   const client = useQueryClient();
   const [page, setPage] = useState(1);
   const [draft, setDraft] = useState(blank);
@@ -38,11 +36,9 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
     mutationFn: () =>
       createEmployeeAdjustment(employeeId, {
         ...draft,
-        target_row_id: draft.kind === 'ADVANCE' ? null : rowId,
-        installment: draft.kind === 'ADVANCE' ? draft.installment : null,
-        recovery_start_month: draft.kind === 'ADVANCE' ? draft.recovery_start_month : null,
-        original_period_from: draft.kind === 'SALARY_ARREARS' ? draft.original_period_from : null,
-        original_period_to: draft.kind === 'SALARY_ARREARS' ? draft.original_period_to : null
+        target_row_id: null,
+        original_period_from: null,
+        original_period_to: null
       }),
     onSuccess: () => {
       setDraft(blank());
@@ -93,9 +89,9 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
         ) : (
           <div className="space-y-3">
             <div className="flex items-center justify-between text-slate-500 text-xs font-mono">
-              <p>{query.data.total} ledger entries.</p>
+              <p>{query.data.rows.filter(row => row.kind === 'ADVANCE').length} advances on this page.</p>
             </div>
-            {query.data.rows.map(row => (
+            {query.data.rows.filter(row => row.kind === 'ADVANCE').map(row => (
               <div key={row.id} className="p-3.5 rounded-xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5 space-y-2">
                 <p className="font-medium text-slate-800 dark:text-slate-200">
                   {row.kind} · {row.amount} · {row.status} · {row.effective_date}
@@ -105,7 +101,7 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
                 {user.role === 'ho' && !employeeSelf && row.created_by !== user.id && ['DRAFT', 'APPROVED', 'PAUSED'].includes(row.status) && (
                   <div className="flex flex-wrap gap-2 pt-1">
                     {(row.status === 'DRAFT'
-                      ? ['approve', 'reject']
+                      ? row.kind === 'ADVANCE' ? ['approve', 'reject'] : ['reject']
                       : row.kind === 'ADVANCE'
                       ? [row.status === 'PAUSED' ? 'resume' : 'pause']
                       : []
@@ -194,6 +190,7 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
           </form>
         )}
 
+        {['accounts', 'admin'].includes(user.role) && !employeeSelf && (
         <form
           className="space-y-3 p-3.5 rounded-xl bg-white dark:bg-white/[0.03] border border-slate-200 dark:border-white/5"
           onSubmit={e => {
@@ -202,15 +199,9 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
           }}
         >
           <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
-            Record an evidenced adjustment
+            Record a salary advance
           </h3>
-          <Select
-            label="Adjustment kind"
-            value={draft.kind}
-            options={['BONUS', 'SALARY_ARREARS', ...(['accounts', 'admin'].includes(user.role) ? ['ADVANCE'] : [])].map(value => ({ value, label: value }))}
-            onChange={e => setDraft(d => ({ ...d, kind: e.target.value }))}
-          />
-          {['amount', 'effective_date', 'evidence_reference', ...(draft.kind === 'ADVANCE' ? ['installment', 'recovery_start_month'] : draft.kind === 'SALARY_ARREARS' ? ['original_period_from', 'original_period_to'] : [])].map(key => (
+          {['amount', 'effective_date', 'evidence_reference', 'installment', 'recovery_start_month'].map(key => (
             <Input
               key={key}
               label={`Adjustment ${key.replaceAll('_', ' ')}`}
@@ -224,6 +215,7 @@ export default function EmployeeAdjustments({ employeeId, rowId, user, employeeS
             Record for HO approval
           </Button>
         </form>
+        )}
 
         {[save.error, action.error].filter(Boolean).map((e, i) => (
           <p role="alert" key={i} className="text-rose-500 font-medium text-xs">

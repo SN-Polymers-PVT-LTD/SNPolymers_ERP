@@ -29,6 +29,12 @@ test('saves and version-checks drafts, and rejects unauthorized actors', async (
 
 const { randomUUID } = require('crypto');
 const { statutory, pt } = require('../../helpers/payrollMasterFixtures');
+test('statutory review only warns about active adjustment types', async () => {
+ const [{ warnings }] = await q("SELECT payroll_master_configuration_warnings('statutory', $1) AS warnings", [statutory()]);
+ expect(warnings.filter(issue => issue.code === 'ADJUSTMENT_CLASSIFICATION_REQUIRED').map(issue => issue.field))
+  .toEqual(['adjustment_basis.REIMBURSEMENT', 'adjustment_basis.RECOVERY']);
+});
+
 async function setupDraft() {
  const [{ id: stateId }] = await q('SELECT id FROM payroll_statutory_states ORDER BY name LIMIT 1');
  const establishment = 'Guided ' + randomUUID();
@@ -70,6 +76,20 @@ test('review leaves no rules or setup; publish commits all schemes and safely re
  expect(await publishDraft(draft, review.review_token, key)).toEqual(published);
  await rejectsWith(() => publishDraft(draft, review.review_token, randomUUID()), 'PY409');
  await rejectsWith(() => q('SELECT save_payroll_guided_deduction_draft($1,1,$2,$3)', [draft.id, '{}', accounts]), 'PY409');
+});
+
+test('publishes without a reference and replays an equivalent blank reference', async () => {
+ const draft = await setupDraft();
+ const review = await reviewDraft(draft);
+ const key = randomUUID();
+ const publishWith = async reference => {
+  const [{ r }] = await q('SELECT publish_payroll_guided_deduction_draft($1,$2,false,$3,$4,$5,$6) r',
+   [draft.id, draft.version, review.review_token, reference, key, accounts]);
+  return r;
+ };
+ const result = await publishWith(null);
+ expect(result.setup.evidence_reference).toBe('Guided Accounts publication (no approval reference supplied)');
+ expect(await publishWith(' ')).toEqual(result);
 });
 
 test('a binding failure during publication rolls back rules, audit events and setup', async () => {
@@ -115,4 +135,58 @@ test('lists unpublished drafts for Accounts with pagination and state names', as
  const after = await list(accounts);
  expect(after.total).toBe(before.total - 1);
  expect(after.drafts.some(row => row.id === draft.id)).toBe(false);
+});
+
+test('publishes the same Pan India and state PT revisions to both factory scopes', async () => {
+ const original = await setupDraft();
+ const data = { ...original.data, establishment: 'All factories', all_factories: true };
+ const [{ r: draft }] = await q('SELECT save_payroll_guided_deduction_draft($1,1,$2,$3) r',
+  [original.id, JSON.stringify(data), accounts]);
+ const reviewed = await reviewDraft(draft);
+ expect(reviewed.blockers).toEqual([]);
+ expect(reviewed.publishable).toBe(true);
+ const key = randomUUID();
+ const result = await publishDraft(draft, reviewed.review_token, key);
+ expect(result.setups.map(s => s.establishment_name)).toEqual(['Fabric Factory','S.N. Polymers Factory']);
+ expect(new Set(result.setups.map(s => s.statutory_scope_id)).size).toBe(2);
+ for (const scheme of ['epf', 'pt']) {
+  const ids = new Set(result.setups.map(s => s[scheme + '_revision_id']));
+  expect(ids.size).toBe(1);
+  const revisionId = [...ids][0];
+  const bindings = await q('SELECT statutory_scope_id FROM payroll_statutory_scope_bindings WHERE revision_id=$1', [revisionId]);
+  expect(new Set(bindings.map(b => b.statutory_scope_id))).toEqual(new Set(result.setups.map(s => s.statutory_scope_id)));
+  for (const setup of result.setups) {
+   const [{ r }] = await q("SELECT resolve_payroll_master('statutory',$1,'2098-01-01',$2) r",
+    [{ scheme: scheme.toUpperCase(), statutory_scope_id: setup.statutory_scope_id }, accounts]);
+   expect(r).toMatchObject({revision_id:revisionId,statutory_scope_id:setup.statutory_scope_id});
+  }
+ }
+ expect(await publishDraft(draft, reviewed.review_token, key)).toEqual(result);
+ const [{ id: otherState }] = await q('SELECT id FROM payroll_statutory_states WHERE id<>$1 ORDER BY name LIMIT 1', [data.state_id]);
+ await rejectsWith(() => q("SELECT save_payroll_company_deduction_setup($1,'Third factory','2098-01-01',$2,'Synthetic test',$3)",
+  [otherState, {PT:result.setup.pt_revision_id}, accounts]), '22023');
+ const [{ r: reuseDraft }] = await q('SELECT save_payroll_guided_deduction_draft(NULL,0,$1,$2) r',
+  [{ ...data, all_factories:false, state_id:otherState, establishment:'Third factory', rules:{EPF:{revision_id:result.setup.epf_revision_id}} }, accounts]);
+ const reuseReview = await reviewDraft(reuseDraft);
+ expect(reuseReview.rules.EPF.reused).toBe(true);
+ expect(reuseReview.blockers).toEqual([]);
+ const reused = await publishDraft(reuseDraft, reuseReview.review_token, randomUUID());
+ expect(reused.setup.epf_revision_id).toBe(result.setup.epf_revision_id);
+});
+
+test('publishes a Pan India EPF-only setup without collecting a state', async () => {
+ const original = await setupDraft();
+ const data = {
+  ...original.data, state_id: null, pan_india: true,
+  rules: { EPF: original.data.rules.EPF },
+ };
+ const [{r: draft}] = await q('SELECT save_payroll_guided_deduction_draft($1,1,$2,$3) r', [original.id, data, accounts]);
+ const reviewed = await reviewDraft(draft);
+ expect(reviewed.blockers).toEqual([]);
+ const published = await publishDraft(draft, reviewed.review_token, randomUUID());
+ expect(published.setup).toMatchObject({state_id:null,state_name:'Pan India',pt_revision_id:null});
+ const [{r: options}] = await q("SELECT get_payroll_company_deduction_options(NULL,'2098-01-01',$1,1,100) r",[accounts]);
+ expect(options.rules.map(rule=>rule.id)).toContain(published.setup.epf_revision_id);
+ const [{r: listed}] = await q('SELECT get_payroll_company_deduction_setups($1,$2,1,100) r',[accounts, data.establishment]);
+ expect(listed.setups).toContainEqual(expect.objectContaining({id:published.setup.id,state_name:'Pan India'}));
 });

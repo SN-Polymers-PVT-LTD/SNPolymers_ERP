@@ -18,7 +18,6 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, 
   const [group, setGroup] = useState('');
   const [from, setFrom] = useState(owned ? run.period_from : '');
   const [to, setTo] = useState(owned ? run.period_to : '');
-  const [cycle, setCycle] = useState('Monthly');
   const [candidate, setCandidate] = useState('');
   const [page, setPage] = useState(1);
   const [added, setAdded] = useState(false);
@@ -38,12 +37,15 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, 
   const create = useMutation({
     mutationFn: () => {
       const selected = context.data.groups.find((g) => `${g.code}:${g.department}` === group);
+      const end = new Date(`${to}T00:00:00Z`);
+      end.setUTCDate(end.getUTCDate() + 1);
+      const fullMonth = from.endsWith('-01') && from.slice(0, 7) === to.slice(0, 7) && end.getUTCDate() === 1;
       return generatePayrollRun({
         group_code: selected.code,
         department: selected.department,
         period_from: from,
         period_to: to,
-        cycle,
+        cycle: fullMonth ? 'Monthly' : 'Custom',
       });
     },
     onSuccess: (r) => {
@@ -73,9 +75,9 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, 
   const valid = from && to && from <= to;
 
   const availableGroups = (context.data?.groups || []).filter((g) =>
-    user?.role === 'factory_manager'
+    g.code !== 'LEGACY_PROJECTS' && (user?.role === 'factory_manager'
       ? ['SNP Factory', 'Fabric Factory'].includes(g.department)
-      : ['Head Office', 'Projects'].includes(g.department)
+      : ['Head Office', 'Projects'].includes(g.department))
   );
 
   return (
@@ -218,7 +220,7 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, 
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Select
               label="Payroll group / department"
               value={group}
@@ -230,16 +232,6 @@ export default function PayrollDraftEditor({ user, run, onRunChange, onUpdated, 
                 })),
               ]}
               onChange={(e) => setGroup(e.target.value)}
-            />
-
-            <Select
-              label="Payroll cycle"
-              value={cycle}
-              options={['Monthly', 'Fortnightly', 'Weekly', 'Custom'].map((v) => ({
-                value: v,
-                label: v,
-              }))}
-              onChange={(e) => setCycle(e.target.value)}
             />
 
             <Input

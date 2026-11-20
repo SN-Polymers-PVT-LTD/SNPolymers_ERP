@@ -65,6 +65,8 @@ const getStatusBadgeVariant = (st) => {
 const errorMessage = (e) =>
   e?.response?.data?.message || e?.response?.data?.result?.code || e.message;
 
+const showPayrollDetailsDiagnostics = false;
+
 export default function PayrollReview() {
   const { user } = useAuth();
   const allowed = ['admin', 'accounts', 'ho', 'factory_manager'].includes(user?.role);
@@ -868,7 +870,7 @@ export default function PayrollReview() {
                   {/* Salary Preview Visual Diagnostics */}
                   <div className="space-y-4">
                     {detail.data.current_preview ? (
-                      <SalaryPreview preview={detail.data.current_preview} inModal={true} />
+                      <SalaryPreview preview={detail.data.current_preview} inModal={true} showTechnicalDetails={showPayrollDetailsDiagnostics} />
                     ) : (
                       <p className="text-xs text-slate-400 p-4 rounded-xl bg-white/5">
                         Current salary preview unavailable.
@@ -877,7 +879,7 @@ export default function PayrollReview() {
                   </div>
 
                   {/* Changes Since Saved Accordion */}
-                  {detail.data.changes_since_saved && (
+                  {showPayrollDetailsDiagnostics && detail.data.changes_since_saved && (
                     <div className="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-2">
@@ -942,7 +944,6 @@ export default function PayrollReview() {
                     <EmployeeAdjustments
                       key={detail.data.row.employee_id}
                       employeeId={detail.data.row.employee_id}
-                      rowId={detail.data.row.id}
                       employeeSelf={detail.data.employee_self}
                       user={user}
                     />
@@ -1007,7 +1008,7 @@ export default function PayrollReview() {
                             )}
 
                             {v.calculation_snapshot && (
-                              <SalaryPreview preview={v.calculation_snapshot} inModal={true} isSnapshot={true} />
+                              <SalaryPreview preview={v.calculation_snapshot} inModal={true} isSnapshot={true} showTechnicalDetails={showPayrollDetailsDiagnostics} />
                             )}
                           </div>
                         </details>

@@ -1956,7 +1956,7 @@ module.exports = {
         "state_id": {
           "type": "uuid",
           "udtName": "uuid",
-          "nullable": false,
+          "nullable": true,
           "default": null
         },
         "establishment_name": {

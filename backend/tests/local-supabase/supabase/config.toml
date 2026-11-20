@@ -30,7 +30,7 @@ enabled = false
 enabled = false
 
 # Email testing not needed in CI.
-[inbucket]
+[local_smtp]
 enabled = false
 
 [storage]

@@ -212,18 +212,27 @@ describe('App Smoke Tests', () => {
     window.history.pushState({}, '', '/admin/employee-management?tab=payroll-setup');
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Employee Payroll Setup' })).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(window.location.pathname).toBe('/admin/employee-management');
+    expect(window.location.pathname).toBe('/acct-requisitions/payroll-setup');
     expect(screen.getAllByRole('link', { name: 'Acct Requisitions' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Bank Balances' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Statutory Deduction Master' }).length).toBeGreaterThan(0);
-    expect(screen.queryByRole('link', { name: 'Employee Payroll Setup' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Employee Payroll Setup' })[0]).toHaveAttribute('href', '/acct-requisitions/payroll-setup');
   });
-  it('denies Admin employee payroll setup maintenance',async()=>{setAuthenticatedRole('admin');window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup');render(<App/>);expect(await screen.findByRole('alert')).toHaveTextContent('Accounts only');expect(screen.queryByRole('button',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();});
+  it('opens employee payroll setup for Admin in read-only mode', async () => {
+    setAuthenticatedRole('admin');
+    window.history.pushState({}, '', '/acct-requisitions/payroll-setup');
+    render(<App />);
+    expect(await screen.findByRole('heading', {name:'Employee Payroll Setup'})).toBeInTheDocument();
+    expect(await screen.findByText('View employee deduction assignments and dated statutory history.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Payroll Policy Master' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'Assign setup'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:/Select page/})).not.toBeInTheDocument();
+  });
   it.each(['admin','accounts','ho','factory_manager','je','zo'])('removes the old profiles route for %s',async role=>{setAuthenticatedRole(role);window.history.pushState({},'', '/admin/payroll/statutory-profiles?employeeId=employee-1');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/'));expect(screen.queryByRole('heading',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();});
-  it.each(['directory','pay-structure'])('Accounts cannot enter the Admin %s tab through Employee Management',async tab=>{setAuthenticatedRole('accounts');window.history.pushState({},'',`/admin/employee-management?tab=${tab}`);render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(new URLSearchParams(window.location.search).get('tab')).toBe('payroll-setup');expect(screen.queryByRole('button',{name:'Export Both Sheets'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Employee & Worker Master'})).not.toBeInTheDocument();});
-  it('opens employee payroll setup with the selected employee',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup&employeeId=employee-1');render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(new URLSearchParams(window.location.search).get('employeeId')).toBe('employee-1');expect(await screen.findByRole('dialog',{name:'Employee statutory setup details'})).toBeInTheDocument();});
+  it.each(['directory','pay-structure'])('Accounts cannot enter the Admin %s tab through Employee Management',async tab=>{setAuthenticatedRole('accounts');window.history.pushState({},'',`/admin/employee-management?tab=${tab}`);render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(window.location.pathname).toBe('/acct-requisitions/payroll-setup');expect(screen.queryByRole('button',{name:'Export Both Sheets'})).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'Employee & Worker Master'})).not.toBeInTheDocument();});
+  it('opens employee payroll setup with the selected employee',async()=>{setAuthenticatedRole('accounts');window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup&employeeId=employee-1');render(<App/>);expect(await screen.findByRole('heading',{name:'Employee Payroll Setup'})).toBeInTheDocument();expect(new URLSearchParams(window.location.search).get('employee')).toBe('employee-1');expect(await screen.findByRole('dialog',{name:'Employee statutory setup details'})).toBeInTheDocument();});
   it.each(['ho','factory_manager','je','zo'])('denies %s direct employee payroll setup administration',async role=>{
-    setAuthenticatedRole(role);window.history.pushState({},'', '/admin/employee-management?tab=payroll-setup');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();
+    setAuthenticatedRole(role);window.history.pushState({},'', '/acct-requisitions/payroll-setup');render(<App/>);await waitFor(()=>expect(window.location.pathname).toBe('/dashboard'));expect(screen.queryByRole('link',{name:'Employee Payroll Setup'})).not.toBeInTheDocument();
   });
   it.each([['policies','Payroll Policy Master']])('opens Admin payroll %s deep link with Payroll Management navigation', async (kind,title) => {
     setAuthenticatedRole('admin');

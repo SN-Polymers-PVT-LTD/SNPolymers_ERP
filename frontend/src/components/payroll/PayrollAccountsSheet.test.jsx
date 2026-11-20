@@ -10,13 +10,15 @@ vi.mock('../../api/payrollAccountsApi');vi.mock('../../api/acctRequisitionsApi')
 let user={id:'accounts',role:'accounts'};
 vi.mock('../AuthContext',()=>({useAuth:()=>({user})}));
 const salary={financial_readiness:true,final_net_salary:'9007199254740993.01',gross_after_lop:'9007199254740999.01',earnings:[],deductions:[],blockers:[],statutory:[],monthly_reconciliation:[],source_references:{},configuration_warnings:[]};
-const row={id:'item',payroll_row_id:'payroll',delivery_id:'delivery',delivery_version:3,employee_name:'Test employee',employee_code:'EMP-TEST',active:true,disposition:'WITH_ACCOUNTS',salary,period_from:'2026-08-01',period_to:'2026-08-31',beneficiary_id:'beneficiary',beneficiary_name:'Test beneficiary',beneficiary_ac_no:'123456789012',source_stale:false};
+const row={id:'item',payroll_row_id:'payroll',delivery_id:'delivery',delivery_version:3,employee_name:'Test employee',employee_code:'EMP-TEST',active:true,disposition:'WITH_ACCOUNTS',salary,period_from:'2026-08-01',period_to:'2026-08-31',beneficiary_id:'beneficiary',beneficiary_name:'Test beneficiary',beneficiary_ac_no:'123456789012',beneficiary_ifsc:'TEST0001234',beneficiary_bank_name:'Recipient Bank',source_stale:false};
 const payload={sheet:{id:'sheet',sheet_number:'AC-100',sheet_status:'Open'},run:{department:'Fabric Factory',period_from:'2026-08-01',period_to:'2026-08-31'},rows:[row]};
 const mount=(ho=false)=>{const client=new QueryClient({defaultOptions:{queries:{retry:false},mutations:{retry:false}}});const view=render(<QueryClientProvider client={client}><MemoryRouter><PayrollAccountsSheet sheetId="sheet" ho={ho}/></MemoryRouter></QueryClientProvider>);return {...view,client};};
 beforeEach(()=>{vi.resetAllMocks();user={id:'accounts',role:'accounts'};api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:payload}});accounts.getBankBalances.mockResolvedValue({data:{bankBalances:[{bank_name:'Test debit bank'}]}});accounts.getBeneficiaries.mockResolvedValue({data:{beneficiaries:[{id:'beneficiary',beneficiary_name:'Test beneficiary',account_number:'123456789012'}]}});for(const fn of ['saveSalaryPaymentDetails','submitPayrollAccountsSheet','actOnSalary','recordSalaryPayment','resubmitSalaryPayment'])api[fn].mockResolvedValue({data:{success:true}});});
 test('Accounts sees exact salary and completes payment metadata without salary re-entry',async()=>{
  mount();expect(await screen.findByText('₹9,00,71,99,25,47,40,993.01')).toBeInTheDocument();expect(screen.getByRole('button',{name:'Send to HO'})).toBeDisabled();
- fireEvent.click(screen.getByRole('button',{name:'Payment details'}));await screen.findByLabelText('Employee beneficiary');fireEvent.change(screen.getByLabelText('Debit bank'),{target:{value:'Test debit bank'}});fireEvent.click(screen.getByRole('button',{name:'Save'}));
+ fireEvent.change(screen.getByLabelText('Debit bank for Test employee'),{target:{value:'Test debit bank'}});
+ fireEvent.change(screen.getByLabelText('Payment mode for Test employee'),{target:{value:'NEFT'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save payment details'}));
  await waitFor(()=>expect(api.saveSalaryPaymentDetails).toHaveBeenCalledWith('delivery',{expected_version:3,bank:'Test debit bank',mode:'NEFT',beneficiary_id:'beneficiary',cheque_no:null,cheque_date:null}));
  expect(api.actOnSalary).not.toHaveBeenCalled();expect(screen.queryByLabelText('Salary amount')).not.toBeInTheDocument();
 });
@@ -63,13 +65,19 @@ test('server-paginated second-page salaries remain visible and actionable',async
  expect(screen.queryByText('First page employee')).not.toBeInTheDocument();
 });
 
-test('new recipient search starts with employee name and offers an explicit broader search',async()=>{
- api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,rows:[{...row,beneficiary_id:null}]}}});
- mount();fireEvent.click(await screen.findByRole('button',{name:'Payment details',exact:true}));
- expect(screen.getByLabelText('Find employee beneficiary')).toHaveValue('Test employee');
- expect(screen.getByLabelText('Employee beneficiary')).toHaveValue('');
- fireEvent.click(screen.getByRole('button',{name:'Show all saved beneficiaries'}));
- expect(screen.getByLabelText('Find employee beneficiary')).toHaveValue('');
+test('selecting a saved account fills all four beneficiary fields', async () => {
+ api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,rows:[{...row,beneficiary_id:null,beneficiary_ac_no:null}]}}});
+ accounts.searchBeneficiariesByAcNo.mockResolvedValue({data:{beneficiaries:[{
+  id:'beneficiary',account_number:'123456789012',beneficiary_name:'Test beneficiary',ifsc:'TEST0001234',beneficiary_bank_name:'Recipient Bank',
+ }]}});
+ mount();
+ const account=await screen.findByLabelText('Account number for Test employee');
+ fireEvent.change(account,{target:{value:'123'}});
+ fireEvent.click(await screen.findByRole('button',{name:/123456789012.*Test beneficiary/}));
+ expect(account).toHaveValue('123456789012');
+ expect(screen.getByLabelText('IFSC for Test employee')).toHaveValue('TEST0001234');
+ expect(screen.getByLabelText('Beneficiary name for Test employee')).toHaveValue('Test beneficiary');
+ expect(screen.getByLabelText('Beneficiary bank for Test employee')).toHaveDisplayValue('Recipient Bank');
 });
 
 test('paid salaries guide Accounts to the register rather than another HO review',async()=>{
@@ -77,4 +85,64 @@ test('paid salaries guide Accounts to the register rather than another HO review
  mount();expect(await screen.findByText(/Payments on this page are recorded/)).toBeInTheDocument();
  expect(screen.getByRole('link',{name:'Open Payroll Register'})).toHaveAttribute('href','/hr/payroll/register');
  expect(screen.queryByText(/Next: HO reviews/)).not.toBeInTheDocument();
+});
+
+test('shows payroll payment data in separate requisition-style columns', async () => {
+ mount();
+ for (const name of ['Employee','Beneficiary','Debit bank','Take-home pay','Payment mode','Remarks','Status','Actions']) {
+  expect(await screen.findByRole('columnheader',{name})).toBeInTheDocument();
+ }
+ expect(screen.queryByRole('columnheader',{name:/WO\. no/i})).not.toBeInTheDocument();
+ expect(screen.getByLabelText('IFSC for Test employee')).toHaveValue('TEST0001234');
+ expect(screen.getByText(/Recipient Bank/)).toBeInTheDocument();
+ expect(screen.getByLabelText('Account number for Test employee')).toHaveValue('123456789012');
+ expect(screen.getByRole('button',{name:'Return salary'})).toHaveClass('text-red-600');
+});
+
+test('cheque details are edited in the row and must be saved before sending', async () => {
+ api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,rows:[
+  {...row,debit_bank_ac_type:'Test debit bank',payment_mode:'NEFT',payment_details_current:true},
+ ]}}});
+ mount();
+ const send=await screen.findByRole('button',{name:'Send to HO'});
+ expect(send).toBeEnabled();
+ fireEvent.change(screen.getByLabelText('Payment mode for Test employee'),{target:{value:'Cheque'}});
+ const save=screen.getByRole('button',{name:'Save payment details'});
+ expect(send).toBeDisabled();
+ expect(save).toBeDisabled();
+ fireEvent.change(screen.getByLabelText('Cheque number for Test employee'),{target:{value:'123456'}});
+ fireEvent.change(screen.getByLabelText('Cheque date for Test employee'),{target:{value:'2026-08-31'}});
+ fireEvent.click(save);
+ await waitFor(()=>expect(api.saveSalaryPaymentDetails).toHaveBeenCalledWith('delivery',{
+  expected_version:3,bank:'Test debit bank',mode:'Cheque',beneficiary_id:'beneficiary',
+  cheque_no:'123456',cheque_date:'2026-08-31',
+ }));
+ expect(api.submitPayrollAccountsSheet).not.toHaveBeenCalled();
+});
+
+test('projects the whole sheet balance live and saves incomplete payment details as a draft', async () => {
+ const draftRow={...row,salary:{...salary,final_net_salary:'57600.00'},beneficiary_id:null,beneficiary_name:null,beneficiary_ac_no:null};
+ api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,rows:[draftRow],total:21,bank_commitments:{'Test debit bank':'1000.00'}}}});
+ accounts.getBankBalances.mockResolvedValue({data:{bankBalances:[{bank_name:'Test debit bank',available_balance:'100000.00'}]}});
+ mount();
+ expect(await screen.findByText('₹99,000.00')).toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('Debit bank for Test employee'),{target:{value:'Test debit bank'}});
+ expect(screen.getByText('₹41,400.00')).toBeInTheDocument();
+ expect(screen.getByRole('button',{name:'Send to HO'})).toBeDisabled();
+ fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
+ await waitFor(()=>expect(api.saveSalaryPaymentDetails).toHaveBeenCalledWith('delivery',{
+  expected_version:3,bank:'Test debit bank',mode:null,beneficiary_id:null,cheque_no:null,cheque_date:null,
+ }));
+ expect(api.submitPayrollAccountsSheet).not.toHaveBeenCalled();
+});
+
+test('shows the current balance as the projection on an unrouted single-page sheet and omits Credit', async () => {
+ accounts.getBankBalances.mockResolvedValue({data:{bankBalances:[
+  {bank_name:'Test debit bank',available_balance:'100000.00'},
+  {bank_name:'Credit',available_balance:'0.00',is_virtual:true},
+ ]}});
+ mount();
+ expect(await screen.findAllByText('₹1,00,000.00')).toHaveLength(2);
+ expect(screen.queryByText('Credit',{exact:true})).not.toBeInTheDocument();
+ expect(screen.queryByRole('option',{name:'Credit'})).not.toBeInTheDocument();
 });

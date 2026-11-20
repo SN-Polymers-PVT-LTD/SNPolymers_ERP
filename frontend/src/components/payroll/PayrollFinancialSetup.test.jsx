@@ -10,8 +10,21 @@ beforeEach(()=>{vi.resetAllMocks();api.getEmployeeAdjustments.mockResolvedValue(
 test('HO reviews an employee advance independently with a reason/version and no payment action',async()=>{
  wrap(<EmployeeAdjustments employeeId="employee" rowId="row" user={{id:'ho',role:'ho'}}/>);expect(await screen.findByText(/Outstanding 1000.00/)).toBeInTheDocument();const approve=screen.getByRole('button',{name:'approve ADVANCE'});expect(approve).toBeDisabled();fireEvent.change(screen.getByLabelText('Adjustment approval / plan reason'),{target:{value:'Approved issued advance evidence'}});fireEvent.click(approve);await waitFor(()=>expect(api.actOnAdjustment).toHaveBeenCalledWith('advance',{action:'approve',expected_version:1,reason:'Approved issued advance evidence',data:{}}));expect(screen.queryByRole('button',{name:/Pay|Transfer|Disburse/})).not.toBeInTheDocument();
 });
-test('Accounts creates a bonus for the selected employee row using a decimal string and source evidence',async()=>{
- wrap(<EmployeeAdjustments employeeId="employee" rowId="row" user={{id:'accounts',role:'accounts'}}/>);await screen.findByText(/Outstanding 1000.00/);expect(screen.queryByRole('button',{name:'approve ADVANCE'})).not.toBeInTheDocument();fireEvent.change(screen.getByLabelText(/^Adjustment amount/),{target:{value:'1000.25'}});fireEvent.change(screen.getByLabelText(/^Adjustment effective date/),{target:{value:'2026-10-05'}});fireEvent.change(screen.getByLabelText(/^Adjustment evidence reference/),{target:{value:'Approved source bonus record'}});fireEvent.click(screen.getByRole('button',{name:'Record for HO approval'}));await waitFor(()=>expect(api.createEmployeeAdjustment).toHaveBeenCalledWith('employee',{kind:'BONUS',amount:'1000.25',effective_date:'2026-10-05',evidence_reference:'Approved source bonus record',target_row_id:'row',installment:null,recovery_start_month:null,original_period_from:null,original_period_to:null}));
+test('Accounts can record advances while bonus and arrears entry are paused',async()=>{
+ api.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[
+  advance, {...advance,id:'bonus',kind:'BONUS'}, {...advance,id:'arrears',kind:'SALARY_ARREARS'},
+ ],total:3}}});
+ wrap(<EmployeeAdjustments employeeId="employee" user={{id:'accounts',role:'accounts'}}/>);
+ expect(await screen.findByText(/Outstanding 1000.00/)).toBeInTheDocument();
+ expect(screen.queryByText(/bonus|arrears/i)).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('Adjustment kind')).not.toBeInTheDocument();
+ for (const [field,value] of Object.entries({amount:'1000.25','effective date':'2026-10-05','evidence reference':'Advance receipt',installment:'250','recovery start month':'2026-11-01'})) {
+  fireEvent.change(screen.getByLabelText(new RegExp('^Adjustment '+field)),{target:{value}});
+ }
+ fireEvent.click(screen.getByRole('button',{name:'Record for HO approval'}));
+ await waitFor(()=>expect(api.createEmployeeAdjustment).toHaveBeenCalledWith('employee',expect.objectContaining({
+  kind:'ADVANCE', amount:'1000.25', target_row_id:null, installment:'250', recovery_start_month:'2026-11-01',
+ })));
 });
 test('HO cannot approve an adjustment they created',async()=>{api.getEmployeeAdjustments.mockResolvedValue({data:{result:{rows:[{...advance,created_by:'ho'}],total:1}}});wrap(<EmployeeAdjustments employeeId="employee" rowId="row" user={{id:'ho',role:'ho'}}/>);await screen.findByText(/Outstanding 1000.00/);expect(screen.queryByRole('button',{name:'approve ADVANCE'})).not.toBeInTheDocument();});
 test('cutoff uses independent HO approval and retains the expected proposal version',async()=>{

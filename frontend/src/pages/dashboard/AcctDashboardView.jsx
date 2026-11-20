@@ -95,7 +95,7 @@ const AcctDashboardView = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Card 1: Employee payroll setup */}
             <Link
-              to="/admin/employee-management?tab=payroll-setup"
+              to="/acct-requisitions/payroll-setup"
               className="p-4 rounded-2xl bg-slate-950/40 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition group flex flex-col justify-between space-y-2"
             >
               <div>

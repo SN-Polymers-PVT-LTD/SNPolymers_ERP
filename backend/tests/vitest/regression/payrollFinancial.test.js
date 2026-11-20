@@ -51,10 +51,27 @@ describe('guarded payroll financial transactions',()=>{
   await reject(()=>reviewAction(db,r.row.id,'approve_lock',users.ho.id),'PY409');await reject(()=>q(db,'UPDATE payroll_financial_snapshots SET net_salary=0 WHERE row_id=$1',[r.row.id]),'42501');await reject(()=>q(db,'DELETE FROM payroll_employee_coverage WHERE salary_row_id=$1',[r.row.id]),'42501');
   const register=(await one(db,'SELECT get_payroll_salary_register($1,$2,1,20) r',[users.accounts.id,JSON.stringify({run_id:f.run.id})])).r;expect(register.rows.find(row=>row.employee_id===r.row.employee_id)).toMatchObject({evidence_status:'IMMUTABLE_LOCKED',net_salary:'29296.30',payment_status:'NOT_RECORDED'});expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.accounts.id])).r.official).toBe(true);await q(db,'UPDATE hr_employees SET erp_user_id=$2,updated_by=$3 WHERE id=$1',[r.row.employee_id,users.je.id,users.admin.id]);expect((await one(db,'SELECT get_payroll_official_payslip($1,$2) r',[r.row.id,users.je.id])).r.official).toBe(true);await reject(()=>q(db,'SELECT get_payroll_official_payslip($1,$2)',[r.row.id,users.fm.id]),'42501');
  });
- test('bonus needs independent HO approval and is applied once at locking',async()=>{
-  const f=await prepared({gate:true}),data={kind:'BONUS',amount:'1000.00',effective_date:f.from,target_row_id:f.rows[0].id,installment:null,recovery_start_month:null,original_period_from:null,original_period_to:null,evidence_reference:'SYNTHETIC bonus'};
-  const a=(await one(db,'SELECT create_payroll_adjustment($1,$2,$3) r',[f.employees[0].id,JSON.stringify(data),users.accounts.id])).r;
-  await reject(()=>q(db,"SELECT act_payroll_adjustment($1,1,'approve','not independent','{}',$2)",[a.id,users.accounts.id]),'42501');await q(db,"SELECT act_payroll_adjustment($1,1,'approve','SYNTHETIC HO approval','{}',$2)",[a.id,users.ho.id]);await submit(f);await reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id);expect((await one(db,'SELECT count(*) n FROM payroll_adjustment_applications WHERE adjustment_id=$1',[a.id])).n).toBe('1');await reject(()=>q(db,'UPDATE payroll_adjustments SET amount=2000,version=version+1 WHERE id=$1',[a.id]),'42501');await reject(()=>q(db,'DELETE FROM payroll_adjustment_events WHERE adjustment_id=$1',[a.id]),'42501');
+ test.each(['BONUS','SALARY_ARREARS'])('database rejects direct creation of %s',async kind=>{
+  const f=await prepared({gate:true});
+  const data={kind,amount:'1000.00',effective_date:f.from,target_row_id:f.rows[0].id,installment:null,recovery_start_month:null,
+   original_period_from:kind==='SALARY_ARREARS'?'2090-01-01':null,original_period_to:kind==='SALARY_ARREARS'?'2090-01-31':null,evidence_reference:'SYNTHETIC adjustment'};
+  await reject(()=>q(db,'SELECT create_payroll_adjustment($1,$2,$3)',[f.employees[0].id,data,users.accounts.id]),'PY409');
+ });
+ test('existing bonus stays visible, cannot be approved or applied, and can be rejected',async()=>{
+  const f=await prepared({gate:true}),row=f.rows[0].id,employee=f.employees[0].id;
+  await q(db,'ALTER TABLE payroll_adjustments DISABLE TRIGGER payroll_block_paused_adjustments');
+  const data={kind:'BONUS',amount:'1000.00',effective_date:f.from,target_row_id:row,evidence_reference:'SYNTHETIC pre-pause bonus'};
+  const {r:entry}=await one(db,'SELECT create_payroll_adjustment($1,$2,$3) r',[employee,data,users.accounts.id]);
+  await q(db,'SET CONSTRAINTS ALL IMMEDIATE');
+  await q(db,'ALTER TABLE payroll_adjustments ENABLE TRIGGER payroll_block_paused_adjustments');
+  await q(db,'SET CONSTRAINTS ALL DEFERRED');
+  const {r:ledger}=await one(db,'SELECT get_payroll_adjustments($1,$2,1,20) r',[employee,users.accounts.id]);
+  expect(ledger.rows).toContainEqual(expect.objectContaining({id:entry.id,kind:'BONUS'}));
+  const action=(type)=>q(db,"SELECT act_payroll_adjustment($1,1,$2,'SYNTHETIC review','{}',$3)",[entry.id,type,users.ho.id]);
+  await reject(()=>action('approve'),'PY409');
+  await reject(()=>q(db,'INSERT INTO payroll_adjustment_applications VALUES($1,$2,$3,$4,1000)',[entry.id,row,employee,f.from]),'PY409');
+  await action('reject');
+  expect((await one(db,'SELECT status FROM payroll_adjustments WHERE id=$1',[entry.id])).status).toBe('REJECTED');
  });
  test('failure after snapshot insert rolls back every financial record and leaves review pending',async()=>{
   const f=await prepared({gate:true});await submit(f);await q(db,"CREATE FUNCTION pg_temp.fail_allocation() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'SYNTHETIC failure' USING ERRCODE='23514'; END $$");await q(db,'CREATE TRIGGER synthetic_fail_allocation BEFORE INSERT ON payroll_month_allocations FOR EACH ROW EXECUTE FUNCTION pg_temp.fail_allocation()');await reject(()=>reviewAction(db,f.rows[0].id,'approve_lock',users.ho.id),'23514');

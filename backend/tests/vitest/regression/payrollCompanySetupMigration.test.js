@@ -6,7 +6,7 @@ const {pt}=require('../../helpers/payrollMasterFixtures');
 const migration=n=>fs.readFileSync(path.join(__dirname,'../../../src/db/migrations',n),'utf8');
 const original=migration('139_payroll_company_deduction_setup.sql');
 const repair=migration('140_payroll_company_setup_forward_fixes.sql');
-const supported=migration('142_payroll_company_supported_component_rules.sql');
+const supported=migration('192_pan_india_setups_without_state.sql')+migration('142_payroll_company_supported_component_rules.sql');
 let db;
 beforeAll(async()=>{if(process.env.LOCAL_SUPABASE_TEST_PROFILE!=='payroll')throw new Error('Isolated payroll profile required');await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();});
 afterAll(async()=>{await db?.end();});

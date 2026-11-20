@@ -24,7 +24,7 @@ function validateMaster(kind, data) {
  }
  const configuration_warnings = [...blockers];
  if (kind === 'statutory') {
-  for (const type of adjustmentTypes) if (!d.configuration.adjustment_basis || d.configuration.adjustment_basis[type] === 'UNRESOLVED')
+  for (const type of ['REIMBURSEMENT', 'RECOVERY']) if (!d.configuration.adjustment_basis || d.configuration.adjustment_basis[type] === 'UNRESOLVED')
    configuration_warnings.push({ field: `adjustment_basis.${type}`, code: 'ADJUSTMENT_CLASSIFICATION_REQUIRED' });
  }
  return { valid: true, data: d, blockers: kind === 'policies' ? [] : blockers, configuration_warnings };

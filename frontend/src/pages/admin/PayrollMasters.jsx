@@ -29,7 +29,7 @@ const defaults = kind => kind === 'policies' ? {
   partial_month_fixed_divisor: null,
   split_period_allocation_method: 'UNRESOLVED',
   full_month_unpaid_treatment: 'UNRESOLVED',
-  leave_weekly_off_method: 'UNRESOLVED',
+  leave_weekly_off_method: 'EXCLUDE_PAID_CALENDAR_DAYS',
   monetary_rounding_method: 'UNRESOLVED',
   sandwich_enabled: false,
   work_calendar_reference: null,
@@ -46,7 +46,10 @@ const defaults = kind => kind === 'policies' ? {
 };
 
 const message = e => e?.response?.data?.issues?.map(i => `${i.path?.join('.') || 'Configuration'}: ${i.message}`).join(' • ') || e?.response?.data?.message || e.message;
-const json = value => JSON.stringify(value, null, 2);
+const json = value => JSON.stringify(value, (key, entry) =>
+  ['BONUS', 'SALARY_ARREARS', 'arrears_period'].includes(key) ||
+    ['adjustment_basis.BONUS', 'adjustment_basis.SALARY_ARREARS'].includes(entry?.field)
+    ? undefined : entry, 2);
 
 // PT is stored once per month, even when all twelve months share one schedule.
 function ptScheduleSummary(slabs) {
@@ -300,7 +303,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
     mutationFn: () => publishPayrollMaster(kind, preview.revision.id, {
       expected_version: preview.revision.version,
       preview_token: preview.preview_token,
-      approval_reference: approval,
+      approval_reference: approval.trim() || null,
       ...(preview.initial_setup ? { initial_setup: true } : {})
     }),
     onSuccess: () => {
@@ -386,35 +389,22 @@ export default function PayrollMasters({ kind = 'policies' }) {
           </Button>
         </div>
 
-        {/* In-Page Navigation Tabs */}
-        <nav className="flex gap-6 border-b border-white/5 my-3">
-          {user?.role === 'admin' && (
+        {user?.role === 'accounts' && (
+          <nav className="flex gap-6 border-b border-white/5 my-3">
             <Link
-              to="/admin/payroll/policies"
-              className={`pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 transition-all duration-200 ${
-                kind === 'policies' ? 'border-amber-500 text-slate-100' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              to="/acct-requisitions/payroll-setup"
+              className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all duration-200"
             >
-              Payroll Policy Master
+              Employee Payroll Setup
             </Link>
-          )}
-          <Link
-            to={user?.role === 'admin' ? '/admin/employee-management?tab=pay-structure' : '/admin/employee-management?tab=payroll-setup'}
-            className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all duration-200"
-          >
-            {user?.role === 'admin' ? 'Employee Pay Structures' : 'Employee Payroll Setup'}
-          </Link>
-          {user?.role === 'accounts' && (
             <Link
               to="/admin/payroll/statutory"
-              className={`pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 transition-all duration-200 ${
-                kind === 'statutory' ? 'border-amber-500 text-slate-100' : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-amber-500 text-slate-100 transition-all duration-200"
             >
               Statutory Deduction Master
             </Link>
-          )}
-        </nav>
+          </nav>
+        )}
       </header>
 
       {/* Top Stats Overview Cards */}
@@ -515,21 +505,21 @@ export default function PayrollMasters({ kind = 'policies' }) {
       )}
 
       {/* Policy & Diagnostic Notice Card */}
-      <div className="p-5 bg-amber-500/[0.04] border border-amber-500/15 rounded-3xl text-xs space-y-1 flex items-start gap-3.5">
-        <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <div className="space-y-1">
-          <p className="text-amber-300 font-medium leading-relaxed">
-            {kind === 'policies'
-              ? 'Fixed 30 is the currently approved permanent LOP business method. A draft or this label is not a published database revision. Select approved joining/leaving, split-run and no-payable-entitlement rules explicitly.'
-              : 'Rates are not seeded. Accounts confirms configured rules with recorded setup evidence. Employer contributions remain separate from employee deductions.'}
-          </p>
-          <p className="text-slate-400 leading-relaxed">
-            Published rules are used in payroll calculations. Approval and payment depend on payroll readiness. Casual and local wages use their factory masters.
-          </p>
+      {kind === 'statutory' && (
+        <div className="p-5 bg-amber-500/[0.04] border border-amber-500/15 rounded-3xl text-xs space-y-1 flex items-start gap-3.5">
+          <svg className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="space-y-1">
+            <p className="text-amber-300 font-medium leading-relaxed">
+              Rates are not seeded. Accounts confirms configured rules with recorded setup evidence. Employer contributions remain separate from employee deductions.
+            </p>
+            <p className="text-slate-400 leading-relaxed">
+              Published rules are used in payroll calculations. Approval and payment depend on payroll readiness. Casual and local wages use their factory masters.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {kind==='statutory' && <StatutoryScopeManager/>}
 
@@ -986,7 +976,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
             </div>
             {save.error && <p role="alert" className="text-red-400 text-xs">{message(save.error)}</p>}
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/5">
-              <Button type="submit" variant="amber" loading={save.isPending} disabled={kind === 'statutory' && (editor.data.configuration.included_components.length === 0 || editor.data.configuration.included_components.some(name => !statutoryComponents.includes(name)))}>Save draft</Button>
+              <Button type="submit" variant="amber" loading={save.isPending} disabled={kind === 'statutory' && ((editor.data.scheme !== 'ESI' && editor.data.configuration.included_components.length === 0) || editor.data.configuration.included_components.some(name => !statutoryComponents.includes(name)))}>Save draft</Button>
             </div>
           </form>
         </Modal>
@@ -1035,7 +1025,11 @@ export default function PayrollMasters({ kind = 'policies' }) {
                       )
                     ) : (
                       <div className="text-sm text-slate-900 dark:text-slate-200 font-medium">
-                        {rev.lop_method} (Divisor: {rev.lop_fixed_divisor || '30'})
+                        {rev.lop_method === 'ACTUAL_CALENDAR_DAYS'
+                          ? 'Unpaid leave: Actual days in the month'
+                          : rev.lop_method === 'FIXED_DIVISOR'
+                            ? `Unpaid leave: Fixed ${rev.lop_fixed_divisor ?? '—'} days`
+                            : 'Unpaid leave: Needs review'}
                       </div>
                     )}
                   </div>
@@ -1105,7 +1099,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
             {/* Approval Input & Confirmation Checkbox */}
             <div className="pt-3 border-t border-white/5 space-y-3">
-              <Input label="Supporting approval reference" required value={approval} onChange={e => setApproval(e.target.value)} helperText="Enter document or board approval reference." />
+              <Input label="Supporting approval reference" required={kind === 'statutory'} maxLength={2000} value={approval} onChange={e => setApproval(e.target.value)} helperText={kind === 'policies' ? 'Optional. Add a document or approval reference for the audit history.' : 'Enter document or board approval reference.'} />
               <label className="flex items-center gap-2 cursor-pointer text-slate-300 font-medium">
                 <input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} className="rounded border-slate-700 text-amber-500 focus:ring-amber-500" />
                 <span>I reviewed the rules, scope, dates and impact. Previously locked payroll will not change.</span>
@@ -1114,7 +1108,7 @@ export default function PayrollMasters({ kind = 'policies' }) {
 
             {publish.error && <p role="alert" className="text-red-400 text-xs">{message(publish.error)}</p>}
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/5">
-              <Button disabled={inspect.isPending || !preview.publishable || !approval.trim() || !ack} loading={publish.isPending} variant="amber" onClick={() => publish.mutate()}>
+              <Button disabled={inspect.isPending || !preview.publishable || (kind === 'statutory' && !approval.trim()) || !ack} loading={publish.isPending} variant="amber" onClick={() => publish.mutate()}>
                 Publish revision
               </Button>
             </div>

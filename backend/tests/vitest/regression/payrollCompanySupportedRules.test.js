@@ -7,6 +7,7 @@ const {interval}=require('../../helpers/payrollProfileFixtures');
 let db,users,state;
 const migration=n=>fs.readFileSync(path.join(__dirname,'../../../src/db/migrations',n),'utf8');
 const replacement=migration('142_payroll_company_supported_component_rules.sql');
+const shared=migration('192_pan_india_setups_without_state.sql');
 const functionSql=(sql,name)=>sql.match(new RegExp('CREATE OR REPLACE FUNCTION public\\.'+name+'\\([\\s\\S]*?END; \\$\\$;'))[0];
 beforeAll(async()=>{await requireLocalSupabase();db=new Client({connectionString:process.env.SUPABASE_TEST_DB_URI});await db.connect();});
 afterAll(async()=>{await db?.end();});
@@ -48,5 +49,8 @@ test('supported rule predicate rejects malformed partitions and remains private'
 });
 test('installed supported-rule functions match the exact forward migration',async()=>{
  const definitions=[...replacement.matchAll(/CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?AS \$\$([\s\S]*?)\$\$;/g)];expect(definitions).toHaveLength(5);
- for(const [,name,body]of definitions)expect((await one(db,"SELECT prosrc FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=$1",[name])).prosrc.trim()).toBe(body.trim());
+ for(const [,name,body]of definitions){
+  const latest=[...shared.matchAll(/CREATE OR REPLACE FUNCTION public\.(\w+)\([\s\S]*?AS \$\$([\s\S]*?)\$\$;/g)].find(m=>m[1]===name);
+  expect((await one(db,"SELECT prosrc FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname=$1",[name])).prosrc.trim()).toBe((latest?.[2]||body).trim());
+ }
 });

@@ -22,6 +22,15 @@ const draftConfiguration = z.object({ arrears_period:z.enum(['UNRESOLVED','CURRE
  calculation_method: z.enum(['UNRESOLVED','QUALIFYING_WAGE_PERCENTAGE','CAPPED_WAGE_PERCENTAGE','SLABS']), rounding, aggregation: z.literal('CALENDAR_MONTH'), effective_rule: z.literal('MONTH_START'), conditions: z.enum(['UNRESOLVED','NONE','PROFILE_EXEMPTIONS'])
 }).strict().refine(v => new Set([...v.included_components,...v.excluded_components]).size === 5 && v.included_components.length + v.excluded_components.length === 5, 'Classify every earning component exactly once.').refine(v => v.contribution_minimum === null || v.contribution_cap === null || units(v.contribution_minimum) <= units(v.contribution_cap), 'Minimum exceeds cap.').refine(v => !v.adjustment_basis || v.excluded_components.includes('ADJUSTMENTS'), 'Typed adjustments cannot also use the legacy aggregate wage basis.');
 const configuration = draftConfiguration.refine(v => v.included_components.length > 0, 'Choose the wages used to calculate deductions.');
+const defaultEsiWageBasis = rule => {
+ const configuration = rule.configuration;
+ if (rule.scheme !== 'ESI' || !Array.isArray(configuration?.included_components) || configuration.included_components.length || !Array.isArray(configuration.excluded_components)) return rule;
+ if (configuration.excluded_components.length !== components.length || !components.every(component => configuration.excluded_components.includes(component))) return rule;
+ return { ...rule, configuration: {
+  ...configuration, included_components: ['PACKAGE_BALANCE'],
+  excluded_components: configuration.excluded_components.filter(component => component !== 'PACKAGE_BALANCE'),
+ } };
+};
 const slab = z.object({ month: z.number().int().min(1).max(12), lower_bound: money, upper_bound: money.nullable(), deduction_amount: money }).strict().refine(v => v.upper_bound === null || units(v.upper_bound) > units(v.lower_bound), 'Invalid slab boundaries.');
 const statutory = z.object({ ...base,effective_to:z.iso.date().nullable(), scheme: z.enum(['EPF','ESI','PT']), state_id:z.uuid().nullable().optional(), jurisdiction: z.string().trim().min(1).max(120), establishment: z.string().trim().min(1).max(120), configuration,
  verification_status: z.enum(['UNVERIFIED','ADVISOR_VERIFIED','ACCOUNTS_CONFIRMED']), advisor_name: z.string().trim().min(1).max(120).nullable(), verification_reference: text.nullable(), verified_on: z.iso.date().nullable(), slabs: z.array(slab).max(1200)
@@ -47,9 +56,9 @@ const kind = z.enum(['policies','statutory']);
 const params = z.object({ kind }).strict();
 const idParams = z.object({ kind, id: z.uuid() }).strict();
 const save = z.object({ id: z.uuid().nullable(), expected_version: z.number().int().min(0), data: z.unknown() }).strict();
-module.exports = {configuration,draftConfiguration,slab, policy, statutory, components, adjustmentTypes, units, rounding,
+module.exports = {configuration,draftConfiguration,defaultEsiWageBasis,slab, policy, statutory, components, adjustmentTypes, units, rounding,
  list: { params, query: z.object({ page: z.coerce.number().int().min(1).max(100000).default(1), limit: z.coerce.number().int().min(1).max(100).default(20) }).strict() },
  save: { params, body: save }, preview: { params: idParams, query: z.object({ initial_setup: z.enum(['true','false']).optional() }).strict() },
- publish: { params: idParams, body: z.object({ expected_version: z.number().int().positive(), preview_token: z.string().regex(/^[a-f0-9]{32}$/), approval_reference: text, initial_setup: z.boolean().optional() }).strict() },
+ publish: { params: idParams, body: z.object({ expected_version: z.number().int().positive(), preview_token: z.string().regex(/^[a-f0-9]{32}$/), approval_reference: z.string().trim().max(2000).nullish(), initial_setup: z.boolean().optional() }).strict() },
  resolve: { params, query: z.object({ date: z.iso.date(), group_code: z.string().min(1).max(40).optional(), scheme: z.enum(['EPF','ESI','PT']).optional(), statutory_scope_id: z.uuid().optional(), jurisdiction: z.string().trim().min(1).max(120).optional(), establishment: z.string().trim().min(1).max(120).optional() }).strict() }
 };

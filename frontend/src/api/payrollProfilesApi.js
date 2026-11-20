@@ -16,6 +16,7 @@ export const registerStatutoryState=body=>authApi.post(`${base}/statutory-states
 export const getCompanyDeductionSetups=params=>authApi.get(`${base}/company-deduction-setups`,{params});
 export const getCompanyDeductionOptions=params=>authApi.get(`${base}/company-deduction-setups/options`,{params});
 export const saveCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups`,body);
+export const previewCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups/preview`,body);
 export const applyCompanyDeductionSetup=body=>authApi.post(`${base}/company-deduction-setups/apply`,body);
 
 const guidedDrafts = `${base}/company-deduction-setups/guided-drafts`;

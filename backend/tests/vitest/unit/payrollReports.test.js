@@ -9,6 +9,21 @@ describe('payroll report/export contracts',()=>{
   const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await excelReport(makeReport([row])));
   const sheet=workbook.getWorksheet('Salary Register');expect(sheet.getCell('B3').value).toBe("'=HYPERLINK(\"bad\")");expect(sheet.getCell('C3').value).toBe("' +malicious");expect(sheet.getCell('J3').value).toBe('9007199254740993.01');expect(sheet.getCell('M3').value).toBe('Unavailable');expect(sheet.getCell('P3').value).toBe('Unavailable');expect(sheet.getCell('J3').type).toBe(ExcelJS.ValueType.String);expect(workbook.getWorksheet('Department Summary')).toBeTruthy();
  });
+ test('opens on employee payroll and exports saved amounts as numeric cells',async()=>{
+  const saved={...row,employee_code:'00021',earnings_total:'36000.00',lop:'1000.00',
+   gross_after_lop:'35000.00',epf:'1800.00',esi:'0.00',pt:'550.00',net_salary:'32650.00',
+   employer_contributions:'1800.00',status:'PENDING_HO_APPROVAL',
+   deductions:[{code:'PT',amount:'550.00'}]};
+  const workbook=new ExcelJS.Workbook();
+  await workbook.xlsx.load(await excelReport(makeReport([saved])));
+  const sheet=workbook.worksheets[0];
+  expect(sheet.name).toBe('Salary Register');
+  expect(sheet.getCell('B3').value).toBe('00021');
+  expect(sheet.getRow(3).values.slice(10,18)).toEqual([36000,1000,35000,1800,0,550,32650,1800]);
+  expect(sheet.getCell('P3').numFmt).toBe('#,##0.00');
+  expect(sheet.getCell('R3').value).toBe('PENDING_HO_APPROVAL');
+  expect(workbook.getWorksheet('Salary Components').getCell('J3').value).toBe(550);
+ });
  test('exports empty headers and large selections without dropping employee rows; department preset uses only summaries',async()=>{
   const empty=new ExcelJS.Workbook();await empty.xlsx.load(await excelReport(makeReport()));expect(empty.getWorksheet('Salary Register').rowCount).toBe(2);
   const large=new ExcelJS.Workbook();await large.xlsx.load(await excelReport(makeReport(Array.from({length:1001},(_,i)=>({...row,id:`row-${i}`})))));expect(large.getWorksheet('Salary Register').rowCount).toBe(1003);
@@ -19,7 +34,7 @@ describe('payroll report/export contracts',()=>{
  });
  test('exports agreed components as evidence without adding them to salary totals',async()=>{
   const r={...row,monthly_reconciliation:[{salary_month:'2091-10-01',contract_diagnostics:[{pay_structure_id:'pay-1',pay_basis:'Special package',agreed_amount:'30000.00',components:{BASIC:'10000.00',STAFF_WELFARE:'2000.00'}}]}]},book=new ExcelJS.Workbook();await book.xlsx.load(await excelReport(makeReport([r])));
-  const components=book.getWorksheet('Salary Components');expect(components.getCell('G3').value).toBe('CONTRACT_EVIDENCE_NOT_ADDITIONAL_EARNINGS');expect(components.getCell('H3').value).toBe('BASIC');expect(components.getCell('J3').value).toBe('10000.00');expect(book.getWorksheet('Salary Register').getCell('J3').value).toBe(row.earnings_total);
+  const components=book.getWorksheet('Salary Components');expect(components.getCell('G3').value).toBe('CONTRACT_EVIDENCE_NOT_ADDITIONAL_EARNINGS');expect(components.getCell('H3').value).toBe('BASIC');expect(components.getCell('J3').value).toBe(10000);expect(book.getWorksheet('Salary Register').getCell('J3').value).toBe(row.earnings_total);
  });
  test('splits long source evidence into ordered Excel cells without truncation',async()=>{
   const source_references={evidence:'x'.repeat(40000)},book=new ExcelJS.Workbook();await book.xlsx.load(await excelReport(makeReport([{...row,source_references}])));

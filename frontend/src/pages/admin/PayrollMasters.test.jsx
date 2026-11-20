@@ -37,7 +37,33 @@ describe('Admin payroll master screens',()=>{
   expect(screen.queryByText('JSON Schema Inspector')).not.toBeInTheDocument();
   expect(screen.queryByText(/internal-user-id/)).not.toBeInTheDocument();
  });
- it('shows empty state and approved business method distinct from publication',async()=>{mount();expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();expect(screen.getByText(/Fixed 30 is the currently approved/)).toBeInTheDocument();});
+ it('shows saved salary policy settings and the named audit actor', async () => {
+  const rounding = { method: 'HALF_UP', precision: 2, stage: 'AGGREGATE' };
+  const revision = {
+   id: 'policy-history', status: 'PUBLISHED', revision_number: 1, effective_from: '2026-01-01',
+   lop_method: 'FIXED_DIVISOR', lop_fixed_divisor: 30,
+   split_period_allocation_method: 'CALENDAR_WEIGHTED_WITH_RESIDUAL',
+   full_month_unpaid_treatment: 'NO_PAYABLE_ENTITLEMENT_ZERO',
+   special_package_period: 'MONTHLY_CONFIRMED', leave_weekly_off_method: 'WORK_CALENDAR',
+   rounding: { lop: rounding, proration: rounding, allocation: rounding },
+  };
+  const event = {
+   id: 1, policy_revision_id: revision.id, action: 'PUBLISHED', occurred_at: '2026-11-20T09:45:00Z',
+   actor_display_name: 'Payroll Admin', before_snapshot: { revision: {...revision, lop_fixed_divisor: 26} },
+   after_snapshot: revision,
+  };
+  api.listPayrollMasters.mockResolvedValue({ data: { result: { ...empty, total: 1, revisions: [revision], events: [event] } } });
+  mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Inspect rules & audit' }));
+  const saved = await screen.findByRole('region', { name: 'Saved rule details' });
+  expect(saved).toHaveTextContent('Reconcile split runs to the monthly salary');
+  expect(saved).toHaveTextContent('Use approved work calendar');
+  expect(within(saved).getAllByText(/2 decimal places · Combined amount/)).toHaveLength(3);
+  expect(screen.getByText('Payroll Admin')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'View rule details' }));
+  expect(screen.getByText('Previously: Fixed number of days (26 days)')).toBeInTheDocument();
+ });
+ it('shows the policy empty state without the general advisory banner',async()=>{mount();expect(await screen.findByText(/No master revisions/)).toBeInTheDocument();expect(screen.queryByText(/Fixed 30 is the currently approved/)).not.toBeInTheDocument();});
  it('loading, server error and retry are visible',async()=>{api.listPayrollMasters.mockImplementation(()=>new Promise(()=>{}));const view=mount();expect(screen.getByText(/Loading revisions/)).toBeInTheDocument();view.unmount();api.listPayrollMasters.mockRejectedValue(new Error('Synthetic API unavailable'));mount();expect(await screen.findByRole('alert')).toHaveTextContent('Synthetic API unavailable');expect(screen.getByRole('button',{name:'Retry'})).toBeInTheDocument();});
  it('draft saves independent methods and exact decimal strings, then refreshes',async()=>{mount();await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));fireEvent.change(screen.getByLabelText(/Effective from/),{target:{value:'2090-01-01'}});fireEvent.change(screen.getByLabelText(/Effective to/),{target:{value:'2099-12-31'}});fireEvent.change(screen.getByLabelText(/Change reason/),{target:{value:'Synthetic policy evidence'}});fireEvent.change(screen.getByLabelText('Unpaid-leave deduction'),{target:{value:'ACTUAL_CALENDAR_DAYS'}});expect(screen.queryByLabelText('Days used for unpaid leave')).not.toBeInTheDocument();expect(screen.getByLabelText('Joining/leaving salary calculation')).toHaveValue('UNRESOLVED');fireEvent.click(screen.getByRole('button',{name:'Save draft'}));await waitFor(()=>expect(api.savePayrollMaster).toHaveBeenCalled());expect(api.savePayrollMaster.mock.calls[0][1].data).toMatchObject({lop_method:'ACTUAL_CALENDAR_DAYS',lop_fixed_divisor:null,partial_month_proration_method:'UNRESOLVED',sandwich_enabled:false});expect(await screen.findByText(/Draft saved/)).toBeInTheDocument();});
  it('Accounts authoring has no confirmation dropdown or manual identity fields',async()=>{mount('statutory');await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('');expect(screen.queryByLabelText('Accounts setup confirmation')).not.toBeInTheDocument();expect(screen.queryByLabelText(/Setup confirmed by/)).not.toBeInTheDocument();expect(screen.getByText(/Accounts confirmation is recorded automatically/)).toBeInTheDocument();expect(screen.queryByRole('option',{name:/Recorded basic/})).not.toBeInTheDocument();fireEvent.change(screen.getByLabelText('Scheme'),{target:{value:'PT'}});fireEvent.click(screen.getByRole('button',{name:'Add slab'}));expect(screen.getByLabelText('Slab 1 deduction amount')).toBeInTheDocument();});
@@ -48,16 +74,14 @@ describe('Admin payroll master screens',()=>{
  it('non-Admin direct screen exposes no writes or master reads',()=>{role='accounts';mount();expect(screen.getByRole('alert')).toHaveTextContent('Admin');expect(api.listPayrollMasters).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'Create draft'})).not.toBeInTheDocument();});
 });
 
-it('only bonus and arrears need adjustment choices; recovery is automatic',async()=>{
+it('hides paused bonus and arrears treatment controls',async()=>{
  mount('statutory');await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));
- fireEvent.click(screen.getByText(/^Advanced settings$/));
- expect(screen.getByLabelText('Bonus contribution treatment')).toHaveValue('UNRESOLVED');
- expect(screen.getByLabelText('Salary arrears contribution treatment')).toHaveValue('UNRESOLVED');
+ expect(screen.queryByText(/^Advanced settings$/)).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('Bonus contribution treatment')).not.toBeInTheDocument();
+ expect(screen.queryByLabelText('Salary arrears contribution treatment')).not.toBeInTheDocument();
  for(const label of ['Eligibility','Calculation method','Jurisdiction conditions','LOP statutory component allocation','Included arrears contribution period','Statutory rounding method','Statutory decimal places','Statutory rounding stage','RECOVERY statutory basis','REIMBURSEMENT statutory basis'])expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
  expect(screen.queryByRole('checkbox',{name:/ADJUSTMENTS/})).not.toBeInTheDocument();
- fireEvent.change(screen.getByLabelText('Bonus contribution treatment'),{target:{value:'EXCLUDE'}});
- expect(screen.getByLabelText('Salary arrears contribution treatment')).toHaveValue('UNRESOLVED');
- expect(screen.getByText(/Advance recoveries are saved as separate salary deductions/)).toBeInTheDocument();
+
 });
 
 describe('simplified statutory authoring', () => {
@@ -65,14 +89,13 @@ describe('simplified statutory authoring', () => {
  const change = (label, value) => fireEvent.change(within(screen.getByRole('button', { name: 'Save draft' }).closest('form')).getByLabelText(label), { target: { value } });
  it('keeps technical settings collapsed and requires a deliberate wage basis', async () => {
   await create();
-  expect(screen.getByText(/^Advanced settings$/).closest('details')).not.toHaveAttribute('open');
+  expect(screen.queryByText(/^Advanced settings$/)).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeDisabled();
   expect(screen.queryByLabelText(/Contribution minimum/i)).not.toBeInTheDocument();
   expect(screen.queryByLabelText(/Eligibility ceiling \(₹\)/)).not.toBeInTheDocument();
   change(/Contribution wage basis/, 'GROSS_ONLY');
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
-  change(/Contribution wage basis/, 'CUSTOM');
-  await waitFor(() => expect(screen.getByText(/^Advanced settings$/).closest('details')).toHaveAttribute('open'));
+  expect(screen.queryByRole('option', { name: 'Custom approved components' })).not.toBeInTheDocument();
  });
  it('saves exact preset strings with explicit wages and server-owned Accounts confirmation', async () => {
   await create();
@@ -82,7 +105,7 @@ describe('simplified statutory authoring', () => {
   change(/Contribution wage basis/, 'GROSS_ONLY'); change(/Change reason/, 'UAT standard EPF');
   expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('');
   fireEvent.click(screen.getByRole('button', { name: 'Apply standard preset' }));
-  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('25000');
+  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('25,000');
   expect(screen.queryByLabelText('Accounts setup confirmation')).not.toBeInTheDocument();
   expect(screen.getByLabelText(/Contribution wage basis/)).toHaveValue('GROSS_ONLY');
   expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
@@ -106,11 +129,12 @@ describe('simplified statutory authoring', () => {
   change(/Contribution wage basis/, 'GROSS_ONLY');
   change('Scheme', 'ESI');
   expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('');
-  expect(screen.getByLabelText(/Contribution wage basis/)).toHaveValue('');
+  expect(screen.queryByLabelText(/Contribution wage basis/)).not.toBeInTheDocument();
+  expect(screen.getByText('Monthly gross salary')).toBeInTheDocument();
   expect(screen.queryByLabelText(/Wage ceiling \(₹\)/)).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Apply standard preset' }));
   expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('0.75');
-  expect(screen.getByLabelText(/Eligibility ceiling \(₹\)/)).toHaveValue('21000');
+  expect(screen.getByLabelText(/Eligibility ceiling \(₹\)/)).toHaveValue('21,000');
   expect(screen.queryByLabelText('Accounts setup confirmation')).not.toBeInTheDocument();
   change('Scheme', 'PT');
   expect(screen.queryByRole('button', { name: 'Apply standard preset' })).not.toBeInTheDocument();
@@ -125,11 +149,11 @@ describe('simplified statutory authoring', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Apply standard preset' }));
   change(/employee rate \(%\)/, '7.1234'); change(/Effective from/, '2026-10-01');
   expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('7.1234');
-  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('15000');
+  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('15,000');
   expect(screen.getByText(/effective date changed after applying/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Apply standard preset' }));
   expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('12');
-  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('25000');
+  expect(screen.getByLabelText(/Wage ceiling \(₹\)/)).toHaveValue('25,000');
   change(/Effective from/, '2026-09-01');
   expect(screen.queryByRole('button', { name: 'Apply standard preset' })).not.toBeInTheDocument();
  });
@@ -148,10 +172,10 @@ it('opening and saving a legacy draft preserves exact amounts, evidence and adva
  await waitFor(() => expect(screen.getByLabelText(/Jurisdiction \/ state/)).not.toBeDisabled());
  expect(screen.getByText(/Saved contribution limits are unsupported/)).toBeInTheDocument();
  expect(screen.getByLabelText(/employee rate \(%\)/)).toHaveValue('7.1234');
- expect(screen.getByText(/contribution wage cap ₹54321.12/)).toBeInTheDocument();
+ expect(screen.getByText(/contribution wage cap ₹54,321\.12/)).toBeInTheDocument();
  expect(screen.getByText(/4 decimal places/)).toBeInTheDocument();
  expect(screen.queryByLabelText('Accounts setup confirmation')).not.toBeInTheDocument();
- expect(screen.getByText(/^Advanced settings$/).closest('details')).not.toHaveAttribute('open');
+ expect(screen.queryByText(/^Advanced settings$/)).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
  await waitFor(() => expect(api.savePayrollMaster).toHaveBeenCalledWith('statutory', { id: 'saved', expected_version: 4, data: statutoryDraftInput(original) }));
  expect(data).toEqual(original);
@@ -175,7 +199,7 @@ it('a stored retired component requires an explicit supported replacement before
  expect(screen.getByRole('button',{name:'Save draft'})).toBeEnabled();
 });
 
-it('split-run collection is optional and saved with explicit bonus decisions', async () => {
+it('EPF hides split-run editing and saves standard collection timing', async () => {
  mount('statutory'); await screen.findByText(/No master revisions/);
  fireEvent.click(screen.getByRole('button',{name:'Create draft'}));
  const change=(label,value)=>fireEvent.change(within(screen.getByRole('button',{name:'Save draft'}).closest('form')).getByLabelText(label),{target:{value}});
@@ -184,15 +208,10 @@ it('split-run collection is optional and saved with explicit bonus decisions', a
  change(/Jurisdiction \/ state/,'wb'); change(/Establishment/,'UAT Factory');
  change(/Contribution wage basis/,'GROSS_ONLY'); change(/Change reason/,'UAT collection override');
  fireEvent.click(screen.getByRole('button',{name:'Apply standard preset'}));
- fireEvent.click(screen.getByText(/^Advanced settings$/));
- expect(screen.queryByLabelText('Collection timing')).not.toBeInTheDocument();
- fireEvent.click(screen.getByLabelText('Change collection timing for split runs'));
- change('Collection timing','MONTH_CLOSE');
- change('Bonus contribution treatment','INCLUDE');
- change('Salary arrears contribution treatment','EXCLUDE');
+ expect(screen.queryByLabelText('Change collection timing for split runs')).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
  await waitFor(()=>expect(api.savePayrollMaster).toHaveBeenCalledTimes(1));
- expect(api.savePayrollMaster.mock.calls[0][1].data.configuration).toMatchObject({collection_timing:'MONTH_CLOSE',adjustment_basis:{BONUS:'INCLUDE',SALARY_ARREARS:'EXCLUDE',RECOVERY:'DEDUCTION_ONLY'}});
+ expect(api.savePayrollMaster.mock.calls[0][1].data.configuration).toMatchObject({collection_timing:'INCREMENTAL_MONTHLY',adjustment_basis:{BONUS:'UNRESOLVED',SALARY_ARREARS:'UNRESOLVED',RECOVERY:'DEDUCTION_ONLY'}});
 });
 
 it('initial publication requires a fresh explicit preview and carries the mode on publish',async()=>{
@@ -207,10 +226,9 @@ it('initial publication requires a fresh explicit preview and carries the mode o
  await waitFor(()=>expect(api.previewPayrollPublication).toHaveBeenLastCalledWith('policies','draft',true));
  await waitFor(()=>expect(screen.queryByText('Effective date must be the 1st of a future month.')).not.toBeInTheDocument());
  expect(screen.getByRole('button',{name:'Publish revision'})).toBeDisabled();
- fireEvent.change(screen.getByLabelText(/Supporting approval reference/),{target:{value:'Initial setup approval'}});
  fireEvent.click(screen.getByRole('checkbox',{name:/I reviewed the rules/}));
  fireEvent.click(screen.getByRole('button',{name:'Publish revision'}));
- await waitFor(()=>expect(api.publishPayrollMaster).toHaveBeenCalledWith('policies','draft',{expected_version:1,preview_token:'initial',approval_reference:'Initial setup approval',initial_setup:true}));
+ await waitFor(()=>expect(api.publishPayrollMaster).toHaveBeenCalledWith('policies','draft',{expected_version:1,preview_token:'initial',approval_reference:null,initial_setup:true}));
 });
 
 it('policy settings require an explicit action and preserve independent salary methods', async()=>{
@@ -218,11 +236,29 @@ it('policy settings require an explicit action and preserve independent salary m
  expect(screen.getByText('Additional rules and rounding').closest('details')).not.toHaveAttribute('open');
  expect(within(screen.getByLabelText('Joining/leaving salary calculation')).queryByRole('option',{name:'WORK CALENDAR'})).not.toBeInTheDocument();
  fireEvent.change(screen.getByLabelText('Joining/leaving salary calculation'),{target:{value:'ACTUAL_CALENDAR_DAYS'}});
+ fireEvent.change(screen.getByLabelText('Weekly offs inside explicit leave'),{target:{value:'UNRESOLVED'}});
  fireEvent.click(screen.getByRole('button',{name:'Use standard calculation settings'}));
+ expect(screen.getByLabelText('Weekly offs inside explicit leave')).toHaveDisplayValue('Use approved work calendar');
+
  expect(screen.getByLabelText('Unpaid-leave deduction')).toHaveValue('FIXED_DIVISOR');
  expect(screen.getByLabelText('Joining/leaving salary calculation')).toHaveValue('ACTUAL_CALENDAR_DAYS');
  expect(screen.getByLabelText('lop precision')).toHaveValue(2);
  expect(screen.getByLabelText('Split-run allocation')).toHaveValue('CALENDAR_WEIGHTED_WITH_RESIDUAL');
+});
+it('updates the sample unpaid-leave deduction from draft settings', async () => {
+ mount();
+ await screen.findByText(/No master revisions/);
+ fireEvent.click(screen.getByRole('button', {name:'Create draft'}));
+ const february = within(screen.getByRole('row', {name:/February 2026/}));
+ expect(february.getAllByText('Needs review')).toHaveLength(2);
+ fireEvent.change(screen.getByLabelText('Unpaid-leave deduction'), {target:{value:'ACTUAL_CALENDAR_DAYS'}});
+ fireEvent.click(screen.getByRole('button', {name:'Use standard calculation settings'}));
+ expect(february.getByText('₹2,000.00')).toBeInTheDocument();
+ expect(february.getByText('₹2,142.86')).toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('lop precision'), {target:{value:'0'}});
+ expect(february.getByText('₹2,143.00')).toBeInTheDocument();
+ fireEvent.change(screen.getByLabelText('lop rounding stage'), {target:{value:'DAILY'}});
+ expect(february.getByText('₹2,142.00')).toBeInTheDocument();
 });
 it('salary policy end date is optional and cleared dates save as null',async()=>{
  mount();await screen.findByText(/No master revisions/);fireEvent.click(screen.getByRole('button',{name:'Create draft'}));
@@ -232,4 +268,5 @@ it('salary policy end date is optional and cleared dates save as null',async()=>
  fireEvent.change(screen.getByLabelText(/Change reason/),{target:{value:'Ongoing default policy'}});
  fireEvent.click(screen.getByRole('button',{name:'Save draft'}));await waitFor(()=>expect(api.savePayrollMaster).toHaveBeenCalled());
  expect(api.savePayrollMaster.mock.calls[0][1].data.effective_to).toBeNull();
+ expect(api.savePayrollMaster.mock.calls[0][1].data.leave_weekly_off_method).toBe('EXCLUDE_PAID_CALENDAR_DAYS');
 });

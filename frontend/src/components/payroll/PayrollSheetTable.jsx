@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Pagination, Table, TableHeader, TableBody, TableRow, TableCell, Badge, Modal } from '../ui';
-import { getSalaryRegister } from '../../api/payrollReportsApi';
+import { getSalaryRegister, exportSalaryReport } from '../../api/payrollReportsApi';
 import { autoRecalculatePayroll, getPayrollFreshness, getPayrollReviewQueue, actOnPayrollEmployees, refreshPayrollRun, deletePayrollRun } from '../../api/payrollReviewApi';
 import PayrollBlockers from './PayrollBlockers';
 import {payrollStatus,payrollGroupName} from '../../utils/payrollDisplay';
+import { downloadPayrollReport, payrollExportError } from '../../utils/downloadPayrollReport';
 import PayrollDeliveryReceipt from './PayrollDeliveryReceipt';
 const message=e=>e?.response?.data?.message||e.message;
 const amount=value=>value??'Unavailable';
@@ -18,6 +19,12 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
  const [autoResults,setAutoResults]=useState([]);
  const [generation,setGeneration]=useState(run.generation||null),[results,setResults]=useState([]);
  const report=useQuery({queryKey:['payroll-sheet-register',user.id,user.role,run.id,page],queryFn:async()=>(await getSalaryRegister({run_id:run.id,page,limit:20})).data.register});
+ const excelExport=useMutation({mutationFn:async()=>{
+  try {
+   const response=await exportSalaryReport({run_id:run.id,format:'xlsx',report:'register'});
+   downloadPayrollReport(response,`payroll-${run.group_code}-${run.period_from}-${run.period_to}-${run.id}.xlsx`);
+  } catch(error) {throw await payrollExportError(error);}
+ }});
  const queue=useQuery({queryKey:['payroll-sheet-actions',user.id,user.role,run.id,page],queryFn:async()=>(await getPayrollReviewQueue({run_id:run.id,page,limit:20})).data.queue});
  const signature=(report.data?.rows||[]).map(row=>[row.id,row.current_version,row.revision,row.source_fingerprint].join(':')).join('|');
  const freshness=useQuery({queryKey:['payroll-sheet-freshness',user.id,user.role,run.id,page,signature],enabled:!!report.data,
@@ -94,8 +101,12 @@ export default function PayrollSheetTable({run,user,onUpdated,onReviewRow,onDele
   <div className="p-5 space-y-3 border-b border-white/10">
    <div className="flex flex-wrap justify-between items-center gap-3">
     <div><h3 className="text-lg font-bold">Payroll calculation table</h3><p className="text-xs text-slate-400">{run.department} · {payrollGroupName(run.group_code)} · {run.period_from} – {run.period_to}</p></div>
-    {canPrepare&&<div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={()=>populate.mutate()}>Refresh eligible employees</Button><Button variant="danger" disabled={busy||deleteBlocked} onClick={()=>{setDeleteReason('');deletion.reset();setDeleteOpen(true);}}>Delete draft sheet</Button></div>}
+    <div className="flex flex-wrap gap-2">
+     <Button loading={excelExport.isPending} onClick={()=>excelExport.mutate()}>Export full sheet to Excel</Button>
+     {canPrepare&&<><Button disabled={busy} onClick={()=>populate.mutate()}>Refresh eligible employees</Button><Button variant="danger" disabled={busy||deleteBlocked} onClick={()=>{setDeleteReason('');deletion.reset();setDeleteOpen(true);}}>Delete draft sheet</Button></>}
+    </div>
    </div>
+   {excelExport.isError&&<p role="alert" className="text-sm text-red-600 dark:text-red-300">{message(excelExport.error)}</p>}
    <p className="text-xs text-slate-400">Unsubmitted drafts update automatically when changed sources are detected on open or refocus. Submitted, returned and locked rows keep their saved calculations. Refresh also adds missing eligible employees. Submission and approval remain explicit decisions.</p>
    <Button size="sm" disabled={freshness.isFetching} onClick={()=>freshness.refetch()}>Check current sources</Button>
    {report.data&&<p role="status">On this page: {report.data.rows.filter(readyToReview).length} ready · {report.data.rows.filter(row=>!readyToReview(row)).length} need setup or calculation.</p>}

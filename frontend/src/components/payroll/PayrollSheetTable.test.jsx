@@ -140,3 +140,22 @@ test.each(['PENDING_HO_APPROVAL','RETURNED_TO_CREATOR','LOCKED','CANCELLED_DRAFT
  review.getPayrollFreshness.mockResolvedValue({data:{freshness:{checks:[{row_id:'row',current_version:1,review_revision:1,source_fingerprint:row.source_fingerprint,status:'CHANGED'}]}}});
  open();await screen.findByText('Synthetic payroll employee');await waitFor(()=>expect(review.getPayrollFreshness).toHaveBeenCalled());expect(review.autoRecalculatePayroll).not.toHaveBeenCalled();
 });
+
+test('downloads the complete workbook for the open run without page or selection filters', async () => {
+ const create = vi.stubGlobal('URL', Object.assign(class extends URL {}, {
+  createObjectURL: vi.fn(() => 'blob:payroll'), revokeObjectURL: vi.fn(),
+ }));
+ const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+  expect(this.download).toBe('payroll-SNP_CASUAL-2091-10-01-2091-10-31-run.xlsx');
+ });
+ try {
+  reports.exportSalaryReport.mockResolvedValue({ data: new Blob(['xlsx']) });
+  open({ user: { id: 'ho', role: 'ho' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Export full sheet to Excel' }));
+  await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+  expect(reports.exportSalaryReport).toHaveBeenCalledWith({ run_id: 'run', format: 'xlsx', report: 'register' });
+ } finally {
+  click.mockRestore();
+  create.unstubAllGlobals();
+ }
+});

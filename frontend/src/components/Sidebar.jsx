@@ -375,6 +375,9 @@ if (['factory_manager', 'ho', 'admin'].includes(user?.role)) {
     if (user?.role === 'accounts') {
       payrollItems.push({ to: '/admin/payroll/statutory', label: 'Company Deductions', icon: <span aria-hidden="true">₹</span> });
     }
+    if (['admin', 'accounts'].includes(user?.role)) {
+      payrollItems.push({ to: '/acct-requisitions/payroll-setup', label: 'Employee Payroll Setup', icon: <span aria-hidden="true">₹</span> });
+    }
     payrollItems.push(
       { to: '/hr/payroll/register', label: 'Payroll Register', icon: <span aria-hidden="true">₹</span> },
       { to: '/hr/payroll/previews', label: 'Payroll Previews', icon: <span aria-hidden="true">₹</span> },
@@ -782,6 +785,7 @@ const Sidebar = () => {
       label: 'Company Deductions',
       icon: <span aria-hidden="true">₹</span>
     });
+    navItems.push({ to: '/acct-requisitions/payroll-setup', label: 'Employee Payroll Setup', icon: <span aria-hidden="true">₹</span> });
     navItems.push({
       to: '/hr/payroll/register',
       label: 'Payroll Register',
@@ -1062,6 +1066,7 @@ const Sidebar = () => {
         label: 'Company Deductions',
         icon: <span aria-hidden="true">₹</span>
       });
+      navItems.push({ to: '/acct-requisitions/payroll-setup', label: 'Employee Payroll Setup', icon: <span aria-hidden="true">₹</span> });
       navItems.push({
         to: '/hr/payroll/register',
         label: 'Payroll Register',
