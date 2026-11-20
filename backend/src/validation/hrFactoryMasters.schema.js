@@ -33,7 +33,8 @@ const rule = z.object({
   if (v.holiday_pay_enabled ? v.holiday_multiplier === null : v.holiday_multiplier !== null) issue('holiday_multiplier', 'Holiday multiplier must match holiday pay configuration.');
   const local = v.employee_category === 'Local Daily-Wage Workers';
   if (local && v.holiday_pay_enabled) issue('holiday_pay_enabled', 'Holiday pay is not applicable to local workers.');
-  if (local ? v.double_duty_multiplier !== 2 : v.double_duty_multiplier !== null) issue('double_duty_multiplier', 'Double duty configuration applies only to local workers.');
+  if (local && v.double_duty_multiplier === null) issue('double_duty_multiplier', 'Enter a double-duty multiplier for Local workers.');
+  if (!local && v.double_duty_multiplier !== null) issue('double_duty_multiplier', 'Double duty configuration applies only to local workers.');
   if (v.ot_method === 'Salary-derived hourly' && wageCategories.includes(v.employee_category)) issue('ot_method', 'Salary-derived OT requires a permanent category.');
   if (v.ot_method === 'Derived from daily wage' && !wageCategories.includes(v.employee_category)) issue('ot_method', 'Daily-wage-derived OT requires a daily-wage category.');
 });

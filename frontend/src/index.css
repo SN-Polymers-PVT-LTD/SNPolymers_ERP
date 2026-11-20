@@ -1068,28 +1068,50 @@ body.light select option {
   /* slate-900 */
 }
 
-/* ─── Date Input Calendar Icon Visibility Fix ───────────────────────────────── */
-/* In dark mode the browser's native calendar icon is black → invisible.        */
-/* Invert it to white so it's visible on dark backgrounds.                       */
-input[type="date"]::-webkit-calendar-picker-indicator {
+/* ─── Temporal Input Calendar & Time Picker Icon Theme Styling ─────────────── */
+/* In dark mode the browser's native calendar/time indicator icon is black.    */
+/* Invert to crisp light/white with brand amber hover glow for visibility.     */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator,
+input[type="week"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(1) brightness(1.2);
-  opacity: 0.7;
+  opacity: 0.75;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, filter 0.2s ease, transform 0.15s ease;
 }
 
-input[type="date"]::-webkit-calendar-picker-indicator:hover {
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover,
+input[type="week"]::-webkit-calendar-picker-indicator:hover,
+input[type="time"]::-webkit-calendar-picker-indicator:hover,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
   opacity: 1;
+  filter: invert(0.85) sepia(1) saturate(6) hue-rotate(350deg) brightness(1.2);
+  transform: scale(1.05);
 }
 
-/* Light mode: restore the native dark icon */
-body.light input[type="date"]::-webkit-calendar-picker-indicator {
+/* Light mode: restore native dark/slate calendar icon with subtle hover transition */
+body.light input[type="date"]::-webkit-calendar-picker-indicator,
+body.light input[type="month"]::-webkit-calendar-picker-indicator,
+body.light input[type="week"]::-webkit-calendar-picker-indicator,
+body.light input[type="time"]::-webkit-calendar-picker-indicator,
+body.light input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: none;
   opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.2s ease, filter 0.2s ease, transform 0.15s ease;
 }
 
-body.light input[type="date"]::-webkit-calendar-picker-indicator:hover {
-  opacity: 1;
+body.light input[type="date"]::-webkit-calendar-picker-indicator:hover,
+body.light input[type="month"]::-webkit-calendar-picker-indicator:hover,
+body.light input[type="week"]::-webkit-calendar-picker-indicator:hover,
+body.light input[type="time"]::-webkit-calendar-picker-indicator:hover,
+body.light input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.95;
+  filter: sepia(1) saturate(5) hue-rotate(350deg);
+  transform: scale(1.05);
 }
 
 /* Remove grey/dark overlays on documentation elements in light mode */

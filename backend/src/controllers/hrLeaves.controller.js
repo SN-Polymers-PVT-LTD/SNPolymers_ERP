@@ -130,6 +130,10 @@ module.exports = {
       })
     );
 
+    const { notifyHoSelfServiceLeaveSubmitted } = require('../services/telegram.service');
+    void notifyHoSelfServiceLeaveSubmitted(employee, b).catch(error => {
+      console.warn('[SELF-SERVICE LEAVE] Telegram notification failed:', error.message);
+    });
     res.json({ success: true, leave: data });
   }),
 

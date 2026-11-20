@@ -44,7 +44,8 @@ function factoryDay(day,permanent=false){
  // Stored classification controls the multiplier; no inference from duration.
  if(!permanent&&!blockers.length){
   let value=D.mul(D.decimal(day.wage.daily_wage),D.decimal(double?rule.double_duty_multiplier:'1'));
-  if(short)value=D.round(D.mul(value,D.div(hours,expectedHours)),{method:'HALF_UP',precision:2});
+  if(short)value=D.mul(value,D.div(hours,expectedHours));
+  if(short||double)value=D.round(value,{method:'HALF_UP',precision:2});
   line(double?'DOUBLE_DUTY':'DAILY_WAGE',value,short?{source_ids:[treatment.id],calculation:{treatment:'Only worked hours paid',worked_hours:row.actual_hours,normal_hours:D.format(expectedHours)}}:{});
  }
  if(row.holiday_pay_eligible){

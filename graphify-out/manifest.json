@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "backend/src/controllers/hrLeaves.controller.js": {
-    "mtime": 1794511911.4418883,
-    "seen": 1794512191.6890333,
-    "ast_hash": "340a1e740fd3024f803186269c413c86",
+    "mtime": 1795164948.119844,
+    "seen": 1795164999.2099185,
+    "ast_hash": "46baf1981858a49f3f34a9f49a04c671",
     "semantic_hash": ""
   },
   "backend/src/controllers/hrPayStructures.controller.js": {
@@ -1356,10 +1356,10 @@
     "semantic_hash": "88d40af6a4262ee1f55815e7e29a148c"
   },
   "backend/src/services/telegram.service.js": {
-    "mtime": 1790163704.0146112,
-    "seen": 1790921982.1298814,
-    "ast_hash": "5285b8aae68dbdda69ea47030cc4fbcd",
-    "semantic_hash": "5285b8aae68dbdda69ea47030cc4fbcd"
+    "mtime": 1795164948.117959,
+    "seen": 1795164999.2131312,
+    "ast_hash": "b241819a1d5f4e0ea59cc8f8076469e6",
+    "semantic_hash": ""
   },
   "backend/src/services/workOrderCapacity.service.js": {
     "mtime": 1786562057.0609443,
@@ -1464,9 +1464,9 @@
     "semantic_hash": ""
   },
   "backend/src/validation/hrFactoryMasters.schema.js": {
-    "mtime": 1793646112.225126,
-    "seen": 1793647787.0459876,
-    "ast_hash": "0f8c49369e1be32f4c46c2e48394da94",
+    "mtime": 1795161863.9528909,
+    "seen": 1795161933.7566946,
+    "ast_hash": "cbeccf82a09ab3d5fab04bc32178b0b2",
     "semantic_hash": ""
   },
   "backend/src/validation/hrLeaves.schema.js": {
@@ -2790,9 +2790,9 @@
     "semantic_hash": "94e25039c0b167cab73d763401fb7d95"
   },
   "frontend/src/components/Sidebar.jsx": {
-    "mtime": 1794565102.3215413,
-    "seen": 1794565387.1155066,
-    "ast_hash": "4a6ed51533dc0c1d3650c4b1be0f2d74",
+    "mtime": 1795164721.5235977,
+    "seen": 1795164750.844267,
+    "ast_hash": "1f0ccfba4e97a2de110abd578936b023",
     "semantic_hash": ""
   },
   "frontend/src/components/ThemeContext.jsx": {
@@ -4662,15 +4662,15 @@
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/FactoryMasters.jsx": {
-    "mtime": 1794576266.056564,
-    "seen": 1794576341.1297765,
-    "ast_hash": "82dc0a1688bc2f74d94f4f094e3a3464",
+    "mtime": 1795161863.9548864,
+    "seen": 1795161933.7582746,
+    "ast_hash": "4471144600881c04f0fb8ba7295de850",
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/FactoryMasters.test.jsx": {
-    "mtime": 1793692549.6849651,
-    "seen": 1793692580.9551537,
-    "ast_hash": "f26f2cf9a35b89761d9d19d3729fc5bc",
+    "mtime": 1795161905.439878,
+    "seen": 1795161933.758277,
+    "ast_hash": "415c0dcdd29c730d6196ce87ec01e652",
     "semantic_hash": ""
   },
   "frontend/src/pages/hr/MonthlyAttendanceCalendar.jsx": {
@@ -6030,9 +6030,9 @@
     "semantic_hash": ""
   },
   "backend/src/domain/payroll/factory.js": {
-    "mtime": 1793700076.4703412,
-    "seen": 1793701286.843807,
-    "ast_hash": "c8bedad67800ae083c7eabd9e7059e11",
+    "mtime": 1795161863.953464,
+    "seen": 1795161933.7564998,
+    "ast_hash": "025d49fb19c4b3e1c0eb542cede2aea5",
     "semantic_hash": ""
   },
   "backend/src/domain/payroll/permanent.js": {
@@ -7176,9 +7176,9 @@
     "semantic_hash": ""
   },
   "backend/tests/vitest/unit/factoryTreatments.test.js": {
-    "mtime": 1793646274.683511,
-    "seen": 1793647787.0463543,
-    "ast_hash": "63ea77e4d64de283dad51646beadc63c",
+    "mtime": 1795161874.1612434,
+    "seen": 1795161933.7572193,
+    "ast_hash": "0d6b1d153d07c01cb7d628182bca64e4",
     "semantic_hash": ""
   },
   "documentation/SN_Polymers_Factory_Overtime_Implementation.md": {
@@ -7593,6 +7593,12 @@
     "mtime": 1794636226.3595448,
     "seen": 1794636312.9930086,
     "ast_hash": "fa358b9042477d935f44e1eaa80ed938",
+    "semantic_hash": ""
+  },
+  "backend/src/db/migrations/187_configurable_local_double_duty.sql": {
+    "mtime": 1795161863.9806535,
+    "seen": 1795161933.7564778,
+    "ast_hash": "2a2182009baacc8c7126706635561067",
     "semantic_hash": ""
   }
 }

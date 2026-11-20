@@ -35,6 +35,13 @@ describe('confirmed factory attendance pay decisions',()=>{
  const s=factory('Local Daily-Wage Workers');s.factory_rules[0].treatment=treatment;Object.assign(s.attendance[0],{duty_type:'Double Duty',actual_hours:'24'});expect(calculatePreview(s).gross_after_lop).toBe('800.00');
  s.attendance[0].actual_hours='18';expect(calculatePreview(s).gross_after_lop).toBe('600.00');s.attendance[0].actual_hours='25';const r=calculatePreview(s);expect(r.gross_after_lop).toBe('800.00');expect(r.configuration_warnings.map(w=>w.code)).toContain('UNUSUAL_LOCAL_DUTY_DURATION');
  });
+ test('uses the dated Local double-duty multiplier and rounds to paise',()=>{
+ const s=factory('Local Daily-Wage Workers');
+ s.factory_rules[0].double_duty_multiplier='2.25';
+ s.wages[0].daily_wage='350.01';
+ Object.assign(s.attendance[0],{duty_type:'Double Duty',actual_hours:'24'});
+ expect(calculatePreview(s).gross_after_lop).toBe('787.52');
+ });
  test('HO-approved Paid medical leave pays without a certificate; local paid leave stays forbidden',()=>{
  const s=factory();s.factory_rules[0].treatment=treatment;const a=s.attendance[0];Object.assign(a,{attendance_status:'Medical Leave',actual_hours:'0',entry_timestamp:null,exit_timestamp:null,leave_request_id:'medical'});
  s.leave=[leave(a.attendance_date,a.attendance_date,{id:'medical',pay_treatment:'Paid',leave_type:'Medical Leave'})];

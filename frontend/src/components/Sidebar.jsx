@@ -847,7 +847,6 @@ const Sidebar = () => {
       )
     });
     navItems.push({ to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> });
-    navItems.push({ to: '/admin/employee-management?tab=pay-structure', label: 'Employee Pay Structures', icon: <span aria-hidden="true">♙</span> });
     navItems.push({ to: '/hr/payroll/register', label: 'Payroll Register', icon: <span aria-hidden="true">₹</span> });
     if (currentPath.startsWith('/hr/payroll/previews')) {
       navItems.push({ to: '/hr/payroll/previews', label: 'Payroll Previews', icon: <span aria-hidden="true">₹</span> });
@@ -1100,6 +1099,7 @@ const Sidebar = () => {
   } else if (isAdminModule) {
     if (user?.role === 'admin') {
       navItems.push(
+        { to: '/admin/employee-management?tab=pay-structure', label: 'Employee Pay Structures', icon: <span aria-hidden="true">♙</span> },
         { to: '/admin/payroll/policies', label: 'Salary Calculation Policy', icon: <span aria-hidden="true">⚙</span> },
         {
           to: '/admin',
@@ -1239,7 +1239,9 @@ const Sidebar = () => {
                 ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')
                 : to === '/admin/payroll/statutory'
                   ? currentPath === '/admin/payroll/statutory'
-                  : currentPath === to.split('?')[0];
+                  : to.startsWith('/admin/employee-management') && currentPath === '/admin/employee-management'
+                    ? (new URLSearchParams(location.search).get('tab') === 'pay-structure') === to.includes('tab=pay-structure')
+                    : currentPath === to.split('?')[0];
             return (
               <Link
                 key={to}
@@ -1347,7 +1349,9 @@ const Sidebar = () => {
                 ? (currentPath === '/acct-requisitions/sub-titles' || currentPath === '/acct-requisitions/particulars')
                 : to === '/admin/payroll/statutory'
                   ? currentPath === '/admin/payroll/statutory'
-                  : currentPath === to.split('?')[0];
+                  : to.startsWith('/admin/employee-management') && currentPath === '/admin/employee-management'
+                    ? (new URLSearchParams(location.search).get('tab') === 'pay-structure') === to.includes('tab=pay-structure')
+                    : currentPath === to.split('?')[0];
             return (
               <Link
                 key={to}

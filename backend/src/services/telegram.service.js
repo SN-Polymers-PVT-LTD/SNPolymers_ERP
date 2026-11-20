@@ -2966,7 +2966,27 @@ async function notifyJeSubcontractEstimateReopened(estimate, actorMobile, remark
   }
 }
 
+async function notifyHoSelfServiceLeaveSubmitted(employee, leave) {
+  if (process.env.NODE_ENV === 'test' || process.env.TELEGRAM_MODE === 'disabled') return;
+
+  const recipients = await getActiveHoTelegramRecipients();
+  const dates = leave.from_date === leave.to_date
+    ? leave.from_date
+    : `${leave.from_date} to ${leave.to_date}`;
+  const message = [
+    '<b>New self-service leave request</b>',
+    `<b>Employee:</b> ${escapeHtml(employee.employee_name)} (${escapeHtml(employee.employee_code)})`,
+    `<b>Department:</b> ${escapeHtml(employee.department)}`,
+    `<b>Leave:</b> ${escapeHtml(leave.leave_type)}`,
+    `<b>Dates:</b> ${escapeHtml(dates)}`,
+    'Review the pending request in the ERP Staff Leave Queue.'
+  ].join('\n');
+
+  await broadcastTelegram(recipients, message, '[SELF-SERVICE LEAVE]');
+}
+
 module.exports = {
+  notifyHoSelfServiceLeaveSubmitted,
   escapeHtml,
   sendOtp,
   startPolling,

@@ -634,7 +634,7 @@ function RevisionForm({ kind, category, onSave, onCancel, pending }) {
               ) : (
                 <Input label="OT Multiplier" type="number" min="0.0001" step="0.0001" required {...field('ot_multiplier')} />
               )}
-              {form.ot_enabled && <div className="md:col-span-2 rounded-xl border border-amber-500/20 p-4 space-y-3">
+              {form.ot_enabled && <div className="md:col-span-2 rounded-xl border border-sky-500/25 bg-sky-500/10 p-4 space-y-3">
                 {form.ot_method === 'Salary-derived hourly' && <Input label="Days used to calculate overtime" type="number" min="0.0001" max="366" step="0.0001" required {...field('salary_days')} />}
                 <p className="text-sm text-slate-300">{form.ot_method === 'Salary-derived hourly' ? 'Uses agreed monthly gross ÷ OT salary days ÷ standard duty hours × multiplier. Unpaid-leave calculation stays separate.' : form.ot_method === 'Derived from daily wage' ? 'Uses the applicable daily wage ÷ standard duty hours × multiplier.' : 'Uses the configured hourly rate.'}</p>
                 <p className="text-xs text-slate-400">Overtime rounding: nearest paise, half up, at each daily and hourly rate and final amount. Saving confirms these settings.</p>
@@ -655,15 +655,18 @@ function RevisionForm({ kind, category, onSave, onCancel, pending }) {
                 </>
               )}
               {local && (
-                <div className="md:col-span-2 space-y-2">
-                  <p className="text-xs text-slate-400">Holiday-work pay is not applicable to local workers.</p>
-                  <p className="text-sm text-slate-300">Double duty pays 2× the daily wage, without additional overtime.</p>
-                </div>
+                <>
+                  <Input label="Double-duty multiplier" type="number" min="0.0001" max="9999" step="0.0001" required {...field('double_duty_multiplier')} />
+                  <div className="md:col-span-2 rounded-xl border border-violet-500/25 bg-violet-500/10 p-4 space-y-2">
+                    <p className="text-sm">Double-duty pay is the applicable daily wage multiplied by the value above. Additional overtime is excluded.</p>
+                    <p className="text-xs">Local workers have no holiday-work premium.</p>
+                  </div>
+                </>
               )}
             </div>
           </fieldset>
 
-          <fieldset disabled={pending} className="rounded-xl border border-white/10 p-4 space-y-3">
+          <fieldset disabled={pending} className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-4 space-y-3">
             <h3 className="font-semibold">Attendance pay treatment</h3>
             <p className="text-sm text-slate-300">Short days: deduct only missing hours. Approved management stoppages retain normal pay. Paid medical and other leave follow HO’s recorded decision on paid or unpaid leave.</p>
             {!wage && form.holiday_pay_enabled && <>

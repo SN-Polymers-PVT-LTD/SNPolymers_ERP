@@ -59,7 +59,7 @@ describe('Factory masters', () => {
     fireEvent.click(screen.getByRole('button', { name: 'New revision' }));
     expect(screen.getByLabelText(/Effective From/)).toHaveValue('');
     expect(screen.getByLabelText(/Standard Duty Hours/)).toHaveValue(12);
-    expect(screen.getByText(/Double duty pays 2×/)).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: /Double-duty multiplier/i })).toHaveValue(2);
   });
   it('changing OT method submits only the corresponding rate', async () => {
     mount(`/factory-masters?tab=rules&category=${encodeURIComponent('Local Daily-Wage Workers')}`);
