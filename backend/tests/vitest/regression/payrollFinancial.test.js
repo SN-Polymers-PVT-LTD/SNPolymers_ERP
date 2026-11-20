@@ -57,7 +57,7 @@ describe('guarded payroll financial transactions',()=>{
    original_period_from:kind==='SALARY_ARREARS'?'2090-01-01':null,original_period_to:kind==='SALARY_ARREARS'?'2090-01-31':null,evidence_reference:'SYNTHETIC adjustment'};
   await reject(()=>q(db,'SELECT create_payroll_adjustment($1,$2,$3)',[f.employees[0].id,data,users.accounts.id]),'PY409');
  });
- test('existing bonus stays visible, cannot be approved or applied, and can be rejected',async()=>{
+ test('existing bonus stays stored, is hidden from payroll, and can only be rejected',async()=>{
   const f=await prepared({gate:true}),row=f.rows[0].id,employee=f.employees[0].id;
   await q(db,'ALTER TABLE payroll_adjustments DISABLE TRIGGER payroll_block_paused_adjustments');
   const data={kind:'BONUS',amount:'1000.00',effective_date:f.from,target_row_id:row,evidence_reference:'SYNTHETIC pre-pause bonus'};
@@ -66,7 +66,8 @@ describe('guarded payroll financial transactions',()=>{
   await q(db,'ALTER TABLE payroll_adjustments ENABLE TRIGGER payroll_block_paused_adjustments');
   await q(db,'SET CONSTRAINTS ALL DEFERRED');
   const {r:ledger}=await one(db,'SELECT get_payroll_adjustments($1,$2,1,20) r',[employee,users.accounts.id]);
-  expect(ledger.rows).toContainEqual(expect.objectContaining({id:entry.id,kind:'BONUS'}));
+  expect(ledger.rows).not.toContainEqual(expect.objectContaining({id:entry.id}));
+  expect(await one(db,'SELECT kind,amount::text FROM payroll_adjustments WHERE id=$1',[entry.id])).toEqual({kind:'BONUS',amount:'1000.00'});
   const action=(type)=>q(db,"SELECT act_payroll_adjustment($1,1,$2,'SYNTHETIC review','{}',$3)",[entry.id,type,users.ho.id]);
   await reject(()=>action('approve'),'PY409');
   await reject(()=>q(db,'INSERT INTO payroll_adjustment_applications VALUES($1,$2,$3,$4,1000)',[entry.id,row,employee,f.from]),'PY409');

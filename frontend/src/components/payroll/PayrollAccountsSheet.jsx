@@ -4,9 +4,11 @@ import {useQuery,useMutation,useQueryClient} from '@tanstack/react-query';
 import {useAuth} from '../AuthContext';
 import {Button,Input,Select,TextArea,Modal,Badge,Pagination,Table,TableHeader,TableBody,TableRow,TableCell} from '../ui';
 import {getBankBalances} from '../../api/acctRequisitionsApi';
-import {getPayrollAccountsSheet,submitPayrollAccountsSheet,saveSalaryPaymentDetails,actOnSalary,resubmitSalaryPayment,recordSalaryPayment} from '../../api/payrollAccountsApi';
+import {getPayrollAccountsSheet,getFullPayrollAccountsSheet,submitPayrollAccountsSheet,saveSalaryPaymentDetails,actOnSalary,resubmitSalaryPayment,recordSalaryPayment} from '../../api/payrollAccountsApi';
 import BankBalanceBanner from '../acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../acctRequisition/BulkNeftExportButton';
+import ExportCsvStatusModal from '../acctRequisition/ExportCsvStatusModal';
+import {buildSheetCsv} from '../../utils/acctSheetCsv';
 import SalaryPreview from './SalaryPreview';
 import BeneficiaryDetails from '../acctRequisition/BeneficiaryDetails';
 import PayrollBeneficiaryField from './PayrollBeneficiaryField';
@@ -16,6 +18,27 @@ const labels={WITH_ACCOUNTS:'With Accounts',WITH_HO:'With HO',RETURNED:'Returned
 const selectionKey=row=>`${row.delivery_id}:${row.delivery_version}`;
 const errorText=e=>e?.response?.data?.message||e.message;
 const positive=row=>!/^0(?:\.0+)?$/.test(String(row.salary.final_net_salary));
+const csvStatus=row=>row.payment?'Paid':labels[row.disposition]||row.disposition;
+const csvColumns=[
+ ['Sheet Number',(_,sheet)=>sheet.sheet_number],
+ ['Employee Code',row=>row.employee_code],
+ ['Employee Name',row=>row.employee_name],
+ ['Period From',row=>row.period_from],
+ ['Period To',row=>row.period_to],
+ ['Beneficiary Name',row=>row.beneficiary_name],
+ ['Beneficiary A/C No',row=>row.beneficiary_ac_no],
+ ['Beneficiary IFSC',row=>row.beneficiary_ifsc],
+ ['Beneficiary Bank',row=>row.beneficiary_bank_name],
+ ['Debit Bank',row=>row.debit_bank_ac_type],
+ ['Take-home Pay',row=>row.salary.final_net_salary],
+ ['Payment Mode',row=>row.payment_mode],
+ ['Cheque No',row=>row.cheque_no],
+ ['Cheque Date',row=>row.cheque_date],
+ ['Remarks',row=>row.remarks],
+ ['Status',csvStatus],
+ ['Paid On',row=>row.payment?.paid_on],
+ ['Bank Reference',row=>row.payment?.reference],
+];
 
 const cents = value => {
  const match = String(value ?? '').match(/^(-?)(\d+)(?:\.(\d{1,2}))?$/);
@@ -32,7 +55,24 @@ export default function PayrollAccountsSheet({sheetId,ho=false}){
  const accounts=!ho&&['accounts','admin'].includes(user?.role);
  const [page,setPage]=useState(1),[selected,setSelected]=useState([]),[dialog,setDialog]=useState(null),[notice,setNotice]=useState('');
  const [form,setForm]=useState({}),[drafts,setDrafts]=useState({}),[failures,setFailures]=useState([]);
+ const [csvOpen,setCsvOpen]=useState(false);
  const query=useQuery({queryKey:['payroll-accounts-sheet',user?.id,sheetId,page],queryFn:async()=>(await getPayrollAccountsSheet(sheetId,{page,limit:20})).data.payroll});
+ const needsAllRows=accounts&&query.data?.total>query.data?.rows.length;
+ const allRows=useQuery({
+  queryKey:['payroll-accounts-sheet',user?.id,sheetId,'export'],
+  queryFn:()=>getFullPayrollAccountsSheet(sheetId),
+  enabled:needsAllRows,
+ });
+ const csvExport=useMutation({mutationFn:async status=>{
+  const {sheet,rows}=await getFullPayrollAccountsSheet(sheetId);
+  const items=status==='All'?rows:rows.filter(row=>csvStatus(row)===status);
+  const blob=new Blob([buildSheetCsv(sheet,items,csvColumns)],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),link=document.createElement('a');
+  link.href=url;
+  link.download=`${sheet.sheet_number}${status==='All'?'':`-${status.replace(/\s+/g,'-')}`}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+ }});
  const banks=useQuery({queryKey:['acctBankBalances'],queryFn:async()=>(await getBankBalances()).data.bankBalances||[]});
  const refresh=()=>{
   return Promise.all(['payroll-accounts-sheet','acctSheet','acctSheets','acctHoSheets','acctHoQueue','acctBankBalances','payroll-review-queue','payroll-employee-review','salary-register','payroll-sheet-register','payroll-sheet-freshness'].map(key=>client.invalidateQueries({queryKey:[key]})));
@@ -80,7 +120,8 @@ export default function PayrollAccountsSheet({sheetId,ho=false}){
  const {sheet,run}=query.data;
  const finalizationDisabled=query.data.financial_finalization_enabled===false;
  const eligible=rows.filter(r=>r.active&&['WITH_HO','HOLD'].includes(r.disposition)&&!r.source_stale&&r.independent_reviewer!==false&&r.payment_details_current!==false);
- const neft=rows.filter(r=>r.disposition==='APPROVED'&&positive(r)&&r.payment_mode==='Bulk NEFT');
+ const neft=(needsAllRows?(allRows.isError?[]:allRows.data?.rows||[]):rows)
+  .filter(r=>r.active&&r.disposition==='APPROVED'&&!r.payment&&positive(r)&&r.payment_mode==='Bulk NEFT');
  const paymentReady=r=>!positive(r)||!!(r.beneficiary_id&&r.beneficiary_ac_no&&r.debit_bank_ac_type&&r.payment_mode&&(r.payment_mode!=='Cheque'||r.cheque_no&&r.cheque_date));
  const active=rows.filter(r=>r.active);
  const hasEdits=Object.keys(drafts).length>0;
@@ -180,7 +221,14 @@ export default function PayrollAccountsSheet({sheetId,ho=false}){
   {accounts&&(sheet.sheet_status==='Open'||hasEdits)&&<div className="glass-panel rounded-2xl p-5 flex justify-end">
    <Button variant="glass" disabled={busy||!hasEdits} onClick={()=>mutation.mutate('draft')}>Save draft</Button>
   </div>}
-  {accounts&&neft.length>0&&<BulkNeftExportButton sheetId={sheetId} items={neft} onExported={refresh}/>}
+  {(accounts||ho)&&<div className="glass-panel rounded-2xl p-5 flex flex-wrap items-start gap-3">
+   <Button variant="glass" disabled={csvExport.isPending||!(query.data.total??rows.length)} onClick={()=>{csvExport.reset();setCsvOpen(true);}}>Export to CSV</Button>
+   {accounts&&neft.length>0&&<BulkNeftExportButton sheetId={sheetId} items={neft} onExported={refresh}/>}
+   {needsAllRows&&allRows.isPending&&<p role="status">Loading Bulk NEFT items…</p>}
+   {needsAllRows&&allRows.isError&&<div role="alert">Could not load Bulk NEFT items. <Button onClick={()=>allRows.refetch()}>Retry</Button></div>}
+   {csvExport.isError&&<p role="alert">{errorText(csvExport.error)}</p>}
+  </div>}
+  {csvOpen&&<ExportCsvStatusModal isOpen onClose={()=>setCsvOpen(false)} onExport={csvExport.mutate} statusOptions={[...Object.values(labels),'Paid']}/>}
   {dialog&&<Modal title={dialog.kind==='salary'?'Salary details':dialog.kind==='defaults'?'Payment defaults':dialog.kind==='paid'?'Record salary payment':'Return or hold salary'} subtitle={dialog.row?`${dialog.row.employee_name} · ${dialog.row.employee_code}`:sheet.sheet_number} size={dialog.kind==='salary'?'lg':'md'} onClose={()=>{if(!busy)setDialog(null);}} closeDisabled={busy} role="dialog" aria-modal="true" aria-label="Salary sheet details" footer={dialog.kind==='salary'?null:<><Button variant="glass" disabled={busy} onClick={()=>setDialog(null)}>Cancel</Button><Button variant="yellow" disabled={busy||!fieldsReady} loading={busy} onClick={()=>mutation.mutate(dialog.kind==='decision'||dialog.kind==='return'?'decision':dialog.kind)}>Save {dialog.kind==='defaults'?'defaults':dialog.kind==='paid'?'payment':''}</Button></>}>
    <div className="space-y-4">
     {dialog.kind==='salary'?<SalaryPreview preview={dialog.row.beneficiary_ac_no ? {...dialog.row.salary,beneficiary:{status:'RECORDED',beneficiary_name:dialog.row.beneficiary_name,masked_account_number:`****${dialog.row.beneficiary_ac_no.slice(-4)}`,ifsc:dialog.row.beneficiary_ifsc,bank_name:dialog.row.beneficiary_bank_name}} : dialog.row.salary} beneficiaryContext={dialog.row.beneficiary_ac_no?'payment':'employee'} inModal isSnapshot/>:<>

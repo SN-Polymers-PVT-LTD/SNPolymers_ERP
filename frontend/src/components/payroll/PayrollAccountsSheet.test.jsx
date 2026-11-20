@@ -146,3 +146,65 @@ test('shows the current balance as the projection on an unrouted single-page she
  expect(screen.queryByText('Credit',{exact:true})).not.toBeInTheDocument();
  expect(screen.queryByRole('option',{name:'Credit'})).not.toBeInTheDocument();
 });
+
+test('Bulk NEFT submits only unpaid approved payroll items', async () => {
+  const approved = {...row, disposition:'APPROVED', payment_mode:'Bulk NEFT', debit_bank_ac_type:'Test debit bank'};
+  api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,rows:[
+    {...approved, id:'unpaid', payment:null},
+    {...approved, id:'paid', delivery_id:'paid-delivery', employee_name:'Paid employee', payment:{paid_on:'2026-08-31',reference:'TEST'}}
+  ]}}});
+  accounts.exportBulkNeft.mockRejectedValue(new Error('Synthetic export response'));
+  mount();
+  fireEvent.click(await screen.findByRole('button',{name:'Export Bulk NEFT (1)'}));
+  await waitFor(()=>expect(accounts.exportBulkNeft).toHaveBeenCalledWith('sheet',{item_ids:['unpaid']}));
+});
+
+test('exports the selected payroll CSV status across the whole sheet', async () => {
+  const savedCreate = URL.createObjectURL;
+  const savedRevoke = URL.revokeObjectURL;
+  let downloaded;
+  URL.createObjectURL = vi.fn(blob => { downloaded = blob; return 'blob:payroll-csv'; });
+  URL.revokeObjectURL = vi.fn();
+  const click = vi.spyOn(HTMLAnchorElement.prototype,'click').mockImplementation(() => {});
+  try {
+    api.getFullPayrollAccountsSheet.mockResolvedValue({...payload,rows:[
+      row,
+      {...row,id:'paid',employee_name:'Paid, Employee',beneficiary_ac_no:'001234',disposition:'APPROVED',payment:{paid_on:'2026-08-31',reference:'BANK-1'}}
+    ]});
+    mount();
+    fireEvent.click(await screen.findByRole('button',{name:'Export to CSV'}));
+    fireEvent.click(screen.getByRole('button',{name:'Paid'}));
+    fireEvent.click(screen.getByRole('button',{name:'Export',exact:true}));
+    await waitFor(()=>expect(click).toHaveBeenCalled());
+    expect(click.mock.instances[0].download).toBe('AC-100-Paid.csv');
+    const csv=await new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(reader.result);
+      reader.onerror=reject;
+      reader.readAsText(downloaded);
+    });
+    expect(csv).toContain('Employee Code,Employee Name,Period From,Period To');
+    expect(csv).toContain('"Paid, Employee"');
+    expect(csv).toContain('001234');
+    expect(csv).toContain('9007199254740993.01');
+    expect(csv).toContain('Paid,2026-08-31,BANK-1');
+    expect(csv).not.toContain('Test employee');
+    expect(csv).not.toContain('WO. No.');
+  } finally {
+    click.mockRestore();
+    URL.createObjectURL=savedCreate;
+    URL.revokeObjectURL=savedRevoke;
+  }
+});
+
+test('Bulk NEFT includes eligible items from off-page payroll rows', async () => {
+  api.getPayrollAccountsSheet.mockResolvedValue({data:{payroll:{...payload,total:2}}});
+  api.getFullPayrollAccountsSheet.mockResolvedValue({...payload,total:2,rows:[
+    row,
+    {...row,id:'off-page',delivery_id:'off-page-delivery',disposition:'APPROVED',payment_mode:'Bulk NEFT',debit_bank_ac_type:'Test debit bank'}
+  ]});
+  accounts.exportBulkNeft.mockRejectedValue(new Error('Synthetic export response'));
+  mount();
+  fireEvent.click(await screen.findByRole('button',{name:'Export Bulk NEFT (1)'}));
+  await waitFor(()=>expect(accounts.exportBulkNeft).toHaveBeenCalledWith('sheet',{item_ids:['off-page']}));
+});

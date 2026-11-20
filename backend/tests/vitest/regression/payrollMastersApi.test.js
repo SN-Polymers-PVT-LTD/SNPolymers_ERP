@@ -42,7 +42,9 @@ describe('Phase 2 authenticated HTTP boundary',()=>{
   expect((await request('POST','/statutory/drafts','accounts',{id:null,expected_version:0,data:bad})).status).toBe(400);
   const r=(await request('POST','/statutory/drafts','accounts',{id:null,expected_version:0,data:s})).body.result;
   const p=(await request('GET',`/statutory/${r.id}/preview`)).body.result;
-  expect(p.blockers).toEqual([]);expect(p.configuration_warnings).toContainEqual({field:'adjustment_basis.SALARY_ARREARS',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  expect(p.blockers).toEqual([]);
+  expect(p.configuration_warnings).toContainEqual({field:'adjustment_basis.REIMBURSEMENT',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  expect(p.configuration_warnings.map(w=>w.field)).not.toContain('adjustment_basis.SALARY_ARREARS');
   expect((await request('POST',`/statutory/${r.id}/publish`,'accounts',{expected_version:1,preview_token:p.preview_token,approval_reference:'SYNTHETIC ONLY'})).status).toBe(200);
   const scope=(await q('SELECT register_payroll_statutory_scope($1,$2,$3,$4) id',['TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase(),'HTTP','SYNTHETIC ONLY',users.accounts]))[0].id;
   await q('SELECT bind_payroll_statutory_scope($1,$2,$3,$4)',[r.id,scope,'SYNTHETIC ONLY',users.accounts]);

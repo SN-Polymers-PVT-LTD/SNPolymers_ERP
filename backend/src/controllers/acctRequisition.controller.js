@@ -2087,6 +2087,23 @@ async function exportBulkNeft(req, res) {
 
     if (items.some(i => i.payroll_row_id && /^0(?:\.0+)?$/.test(String(i.ho_pass_amount)))) return res.status(400).json({success:false,message:'Zero-net salaries do not require a bank transfer or NEFT export.'});
 
+    const payrollItemIds = items.filter(item => item.payroll_row_id).map(item => item.id);
+    if (payrollItemIds.length > 0) {
+      const { data: paidItems, error: paidItemsError } = await supabase
+        .from('payroll_payment_confirmations')
+        .select('delivery_id, payroll_accounts_deliveries!inner(item_id)')
+        .in('payroll_accounts_deliveries.item_id', payrollItemIds)
+        .limit(1);
+      if (paidItemsError) throw paidItemsError;
+      if (paidItems.length > 0) {
+        return res.status(409).json({
+          success: false,
+          code: 'PAYROLL_ALREADY_PAID',
+          message: 'A selected salary already has a recorded payment. Refresh the sheet before exporting.'
+        });
+      }
+    }
+
     const debitAccounts = new Set(items.map(i => i.debit_bank_ac_type));
     if (debitAccounts.size !== 1) {
       return res.status(400).json({ success: false, message: 'All selected items must debit the same bank account to generate a single Bulk NEFT letter.' });

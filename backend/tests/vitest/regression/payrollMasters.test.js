@@ -121,7 +121,10 @@ describe('Phase 2 review database protections',()=>{
   for(const basis of [{...s.configuration.adjustment_basis,RECOVERY:'INCLUDE'},{BONUS:'INCLUDE'}]){
    await q('SAVEPOINT bad_basis');await expect(save('statutory',{...s,configuration:{...s.configuration,adjustment_basis:basis}})).rejects.toMatchObject({code:'22023'});await q('ROLLBACK TO SAVEPOINT bad_basis');
   }
-  const legacy=statutory();expect((await preview('statutory',(await save('statutory',legacy)).id)).configuration_warnings).toContainEqual({field:'adjustment_basis.BONUS',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  const legacy=statutory();
+  const warnings=(await preview('statutory',(await save('statutory',legacy)).id)).configuration_warnings;
+  expect(warnings).toContainEqual({field:'adjustment_basis.REIMBURSEMENT',code:'ADJUSTMENT_CLASSIFICATION_REQUIRED'});
+  expect(warnings.map(w=>w.field)).not.toContain('adjustment_basis.BONUS');
  });
  test('explicit canonical mappings preserve labels/history, reject aliases with overlapping dates and deny unauthorized mapping',async()=>{
   const code='TEST_'+crypto.randomUUID().replaceAll('-','').toUpperCase();

@@ -3,6 +3,22 @@ const base='/hr/payroll/accounts';
 export const previewPayrollCutover=params=>authApi.get(`${base}/cutover`,{params});
 export const convertPendingPayroll=rows=>authApi.post(`${base}/cutover`,{rows});
 export const getPayrollAccountsSheet=(id,params)=>authApi.get(`${base}/sheets/${id}`,{params});
+export async function getFullPayrollAccountsSheet(id) {
+  const limit = 50;
+  const load = async page => (await getPayrollAccountsSheet(id, {page, limit})).data.payroll;
+  const first = await load(1);
+  const total = first.total ?? first.rows.length;
+  const rows = [...first.rows];
+  for (let page = 2; page <= Math.ceil(total / limit); page += 1) {
+    const next = await load(page);
+    if (next.total !== total) throw new Error('The payroll sheet changed during export. Please retry.');
+    rows.push(...next.rows);
+  }
+  if (rows.length !== total || new Set(rows.map(row => row.id)).size !== total) {
+    throw new Error('The payroll sheet changed during export. Please retry.');
+  }
+  return {...first, rows};
+}
 export const submitPayrollAccountsSheet=id=>authApi.post(`${base}/sheets/${id}/submit`,{});
 export const saveSalaryPaymentDetails=(id,data)=>authApi.patch(`${base}/deliveries/${id}/payment`,data);
 export const actOnSalary=(id,data)=>authApi.post(`${base}/deliveries/${id}/action`,data);

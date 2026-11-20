@@ -3,7 +3,7 @@ import { formatDateDDMMYYYY } from './dateUtils';
 const escapeCsvField = (val) => {
   if (val == null) return '';
   const str = String(val);
-  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
 };
 
 const CSV_COLUMNS = [
@@ -29,8 +29,8 @@ const CSV_COLUMNS = [
 
 // Shared by the Accounts entry page and the HO review page — both offer the
 // same "dump the whole sheet" export, just from different screens.
-export const buildSheetCsv = (sheet, items) => {
-  const headerRow = CSV_COLUMNS.map(([label]) => label);
-  const dataRows = items.map((item) => CSV_COLUMNS.map(([, getValue]) => getValue(item, sheet)));
+export const buildSheetCsv = (sheet, items, columns = CSV_COLUMNS) => {
+  const headerRow = columns.map(([label]) => label);
+  const dataRows = items.map((item) => columns.map(([, getValue]) => getValue(item, sheet)));
   return [headerRow, ...dataRows].map((row) => row.map(escapeCsvField).join(',')).join('\r\n');
 };
