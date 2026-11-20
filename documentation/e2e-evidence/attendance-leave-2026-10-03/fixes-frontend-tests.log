@@ -1,0 +1,11 @@
+npm notice run frontend@0.0.0 test
+npm notice run vitest run src/pages/Profile.test.jsx src/pages/hr/MonthlyAttendanceCalendar.test.jsx src/pages/hr/DailyAttendance.test.jsx src/pages/hr/AttendanceReview.test.jsx
+Both esbuild and oxc options were set. oxc options will be used and esbuild options will be ignored. The following esbuild options were set: `{ drop: [] }`
+
+ RUN  v4.1.10 /home/zenoguy/Desktop/projects/SNPolymers/frontend
+
+
+ Test Files  4 passed (4)
+      Tests  51 passed (51)
+   Start at  13:45:08
+   Duration  4.34s (transform 1.13s, setup 565ms, import 1.54s, tests 5.70s, environment 3.84s)

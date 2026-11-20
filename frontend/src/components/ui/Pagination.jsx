@@ -56,7 +56,7 @@ const Pagination = ({
           type="button"
           disabled={currentPage === 1}
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          className="px-3.5 py-1.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-200 font-black uppercase text-[10px] tracking-wider transition cursor-pointer"
+          className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-white/5 text-slate-700 dark:text-slate-200 font-black uppercase text-[10px] tracking-wider transition cursor-pointer"
         >
           ‹ Prev
         </button>
@@ -70,7 +70,7 @@ const Pagination = ({
               className={`w-7 h-7 rounded-lg text-xs font-black transition cursor-pointer ${
                 currentPage === pg
                   ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30'
-                  : 'bg-white/5 hover:bg-white/15 border border-white/10 text-slate-300'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-white/5 dark:hover:bg-white/15 border border-slate-300 dark:border-white/10 text-slate-700 dark:text-slate-300'
               }`}
             >
               {pg}
@@ -82,7 +82,7 @@ const Pagination = ({
           type="button"
           disabled={currentPage === totalPages}
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-          className="px-3.5 py-1.5 rounded-xl border border-white/15 bg-white/5 hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-white/5 text-slate-200 font-black uppercase text-[10px] tracking-wider transition cursor-pointer"
+          className="px-3.5 py-1.5 rounded-xl border border-slate-300 dark:border-white/15 bg-slate-100 dark:bg-white/5 hover:bg-slate-200 dark:hover:bg-white/10 disabled:opacity-30 disabled:hover:bg-slate-100 dark:disabled:hover:bg-white/5 text-slate-700 dark:text-slate-200 font-black uppercase text-[10px] tracking-wider transition cursor-pointer"
         >
           Next ›
         </button>

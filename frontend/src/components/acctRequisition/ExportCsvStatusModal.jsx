@@ -19,7 +19,7 @@ const STATUS_OPTIONS = [
  * — buildSheetCsv (acctSheetCsv.js) itself takes no status param, so the
  * caller filters before calling it.
  */
-const ExportCsvStatusModal = ({ isOpen, onClose, onExport }) => {
+const ExportCsvStatusModal = ({ isOpen, onClose, onExport, statusOptions = STATUS_OPTIONS }) => {
   const [status, setStatus] = useState('All');
 
   const handleExport = () => {
@@ -32,7 +32,7 @@ const ExportCsvStatusModal = ({ isOpen, onClose, onExport }) => {
       <p className="text-xs text-slate-400 mb-4">Choose which line items to include in the export.</p>
 
       <div className="flex flex-col gap-1.5 mb-6">
-        {['All', ...STATUS_OPTIONS].map((s) => {
+        {['All', ...statusOptions].map((s) => {
           const isActive = status === s;
           return (
             <button

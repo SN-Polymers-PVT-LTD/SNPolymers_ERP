@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { formatINR } from '../../utils/payrollDisplay';
 
 const formatCurrency = (val) =>
   val != null ? `₹ ${Number(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
@@ -18,7 +19,7 @@ const formatCurrency = (val) =>
  * preview so HO can see the effect of decisions still being made; it's never
  * sent anywhere and has no bearing on the real balance until submitted.
  */
-const BankBalanceBanner = ({ bankBalance, lineItems = [], stagedDebit = 0 }) => {
+const BankBalanceBanner = ({ bankBalance, lineItems = [], stagedDebit = 0, projectedBalance }) => {
   const projected = useMemo(() => {
     if (!bankBalance) return null;
 
@@ -36,11 +37,11 @@ const BankBalanceBanner = ({ bankBalance, lineItems = [], stagedDebit = 0 }) => 
     <div className="glass-panel p-4 rounded-2xl border border-white/10 bg-[#0d131f]/90 flex flex-wrap items-center gap-6">
       <div>
         <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">{bankBalance.bank_name}</span>
-        <p className="text-lg font-extrabold text-slate-100">{formatCurrency(bankBalance.available_balance)}</p>
+        <p className="text-lg font-extrabold text-slate-100">{projectedBalance === undefined ? formatCurrency(bankBalance.available_balance) : formatINR(bankBalance.available_balance) ?? "—"}</p>
       </div>
       <div>
-        <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">Projected After Open Sheet</span>
-        <p className="text-sm font-bold text-amber-400">{formatCurrency(projected)}</p>
+        <span className="text-[9px] uppercase font-bold tracking-widest text-slate-500">{projectedBalance === undefined ? "Projected After Open Sheet" : "Projected After Payroll"}</span>
+        <p className="text-sm font-bold text-amber-400">{projectedBalance === undefined ? formatCurrency(projected) : formatINR(projectedBalance) ?? "—"}</p>
         {stagedDebit > 0 && (
           <p className="text-[9px] font-semibold text-amber-500/70">
             includes {formatCurrency(stagedDebit)} staged this session

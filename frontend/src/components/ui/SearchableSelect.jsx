@@ -17,6 +17,7 @@ const SearchableSelect = ({
   value = '',
   onChange,
   options = [],
+  filterLocally = true,
   onSelect,
   onCreate,
   createLabel = (q) => `+ Add "${q}" as new`,
@@ -24,7 +25,10 @@ const SearchableSelect = ({
   containerClassName = '',
   size = 'md',
   disabled = false,
-  autoFocus = false
+  autoFocus = false,
+  onFocus,
+  onBlur,
+  emptyMessage = 'No matches.'
 }) => {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -83,12 +87,13 @@ const SearchableSelect = ({
   }, [open]);
 
   const filtered = useMemo(() => {
-    const q = value.trim().toLowerCase();
+    if (!filterLocally) return options;
+    const q = (value || '').trim().toLowerCase();
     if (!q) return options;
     return options.filter(o => o.label.toLowerCase().includes(q));
-  }, [options, value]);
+  }, [options, value, filterLocally]);
 
-  const exactMatch = options.some(o => o.label.trim().toLowerCase() === value.trim().toLowerCase());
+  const exactMatch = options.some(o => (o.label || '').trim().toLowerCase() === (value || '').trim().toLowerCase());
 
   const handlePick = (opt) => {
     onSelect?.(opt);
@@ -124,7 +129,9 @@ const SearchableSelect = ({
         autoFocus={autoFocus}
         autoComplete="off"
         size={size}
-        onFocus={() => setOpen(true)}
+        onFocus={() => { onFocus?.(); setOpen(true); }}
+        onClick={() => setOpen(true)}
+        onBlur={(e) => { onBlur?.(e); }}
         onChange={(e) => { onChange?.(e.target.value); setOpen(true); }}
       />
 
@@ -139,7 +146,7 @@ const SearchableSelect = ({
           }}
         >
           {filtered.length === 0 && !onCreate && (
-            <p className="px-4 py-3 text-xs text-slate-500">No matches.</p>
+            <p className="px-4 py-3 text-xs text-slate-500">{emptyMessage}</p>
           )}
           {filtered.map(opt => (
             <button

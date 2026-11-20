@@ -5,6 +5,7 @@ import { Button, Input, Select, Badge, SkeletonTable, Pagination, Table, TableHe
 import { getLineItems, getAccountSubTitles, getBankBalances } from '../../api/acctRequisitionsApi';
 import { getProjects } from '../../api/projectsApi';
 import { exportRequisitionDetailsToExcel } from '../../utils/exportHelpers';
+import { useAcctRequisitionDetailsUrlState } from '../../hooks/useAcctRequisitionDetailsUrlState';
 
 const formatINR = (value) => {
   const num = Number(value) || 0;
@@ -55,34 +56,33 @@ const getStatusBadgeVariant = (status) => {
 const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const navigate = useNavigate();
 
-  const [page, setPage] = useState(1);
+  const {
+    accountSubTitle,
+    setAccountSubTitle,
+    beneficiaryAcNo,
+    setBeneficiaryAcNo,
+    beneficiaryName,
+    setBeneficiaryName,
+    debitBankAcType,
+    setDebitBankAcType,
+    workOrderNo,
+    setWorkOrderNo,
+    requisitionStatus,
+    setRequisitionStatus,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    page,
+    setPage,
+    resetFilters,
+    hasFilters,
+    buildParams
+  } = useAcctRequisitionDetailsUrlState();
   const [limit] = useState(20);
-  const [accountSubTitle, setAccountSubTitle] = useState('');
-  const [beneficiaryAcNo, setBeneficiaryAcNo] = useState('');
-  const [beneficiaryName, setBeneficiaryName] = useState('');
-  const [debitBankAcType, setDebitBankAcType] = useState('');
-  const [workOrderNo, setWorkOrderNo] = useState('');
-  const [requisitionStatus, setRequisitionStatus] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
-
   const filters = { accountSubTitle, beneficiaryAcNo, beneficiaryName, debitBankAcType, workOrderNo, requisitionStatus, dateFrom, dateTo };
-  const hasFilters = accountSubTitle || beneficiaryAcNo || beneficiaryName || debitBankAcType || workOrderNo || requisitionStatus || dateFrom || dateTo;
-
-  const buildParams = () => {
-    const params = {};
-    if (accountSubTitle) params.account_sub_title = accountSubTitle;
-    if (beneficiaryAcNo) params.beneficiary_ac_no = beneficiaryAcNo;
-    if (beneficiaryName) params.beneficiary_name = beneficiaryName;
-    if (debitBankAcType) params.debit_bank_ac_type = debitBankAcType;
-    if (workOrderNo) params.work_order_no = workOrderNo;
-    if (requisitionStatus) params.requisition_status = requisitionStatus;
-    if (dateFrom) params.date_from = dateFrom;
-    if (dateTo) params.date_to = dateTo;
-    return params;
-  };
 
   const { data: subTitlesData } = useQuery({
     queryKey: ['acctSubTitlesForFilter'],
@@ -121,17 +121,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
   const totalItems = data?.pagination?.total || 0;
   const displayError = queryError?.response?.data?.message || queryError?.message || '';
 
-  const resetFilters = () => {
-    setAccountSubTitle('');
-    setBeneficiaryAcNo('');
-    setBeneficiaryName('');
-    setDebitBankAcType('');
-    setWorkOrderNo('');
-    setRequisitionStatus('');
-    setDateFrom('');
-    setDateTo('');
-    setPage(1);
-  };
+
 
   const handleExport = async () => {
     setExportError('');
@@ -171,7 +161,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               type="text"
               placeholder="Enter account number..."
               value={beneficiaryAcNo}
-              onChange={(e) => { setBeneficiaryAcNo(e.target.value); setPage(1); }}
+              onChange={(e) => setBeneficiaryAcNo(e.target.value)}
               size="sm"
             />
           </div>
@@ -182,7 +172,7 @@ const RequisitionDetailsPanel = ({ sheetDetailBasePath }) => {
               type="text"
               placeholder="Enter beneficiary name..."
               value={beneficiaryName}
-              onChange={(e) => { setBeneficiaryName(e.target.value); setPage(1); }}
+              onChange={(e) => setBeneficiaryName(e.target.value)}
               size="sm"
             />
           </div>

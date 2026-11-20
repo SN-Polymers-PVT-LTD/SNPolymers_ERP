@@ -117,15 +117,19 @@ async function getZonalBalances(req, res) {
       return res.status(200).json({ success: true, balances: [] });
     }
 
-    const { data: zoUsers, error: usersErr } = await supabase
-      .from('authorised_users')
-      .select('mobile_number, display_name')
-      .eq('role', 'zo')
-      .eq('is_active', true)
-      .in('mobile_number', mappedZoIds)
-      .order('display_name', { ascending: true });
-
-    if (usersErr) throw usersErr;
+    // Bound PostgREST URL size regardless of how many mapped ZOs exist.
+    // Each batch also stays below the server response row cap.
+    const zoUsers = [];
+    for (let offset = 0; offset < mappedZoIds.length; offset += 100) {
+      const { data, error } = await supabase.from('authorised_users')
+        .select('mobile_number, display_name')
+        .eq('role', 'zo').eq('is_active', true)
+        .in('mobile_number', mappedZoIds.slice(offset, offset + 100));
+      if (error) throw error;
+      zoUsers.push(...(data || []));
+    }
+    zoUsers.sort((a, b) => (a.display_name || '').localeCompare(b.display_name || '')
+      || a.mobile_number.localeCompare(b.mobile_number));
 
     const balanceMap = {};
     (balances || []).forEach(b => {

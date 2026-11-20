@@ -1,0 +1,16 @@
+# Ignore minified Vitest HTML test reporter assets
+backend/html/
+
+# Build artifacts & distributions
+frontend/dist/
+dist/
+build/
+coverage/
+
+# Test logs and temporary scratch files
+tests/logs/
+scratch/
+**/scratch/
+scratch_*
+*.scratch.*
+*.zip

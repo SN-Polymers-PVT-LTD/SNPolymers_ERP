@@ -9,6 +9,7 @@ export const EstimatedBillEntryModal = ({
   workOrderOptions = [],
   onSave,
   isSaving = false,
+  saveError = '',
   lockWorkOrder = false
 }) => {
   const { user } = useAuth();
@@ -297,9 +298,9 @@ export const EstimatedBillEntryModal = ({
         </div>
 
         {/* Inline Error Message */}
-        {validationError && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
-            {validationError}
+        {(validationError || saveError) && (
+          <div role="alert" className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-bold">
+            {validationError || saveError}
           </div>
         )}
       </form>

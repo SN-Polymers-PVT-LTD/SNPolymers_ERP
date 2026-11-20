@@ -1,4 +1,7 @@
 import React from 'react';
+import InPageSelect from './InPageSelect';
+
+export const InPageSelectContext = React.createContext(false);
 
 const Select = React.forwardRef(({
   label,
@@ -20,11 +23,23 @@ const Select = React.forwardRef(({
 
   const selectSizeClass = sizeStyles[size] || sizeStyles.md;
   const errorClass = error ? 'border-red-500/50 focus:border-red-500' : '';
+  const selectId = props.id || (label ? `select-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : undefined);
+
+  const inPage = React.useContext(InPageSelectContext);
+  if (inPage && !children) {
+    return (
+      <div className={containerClassName}>
+        <InPageSelect label={label} required={required} value={props.value} disabled={props.disabled}
+          options={options} onChange={value => props.onChange?.({ target: { value } })} />
+        {(error || helperText) && <p className={error ? 'text-xs text-red-500' : 'text-xs text-slate-500'}>{error || helperText}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col w-full text-left ${containerClassName}`}>
       {label && (
-        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+        <label htmlFor={selectId} className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
           {label} {required && <span className="text-red-400">*</span>}
         </label>
       )}
@@ -32,6 +47,7 @@ const Select = React.forwardRef(({
       <div className="relative flex items-center w-full">
         <select
           ref={ref}
+          id={selectId}
           required={required}
           className={`w-full glass-input focus:ring-0 outline-none font-semibold text-slate-100 transition duration-200 cursor-pointer appearance-none ${selectSizeClass} ${errorClass} ${className}`}
           {...props}

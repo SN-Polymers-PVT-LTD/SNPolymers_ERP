@@ -5,6 +5,7 @@ import ZoDashboardView from './dashboard/ZoDashboardView';
 import JeDashboardView from './dashboard/JeDashboardView';
 import StaffDashboardView from './dashboard/StaffDashboardView';
 import AcctDashboardView from './dashboard/AcctDashboardView';
+import FmDashboardView from './dashboard/FmDashboardView';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -20,7 +21,9 @@ const Dashboard = () => {
       </div>
 
       {/* Dynamic Dashboard Sub-Views */}
-      {['ho', 'admin'].includes(user?.role) ? (
+      {user?.role === 'factory_manager' ? (
+        <FmDashboardView />
+      ) : ['ho', 'admin'].includes(user?.role) ? (
         <HoDashboardView />
       ) : user?.role === 'zo' ? (
         <ZoDashboardView />

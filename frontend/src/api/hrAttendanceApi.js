@@ -1,0 +1,15 @@
+import authApi from './authApi';
+export const getAttendanceRoster = params => authApi.get('/hr/attendance/roster', { params });
+export const loadAttendanceSheet = params => authApi.get('/hr/attendance/sheet', { params });
+export const populateAttendanceSheet = body => authApi.post('/hr/attendance/sheets', body);
+export const saveAttendanceRows = (id, rows) => authApi.put(`/hr/attendance/sheets/${id}/rows`, { rows });
+export const saveFactoryLeave = (id, body) => authApi.post(`/hr/attendance/sheets/${id}/leave`, body);
+export const submitAttendanceSheet = id => authApi.post(`/hr/attendance/sheets/${id}/submit`, {});
+export const getAttendanceHistory = (id, params) => authApi.get(`/hr/attendance/sheets/${id}/history`, { params });
+export const getAttendanceReviewQueue = params => authApi.get('/hr/attendance/review-queue', { params });
+export const getAttendanceReviewDetail = id => authApi.get(`/hr/attendance/sheets/${id}/review-detail`);
+export const decideFactoryLeave = (id, leaveId, body) => authApi.post(`/hr/attendance/sheets/${id}/leaves/${leaveId}/decision`, body);
+export const returnAttendanceSheet = (id, remarks) => authApi.post(`/hr/attendance/sheets/${id}/return`, { remarks });
+export const reviewAttendanceSheet = (id, remarks) => authApi.post(`/hr/attendance/sheets/${id}/review`, { remarks });
+export const getFmAttendanceSummary = params => authApi.get('/hr/attendance/fm-summary', { params });
+export const getAttendanceCalendar = params => authApi.get('/hr/attendance/calendar', { params });

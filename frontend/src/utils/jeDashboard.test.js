@@ -53,6 +53,24 @@ describe('jeDashboard utils', () => {
     expect(mapping.zo_name).toBe('Zone A');
   });
 
+  it('resolveActiveZoMapping returns null if JE is not in mappings list', () => {
+    const mappings = {
+      mappings: [
+        { je_user_id: '919000000002', zo_name: 'ZO Kolkata', zo_user_id: '919000000005', is_active: true }
+      ]
+    };
+    const user = { mobile_number: '919000000001' };
+    const mapping = resolveActiveZoMapping(mappings, user, []);
+    expect(mapping).toBeNull();
+  });
+
+  it('resolveActiveZoMapping returns null when project has only zone and no zo_name or zo_user_id', () => {
+    const mapping = resolveActiveZoMapping(null, {}, [
+      { zone: 'East Sikkim', zo_name: null, zo_user_id: null }
+    ]);
+    expect(mapping).toBeNull();
+  });
+
   it('countEstimateBuckets splits approved vs pending', () => {
     const buckets = countEstimateBuckets([
       { estimate_status: 'Final Approved' },

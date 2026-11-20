@@ -39,17 +39,18 @@ export const resolveActiveZoMapping = (mappingsRes, user, projects = []) => {
   if (list.length > 0) {
     const mob = (user?.mobile_number || '').replace(/\D/g, '');
     const match = list.find(m => {
+      if (m.is_active === false) return false;
       const jMob = (m.je_user_id || '').replace(/\D/g, '');
       return (jMob && mob && jMob === mob) || m.je_user_id === user?.mobile_number;
     });
     if (match) return match;
-    return list.find(m => m.is_active !== false) || list[0];
+    return null;
   }
 
-  const projWithZo = projects.find(p => p.zo_name || p.zo_user_id || p.zone);
-  if (projWithZo) {
+  const projWithZo = projects.find(p => p.zo_name || p.zo_user_id);
+  if (projWithZo && (projWithZo.zo_name || projWithZo.zo_user_id)) {
     return {
-      zo_name: projWithZo.zo_name || projWithZo.zone || 'Zonal Office',
+      zo_name: projWithZo.zo_name || 'Zonal Office',
       zo_user_id: projWithZo.zo_user_id || 'N/A'
     };
   }

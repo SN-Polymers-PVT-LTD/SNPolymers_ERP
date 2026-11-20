@@ -247,10 +247,10 @@ describe('Milestone 3 — End-to-End Workflow & Lock Integration', () => {
     expect(q1Locked.is_locked).toBe(true);
     expect(q1Locked.locked_at).not.toBeNull();
 
-    // 5. HO Reopens the estimate
+    // 5. ZO Reopens the estimate
     const reopenReq = {
       params: { id: ctx.estimateId },
-      user: { role: 'ho', mobile_number: ctx.hoMobile }
+      user: { role: 'zo', mobile_number: ctx.zoMobile }
     };
     const reopenRes = mockRes();
 

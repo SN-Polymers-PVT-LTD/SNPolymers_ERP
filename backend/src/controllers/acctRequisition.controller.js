@@ -32,6 +32,7 @@ const LINE_ITEM_STATUSES = [
  */
 function mapAcctRpcError(rpcErr) {
   switch (rpcErr.code) {
+    case 'PY409':
     case 'STA01':
     case 'STA03':
     case 'STA05':
@@ -91,6 +92,7 @@ async function createSheet(req, res) {
 
     return res.status(201).json({ success: true, sheet: data, message: 'Requisition sheet created.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`createSheet failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to create requisition sheet.' });
   }
@@ -157,6 +159,7 @@ async function deleteSheetIfEmpty(req, res) {
 
     return res.status(200).json({ success: true, deleted: true, restoredImportCount: restoredCount || 0 });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`deleteSheetIfEmpty failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to clean up empty sheet.' });
   }
@@ -219,10 +222,18 @@ async function getSheets(req, res) {
       }, {});
     }
 
+    let salarySummaries = {};
+    const salarySheetIds = (sheets || []).filter(s => s.payroll_run_id).map(s => s.id);
+    if (salarySheetIds.length) {
+      const {data,error: salaryError} = await supabase.rpc('get_payroll_accounts_summaries', {p_sheet_ids:salarySheetIds,p_actor_id:req.user.id});
+      if (salaryError) throw salaryError;
+      salarySummaries = data || {};
+    }
     const enrichedSheets = (sheets || []).map(sheet => ({
       ...sheet,
       item_count: statsMap[sheet.id]?.item_count || 0,
-      total_req_amount: statsMap[sheet.id]?.total_req_amount || 0
+      total_req_amount: statsMap[sheet.id]?.total_req_amount || 0,
+      ...(salarySummaries[sheet.id] || {})
     }));
 
     const total = count || 0;
@@ -237,6 +248,7 @@ async function getSheets(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getSheets failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheets.' });
   }
@@ -354,6 +366,7 @@ async function getLineItems(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getLineItems failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition line items.' });
   }
@@ -416,6 +429,7 @@ async function getSheetById(req, res) {
 
     return res.status(200).json({ success: true, sheet: { ...sheet, items: enrichedItems } });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getSheetById failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition sheet.' });
   }
@@ -427,6 +441,45 @@ async function getSheetById(req, res) {
 
 /**
  * POST /acct-requisitions/sheets/:sheetId/items
+/**
+ * Helper to resolve beneficiary bank id and name consistently.
+ * If bankId is supplied, validates that it exists and is active.
+ * If bankId is omitted/null but bankName is supplied, attempts to match
+ * an active bank in indian_bank_master by name (case-insensitive) to populate bankId.
+ * If neither is supplied, returns null for both.
+ */
+async function resolveBeneficiaryBankFields(bankId, bankName) {
+  let resolvedBankId = bankId || null;
+  let resolvedBankName = bankName?.trim() || null;
+
+  if (resolvedBankId) {
+    const bankCheck = await validateActiveIndianBank(resolvedBankId);
+    if (!bankCheck.valid) {
+      if (bankCheck.reason === 'NOT_FOUND') {
+        return { error: { status: 422, message: 'Selected bank does not exist.' } };
+      }
+      if (bankCheck.reason === 'INACTIVE') {
+        return { error: { status: 422, message: 'Selected bank is currently inactive.' } };
+      }
+    }
+    resolvedBankName = bankCheck.bank.bank_name;
+  } else if (resolvedBankName) {
+    const { data: matchedBank } = await supabase
+      .from('indian_bank_master')
+      .select('id, bank_name, is_active')
+      .ilike('bank_name', resolvedBankName)
+      .maybeSingle();
+    if (matchedBank) {
+      resolvedBankId = matchedBank.id;
+      resolvedBankName = matchedBank.bank_name;
+    }
+  }
+
+  return { bankId: resolvedBankId, bankName: resolvedBankName };
+}
+
+/**
+ * POST /acct-requisitions/sheets/:sheetId/items
  * Gate (§4c): sheet_status === 'Open'.
  */
 async function addLineItem(req, res) {
@@ -434,21 +487,15 @@ async function addLineItem(req, res) {
   const { sheetId } = req.params;
 
   try {
-    if (req.body.beneficiary_bank_id) {
-      const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
-      if (!bankCheck.valid) {
-        if (bankCheck.reason === 'NOT_FOUND') {
-          return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-        }
-        if (bankCheck.reason === 'INACTIVE') {
-          return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-        }
-      }
-      req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
-    } else if (req.body.beneficiary_bank_id === null || req.body.beneficiary_bank_id === '') {
-      req.body.beneficiary_bank_id = null;
-      req.body.beneficiary_bank_name = null;
+    const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+      req.body.beneficiary_bank_id,
+      req.body.beneficiary_bank_name
+    );
+    if (bankErr) {
+      return res.status(bankErr.status).json({ success: false, message: bankErr.message });
     }
+    req.body.beneficiary_bank_id = resolvedBankId;
+    req.body.beneficiary_bank_name = resolvedBankName;
 
     // add_acct_line_item_transact (033_add_line_item_transact_and_neft_beneficiary_check.sql)
     // locks the sheet row FOR UPDATE before checking sheet_status, closing the race where a
@@ -480,6 +527,7 @@ async function addLineItem(req, res) {
 
     return res.status(201).json({ success: true, item: enrichedItem, message: 'Line item added.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`addLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to add line item.' });
   }
@@ -534,22 +582,16 @@ async function updateLineItem(req, res) {
       });
     }
 
-    if ('beneficiary_bank_id' in req.body) {
-      if (req.body.beneficiary_bank_id) {
-        const bankCheck = await validateActiveIndianBank(req.body.beneficiary_bank_id);
-        if (!bankCheck.valid) {
-          if (bankCheck.reason === 'NOT_FOUND') {
-            return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-          }
-          if (bankCheck.reason === 'INACTIVE') {
-            return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-          }
-        }
-        req.body.beneficiary_bank_name = bankCheck.bank.bank_name;
-      } else {
-        req.body.beneficiary_bank_id = null;
-        req.body.beneficiary_bank_name = null;
+    if ('beneficiary_bank_id' in req.body || 'beneficiary_bank_name' in req.body) {
+      const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+        req.body.beneficiary_bank_id,
+        req.body.beneficiary_bank_name
+      );
+      if (bankErr) {
+        return res.status(bankErr.status).json({ success: false, message: bankErr.message });
       }
+      req.body.beneficiary_bank_id = resolvedBankId;
+      req.body.beneficiary_bank_name = resolvedBankName;
     }
 
     const { data: updated, error: updateErr } = await supabase
@@ -571,6 +613,7 @@ async function updateLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: enrichedUpdated, message: 'Line item updated.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`updateLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to update line item.' });
   }
@@ -614,6 +657,7 @@ async function deleteLineItem(req, res) {
 
     return res.status(200).json({ success: true, message: 'Line item deleted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`deleteLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to delete line item.' });
   }
@@ -657,6 +701,7 @@ async function submitSheet(req, res) {
 
     return res.status(200).json({ success: true, sheet: data, message: 'Requisition sheet submitted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`submitSheet failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to submit requisition sheet.' });
   }
@@ -759,7 +804,28 @@ async function actOnLineItem(req, res) {
       throw rpcErr;
     }
 
-    const { notifyAcctSheetReviewComplete } = require('../services/telegram.service');
+    const { notifyAcctSheetReviewComplete, notifyZoFundRequestApproved, notifyZoFundRequestHeld } = require('../services/telegram.service');
+
+    // If this line item was imported from a Fund Request, notify the Zonal Officer
+    if (item.source_fund_request_id) {
+      const { data: fr } = await supabase
+        .from('fund_requests')
+        .select('*')
+        .eq('fund_request_id', item.source_fund_request_id)
+        .maybeSingle();
+
+      if (fr) {
+        if (action === 'Approve' || action === 'PartiallyApprove') {
+          notifyZoFundRequestApproved(fr, fr).catch(err => {
+            console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
+          });
+        } else if (action === 'Hold') {
+          notifyZoFundRequestHeld(fr, fr).catch(err => {
+            console.error(`[FUND REQUEST] Telegram notification failed: ${err.message}`);
+          });
+        }
+      }
+    }
 
     // Returned/Rejected items no longer get their own immediate Telegram
     // message here — on a large sheet that meant one ping per item as HO
@@ -786,6 +852,7 @@ async function actOnLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: data, message: `Line item action '${action}' applied.` });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`actOnLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to act on line item.' });
   }
@@ -812,7 +879,7 @@ async function actOnLineItemsBatch(req, res) {
     const itemIds = actions.map(a => a.line_item_id);
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, debit_bank_ac_type, req_amount')
+      .select('id, debit_bank_ac_type, req_amount, source_fund_request_id')
       .eq('sheet_id', sheetId)
       .in('id', itemIds);
     if (itemsErr) throw itemsErr;
@@ -838,7 +905,40 @@ async function actOnLineItemsBatch(req, res) {
     });
     if (rpcErr) throw rpcErr;
 
-    const { notifyAcctBankBalanceInsufficient, notifyAcctSheetReviewComplete } = require('../services/telegram.service');
+    const { notifyAcctBankBalanceInsufficient, notifyAcctSheetReviewComplete, notifyZoFundRequestApproved, notifyZoFundRequestHeld } = require('../services/telegram.service');
+
+    const successfulFrs = results
+      .filter(r => r.success)
+      .map(r => {
+        const item = itemById.get(r.line_item_id);
+        const action = actions.find(a => a.line_item_id === r.line_item_id);
+        return {
+          source_fund_request_id: item?.source_fund_request_id,
+          action: action?.action
+        };
+      })
+      .filter(x => x.source_fund_request_id);
+
+    if (successfulFrs.length > 0) {
+      const frIds = successfulFrs.map(x => x.source_fund_request_id);
+      supabase.from('fund_requests')
+        .select('*')
+        .in('fund_request_id', frIds)
+        .then(({ data: frs }) => {
+          if (!frs) return;
+          const frMap = new Map(frs.map(f => [f.fund_request_id, f]));
+          for (const s of successfulFrs) {
+            const fr = frMap.get(s.source_fund_request_id);
+            if (!fr) continue;
+            if (s.action === 'Approve' || s.action === 'PartiallyApprove') {
+              notifyZoFundRequestApproved(fr, fr).catch(err => console.error(`[FUND REQUEST] Telegram notify failed: ${err.message}`));
+            } else if (s.action === 'Hold') {
+              notifyZoFundRequestHeld(fr, fr).catch(err => console.error(`[FUND REQUEST] Telegram notify failed: ${err.message}`));
+            }
+          }
+        })
+        .catch(err => console.error(`[FUND REQUEST] Batch telegram notify failed: ${err.message}`));
+    }
 
     const failed = results.filter(r => !r.success);
     // Fire-and-forget, same as the single-item path — one message per bank
@@ -880,6 +980,7 @@ async function actOnLineItemsBatch(req, res) {
       message: `${results.length - failed.length} of ${results.length} action(s) applied.`
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`actOnLineItemsBatch failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to apply batch actions.' });
   }
@@ -913,6 +1014,7 @@ async function closeSheetReview(req, res) {
 
     return res.status(200).json({ success: true, sheet: data, message: 'Review closed. Remaining items moved to the pending queue.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`closeSheetReview failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to close sheet review.' });
   }
@@ -926,23 +1028,12 @@ async function resubmitLineItem(req, res) {
   const { itemId } = req.params;
   const b = req.body;
 
-  let resolvedBankId = b.beneficiary_bank_id ?? null;
-  let resolvedBankName = b.beneficiary_bank_name ?? null;
-
-  if (resolvedBankId) {
-    const bankCheck = await validateActiveIndianBank(resolvedBankId);
-    if (!bankCheck.valid) {
-      if (bankCheck.reason === 'NOT_FOUND') {
-        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-      }
-      if (bankCheck.reason === 'INACTIVE') {
-        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-      }
-    }
-    resolvedBankName = bankCheck.bank.bank_name;
-  } else if ('beneficiary_bank_id' in b && (b.beneficiary_bank_id === null || b.beneficiary_bank_id === '')) {
-    resolvedBankId = null;
-    resolvedBankName = null;
+  const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+    b.beneficiary_bank_id,
+    b.beneficiary_bank_name
+  );
+  if (bankErr) {
+    return res.status(bankErr.status).json({ success: false, message: bankErr.message });
   }
 
   try {
@@ -986,6 +1077,7 @@ async function resubmitLineItem(req, res) {
 
     return res.status(200).json({ success: true, item: enrichedItem, message: 'Line item resubmitted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`resubmitLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to resubmit line item.' });
   }
@@ -1264,6 +1356,7 @@ async function getImportEligibleItems(req, res) {
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getImportEligibleItems failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve importable line items.' });
   }
@@ -1360,142 +1453,58 @@ async function importLineItem(req, res) {
 
     return res.status(201).json({ success: true, item: data, message: 'Line item imported.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`importLineItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to import line item.' });
   }
 }
 
-/** Restore a dismissed, unimported submitted Fund Request to the queue. */
+/**
+ * POST /acct-requisitions/import-eligible-items/fund-request/:id/restore
+ * DEPRECATED: Dismiss is now a terminal rejection for Fund Requests.
+ * Restoring dismissed Fund Requests is disallowed.
+ */
 async function restoreFundRequestImport(req, res) {
-  const { id } = req.params;
-  if (!uuidRegex.test(id)) return res.status(400).json({ success: false, message: 'Invalid Fund Request ID.' });
-  try {
-    const { data, error } = await supabase
-      .from('fund_requests')
-      .update({ accounts_import_dismissed: false, updated_at: new Date().toISOString() })
-      .eq('fund_request_id', id)
-      .eq('request_status', 'Pending')
-      .is('accounts_line_item_id', null)
-      .eq('accounts_import_dismissed', true)
-      .select()
-      .maybeSingle();
-    if (error) throw error;
-    if (!data) return res.status(409).json({ success: false, message: 'Only dismissed, unimported Pending Fund Requests can be restored.' });
-    return res.status(200).json({ success: true, fundRequest: data, message: 'Fund Request restored to the Accounts import queue.' });
-  } catch (error) {
-    console.error(`restoreFundRequestImport failed: ${error.message}`);
-    return res.status(500).json({ success: false, message: 'Failed to restore Fund Request.' });
-  }
+  return res.status(410).json({
+    success: false,
+    message: 'Restoring dismissed items is deprecated. Dismissal is a terminal rejection.'
+  });
 }
 
 /**
  * POST /acct-requisitions/import-eligible-items/:itemId/dismiss
- * Soft-hides an eligible item from the import list without touching its
- * real data.
+ * Terminal rejection for Payment Requisitions and Fund Requests, or dismisses
+ * an eligible line item, propagating terminal rejection to any source record.
  */
 async function dismissImportEligibleItem(req, res) {
   const { itemId } = req.params;
-  const itemType = req.query?.item_type || req.body?.item_type;
+  const itemType = req.query?.item_type || req.body?.item_type || null;
 
   try {
-    let isPaymentReq = itemType === 'PAYMENT_REQUISITION';
-    let isFundReq = itemType === 'FUND_REQUEST';
+    const { data, error } = await supabase.rpc('dismiss_accounts_import_item_transact', {
+      p_item_id: itemId,
+      p_item_type: itemType,
+      p_actor: req.user?.mobile_number || req.user?.id || 'SYSTEM'
+    });
 
-    if (!isPaymentReq && !isFundReq) {
-      const { data: maybeReq } = await supabase
-        .from('requisitions')
-        .select('requisition_id')
-        .eq('requisition_id', itemId)
-        .eq('payment_destination', 'ACCOUNTS')
-        .is('accounts_line_item_id', null)
-        .maybeSingle();
-      if (maybeReq) {
-        isPaymentReq = true;
-      } else {
-        const { data: maybeFr } = await supabase
-          .from('fund_requests')
-          .select('fund_request_id')
-          .eq('fund_request_id', itemId)
-          .is('accounts_line_item_id', null)
-          .maybeSingle();
-        if (maybeFr) isFundReq = true;
-      }
-    }
-
-    if (isPaymentReq) {
-      const { data, error } = await supabase
-        .from('requisitions')
-        .update({
-          accounts_import_dismissed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('requisition_id', itemId)
-        .eq('payment_destination', 'ACCOUNTS')
-        .is('accounts_line_item_id', null)
-        .eq('accounts_import_dismissed', false)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
+    if (error) {
+      if (
+        error.code === 'P0002' ||
+        error.code === 'STA01' ||
+        error.message?.includes('already imported or dismissed') ||
+        error.message?.includes('Item does not exist')
+      ) {
         return res.status(409).json({
           success: false,
           message: 'Item does not exist, or is already imported or dismissed.'
         });
       }
-
-      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
-    }
-
-    if (isFundReq) {
-      const { data, error } = await supabase
-        .from('fund_requests')
-        .update({
-          accounts_import_dismissed: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('fund_request_id', itemId)
-        .is('accounts_line_item_id', null)
-        .eq('request_status', 'Pending')
-        .eq('accounts_import_dismissed', false)
-        .select()
-        .maybeSingle();
-
-      if (error) throw error;
-      if (!data) {
-        return res.status(409).json({
-          success: false,
-          message: 'Item does not exist, or is already imported or dismissed.'
-        });
-      }
-
-      return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
-    }
-
-    const { data, error } = await supabase
-      .from('acct_requisition_line_items')
-      .update({
-        import_dismissed: true,
-        import_dismissed_at: new Date().toISOString(),
-        import_dismissed_by: req.user.mobile_number,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', itemId)
-      .is('imported_to_sheet_id', null)
-      .eq('import_dismissed', false)
-      .select()
-      .maybeSingle();
-
-    if (error) throw error;
-    if (!data) {
-      return res.status(409).json({
-        success: false,
-        message: 'Item does not exist, or is already imported or dismissed.'
-      });
+      throw error;
     }
 
     return res.status(200).json({ success: true, item: data, message: 'Line item dismissed.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`dismissImportEligibleItem failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to dismiss line item.' });
   }
@@ -1519,6 +1528,7 @@ async function getBankBalances(req, res) {
 
     return res.status(200).json({ success: true, bankBalances: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBankBalances failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve bank balances.' });
   }
@@ -1591,6 +1601,7 @@ async function upsertBankBalance(req, res) {
 
     return res.status(200).json({ success: true, bankBalance: data, message: 'Bank balance saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertBankBalance failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save bank balance.' });
   }
@@ -1642,6 +1653,7 @@ async function getBankBalanceLedger(req, res) {
       totalPages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBankBalanceLedger failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve bank balance ledger.' });
   }
@@ -1699,6 +1711,7 @@ async function getBeneficiaries(req, res) {
       }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getBeneficiaries failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve beneficiaries.' });
   }
@@ -1734,6 +1747,7 @@ async function lookupBeneficiary(req, res) {
 
     return res.status(200).json({ success: true, beneficiary: enriched });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`lookupBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to look up beneficiary.' });
   }
@@ -1754,7 +1768,7 @@ async function searchBeneficiariesByAcNo(req, res) {
   try {
     let query = supabase
       .from('beneficiary_master')
-      .select('account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
+      .select('id, account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id, indian_bank_master:beneficiary_bank_id (id, bank_name)');
     query = searchBy === 'name'
       ? query.ilike('beneficiary_name', `%${prefix}%`)
       : query.like('account_number', `${prefix}%`);
@@ -1762,6 +1776,7 @@ async function searchBeneficiariesByAcNo(req, res) {
     if (error) throw error;
 
     const enriched = (data || []).map(b => ({
+      id: b.id,
       account_number: b.account_number,
       ifsc: b.ifsc,
       beneficiary_name: b.beneficiary_name,
@@ -1775,6 +1790,7 @@ async function searchBeneficiariesByAcNo(req, res) {
 
     return res.status(200).json({ success: true, beneficiaries: enriched });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`searchBeneficiariesByAcNo failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to search beneficiaries.' });
   }
@@ -1787,30 +1803,12 @@ async function upsertBeneficiary(req, res) {
   if (!validate(req, res, upsertBeneficiarySchema)) return;
   const { account_number, ifsc, beneficiary_name, beneficiary_bank_name, beneficiary_bank_id } = req.body;
 
-  let resolvedBankId = beneficiary_bank_id || null;
-  let resolvedBankName = beneficiary_bank_name?.trim() || null;
-
-  if (resolvedBankId) {
-    const bankCheck = await validateActiveIndianBank(resolvedBankId);
-    if (!bankCheck.valid) {
-      if (bankCheck.reason === 'NOT_FOUND') {
-        return res.status(422).json({ success: false, message: 'Selected bank does not exist.' });
-      }
-      if (bankCheck.reason === 'INACTIVE') {
-        return res.status(422).json({ success: false, message: 'Selected bank is currently inactive.' });
-      }
-    }
-    resolvedBankName = bankCheck.bank.bank_name;
-  } else if (resolvedBankName) {
-    const { data: matchedBank } = await supabase
-      .from('indian_bank_master')
-      .select('id, bank_name, is_active')
-      .ilike('bank_name', resolvedBankName)
-      .maybeSingle();
-    if (matchedBank) {
-      resolvedBankId = matchedBank.id;
-      resolvedBankName = matchedBank.bank_name;
-    }
+  const { bankId: resolvedBankId, bankName: resolvedBankName, error: bankErr } = await resolveBeneficiaryBankFields(
+    beneficiary_bank_id,
+    beneficiary_bank_name
+  );
+  if (bankErr) {
+    return res.status(bankErr.status).json({ success: false, message: bankErr.message });
   }
 
   try {
@@ -1845,6 +1843,7 @@ async function upsertBeneficiary(req, res) {
 
     return res.status(200).json({ success: true, beneficiary: enriched, message: 'Beneficiary saved.' });
   } catch (error) {
+    if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
     console.error(`upsertBeneficiary failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save beneficiary.' });
   }
@@ -1871,6 +1870,7 @@ async function getAccountSubTitles(req, res) {
 
     return res.status(200).json({ success: true, accountSubTitles: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getAccountSubTitles failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve account sub-titles.' });
   }
@@ -1902,6 +1902,7 @@ async function upsertAccountSubTitle(req, res) {
 
     return res.status(200).json({ success: true, accountSubTitle: data, message: 'Account sub-title saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertAccountSubTitle failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save account sub-title.' });
   }
@@ -1928,6 +1929,7 @@ async function getParticulars(req, res) {
 
     return res.status(200).json({ success: true, particulars: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getParticulars failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve particulars.' });
   }
@@ -1959,6 +1961,7 @@ async function upsertParticular(req, res) {
 
     return res.status(200).json({ success: true, particular: data, message: 'Particular saved.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`upsertParticular failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save particular.' });
   }
@@ -1987,6 +1990,7 @@ async function getIndianBanks(req, res) {
 
     return res.status(200).json({ success: true, indianBanks: data || [] });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getIndianBanks failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Indian banks.' });
   }
@@ -2027,6 +2031,7 @@ async function upsertIndianBank(req, res) {
 
     return res.status(200).json({ success: true, indianBank: data, message: 'Indian bank saved.' });
   } catch (error) {
+    if (error?.code === 'PY409') return res.status(409).json({ success: false, code: 'PAYROLL_SOURCE_BUSY', message: error.message });
     console.error(`upsertIndianBank failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to save Indian bank.' });
   }
@@ -2056,7 +2061,7 @@ async function exportBulkNeft(req, res) {
   try {
     const { data: items, error: itemsErr } = await supabase
       .from('acct_requisition_line_items')
-      .select('id, sheet_id, payment_mode, requisition_status, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, ho_pass_amount, debit_bank_ac_type')
+      .select('id, sheet_id, payment_mode, requisition_status, beneficiary_name, beneficiary_ac_no, beneficiary_ifsc, beneficiary_bank_name, ho_pass_amount, debit_bank_ac_type, payroll_row_id')
       .in('id', item_ids);
 
     if (itemsErr) throw itemsErr;
@@ -2078,6 +2083,25 @@ async function exportBulkNeft(req, res) {
     const notApproved = items.filter(i => !['Approved', 'Partially Approved'].includes(i.requisition_status));
     if (notApproved.length > 0) {
       return res.status(400).json({ success: false, message: 'All items must be Approved or Partially Approved.' });
+    }
+
+    if (items.some(i => i.payroll_row_id && /^0(?:\.0+)?$/.test(String(i.ho_pass_amount)))) return res.status(400).json({success:false,message:'Zero-net salaries do not require a bank transfer or NEFT export.'});
+
+    const payrollItemIds = items.filter(item => item.payroll_row_id).map(item => item.id);
+    if (payrollItemIds.length > 0) {
+      const { data: paidItems, error: paidItemsError } = await supabase
+        .from('payroll_payment_confirmations')
+        .select('delivery_id, payroll_accounts_deliveries!inner(item_id)')
+        .in('payroll_accounts_deliveries.item_id', payrollItemIds)
+        .limit(1);
+      if (paidItemsError) throw paidItemsError;
+      if (paidItems.length > 0) {
+        return res.status(409).json({
+          success: false,
+          code: 'PAYROLL_ALREADY_PAID',
+          message: 'A selected salary already has a recorded payment. Refresh the sheet before exporting.'
+        });
+      }
     }
 
     const debitAccounts = new Set(items.map(i => i.debit_bank_ac_type));
@@ -2135,6 +2159,7 @@ async function exportBulkNeft(req, res) {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.end(Buffer.from(buffer));
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`exportBulkNeft failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to export Bulk NEFT.' });
   }
@@ -2232,6 +2257,7 @@ async function getRequisitionLogs(req, res) {
       totalPages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getRequisitionLogs failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve requisition logs.' });
   }
@@ -2322,6 +2348,7 @@ async function getCreditLedger(req, res) {
       pagination: { page, limit, total: count || 0, totalPages: Math.max(Math.ceil((count || 0) / limit), 1) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getCreditLedger failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve credit ledger.' });
   }
@@ -2358,6 +2385,7 @@ async function importCreditInstallment(req, res) {
 
     return res.status(201).json({ success: true, item: data, message: 'Installment line item created.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`importCreditInstallment failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to import credit installment.' });
   }
@@ -2393,6 +2421,7 @@ async function adjustCreditLedgerBalance(req, res) {
 
     return res.status(200).json({ success: true, entry: data, message: 'Credit ledger balance adjusted.' });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`adjustCreditLedgerBalance failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to adjust credit ledger balance.' });
   }
@@ -2457,6 +2486,7 @@ async function getPaymentRequisitions(req, res) {
       pagination: { page, limit, total, totalPages: Math.max(Math.ceil(total / limit), 1) }
     });
   } catch (error) {
+    if (error.code === 'PY409') return res.status(409).json({success:false,message:error.message});
     console.error(`getPaymentRequisitions failed: ${error.message}`);
     return res.status(500).json({ success: false, message: 'Failed to retrieve Payment Requisitions.' });
   }

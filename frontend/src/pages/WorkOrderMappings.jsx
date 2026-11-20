@@ -5,6 +5,7 @@ import { SkeletonTable, Pagination, SuccessPopup, ErrorPopup } from '../componen
 import { getWorkOrderMappings, createWorkOrderMapping, deactivateWorkOrderMapping } from '../api/workOrderMappingsApi';
 import { getEligibleJEs } from '../api/userMappingsApi';
 import { getProjects } from '../api/projectsApi';
+import { useWorkOrderMappingsUrlState } from '../hooks/useWorkOrderMappingsUrlState';
 
 const WorkOrderMappings = () => {
   const { user } = useAuth();
@@ -20,36 +21,47 @@ const WorkOrderMappings = () => {
   const [activeProjects, setActiveProjects] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
+  const {
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    pageSize,
+    setPageSize,
+    page,
+    setPage,
+    showMapModal,
+    prefillWO,
+    prefillJE,
+    openMapModal,
+    closeMapModal,
+    showDeactivateModal,
+    deactivatingId,
+    openDeactivateModal,
+    closeDeactivateModal
+  } = useWorkOrderMappingsUrlState();
+
   // Map JE Modal State
-  const [showMapModal, setShowMapModal] = useState(false);
   const [selectedWO, setSelectedWO] = useState('');
   const [selectedJE, setSelectedJE] = useState('');
   const [submittingMap, setSubmittingMap] = useState(false);
   const [mapError, setMapError] = useState('');
 
   // Deactivate Modal State
-  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
-  const [deactivatingId, setDeactivatingId] = useState(null);
   const [deactivateReason, setDeactivateReason] = useState('Removed');
   const [submittingDeactivate, setSubmittingDeactivate] = useState(false);
   const [deactivateError, setDeactivateError] = useState('');
 
-  // Active Assignments / History tabs - separate mental models, not a filter toggle
-  // on one flat table (deactivated rows are audit history, not "just another status").
-  const [activeTab, setActiveTab] = useState('active'); // 'active', 'history'
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Pagination (server-side) & JE Search
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [total, setTotal] = useState(0);
   const [jeSearch, setJeSearch] = useState('');
 
+  // Synchronize prefill parameters when map modal opens
   useEffect(() => {
-    Promise.resolve().then(() => {
-      setPage(1);
-    });
-  }, [searchQuery, activeTab, pageSize]);
+    if (showMapModal) {
+      if (prefillWO) setSelectedWO(prefillWO);
+      if (prefillJE) setSelectedJE(prefillJE);
+    }
+  }, [showMapModal, prefillWO, prefillJE]);
 
   const fetchMappings = async () => {
     setLoading(true);
@@ -108,7 +120,7 @@ const WorkOrderMappings = () => {
     setMapError('');
     setSelectedWO('');
     setSelectedJE('');
-    setShowMapModal(true);
+    openMapModal();
   };
 
   const handleJEChange = (jeMobileNumber) => {
@@ -176,7 +188,7 @@ const WorkOrderMappings = () => {
 
       if (response.data?.success) {
         setSuccess(response.data.message || 'JE successfully assigned to Work Order.');
-        setShowMapModal(false);
+        closeMapModal();
         fetchMappings();
       }
     } catch (err) {
@@ -190,8 +202,7 @@ const WorkOrderMappings = () => {
   const handleOpenDeactivateModal = (id) => {
     setDeactivateError('');
     setDeactivateReason('Removed');
-    setDeactivatingId(id);
-    setShowDeactivateModal(true);
+    openDeactivateModal(id);
   };
 
   const handleDeactivate = async (e) => {
@@ -206,7 +217,7 @@ const WorkOrderMappings = () => {
       const response = await deactivateWorkOrderMapping(deactivatingId, deactivateReason);
       if (response.data?.success) {
         setSuccess(response.data.message || 'Work Order assignment deactivated.');
-        setShowDeactivateModal(false);
+        closeDeactivateModal();
         fetchMappings();
       }
     } catch (err) {
@@ -430,7 +441,7 @@ const WorkOrderMappings = () => {
       {/* Map JE Modal */}
       <Modal
         isOpen={showMapModal}
-        onClose={() => setShowMapModal(false)}
+        onClose={closeMapModal}
         title="Map JE to Work Order"
         subtitle="Work Order Allocations"
         size="md"
@@ -591,7 +602,7 @@ const WorkOrderMappings = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={() => setShowMapModal(false)}
+              onClick={closeMapModal}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submittingMap}
             >
@@ -611,7 +622,7 @@ const WorkOrderMappings = () => {
       {/* Deactivate Assignment Modal */}
       <Modal
         isOpen={showDeactivateModal}
-        onClose={() => setShowDeactivateModal(false)}
+        onClose={closeDeactivateModal}
         title="Deactivate Work Order Mapping"
         subtitle="Work Order Allocations"
         size="sm"
@@ -644,7 +655,7 @@ const WorkOrderMappings = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={() => setShowDeactivateModal(false)}
+              onClick={closeDeactivateModal}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submittingDeactivate}
             >

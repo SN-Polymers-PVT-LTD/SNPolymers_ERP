@@ -5,6 +5,7 @@ import { Button, SkeletonPage, Badge, Modal, Table, TableHeader, TableBody, Tabl
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
+import PayrollAccountsSheet from '../components/payroll/PayrollAccountsSheet';
 import HoDecisionPanel from '../components/acctRequisition/HoDecisionPanel';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
@@ -261,6 +262,14 @@ const AcctHoSheetView = () => {
     />
   );
 
+  const handleBackToQueue = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/acct-requisitions/ho-queue');
+    }
+  };
+
   if (!isHoUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
@@ -356,6 +365,7 @@ const AcctHoSheetView = () => {
     </div>
   );
 
+  if(sheetDetail.payroll_run_id)return <PayrollAccountsSheet sheetId={id} ho/>;
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
@@ -370,7 +380,7 @@ const AcctHoSheetView = () => {
           <p className="text-xs text-slate-400 font-medium mt-1.5">Review and action every line item on this submitted sheet.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/ho-queue')}>
+          <Button variant="glass" size="sm" onClick={handleBackToQueue}>
             ← Back to Queue
           </Button>
           <Button variant="glass" size="sm" onClick={() => navigate('/acct-requisitions/bank-balances')}>

@@ -1,9 +1,11 @@
+import {formatINR as exactINR,payrollGroupName} from '../utils/payrollDisplay';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSheets, createSheet, deleteSheetIfEmpty } from '../api/acctRequisitionsApi';
+import { useAcctRequisitionsUrlState } from '../hooks/useAcctRequisitionsUrlState';
 
 const getStatusBadgeVariant = (status) => {
   switch (status) {
@@ -37,12 +39,20 @@ const AcctRequisitions = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [page, setPage] = useState(1);
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    page,
+    setPage,
+    resetFilters
+  } = useAcctRequisitionsUrlState();
   const [limit] = useState(20);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [creating, setCreating] = useState(false);
@@ -141,13 +151,7 @@ const AcctRequisitions = () => {
     }
   };
 
-  const resetFilters = () => {
-    setSearchQuery('');
-    setDateFrom('');
-    setDateTo('');
-    setStatusFilter('All');
-    setPage(1);
-  };
+
 
   if (!isAccountsUser) {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
@@ -331,6 +335,7 @@ const AcctRequisitions = () => {
                       <TableRow key={sheet.id} onClick={() => handleCardClick(sheet)} interactive>
                         <TableCell>
                           <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{sheet.sheet_number}</span>
+                          {sheet.payroll_run_id&&<><Badge variant="amber">Payroll</Badge><div className="text-xs mt-2">{sheet.department} · {payrollGroupName(sheet.group_code)} · {sheet.period_from} to {sheet.period_to}</div></>}
                         </TableCell>
                         <TableCell>
                           <Badge variant={getStatusBadgeVariant(sheet.sheet_status)} showDot={false}>{sheet.sheet_status}</Badge>
@@ -344,7 +349,7 @@ const AcctRequisitions = () => {
                           </span>
                         </TableCell>
                         <TableCell align="right">
-                          <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
+                          <span className="text-sm font-black text-slate-200 font-mono">{sheet.payroll_run_id?exactINR(sheet.total_req_amount):formatINR(sheet.total_req_amount)}</span>
                         </TableCell>
                         <TableCell align="right">
                           <div className="flex items-center justify-end gap-2">

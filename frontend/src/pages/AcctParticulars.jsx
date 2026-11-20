@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Badge, Modal } from '../components/ui';
@@ -93,7 +94,7 @@ const AcctParticulars = () => {
 
   return (
     <>
-      <div className="mb-8 pb-6 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="mb-6 pb-6 border-b border-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 font-mono">
             Accounts Department · Master Data
@@ -104,6 +105,21 @@ const AcctParticulars = () => {
           </p>
         </div>
         <Button onClick={() => setShowAddModal(true)}>+ Add Particular</Button>
+      </div>
+
+      <div className="flex gap-6 mb-6 border-b border-white/5">
+        <Link
+          to="/acct-requisitions/sub-titles"
+          className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-transparent text-slate-400 hover:text-slate-200 transition-all duration-200"
+        >
+          Sub-titles
+        </Link>
+        <Link
+          to="/acct-requisitions/particulars"
+          className="pb-3 text-xs font-extrabold uppercase tracking-wider border-b-2 border-amber-500 text-slate-100 transition-all duration-200"
+        >
+          Particulars
+        </Link>
       </div>
 
       {displayError && (

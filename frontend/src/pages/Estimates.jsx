@@ -43,34 +43,35 @@ const formatINR = (value) => {
 };
 
 import { useQuery } from '@tanstack/react-query';
+import { useEstimatesUrlState } from '../hooks/useEstimatesUrlState';
 
 const Estimates = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  const [page, setPage] = useState(1);
   const [limit] = useState(20);
   
-  const [hoTab, setHoTab] = useState('active'); // active | history for HO users
-  const [selectedFilter, setSelectedFilter] = useState('All'); // 'All' | 'Draft'
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  // Synchronized URL Routing & State Machine
+  const {
+    selectedFilter,
+    setSelectedFilter,
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    page,
+    setPage
+  } = useEstimatesUrlState();
 
   const isJE = user?.role === 'je' || user?.role === 'staff';
-  const isHO = user?.role === 'ho';
-
   // Fetch estimates list using React Query
   const { data: estimatesData, isLoading: loading, error: queryError } = useQuery({
-    queryKey: ['estimates', { page, view: isHO ? hoTab : undefined }],
+    queryKey: ['estimates', { page }],
     queryFn: async () => {
       const params = {
         page,
         limit
       };
-      
-      if (isHO) {
-        params.view = hoTab === 'history' ? 'history' : 'active';
-      }
       
       const response = await authApi.get('/estimates', { params });
       return response.data;
@@ -129,24 +130,6 @@ const Estimates = () => {
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 mt-1">Cost Estimate Sheets</h1>
             <p className="text-xs text-slate-400 font-medium mt-1.5">Manage, review, and track the workflow status of all cost estimate sheets.</p>
           </div>
-          {isHO && (
-            <div className="flex gap-2 bg-white/5 border border-white/10 p-1.5 rounded-xl">
-              <Button
-                onClick={() => { setHoTab('active'); setPage(1); }}
-                variant={hoTab === 'active' ? 'amber' : 'ghost'}
-                size="sm"
-              >
-                Active Queue
-              </Button>
-              <Button
-                onClick={() => { setHoTab('history'); setPage(1); }}
-                variant={hoTab === 'history' ? 'amber' : 'ghost'}
-                size="sm"
-              >
-                History Log
-              </Button>
-            </div>
-          )}
         </div>
 
         {displayError && (

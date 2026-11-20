@@ -74,7 +74,7 @@ export const FundFlowWaterfallChart = ({ data = [], projects = [], isModal = fal
       <div className="relative mt-1 flex-1 flex flex-col justify-center min-h-0">
         <svg viewBox={`0 0 ${W} ${H}`} className="w-full flex-1 min-h-[280px] drop-shadow-md" preserveAspectRatio="xMidYMid meet">
           <defs>
-            {Object.entries(STAGE_METADATA_MAP).map(([_k, m]) => (
+            {[...new Map(Object.values(STAGE_METADATA_MAP).map((m) => [m.gradId, m])).values()].map((m) => (
               <linearGradient key={m.gradId} id={m.gradId} x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor={m.color1} stopOpacity={c.isDark ? '0.85' : '0.95'} />
                 <stop offset="100%" stopColor={m.color2} stopOpacity={c.isDark ? '0.85' : '0.95'} />

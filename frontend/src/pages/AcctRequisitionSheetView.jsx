@@ -5,6 +5,7 @@ import { Button, SkeletonPage, Badge, Table, TableHeader, TableBody, TableRow, T
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import LineItemRow from '../components/acctRequisition/LineItemRow';
+import PayrollAccountsSheet from '../components/payroll/PayrollAccountsSheet';
 import BankBalanceBanner from '../components/acctRequisition/BankBalanceBanner';
 import BulkNeftExportButton from '../components/acctRequisition/BulkNeftExportButton';
 import ImportEligibleItemsModal from '../components/acctRequisition/ImportEligibleItemsModal';
@@ -85,7 +86,7 @@ const AcctRequisitionSheetView = () => {
   useEffect(() => {
     emptySheetCleanupRef.current = {
       id,
-      status: sheetDetail?.sheet_status,
+      status: sheetDetail?.payroll_run_id ? null : sheetDetail?.sheet_status,
       itemCount: sheetDetail?.items?.length ?? 0
     };
   });
@@ -188,7 +189,11 @@ const AcctRequisitionSheetView = () => {
   // of whatever was last cached.
   const handleBackToSheets = () => {
     queryClient.invalidateQueries({ queryKey: ['acctSheets'] });
-    navigate('/acct-requisitions');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/acct-requisitions');
+    }
   };
 
   // Patches the cached sheet's items in place instead of invalidating +
@@ -416,6 +421,7 @@ const AcctRequisitionSheetView = () => {
     URL.revokeObjectURL(link.href);
   };
 
+  if(sheetDetail.payroll_run_id)return <PayrollAccountsSheet sheetId={id}/>;
   return (
     <>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8 pb-6 border-b border-white/5">
@@ -605,8 +611,8 @@ const AcctRequisitionSheetView = () => {
               <Button variant="glass" size="sm" onClick={handleAddItem} loading={addingItem} title="Add line item (Ctrl+Alt+N)">
                 + Add Line Item
               </Button>
-              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import Held / Rejected / Pending Review items">
-                Import Held / Rejected
+              <Button variant="glass" size="sm" onClick={() => setShowImportModal(true)} title="Import from Import List (Held / Rejected / Pending Review items)">
+                Import List
               </Button>
               <Button variant="glass" size="sm" onClick={() => setShowCreditImportModal(true)} title="Pull an installment from an open credit purchase">
                 Import from Credit Ledger

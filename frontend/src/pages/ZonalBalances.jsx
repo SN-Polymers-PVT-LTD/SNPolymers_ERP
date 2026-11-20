@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthContext';
 import { getZonalBalances, getZonalLedger, reconcileZonalBalances } from '../api/zoBalancesApi';
+import { useZonalBalancesUrlState } from '../hooks/useZonalBalancesUrlState';
 
 const ZonalBalances = () => {
   const { user } = useAuth();
@@ -17,25 +18,28 @@ const ZonalBalances = () => {
   const [reconciling, setReconciling] = useState(false);
   const [reconcileResult, setReconcileResult] = useState(null);
 
-  // ZO Filter
-  const [selectedZo, setSelectedZo] = useState('');
+  const {
+    selectedZo,
+    selectZo,
+    clearZo,
+    searchQuery,
+    setSearchQuery,
+    sortKey,
+    sortAsc,
+    toggleSort,
+    balancesPage,
+    setBalancesPage,
+    page,
+    setPage,
+    resetFilters
+  } = useZonalBalancesUrlState();
 
   // Pagination for Ledger Logs
-  const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const limit = 15;
 
   // Pagination for Balances Table
-  const [balancesPage, setBalancesPage] = useState(1);
   const balancesLimit = 5;
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortKey, setSortKey] = useState('name');
-  const [sortAsc, setSortAsc] = useState(true);
-
-  // Reset balances pagination when search or ZO filter changes
-  useEffect(() => {
-    setBalancesPage(1);
-  }, [searchQuery, selectedZo]);
 
   const fetchBalances = async () => {
     setLoadingBalances(true);
@@ -77,9 +81,11 @@ const ZonalBalances = () => {
   }, [page, selectedZo]);
 
   const handleZoFilterChange = (zoId) => {
-    setSelectedZo(zoId);
-    setPage(1);
-    setBalancesPage(1);
+    if (zoId) {
+      selectZo(zoId);
+    } else {
+      clearZo();
+    }
   };
 
   const handleReconcile = async () => {
@@ -137,14 +143,7 @@ const ZonalBalances = () => {
   const totalBalancesPages = Math.ceil(sortedBalances.length / balancesLimit);
   const currentBalances = sortedBalances.slice((balancesPage - 1) * balancesLimit, balancesPage * balancesLimit);
 
-  const toggleSort = (key) => {
-    if (sortKey === key) {
-      setSortAsc(!sortAsc);
-    } else {
-      setSortKey(key);
-      setSortAsc(key === 'name');
-    }
-  };
+
 
   const renderSortIcon = (key) => {
     if (sortKey !== key) return <span className="text-slate-500 ml-1 opacity-70">↕</span>;
@@ -238,6 +237,15 @@ const ZonalBalances = () => {
               </button>
             )}
           </div>
+
+          {(selectedZo || searchQuery) && (
+            <button
+              onClick={resetFilters}
+              className="text-xs font-bold text-slate-400 hover:text-amber-400 uppercase tracking-wider px-3 py-2 rounded-xl bg-white/5 border border-white/5 hover:border-amber-500/30 transition shrink-0"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       )}
 
@@ -309,10 +317,28 @@ const ZonalBalances = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5 text-xs font-semibold text-slate-300">
-                      {currentBalances.map((b) => (
-                        <tr key={b.zo_user_id} className="hover:bg-white/2 transition-all">
+                      {currentBalances.map((b) => {
+                        const isSelected = selectedZo === b.zo_user_id;
+                        return (
+                        <tr
+                          key={b.zo_user_id}
+                          onClick={() => handleZoFilterChange(isSelected ? '' : b.zo_user_id)}
+                          className={`cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-amber-500/10 border-l-2 border-amber-500'
+                              : 'hover:bg-white/2'
+                          }`}
+                          title={isSelected ? 'Click to deselect filter' : 'Click to filter ledger by this Zonal Office'}
+                        >
                           <td className="px-6 py-4">
-                            <div className="text-slate-200 font-bold">{b.zo_name || b.zo_user_id}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-slate-200 font-bold">{b.zo_name || b.zo_user_id}</div>
+                              {isSelected && (
+                                <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                  Filtered
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-slate-500 font-normal">{b.zo_user_id}</div>
                           </td>
                           <td className="px-6 py-4 text-base font-extrabold text-amber-500 font-mono">
@@ -322,7 +348,8 @@ const ZonalBalances = () => {
                             {new Date(b.updated_at).toLocaleString()}
                           </td>
                         </tr>
-                      ))}
+                      );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -367,9 +394,17 @@ const ZonalBalances = () => {
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Transaction Ledger Logs</h2>
             {selectedZo && (
-              <span className="text-[10px] text-amber-400 font-medium block mt-0.5">
-                Filtered by selected Zonal Office
-              </span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[10px] text-amber-400 font-medium">
+                  Filtered by selected Zonal Office ({selectedZo})
+                </span>
+                <button
+                  onClick={clearZo}
+                  className="text-[10px] font-bold text-slate-400 hover:text-amber-400 uppercase tracking-wider underline transition"
+                >
+                  &times; Show All
+                </button>
+              </div>
             )}
           </div>
         </div>

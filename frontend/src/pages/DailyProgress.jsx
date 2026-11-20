@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDailyProgressUrlState } from '../hooks/useDailyProgressUrlState';
 import { useAuth } from '../components/AuthContext';
 import authApi from '../api/authApi';
 import { Button, Input, TextArea, Badge, Modal, Table, TableHeader, TableBody, TableRow, TableCell, Pagination } from '../components/ui';
@@ -30,21 +31,37 @@ const DailyProgress = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Tab control states: 'dashboard' or 'directory'
-  const [currentTab, setCurrentTab] = useState('dashboard');
-  const [activeWO, setActiveWO] = useState(null); // Selected project object (for spreadsheet view)
+  const {
+    currentTab,
+    setCurrentTab,
+    activeWONo,
+    selectWO,
+    clearWO,
+    searchWO,
+    setSearchWO,
+    searchDept,
+    setSearchDept,
+    searchZone,
+    setSearchZone,
+    dirPage,
+    setDirPage,
+    pageFeed,
+    setPageFeed,
+    showCreateFlow,
+    openCreateFlow,
+    closeCreateFlow,
+    showBreakRequestFlow,
+    openBreakRequestFlow,
+    closeBreakRequestFlow
+  } = useDailyProgressUrlState();
+
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const queryClient = useQueryClient();
 
-  // Page layout toggles
-  const [showCreateFlow, setShowCreateFlow] = useState(false);
   const [activeReport, setActiveReport] = useState(null); // Detail modal target
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
-
-  // Activity Break flow state
-  const [showBreakRequestFlow, setShowBreakRequestFlow] = useState(false);
   const [breakActionTarget, setBreakActionTarget] = useState(null); // break record for ZO/HO action modal
   const [reopenTarget, setReopenTarget] = useState(null);           // break record for reopen modal
 
@@ -127,16 +144,8 @@ const DailyProgress = () => {
   const [uploadError, setUploadError] = useState('');
   const [photoMissing, setPhotoMissing] = useState(false);
 
-  // Project Search Filters & Pagination (Directory tab)
-  const [searchWO, setSearchWO] = useState('');
-  const [searchDept, setSearchDept] = useState('');
-  const [searchZone, setSearchZone] = useState('');
-  const [dirPage, setDirPage] = useState(1);
+  // Directory Page Size
   const dirPageSize = 10;
-
-  useEffect(() => {
-    setDirPage(1);
-  }, [searchWO, searchDept, searchZone]);
 
   const fileInputRef = useRef(null);
 
@@ -144,7 +153,6 @@ const DailyProgress = () => {
   const isAuthority = ['zo', 'ho', 'admin'].includes(user?.role);
 
   const [streak, setStreak] = useState(0);
-  const [pageFeed, setPageFeed] = useState(1);
   const feedPageSize = 5;
 
   useEffect(() => {
@@ -188,6 +196,13 @@ const DailyProgress = () => {
     },
     staleTime: 120 * 1000
   });
+
+  const projects = projectsData || STABLE_EMPTY_ARRAY;
+  const activeWO = useMemo(() => {
+    if (!activeWONo) return null;
+    const found = projects.find(p => p.work_order_no === activeWONo);
+    return found || { work_order_no: activeWONo };
+  }, [projects, activeWONo]);
 
   // Fetch latest global progress reports using React Query
   const { data: allReportsData, isLoading: loadingAllReports, error: allReportsError } = useQuery({
@@ -234,7 +249,6 @@ const DailyProgress = () => {
     staleTime: 30 * 1000
   });
 
-  const projects = projectsData || [];
   const allReports = allReportsData || [];
   const reports = projectReportsData || STABLE_EMPTY_ARRAY;
   const loading = loadingAllReports || (activeWO ? loadingProjectReports : false);
@@ -433,7 +447,7 @@ const DailyProgress = () => {
       await createProgressReport(payload);
       setSuccess('Daily progress report row submitted successfully.');
       resetForm();
-      setShowCreateFlow(false);
+      closeCreateFlow();
       queryClient.invalidateQueries({ queryKey: ['progressReports'] });
     } catch (err) {
       console.error('Report submission failed:', err);
@@ -663,9 +677,9 @@ const DailyProgress = () => {
               <div className="flex justify-between items-center pb-4 border-b border-white/5">
                 <button
                   onClick={() => {
-                    setActiveWO(null);
+                    clearWO();
                     setActiveReport(null);
-                    setShowCreateFlow(false);
+                    closeCreateFlow();
                   }}
                   className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-emerald-500 hover:text-emerald-400 transition"
                 >
@@ -755,7 +769,7 @@ const DailyProgress = () => {
                     {/* §10.4 - Request Activity Break button */}
                     {isJE && activeWO.status === 'Running' && !activeBreakForThisWO && !showCreateFlow && (
                       <button
-                        onClick={() => setShowBreakRequestFlow(true)}
+                        onClick={() => openBreakRequestFlow()}
                         className="bg-amber-500/10 border border-amber-500/30 hover:border-amber-500/50 text-amber-400 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition flex items-center gap-1.5"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -766,7 +780,7 @@ const DailyProgress = () => {
                     )}
                     {isJE && activeWO.status === 'Running' && !showCreateFlow && !activeApprovedBreak && (
                       <button
-                        onClick={() => setShowCreateFlow(true)}
+                        onClick={() => openCreateFlow()}
                         className="bg-white hover:bg-slate-100 text-slate-950 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition shadow flex items-center gap-1.5"
                       >
                         <svg className="w-3.5 h-3.5 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1018,7 +1032,7 @@ const DailyProgress = () => {
                               size="xs"
                               onClick={() => {
                                 resetForm();
-                                setShowCreateFlow(false);
+                                closeCreateFlow();
                               }}
                             >
                               Cancel
@@ -1251,7 +1265,7 @@ const DailyProgress = () => {
                                   <div key={p.work_order_no} className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/5 text-xs">
                                     <span className="font-mono font-bold text-slate-200">{p.work_order_no}</span>
                                     <button
-                                      onClick={() => setActiveWO(p)}
+                                      onClick={() => selectWO(p.work_order_no)}
                                       className="text-[10px] uppercase font-extrabold text-emerald-500 hover:text-emerald-400"
                                     >
                                       Log Site Visit
@@ -1292,7 +1306,7 @@ const DailyProgress = () => {
                                       <div className="flex items-center gap-3 shrink-0">
                                         <span className="font-mono font-bold text-emerald-400 text-sm">{latestProgress}%</span>
                                         <button
-                                          onClick={() => setActiveWO(project)}
+                                          onClick={() => selectWO(project.work_order_no)}
                                           className="px-3 py-1.5 bg-white text-slate-950 text-[10px] font-bold uppercase tracking-wider rounded-lg transition"
                                         >
                                           Sheet
@@ -1470,7 +1484,7 @@ const DailyProgress = () => {
                                   <div key={p.work_order_no} className="flex justify-between items-center bg-white/90 dark:bg-black/10 p-2.5 rounded-xl border border-rose-200 dark:border-white/5 text-xs shadow-sm">
                                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{p.work_order_no}</span>
                                     <button
-                                      onClick={() => setActiveWO(p)}
+                                      onClick={() => selectWO(p.work_order_no)}
                                       className="text-[10px] uppercase font-extrabold text-rose-600 dark:text-red-400 hover:text-rose-700 dark:hover:text-red-300 transition-colors"
                                     >
                                       View History
@@ -1659,7 +1673,7 @@ const DailyProgress = () => {
                                 </TableCell>
                                 <TableCell className="pr-6" align="right" size="sm">
                                   <Button
-                                    onClick={() => setActiveWO(project)}
+                                    onClick={() => selectWO(project.work_order_no)}
                                     size="xs"
                                   >
                                     View Ledger Sheet
@@ -1902,7 +1916,7 @@ const DailyProgress = () => {
             <NewBreakRequestModal
               user={user}
               workOrderNo={activeWO?.work_order_no}
-              onClose={() => setShowBreakRequestFlow(false)}
+              onClose={() => closeBreakRequestFlow()}
               onSave={async (payload) => {
                 await createActivityBreak(payload);
                 queryClient.invalidateQueries({ queryKey: ['activityBreaks'] });

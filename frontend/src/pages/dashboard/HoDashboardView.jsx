@@ -85,7 +85,7 @@ const HoDashboardView = () => {
 
   // 4. Fetch all projects and project health data (which includes latest_progress from project_health_mv)
   const projectsQ = useQuery({
-    queryKey: ['dashboardProjects'],
+    queryKey: ['dashboardProjects', user?.mobile_number || user?.id],
     queryFn: async () => {
       const res = await authApi.get('/projects');
       return res.data;
@@ -404,6 +404,22 @@ const HoDashboardView = () => {
               </Link>
               <Link to="/analytics/ho" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 hover:bg-amber-500/5 text-slate-300 hover:text-amber-400 transition">
                 <span className="text-xs font-bold uppercase tracking-wider">Portfolio Analytics</span>
+                <span className="text-sm font-black">&rarr;</span>
+              </Link>
+              <Link to="/hr/payroll/review" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-emerald-500/30 hover:bg-emerald-500/5 text-slate-300 hover:text-emerald-400 transition">
+                <span className="text-xs font-bold uppercase tracking-wider">Approve Payroll Runs</span>
+                <span className="text-sm font-black">&rarr;</span>
+              </Link>
+              <Link to="/hr/payroll/register" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-amber-500/30 hover:bg-amber-500/5 text-slate-300 hover:text-amber-400 transition">
+                <span className="text-xs font-bold uppercase tracking-wider">Payroll Salary Register</span>
+                <span className="text-sm font-black">&rarr;</span>
+              </Link>
+              <Link to="/hr/payroll/previews" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/30 hover:bg-indigo-500/5 text-slate-300 hover:text-indigo-400 transition">
+                <span className="text-xs font-bold uppercase tracking-wider">Draft Payroll Previews</span>
+                <span className="text-sm font-black">&rarr;</span>
+              </Link>
+              <Link to="/factory-attendance/review" className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-sky-500/30 hover:bg-sky-500/5 text-slate-300 hover:text-sky-400 transition">
+                <span className="text-xs font-bold uppercase tracking-wider">Attendance Review Queue</span>
                 <span className="text-sm font-black">&rarr;</span>
               </Link>
             </div>

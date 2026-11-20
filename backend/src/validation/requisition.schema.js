@@ -16,6 +16,8 @@ const createRequisitionSchema = {
     material_main_head: z.string({ required_error: 'material_main_head is required.' }).trim().min(1, 'material_main_head is required.'),
     material_sub_head: z.string().trim().optional().nullable(),
     material_details: z.string().trim().optional().nullable(),
+    subcontractor_id: z.string().regex(uuidRegex, 'Invalid subcontractor ID.').optional().nullable(),
+    subcontract_work_id: z.string().regex(uuidRegex, 'Invalid subcontract work ID.').optional().nullable(),
     requisition_pdf_attachment_id: z.string({ required_error: 'requisition_pdf_attachment_id is required. Upload the PDF first.' })
       .regex(uuidRegex, 'Invalid requisition PDF attachment ID. Upload the PDF first.'),
     // Now the only human-readable filename source once storage paths are UUID-based
@@ -31,23 +33,25 @@ const createRequisitionSchema = {
     gst_bill_pdf_attachment_id: z.string().regex(uuidRegex, 'Invalid GST bill attachment ID.').optional().nullable(),
     bank_details: z.string().trim().optional().nullable(),
     beneficiary_id: z.string().regex(uuidRegex, 'Invalid beneficiary ID.').optional().nullable(),
-    beneficiary_name: z.string({ required_error: 'Beneficiary name is required.' })
-      .trim().min(1, 'Beneficiary name is required.'),
-    beneficiary_ac_no: z.string({ required_error: 'Beneficiary account number is required.' })
-      .trim().regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.'),
-    beneficiary_ifsc: z.string({ required_error: 'Beneficiary IFSC is required.' })
-      .trim().toUpperCase().regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.'),
+    beneficiary_name: z.string().trim().min(1, 'Beneficiary name is required.').optional().nullable(),
+    beneficiary_ac_no: z.string().trim().regex(accountNumberRegex, 'beneficiary_ac_no must be 9-18 digits.').optional().nullable(),
+    beneficiary_ifsc: z.string().trim().toUpperCase().regex(ifscRegex, 'beneficiary_ifsc must be 11-char in format AAAA0XXXXXX.').optional().nullable(),
     beneficiary_bank_name: z.string().trim().optional().nullable(),
-    beneficiary_bank_id: z.string({ required_error: 'Beneficiary bank is required.' })
-      .regex(uuidRegex, 'Invalid bank ID.'),
+    beneficiary_bank_id: z.string().regex(uuidRegex, 'Invalid bank ID.').optional().nullable(),
     expen_head_remarks: z.string().optional().nullable()
   }).refine(data => data.gst_bill !== 'Yes' || (data.gst_bill_pdf_attachment_id && data.gst_bill_pdf_attachment_id.trim() !== ''), {
     message: "gst_bill_pdf_attachment_id is required when GST Bill is 'Yes'.",
     path: ['gst_bill_pdf_attachment_id']
-  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.material_sub_head?.trim() && data.material_details?.trim()), {
-    message: 'material_sub_head and material_details are required when material_main_head is Sub Contractor.',
-    path: ['material_sub_head']
-  })
+  }).refine(data => data.material_main_head?.trim() !== 'Sub Contractor' || (data.subcontractor_id && data.subcontract_work_id), {
+    message: 'subcontractor_id and subcontract_work_id are required when material_main_head is Sub Contractor.',
+    path: ['subcontractor_id']
+  }).refine(
+    data => Boolean(data.beneficiary_id) || Boolean(data.beneficiary_name && data.beneficiary_ac_no && data.beneficiary_ifsc && data.beneficiary_bank_id),
+    {
+      message: 'Either a beneficiary_id or complete beneficiary details (name, account number, IFSC, and bank ID) must be provided.',
+      path: ['beneficiary_name']
+    }
+  )
 };
 
 const upsertProjectsBeneficiarySchema = {

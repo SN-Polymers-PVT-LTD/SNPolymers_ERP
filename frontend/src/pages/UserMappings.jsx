@@ -3,6 +3,7 @@ import { useAuth } from '../components/AuthContext';
 import Modal from '../components/ui/Modal';
 import { SkeletonTable, Pagination, SuccessPopup, ErrorPopup } from '../components/ui';
 import { getUserMappings, createUserMapping, deactivateUserMapping, getEligibleJEs, getEligibleZOs } from '../api/userMappingsApi';
+import { useUserMappingsUrlState } from '../hooks/useUserMappingsUrlState';
 
 const UserMappings = () => {
   const { user } = useAuth();
@@ -18,36 +19,38 @@ const UserMappings = () => {
   const [eligibleZOs, setEligibleZOs] = useState([]);
   const [loadingOptions, setLoadingOptions] = useState(false);
 
+  const {
+    activeTab,
+    setActiveTab,
+    searchQuery,
+    setSearchQuery,
+    pageSize,
+    setPageSize,
+    page,
+    setPage,
+    showModal,
+    openModal,
+    closeModal,
+    showUnmapModal,
+    unmappingId,
+    openUnmapModal,
+    closeUnmapModal
+  } = useUserMappingsUrlState();
+
   // Modal state
-  const [showModal, setShowModal] = useState(false);
   const [selectedJE, setSelectedJE] = useState('');
   const [selectedZO, setSelectedZO] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState('');
 
-  // Active Assignments / History tabs - separate mental models, not a filter toggle
-  // on one flat table (deactivated rows are audit history, not "just another status").
-  const [activeTab, setActiveTab] = useState('active'); // 'active', 'history'
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Unmap (deactivate without transfer) modal state
-  const [showUnmapModal, setShowUnmapModal] = useState(false);
-  const [unmappingId, setUnmappingId] = useState(null);
+  // Unmap modal state
   const [submittingUnmap, setSubmittingUnmap] = useState(false);
   const [unmapError, setUnmapError] = useState('');
 
-  // Pagination & Modal JE Search
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  // Modal selection search & pagination
   const [jeSearch, setJeSearch] = useState('');
   const [jePage, setJePage] = useState(1);
   const jeLimit = 5;
-
-  useEffect(() => {
-    Promise.resolve().then(() => {
-      setPage(1);
-    });
-  }, [searchQuery, activeTab, pageSize]);
 
   const fetchMappings = async () => {
     setLoading(true);
@@ -118,7 +121,7 @@ const UserMappings = () => {
     setJePage(1);
     setZoSearch('');
     setZoPage(1);
-    setShowModal(true);
+    openModal();
   };
 
   const handleCreateMapping = async (e) => {
@@ -140,7 +143,7 @@ const UserMappings = () => {
 
       if (response.data?.success) {
         setSuccess(response.data.message || 'JE successfully mapped.');
-        setShowModal(false);
+        closeModal();
         fetchMappings();
         // Refresh JEs to update their current ZO mappings
         fetchDropdownOptions();
@@ -156,8 +159,7 @@ const UserMappings = () => {
 
   const handleOpenUnmapModal = (id) => {
     setUnmapError('');
-    setUnmappingId(id);
-    setShowUnmapModal(true);
+    openUnmapModal(id);
   };
 
   const handleUnmap = async (e) => {
@@ -172,7 +174,7 @@ const UserMappings = () => {
       const response = await deactivateUserMapping(unmappingId);
       if (response.data?.success) {
         setSuccess(response.data.message || 'Junior Engineer unmapped.');
-        setShowUnmapModal(false);
+        closeUnmapModal();
         fetchMappings();
         fetchDropdownOptions();
       }
@@ -395,7 +397,7 @@ const UserMappings = () => {
       {/* Assign / Transfer Modal */}
       <Modal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={closeModal}
         title="Assign / Transfer Junior Engineer"
         subtitle="Zonal Administration Settings"
         size="md"
@@ -611,7 +613,7 @@ const UserMappings = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={() => setShowModal(false)}
+              onClick={closeModal}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submitting}
             >
@@ -632,7 +634,7 @@ const UserMappings = () => {
           immediate replacement (previously only possible implicitly via transfer). */}
       <Modal
         isOpen={showUnmapModal}
-        onClose={() => setShowUnmapModal(false)}
+        onClose={closeUnmapModal}
         title="Unmap Junior Engineer"
         subtitle="Zonal Administration Settings"
         size="sm"
@@ -653,7 +655,7 @@ const UserMappings = () => {
           <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
             <button
               type="button"
-              onClick={() => setShowUnmapModal(false)}
+              onClick={closeUnmapModal}
               className="px-4 py-2.5 rounded-xl text-xs font-bold uppercase border border-white/10 text-slate-300 hover:bg-white/5 transition"
               disabled={submittingUnmap}
             >

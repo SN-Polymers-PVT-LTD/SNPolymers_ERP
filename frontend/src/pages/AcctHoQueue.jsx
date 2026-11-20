@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import {formatINR as exactINR,sumCurrency,payrollGroupName} from '../utils/payrollDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../components/AuthContext';
 import { Button, Input, Badge, SkeletonTable, Pagination, Table, TableHeader, TableBody, TableRow, TableCell } from '../components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { getSheets } from '../api/acctRequisitionsApi';
+import { useAcctHoQueueUrlState } from '../hooks/useAcctHoQueueUrlState';
 
 const STATUS_TABS = [
   { value: 'Submitted', label: 'Pending Review', emptyText: 'No submitted sheets pending review.' },
@@ -30,23 +31,23 @@ const AcctHoQueue = () => {
   const navigate = useNavigate();
 
   const isHoUser = user?.role === 'ho' || user?.role === 'admin';
-  const [statusFilter, setStatusFilter] = useState('Submitted');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [page, setPage] = useState(1);
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    dateFrom,
+    setDateFrom,
+    dateTo,
+    setDateTo,
+    page,
+    setPage,
+    resetFilters
+  } = useAcctHoQueueUrlState();
   const activeTab = STATUS_TABS.find((t) => t.value === statusFilter) || STATUS_TABS[0];
 
   const handleStatusChange = (value) => {
     setStatusFilter(value);
-    setPage(1);
-  };
-
-  const resetFilters = () => {
-    setSearchQuery('');
-    setDateFrom('');
-    setDateTo('');
-    setPage(1);
   };
 
   // A sheet moves from Submitted to Reviewed automatically once every item
@@ -78,7 +79,7 @@ const AcctHoQueue = () => {
     return <div className="p-8 text-center text-slate-400 text-sm">Access denied.</div>;
   }
 
-  const totalAmount = sheets.reduce((sum, s) => sum + Number(s.total_req_amount || 0), 0);
+  const totalAmount = sumCurrency(sheets.map(s=>s.total_req_amount));
 
   return (
     <>
@@ -106,7 +107,7 @@ const AcctHoQueue = () => {
         </div>
         <div className="flex-1">
           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-500 block mb-1">Total Requested (this page)</span>
-          <span className="text-2xl font-black text-amber-400 font-mono">{formatINR(totalAmount)}</span>
+          <span className="text-2xl font-black text-amber-400 font-mono">{exactINR(totalAmount)||'Unavailable'}</span>
         </div>
       </div>
 
@@ -225,6 +226,7 @@ const AcctHoQueue = () => {
                       <TableRow key={sheet.id} onClick={() => navigate(`/acct-requisitions/ho-queue/sheets/${sheet.id}`)} interactive>
                         <TableCell>
                           <span className="text-sm font-black text-amber-500 font-mono tracking-wide">{sheet.sheet_number}</span>
+                          {sheet.payroll_run_id&&<><Badge variant="amber">Payroll</Badge><div className="text-xs mt-2">{sheet.department} · {payrollGroupName(sheet.group_code)} · {sheet.period_from} to {sheet.period_to}</div></>}
                         </TableCell>
                         <TableCell>
                           <Badge variant={sheet.sheet_status === 'Reviewed' ? 'emerald' : 'blue'} showDot={false}>{sheet.sheet_status}</Badge>
@@ -236,7 +238,7 @@ const AcctHoQueue = () => {
                           <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{formatDate(sheet.submitted_at)}</span>
                         </TableCell>
                         <TableCell align="right">
-                          <span className="text-sm font-black text-slate-200 font-mono">{formatINR(sheet.total_req_amount)}</span>
+                          <span className="text-sm font-black text-slate-200 font-mono">{sheet.payroll_run_id?exactINR(sheet.total_req_amount):formatINR(sheet.total_req_amount)}</span>
                         </TableCell>
                         <TableCell align="right">
                           <span className="inline-flex h-8 w-8 rounded-xl bg-white/5 group-hover:bg-white/10 border border-white/5 group-hover:border-white/10 items-center justify-center text-slate-400 group-hover:text-slate-200 transition-all duration-300">

@@ -51,6 +51,12 @@ async function saveDraftItems(req, res) {
     (existingItems || []).forEach(item => {
       existingMap[item.item_id] = item;
     });
+    const manualItems = items.filter(item => (
+      !item.item_id || existingMap[item.item_id]?.source_type !== 'SUBCONTRACT_ESTIMATE'
+    ));
+    const existingManualMap = Object.fromEntries(
+      Object.entries(existingMap).filter(([, item]) => item.source_type !== 'SUBCONTRACT_ESTIMATE')
+    );
 
     const isZoRevision = estimate.estimate_status === ESTIMATE_STATUS.ZO_REVISION_REQUESTED;
     const isHoRevision = estimate.estimate_status === ESTIMATE_STATUS.HO_REVISION_REQUESTED;
@@ -58,10 +64,10 @@ async function saveDraftItems(req, res) {
     // Batch fetch materials with a composite lookup strategy to avoid correctness/uniqueness bugs
     // We fetch in chunks of 40 to avoid URL length limitations on large estimate batches (e.g. 500 items)
     let masterMats = [];
-    if (items.length > 0) {
+    if (manualItems.length > 0) {
       const CHUNK_SIZE = 40;
-      for (let i = 0; i < items.length; i += CHUNK_SIZE) {
-        const chunk = items.slice(i, i + CHUNK_SIZE);
+      for (let i = 0; i < manualItems.length; i += CHUNK_SIZE) {
+        const chunk = manualItems.slice(i, i + CHUNK_SIZE);
         const orConditions = chunk.map(item => {
           const escapedMain = item.material_main_head.replace(/"/g, '\\"');
           const escapedSub = item.material_sub_head.replace(/"/g, '\\"');
@@ -87,7 +93,7 @@ async function saveDraftItems(req, res) {
       masterMatMap[key] = mat;
     });
 
-    for (const item of items) {
+    for (const item of manualItems) {
       const key = `${item.material_main_head}|||${item.material_sub_head}|||${item.material_details}`;
       const masterMat = masterMatMap[key];
 
@@ -144,7 +150,7 @@ async function saveDraftItems(req, res) {
 
     const isJE = ['je', 'staff'].includes(req.user.role);
     if (isJE) {
-      for (const item of items) {
+      for (const item of manualItems) {
         const prevItem = item.item_id ? existingMap[item.item_id] : null;
         const prevSource = prevItem ? prevItem.source_of_purchase : null;
         if (item.source_of_purchase && item.source_of_purchase !== prevSource) {
@@ -153,7 +159,7 @@ async function saveDraftItems(req, res) {
       }
     }
 
-    const payloadItems = items.map(item => {
+    const payloadItems = manualItems.map(item => {
       let item_id = item.item_id;
       if (!item_id) {
         item_id = crypto.randomUUID();
@@ -178,7 +184,7 @@ async function saveDraftItems(req, res) {
     });
 
     const payloadIds = payloadItems.map(item => item.item_id);
-    const toDeleteIds = Object.keys(existingMap).filter(itemId => !payloadIds.includes(itemId));
+    const toDeleteIds = Object.keys(existingManualMap).filter(itemId => !payloadIds.includes(itemId));
 
     if (toDeleteIds.length > 0) {
       let deleteQuery = supabase
@@ -331,7 +337,7 @@ async function submitRowApprovals(req, res) {
     // Verify all items exist and belong to this estimate
     const { data: dbItems, error: itemsFetchError } = await supabase
       .from('project_cost_estimate_items')
-      .select('item_id, zo_office_approve, ho_office_approve, zo_remarks, ho_remarks, source_of_purchase')
+      .select('item_id, zo_office_approve, ho_office_approve, zo_remarks, ho_remarks, source_of_purchase, source_type')
       .eq('estimate_id', id)
       .in('item_id', itemIds);
 
@@ -373,7 +379,7 @@ async function submitRowApprovals(req, res) {
     const canUpdateSource = ['ho', 'admin'].includes(effectiveRole);
     if (canUpdateSource) {
       for (const app of approvals) {
-        if ('source_of_purchase' in app) {
+        if ('source_of_purchase' in app && dbItemMap[app.item_id].source_type !== 'SUBCONTRACT_ESTIMATE') {
           const { error: updateSourceErr } = await supabase
             .from('project_cost_estimate_items')
             .update({ source_of_purchase: (app.source_of_purchase && app.source_of_purchase !== '') ? app.source_of_purchase : null })

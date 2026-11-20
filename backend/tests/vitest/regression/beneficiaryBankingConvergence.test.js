@@ -17,13 +17,15 @@ const {
   createRequisitionSchema
 } = require('../../../src/validation/requisition.schema');
 const {
-  createRequisition
+  createRequisition,
+  upsertIndianBank: upsertProjectBank
 } = require('../../../src/controllers/requisitions.controller');
 const {
   createSheet,
   addLineItem,
   updateLineItem,
-  upsertBeneficiary
+  upsertBeneficiary,
+  upsertIndianBank: upsertAccountsBank
 } = require('../../../src/controllers/acctRequisition.controller');
 const { supabase } = require('../../../src/db/supabase');
 
@@ -328,18 +330,31 @@ describe('Part 1 — Beneficiary Banking Convergence Suite', () => {
     });
   });
 
-  describe('5. Admin-Only Attribution Convention', () => {
-    test('all rows in indian_bank_master have created_by set to an admin user', async () => {
-      const { data: banks } = await supabase
-        .from('indian_bank_master')
-        .select('bank_name, created_by, authorised_users!created_by(role)')
-        .limit(10);
+  test.each([
+    ['accounts', upsertAccountsBank, 'accountsMobile', 'admin', upsertProjectBank, 'adminMobile'],
+    ['admin', upsertProjectBank, 'adminMobile', 'accounts', upsertAccountsBank, 'accountsMobile']
+  ])('preserves the %s creator when another user updates the bank', async (
+    creatorRole, create, creatorKey, editorRole, edit, editorKey
+  ) => {
+    const bankName = 'Synthetic audit bank ' + require('node:crypto').randomUUID();
+    const creator = ctx[creatorKey];
+    const editor = ctx[editorKey];
+    try {
+      const created = mockRes();
+      await create({ body: { bank_name: bankName }, user: { role: creatorRole, mobile_number: creator } }, created);
+      expect(created.statusCode).toBe(200);
+      const bank = created.jsonData.indianBank;
+      expect(bank).toMatchObject({ created_by: creator, updated_by: creator, is_active: true });
 
-      expect(banks.length).toBeGreaterThan(0);
-      for (const bank of banks) {
-        expect(bank.created_by).toBeTruthy();
-        expect(bank.authorised_users?.role?.toLowerCase()).toContain('admin');
-      }
-    });
+      const edited = mockRes();
+      await edit({ body: { bank_name: bankName, is_active: false }, user: { role: editorRole, mobile_number: editor } }, edited);
+      expect(edited.statusCode).toBe(200);
+      expect(edited.jsonData.indianBank).toMatchObject({
+        id: bank.id, created_at: bank.created_at, created_by: creator, updated_by: editor, is_active: false
+      });
+    } finally {
+      const { error } = await supabase.from('indian_bank_master').delete().eq('bank_name', bankName);
+      if (error) throw error;
+    }
   });
 });
